@@ -115,15 +115,17 @@ function handle_meta($a) {
   $in = body();
   if (in_array($a, ['feed', 'sync', 'ack'])) need('leads', $a !== 'feed');
   if ($a === 'feed') {
-    out(['leads' => rows("SELECT id,name,phone,city,created,meta_campaign,meta_form,meta_ad,notes,source,status FROM leads WHERE notify=1 ORDER BY created DESC LIMIT 50"),
-      'count' => (int)row('SELECT COUNT(*) c FROM leads WHERE notify=1')['c'], 'state' => meta_public_state()]);
+    $sc = lead_scope('l');
+    out(['leads' => array_map('lead_mask', rows("SELECT l.id,l.name,l.phone,l.email,l.city,l.created,l.meta_campaign,l.meta_form,l.meta_ad,l.notes,l.source,l.status,l.assigned_to,u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE l.notify=1 AND $sc ORDER BY l.created DESC LIMIT 50")),
+      'count' => (int)row("SELECT COUNT(*) c FROM leads l WHERE l.notify=1 AND $sc")['c'], 'state' => meta_public_state()]);
   }
   if ($a === 'sync') { $r = meta_sync(!empty($in['manual']) ? 20 : 1500); out($r + ['state' => meta_public_state()]); }
   if ($a === 'ack') {
     $id = (int)($in['id'] ?? 0);
+    if (!empty($in['all'])) { q('UPDATE leads SET notify=0 WHERE notify=1 AND ' . (is_admin() ? '1=1' : 'assigned_to=' . uid())); out(['ok' => true]); }
+    lead_need_write(lead_or_404($id));
     if (!empty($in['contacted'])) q("UPDATE leads SET notify=0, status=CASE WHEN status='New' THEN 'Contacted' ELSE status END, updated=CURRENT_TIMESTAMP WHERE id=?", [$id]);
     else q('UPDATE leads SET notify=0, updated=CURRENT_TIMESTAMP WHERE id=?', [$id]);
-    if (!empty($in['all'])) q('UPDATE leads SET notify=0 WHERE notify=1');
     audit('ack', 'leads', $id, !empty($in['contacted']) ? 'contacted' : 'seen'); out(['ok' => true]);
   }
   if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);

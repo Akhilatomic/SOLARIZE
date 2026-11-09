@@ -210,3 +210,9 @@ main.pg-dashboard{max-width:none;padding-left:28px;padding-right:28px}
 @media(max-width:1200px){.dg .s3{grid-column:span 6}.dg .s6,.dg .s8{grid-column:span 12}.dg .s4{grid-column:span 6}}
 @media(max-width:760px){.dg .s2,.dg .s3{grid-column:span 6}.dg .s4{grid-column:span 12}main.pg-dashboard{padding-left:14px;padding-right:14px}.dhead{flex-direction:column;align-items:flex-start}}
 @media(max-width:480px){.dg .s2,.dg .s3{grid-column:span 12}}
+
+/* lead claiming */
+.own{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;white-space:nowrap}.own .i{width:13px;height:13px;color:var(--mut)}.own.me{color:var(--pri)}.own.me .i{color:var(--pri)}
+#ltb td.ownc{white-space:nowrap}.btn.claim{background:var(--tx);color:#fff}.btn.claim:hover{background:#3a3a3c}
+.lockbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--fill);border-radius:12px;padding:10px 12px;margin:-4px 0 6px;font-size:13px}
+main.pg-leads .bar select{max-width:175px}main.pg-leads #lq{max-width:290px!important}

@@ -34,7 +34,7 @@ function login_as($u) { session_regenerate_id(true); $_SESSION['uid'] = (int)$u[
 function me() {
   if (empty($_SESSION['uid'])) return null;
   $r = ROLES[$_SESSION['role']];
-  return ['id' => $_SESSION['uid'], 'name' => $_SESSION['name'], 'username' => $_SESSION['username'], 'role' => $_SESSION['role'], 'read' => $r[0], 'write' => $r[1]];
+  return ['id' => $_SESSION['uid'], 'name' => $_SESSION['name'], 'username' => $_SESSION['username'], 'role' => $_SESSION['role'], 'read' => $r[0], 'write' => $r[1], 'can_claim' => can_claim() ? 1 : 0];
 }
 
 function handle_crud($t, $a) {
@@ -42,6 +42,7 @@ function handle_crud($t, $a) {
   [$mod, $cols] = $E[$t];
   $in = body();
   need($mod, in_array($a, ['save', 'delete', 'convert']));
+  if ($t === 'leads') lead_guard($a, $in);
   switch ($a) {
     case 'list':
       if ($t === 'projects') out(rows('SELECT p.*, c.name customer, c.phone, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p LEFT JOIN customers c ON c.id=p.customer_id ORDER BY p.updated DESC'));
@@ -61,13 +62,15 @@ function handle_crud($t, $a) {
       if ($t === 'leads' && $v['status'] === '') $v['status'] = 'New';
       if (!empty($in['id'])) {
         $id = (int)$in['id'];
-        if ($t === 'leads') { $keep = ['added_by','meta_id','meta_form','meta_ad','meta_campaign','notify']; foreach ($keep as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $keep)); }
+        if ($t === 'leads') { $keep = ['added_by','meta_id','meta_form','meta_ad','meta_campaign','notify','assigned_to','claimed_at']; foreach ($keep as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $keep)); }
         $set = implode(',', array_map(fn($c) => "$c=:$c", $cols));
         $v['id'] = $id;
         q("UPDATE $t SET $set, updated=CURRENT_TIMESTAMP WHERE id=:id", $v);
         audit('update', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
       } else {
-        if ($t === 'leads') $v['added_by'] = $_SESSION['name'] ?? '';
+        if ($t === 'leads') { $v['added_by'] = $_SESSION['name'] ?? ''; $v['notify'] = 0;
+          // a lead added by a staff member is automatically claimed by them; admin-added leads start unclaimed
+          if (!is_admin()) { $v['assigned_to'] = uid(); $v['claimed_at'] = gmdate('Y-m-d H:i:s'); } else { $v['assigned_to'] = (int)($in['assigned_to'] ?? 0) ?: null; $v['claimed_at'] = $v['assigned_to'] ? gmdate('Y-m-d H:i:s') : ''; } }
         q("INSERT INTO $t(" . implode(',', $cols) . ') VALUES(' . implode(',', array_map(fn($c) => ":$c", $cols)) . ')', $v);
         $id = (int)db()->lastInsertId(); audit('create', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
         if ($t === 'quotes' && $v['number'] === '') {
@@ -206,7 +209,8 @@ function handle_notes($a) {
   $in = body();
   if ($a !== 'add') fail('Unknown action', 404);
   $ent = $in['entity'] ?? ''; if (!in_array($ent, ['leads', 'customers', 'projects'])) fail('Bad entity');
-  need($ent, true); $t = trim($in['text'] ?? ''); if ($t === '') fail('Empty note');
+  need($ent, true); if ($ent === 'leads') lead_need_write(lead_or_404($in['entity_id'] ?? 0));
+  $t = trim($in['text'] ?? ''); if ($t === '') fail('Empty note');
   q('INSERT INTO notes(entity,entity_id,text,user) VALUES(?,?,?,?)', [$ent, (int)$in['entity_id'], $t, $_SESSION['name']]);
   q("UPDATE $ent SET updated=CURRENT_TIMESTAMP WHERE id=?", [(int)$in['entity_id']]); out(['ok' => true]);
 }

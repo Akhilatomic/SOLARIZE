@@ -71,7 +71,7 @@ async function pgOverview(kind) {
 // ---------- WhatsApp ----------
 async function pgWhatsapp() {
   const [cs, ls, rec] = await Promise.all([list('customers'), list('leads'), api('whatsapp', 'recent')]);
-  const contacts = cs.map(c => ({ ...c, type: 'customer' })).concat(ls.filter(l => !l.customer_id).map(l => ({ ...l, type: 'lead' })));
+  const contacts = cs.map(c => ({ ...c, type: 'customer' })).concat(ls.filter(l => !l.customer_id && l.can_edit).map(l => ({ ...l, type: 'lead' })));
   let q = '';
   const draw = () => { const t = q.toLowerCase(); $('#wc').innerHTML = table([['Name', c => `<b>${esc(c.name)}</b>`], ['Type', c => pill(c.type, c.type === 'lead' ? 'b' : 'g')], ['Phone', c => esc(c.phone)], ['', c => c.phone ? `<button class="btn ok sm" data-w="${c.type}|${c.id}">Message</button>` : '']],
     contacts.filter(c => !t || (c.name + ' ' + c.phone).toLowerCase().includes(t)).slice(0, 80), () => { }); $$('[data-w]').forEach(b => b.onclick = () => { const [ty, id] = b.dataset.w.split('|'); const c = contacts.find(x => x.type === ty && x.id == id); waOpen({ name: c.name, phone: c.phone, [ty === 'lead' ? 'lead_id' : 'customer_id']: c.id }); }); };
@@ -148,7 +148,7 @@ async function pgAdmin() {
   if (t === 'users') {
     const us = await api('admin', 'users');
     ab.innerHTML = `<div class="bar"><span class="sp"></span><button class="btn" id="nu">+ New user</button></div>` +
-      table([['Name', u => `<b>${esc(u.name)}</b>`], ['Username', u => esc(u.username)], ['Role', u => pill(u.role, u.role === 'admin' ? 'y' : 'b')], ['Active', u => u.active ? pill('Yes', 'g') : pill('Disabled', 'r')], ['Created', u => dt(u.created)]], us, id => userModal(us.find(u => u.id == id))) +
+      table([['Name', u => `<b>${esc(u.name)}</b>`], ['Username', u => esc(u.username)], ['Role', u => pill(u.role, u.role === 'admin' ? 'y' : 'b')], ['Active', u => u.active ? pill('Yes', 'g') : pill('Disabled', 'r')], ['Leads access', u => u.role === 'admin' ? pill('All leads', 'b') : u.can_claim ? pill('Can see & claim', 'g') : pill('Own leads only')], ['Claimed leads', u => u.leads || 0], ['Created', u => dt(u.created)]], us, id => userModal(us.find(u => u.id == id))) +
       `<div class="card" style="margin-top:12px"><h3>Role permissions</h3><table><tr><th>Role</th><th>Can edit</th></tr><tr><td>admin</td><td>Everything, users, settings, backup</td></tr><tr><td>sales</td><td>Leads, customers, quotations, WhatsApp, files</td></tr><tr><td>engineer</td><td>Projects, subsidy & KSEB checklists, files, customers</td></tr><tr><td>accounts</td><td>Quotations, payments, ads spend</td></tr></table><p class="mut">All roles can view the other business modules except Admin.</p></div>`;
     $('#nu').onclick = () => userModal({});
   }
@@ -164,8 +164,8 @@ async function pgAdmin() {
 }
 function userModal(u) {
   const id = u.id;
-  const m = modal(`<h3 style="margin-top:0">${id ? 'Edit' : 'New'} user</h3><div class="two">${[{ k: 'name', l: 'Full name' }, { k: 'username', l: 'Username' }, { k: 'role', l: 'Role', opts: ['admin', 'sales', 'engineer', 'accounts'] }, { k: 'active', l: 'Active', opts: [['1', 'Yes'], ['0', 'Disabled']], d: '1' }, { k: 'password', l: id ? 'New password (leave blank to keep)' : 'Password (min 8)', t: 'password', full: 1 }].map(f => fld(f, { ...u, active: u.active === 0 ? '0' : '1' })).join('')}</div>
+  const m = modal(`<h3 style="margin-top:0">${id ? 'Edit' : 'New'} user</h3><div class="two">${[{ k: 'name', l: 'Full name' }, { k: 'username', l: 'Username' }, { k: 'role', l: 'Role', opts: ['admin', 'sales', 'engineer', 'accounts'] }, { k: 'active', l: 'Active', opts: [['1', 'Yes'], ['0', 'Disabled']], d: '1' }, { k: 'can_claim', l: 'Leads access', opts: [['1', 'Can see & claim unclaimed leads'], ['0', 'Only leads assigned to them']] }, { k: 'password', l: id ? 'New password (leave blank to keep)' : 'Password (min 8)', t: 'password', full: 1 }].map(f => fld(f, { ...u, active: u.active === 0 ? '0' : '1', can_claim: u.can_claim === 0 ? '0' : (u.can_claim ? '1' : '0') })).join('')}</div>
    <div class="bar" style="margin-top:12px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button></div>`);
   $('#cx', m).onclick = () => m.remove();
-  $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; o.active = o.active === '1' ? 1 : 0; await api('admin', 'user_save', o); m.remove(); route(); };
+  $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; o.active = o.active === '1' ? 1 : 0; o.can_claim = o.can_claim === '1' ? 1 : 0; await api('admin', 'user_save', o); m.remove(); route(); };
 }

@@ -10,6 +10,7 @@ require __DIR__ . '/api/core.php';
 require __DIR__ . '/api/ops.php';
 require __DIR__ . '/api/meta.php';
 require __DIR__ . '/api/folder.php';
+require __DIR__ . '/api/claims.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';

@@ -214,8 +214,8 @@ function bars(data, order) {
 }
 
 // ---------- Leads ----------
-const LCOLS = [['date', 'Added date'], ['name', 'Name'], ['phone', 'Phone'], ['status', 'Status'], ['city', 'City'], ['location', 'Location'], ['added_by', 'Added by'], ['remark', 'Remark'], ['appt', 'Appt']];
-let LF = { q: '', status: '', active: 'active', city: '', appt: '', sort: 'created', dir: -1, edit: false };
+const LCOLS = [['date', 'Added date'], ['name', 'Name'], ['phone', 'Phone'], ['status', 'Status'], ['city', 'City'], ['location', 'Location'], ['added_by', 'Added by'], ['owner', 'Claimed by'], ['remark', 'Remark'], ['appt', 'Appt']];
+let LF = { q: '', status: '', active: 'active', city: '', appt: '', own: '', sort: 'created', dir: -1, edit: false };
 let LHIDE = []; try { LHIDE = JSON.parse(localStorage.lcols || '[]'); } catch (e) { }
 const dmy = s => s ? new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 const isActiveLead = l => !['Won', 'Lost'].includes(l.status);
@@ -223,6 +223,21 @@ function apptBadge(l) {
   if (!l.appt) return '<span class="pill" style="color:var(--mut)">● Not Scheduled</span>';
   const od = l.appt < today() && isActiveLead(l), days = Math.round((new Date(today()) - new Date(l.appt)) / 864e5);
   return `<span class="pill g">● ${dmy(l.appt)}</span>${od ? `<br><span class="pill r" style="margin-top:3px"><i class="i i-alert"></i> OVERDUE · ${days}d</span>` : ''}`;
+}
+// ---- claiming: a claimed lead is locked to its owner; only the admin can unlock or reassign ----
+const isAdm = () => ME.role === 'admin';
+const ownerCell = l => l.assigned_to ? `<span class="own${l.assigned_to == ME.id ? ' me' : ''}" title="Claimed${l.claimed_at ? ' ' + agoStr(l.claimed_at) : ''}"><i class="i i-lock"></i>${esc(l.assigned_to == ME.id ? 'You' : (l.owner_name || 'Claimed'))}</span>`
+  : (ME.can_claim && canW('leads') ? '<button class="btn sm claim" data-a="claim"><i class="i i-userplus"></i> Claim</button>' : '<span class="mut">Unclaimed</span>');
+async function claimLead(id, name) { try { await api('leads', 'claim', { id }); toast('Claimed' + (name ? ': ' + name : '') + ' — locked to you'); return true; } catch (e) { return false; } }
+async function unlockLead(id) { if (!confirm('Unlock this lead? Anyone allowed to claim leads can then claim it.')) return false; await api('leads', 'unlock', { id }); toast('Lead unlocked'); return true; }
+async function assignLead(id) {
+  const us = (await api('admin', 'users')).filter(u => u.active);
+  return new Promise(res => {
+    const m = modal(`<h3 style="margin-top:0">Assign lead</h3><label>Lock this lead to</label><select id="au">${us.map(u => `<option value="${u.id}">${esc(u.name)} (${u.role})</option>`).join('')}</select>
+     <div class="bar" style="margin-top:12px"><button class="btn" id="aok">Assign</button><button class="btn sec" id="acx">Cancel</button></div>`);
+    $('#acx', m).onclick = () => { m.remove(); res(false); };
+    $('#aok', m).onclick = async () => { await api('leads', 'assign', { id, user_id: +$('#au', m).value }); m.remove(); toast('Lead assigned'); res(true); };
+  });
 }
 async function pgLeads() {
   const [leads, camps] = await Promise.all([list('leads'), canR('ads') ? list('campaigns') : []]);
@@ -235,6 +250,7 @@ async function pgLeads() {
    <select id="la">${[['active', 'Active Leads'], ['all', 'All Leads'], ['won', 'Won'], ['lost', 'Lost']].map(([v, l]) => `<option value="${v}" ${LF.active === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
    <select id="lc"><option value="">All Cities</option>${cities.map(c => `<option ${LF.city === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
    <select id="lap">${[['', 'All Appointments'], ['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['none', 'Not Scheduled']].map(([v, l]) => `<option value="${v}" ${LF.appt === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+   <select id="lown"><option value="">All owners</option><option value="me" ${LF.own === 'me' ? 'selected' : ''}>My leads</option><option value="none" ${LF.own === 'none' ? 'selected' : ''}>Unclaimed</option>${isAdm() ? [...new Map(leads.filter(l => l.assigned_to).map(l => [l.assigned_to, l.owner_name])).entries()].map(([id, n]) => `<option value="${id}" ${LF.own == id ? 'selected' : ''}>Claimed by ${esc(n)}</option>`).join('') : ''}</select>
    <div style="position:relative"><button class="btn sec" id="lcol"><i class="i i-menu"></i> Columns</button><div id="lcm" class="card hide" style="position:absolute;z-index:9;top:42px;left:0;width:190px;padding:10px">${LCOLS.map(([k, l]) => `<label style="margin:4px 0;display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-col="${k}" ${LHIDE.includes(k) ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
    <span class="sp"></span><button class="btn sec" id="lex">Export CSV</button>${w ? '<button class="btn sec" id="lim">Import CSV</button>' : ''}</div>
    ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px"><i class="i i-pencil"></i> ${LF.edit ? 'Click any cell to edit it inline.' : 'Click a Remark or Appt cell to edit it. Turn Edit ON to edit the other columns.'} Click the column headers to sort.</p>` : ''}
@@ -244,6 +260,7 @@ async function pgLeads() {
     const t = LF.q.toLowerCase(), td = today();
     let r = leads.filter(l => (!LF.status || l.status === LF.status) && (LF.active === 'all' || (LF.active === 'active' ? isActiveLead(l) : l.status === (LF.active === 'won' ? 'Won' : 'Lost')))
       && (!LF.city || l.city === LF.city) && (!t || [l.name, l.phone, l.city, l.location, l.remark, l.address].join(' ').toLowerCase().includes(t))
+      && (!LF.own || (LF.own === 'me' ? l.assigned_to == ME.id : LF.own === 'none' ? !l.assigned_to : l.assigned_to == LF.own))
       && (!LF.appt || (LF.appt === 'none' ? !l.appt : LF.appt === 'overdue' ? l.appt && l.appt < td && isActiveLead(l) : LF.appt === 'today' ? l.appt === td : l.appt > td)));
     const key = l => l[LF.sort] ?? '';
     return r.sort((a, b) => { const x = key(a), y = key(b); if (LF.sort === 'appt') { if (!x) return 1; if (!y) return -1; } return (x > y ? 1 : x < y ? -1 : 0) * LF.dir; });
@@ -253,18 +270,21 @@ async function pgLeads() {
     const rows = filtered(), show = LCOLS.filter(c => !LHIDE.includes(c[0]));
     $('#lcount').textContent = rows.length + ' records';
     const QE = ['remark', 'appt']; // always editable inline
-    const ed = (l, f, html) => `<td data-f="${f}" ${w && (LF.edit || QE.includes(f)) ? 'class="qe" title="Click to edit"' : ''}>${html}</td>`;
+    const ed = (l, f, html) => `<td data-f="${f}" ${w && l.can_edit && (LF.edit || QE.includes(f)) ? 'class="qe" title="Click to edit"' : ''}>${html}</td>`;
     const cell = { date: l => `<td class="mut" style="white-space:nowrap">${dmy(l.created)}</td>`, name: l => ed(l, 'name', `${l.notify ? '<span class="ndot" title="New lead — not contacted yet"></span>' : ''}<b>${esc(l.name)}</b>${l.source === 'Meta Ads' ? ' <span class="pill" style="font-size:11px">Meta</span>' : ''}`), phone: l => ed(l, 'phone', esc(l.phone)), status: l => ed(l, 'status', pill(l.status, stageCls(l.status))), city: l => ed(l, 'city', esc(l.city)), location: l => ed(l, 'location', esc(l.location || l.address)),
-      added_by: l => `<td>${esc(l.added_by)}</td>`, remark: l => ed(l, 'remark', l.remark ? esc(l.remark) : '<span class="mut"><i>Add remark</i></span>'), appt: l => ed(l, 'appt', apptBadge(l)) };
+      added_by: l => `<td>${esc(l.added_by)}</td>`, owner: l => `<td class="ownc">${ownerCell(l)}${isAdm() && l.assigned_to ? ` <button class="btn sm sec" data-a="unlock" title="Unlock (admin)">Unlock</button>` : ''}${isAdm() ? ` <button class="btn sm sec" data-a="assign" title="Assign to a user (admin)"><i class="i i-users"></i></button>` : ''}</td>`, remark: l => ed(l, 'remark', l.remark ? esc(l.remark) : (l.can_edit ? '<span class="mut"><i>Add remark</i></span>' : '')), appt: l => ed(l, 'appt', apptBadge(l)) };
     $('#ltb').innerHTML = `<thead><tr>${show.map(([k, l]) => `<th data-sort="${sk(k)}" style="cursor:pointer;white-space:nowrap">${l}${LF.sort === sk(k) ? (LF.dir > 0 ? ' ↑' : ' ↓') : ' ⇅'}</th>`).join('')}<th class="right">Action</th></tr></thead><tbody>${rows.map(l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}
-      <td class="lact">${l.phone ? `<button class="btn sm ok" title="WhatsApp" data-a="wa"><i class="i i-chat"></i></button> <a class="btn sm sec" title="Call" href="tel:${esc(l.phone)}"><i class="i i-phone"></i></a> ` : ''}${w ? '<button class="btn sm sec" title="Add remark" data-a="rm"><i class="i i-note"></i></button> ' : ''}<button class="btn sm sec" title="View" data-a="vw"><i class="i i-eye"></i></button>${w ? ' <button class="btn sm sec" title="Edit" data-a="ed"><i class="i i-pencil"></i></button>' : ''}
-      ${l.customer_id ? ` <a class="btn sm sec" title="Open customer" href="#/customers/${l.customer_id}"><i class="i i-user"></i></a>` : w ? ' <button class="btn sm sec" title="Convert to customer" data-a="cv"><i class="i i-userplus"></i></button>' : ''}${canW('quotes') ? ' <button class="btn sm sec" title="Create quotation" data-a="qt"><i class="i i-receipt"></i></button>' : ''}</td></tr>`).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
+      <td class="lact">${!l.can_edit ? `${ME.can_claim && w ? '<button class="btn sm claim" data-a="claim"><i class="i i-userplus"></i> Claim</button> ' : ''}<button class="btn sm sec" title="View" data-a="vw"><i class="i i-eye"></i></button>` : `${l.phone ? `<button class="btn sm ok" title="WhatsApp" data-a="wa"><i class="i i-chat"></i></button> <a class="btn sm sec" title="Call" href="tel:${esc(l.phone)}"><i class="i i-phone"></i></a> ` : ''}${w ? '<button class="btn sm sec" title="Add remark" data-a="rm"><i class="i i-note"></i></button> ' : ''}<button class="btn sm sec" title="View" data-a="vw"><i class="i i-eye"></i></button>${w ? ' <button class="btn sm sec" title="Edit" data-a="ed"><i class="i i-pencil"></i></button>' : ''}
+      ${l.customer_id ? ` <a class="btn sm sec" title="Open customer" href="#/customers/${l.customer_id}"><i class="i i-user"></i></a>` : w ? ' <button class="btn sm sec" title="Convert to customer" data-a="cv"><i class="i i-userplus"></i></button>' : ''}${canW('quotes') ? ' <button class="btn sm sec" title="Create quotation" data-a="qt"><i class="i i-receipt"></i></button>' : ''}`}</td></tr>`).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
     $$('#ltb th[data-sort]').forEach(h => h.onclick = () => { const k = h.dataset.sort; LF.dir = LF.sort === k ? -LF.dir : (k === 'created' ? -1 : 1); LF.sort = k; draw(); });
     $$('#ltb tbody tr[data-id]').forEach(tr => {
       const l = leads.find(x => x.id == tr.dataset.id);
-      if (w) $$('td[data-f]', tr).forEach(td => { if (LF.edit || QE.includes(td.dataset.f)) td.onclick = () => startEdit(td, l); });
+      if (w && l.can_edit) $$('td[data-f]', tr).forEach(td => { if (LF.edit || QE.includes(td.dataset.f)) td.onclick = () => startEdit(td, l); });
       $$('[data-a]', tr).forEach(b => b.onclick = async () => {
         const a = b.dataset.a;
+        if (a === 'claim') { if (await claimLead(l.id, l.name)) route(); return; }
+        if (a === 'unlock') { if (await unlockLead(l.id)) route(); return; }
+        if (a === 'assign') { if (await assignLead(l.id)) route(); return; }
         if (a === 'wa') waOpen({ name: l.name, phone: l.phone, lead_id: l.id });
         if (a === 'vw' || a === 'ed') leadModal(l.id);
         if (a === 'rm') { const r = prompt('Remark for ' + l.name, l.remark || ''); if (r !== null) { l.remark = r; await api('leads', 'save', { ...l }); draw(); } }
@@ -282,7 +302,7 @@ async function pgLeads() {
     el.onblur = () => done(true); el.onchange = () => done(true); el.onkeydown = e => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); };
   };
   $('#lq').oninput = e => { LF.q = e.target.value; draw(); };
-  [['ls', 'status'], ['la', 'active'], ['lc', 'city'], ['lap', 'appt']].forEach(([id, k]) => $('#' + id).onchange = e => { LF[k] = e.target.value; draw(); });
+  [['ls', 'status'], ['la', 'active'], ['lc', 'city'], ['lap', 'appt'], ['lown', 'own']].forEach(([id, k]) => $('#' + id).onchange = e => { LF[k] = e.target.value; draw(); });
   $('#lref').onclick = () => route();
   if ($('#ledit')) $('#ledit').onclick = () => { LF.edit = !LF.edit; route(); };
   if ($('#lnew')) $('#lnew').onclick = () => leadModal(0);
@@ -298,21 +318,26 @@ async function leadModal(id) {
   const F = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'source', l: 'Source', opts: S.lead_sources }, { k: 'city', l: 'City' }, { k: 'location', l: 'Location / address' },
     { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'appt', l: 'Appointment date', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, { k: 'budget', l: 'Budget (₹)', t: 'number' }, { k: 'remark', l: 'Remark', full: 1 }];
   if ((CACHE.camps || []).length) F.splice(4, 0, { k: 'campaign_id', l: 'Meta campaign', opts: opt(CACHE.camps.map(c => [c.id, c.name]), '— none —') });
-  const w = canW('leads');
-  const m = modal(`<h2 style="margin-top:0">${id ? 'Lead' : 'New lead'}</h2><div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(l.notes || '')}</textarea>
+  const w = canW('leads') && (!id || !!l.can_edit);
+  const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}</span>` : '<span class="mut">Not claimed yet. Claim it to see the full number and start working on it.</span>'}<span class="sp"></span>${isAdm() && l.assigned_to ? '<button class="btn sm sec" id="mul">Unlock</button>' : ''}${isAdm() ? '<button class="btn sm sec" id="mas"><i class="i i-users"></i> Assign</button>' : ''}</div>` : '';
+  const m = modal(`<h2 style="margin-top:0">${id ? 'Lead' : 'New lead'}</h2>${lock}<div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(l.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px">${w ? '<button class="btn" id="sv">Save</button>' : ''}<button class="btn sec" id="cx">Close</button>
-   ${id && l.phone ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(l.phone) + '">Call</a>' : ''}
+   ${id && l.phone && w ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(l.phone) + '">Call</a>' : ''}
    ${id && w && !l.customer_id ? '<button class="btn sec" id="cv">Convert to customer</button>' : ''}${l.customer_id ? `<a class="btn sec" href="#/customers/${l.customer_id}" id="oc">Open customer</a>` : ''}
-   ${id && canW('quotes') ? '<button class="btn sec" id="qt">Create quotation</button>' : ''}<span class="sp"></span>${id && w ? '<button class="btn bad" id="dl">Delete</button>' : ''}</div>
+   ${id && canW('quotes') && w ? '<button class="btn sec" id="qt">Create quotation</button>' : ''}<span class="sp"></span>${id && w ? '<button class="btn bad" id="dl">Delete</button>' : ''}</div>
    ${id ? `<p class="mut" style="font-size:12px">Added by ${esc(l.added_by || '—')} on ${dmy(l.created)}</p>` + noteBox('leads', id, l.notes_log) + `<div class="card" style="margin-top:10px"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div>` : ''}`);
   $('#cx', m).onclick = () => m.remove();
+  if (id && !w) $$('[data-k]', m).forEach(e => e.disabled = true);
+  const cl = $('.lockbar .claim', m); if (cl) cl.onclick = async () => { if (await claimLead(id, l.name)) { m.remove(); leadModal(id); if (location.hash.startsWith('#/leads')) route(); } };
+  if ($('#mul', m)) $('#mul', m).onclick = async () => { if (await unlockLead(id)) { m.remove(); route(); } };
+  if ($('#mas', m)) $('#mas', m).onclick = async () => { if (await assignLead(id)) { m.remove(); route(); } };
   if ($('#oc', m)) $('#oc', m).onclick = () => m.remove();
   if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m) }; if (!o.name) return alert('Name required'); await api('leads', 'save', o); m.remove(); route(); };
   if ($('#wa', m)) $('#wa', m).onclick = () => waOpen({ name: l.name, phone: l.phone, lead_id: id });
   if ($('#cv', m)) $('#cv', m).onclick = async () => { const r = await api('leads', 'convert', { id }); m.remove(); location.hash = '#/customers/' + r.customer_id; };
   if ($('#qt', m)) $('#qt', m).onclick = () => { m.remove(); sessionStorage.lead2quote = JSON.stringify({ lead_id: id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; };
   if ($('#dl', m)) $('#dl', m).onclick = async () => { if (confirm('Delete this lead?')) { await api('leads', 'delete', { id }); m.remove(); route(); } };
-  bindNote('leads', id, () => { m.remove(); leadModal(id); });
+  if (w) bindNote('leads', id, () => { m.remove(); leadModal(id); }); else if ($('#an', m)) $('#an', m).closest('.bar').remove();
 }
 
 // ---------- Customers ----------

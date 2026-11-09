@@ -75,6 +75,7 @@ function handle_whatsapp($a) {
   need('whatsapp', $a === 'log');
   $in = body();
   if ($a === 'log') {
+    if (!empty($in['lead_id'])) lead_need_write(lead_or_404($in['lead_id']));
     if (!empty($in['lead_id'])) q("UPDATE leads SET notify=0, status=CASE WHEN status='New' THEN 'Contacted' ELSE status END WHERE id=?", [(int)$in['lead_id']]);
     q('INSERT INTO messages(customer_id,lead_id,phone,text,user) VALUES(?,?,?,?,?)', [(int)($in['customer_id'] ?? 0) ?: null, (int)($in['lead_id'] ?? 0) ?: null, (string)($in['phone'] ?? ''), (string)($in['text'] ?? ''), $_SESSION['name']]);
     out(['ok' => true]);
@@ -124,19 +125,19 @@ function handle_admin($a) {
   if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
   $in = body();
   switch ($a) {
-    case 'users': out(rows('SELECT id,name,username,role,active,created FROM users ORDER BY id'));
+    case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads FROM users u ORDER BY u.id'));
     case 'user_save':
       $role = $in['role'] ?? 'sales'; if (!isset(ROLES[$role])) fail('Bad role');
       $name = trim($in['name'] ?? ''); $u = trim($in['username'] ?? ''); if ($u === '' || $name === '') fail('Name and username required');
       if (!empty($in['id'])) {
         $id = (int)$in['id'];
         if ($id === (int)$_SESSION['uid'] && ($role !== 'admin' || empty($in['active']))) fail('You cannot demote or disable yourself');
-        q('UPDATE users SET name=?,username=?,role=?,active=? WHERE id=?', [$name, $u, $role, empty($in['active']) ? 0 : 1, $id]);
+        q('UPDATE users SET name=?,username=?,role=?,active=?,can_claim=? WHERE id=?', [$name, $u, $role, empty($in['active']) ? 0 : 1, empty($in['can_claim']) ? 0 : 1, $id]);
         if (!empty($in['password'])) { if (strlen($in['password']) < 8) fail('Password min 8 characters'); q('UPDATE users SET hash=? WHERE id=?', [password_hash($in['password'], PASSWORD_DEFAULT), $id]); }
       } else {
         if (strlen($in['password'] ?? '') < 8) fail('Password min 8 characters');
         if (row('SELECT 1 FROM users WHERE username=?', [$u])) fail('Username already exists');
-        q('INSERT INTO users(name,username,hash,role) VALUES(?,?,?,?)', [$name, $u, password_hash($in['password'], PASSWORD_DEFAULT), $role]); $id = db()->lastInsertId();
+        q('INSERT INTO users(name,username,hash,role,can_claim) VALUES(?,?,?,?,?)', [$name, $u, password_hash($in['password'], PASSWORD_DEFAULT), $role, empty($in['can_claim']) ? 0 : 1]); $id = db()->lastInsertId();
       }
       audit('user_save', 'users', (int)$id, "$u ($role)"); out(['id' => $id]);
     case 'audit': out(rows('SELECT * FROM audit_log ORDER BY id DESC LIMIT 300'));
