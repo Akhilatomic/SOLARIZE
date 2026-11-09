@@ -180,3 +180,13 @@ aside h1.brand{display:flex;align-items:center;gap:8px;margin:0 2px 16px}aside h
 .dsbar{position:sticky;bottom:14px;display:flex;align-items:center;gap:10px;margin-top:16px;background:rgba(255,255,255,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--bd);border-radius:16px;padding:10px 14px;box-shadow:0 10px 34px rgba(0,0,0,.16);z-index:6}
 @media(max-width:520px){.dsg{grid-template-columns:1fr}}
 .dsbar.hide{display:none}
+/* leads: use the full display */
+main.pg-leads{max-width:none;padding-left:28px;padding-right:28px}
+#ltb td.lact{white-space:nowrap;text-align:right;width:1%}
+#ltb td.lact .btn.sm{padding:5px 8px}
+#ltb td[data-f=name]{white-space:nowrap}
+#ltb td[data-f=remark]{min-width:180px}
+#ltb td[data-f=city],#ltb td[data-f=location]{min-width:120px}
+#ltb td:first-child{white-space:nowrap}
+@media(max-width:1100px){#ltb td.lact{white-space:normal;min-width:150px}#ltb td[data-f=name]{white-space:normal}main.pg-leads{padding-left:14px;padding-right:14px}}
+main.pg-leads .bar select{max-width:200px}main.pg-leads #lq{max-width:320px!important}
