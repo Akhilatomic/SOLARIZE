@@ -56,10 +56,10 @@ function drawPunch() {
   const top = $('.top'); if (!top || !canR('attendance')) return;
   let b = $('#punch'); if (!b) { b = document.createElement('button'); b.id = 'punch'; b.className = 'btn sm'; top.insertBefore(b, $('#pwb')); }
   const t = HR.me && HR.me.today;
-  if (HR.me && HR.me.on_leave && !t) { b.className = 'btn sec sm'; b.innerHTML = '<i class="i i-leave"></i> On leave'; b.onclick = () => location.hash = '#/leaves'; return; }
-  if (!t || !t.check_in) { b.className = 'btn sm'; b.innerHTML = '<i class="i i-clock"></i> Check in'; b.onclick = () => punch('in', b); }
-  else if (!t.check_out) { b.className = 'btn ok sm'; b.innerHTML = `<i class="i i-clock"></i> In since ${t.check_in} · Check out`; b.onclick = () => { if (confirm('Check out now?')) punch('out', b); }; }
-  else { b.className = 'btn sec sm'; b.innerHTML = `<i class="i i-check"></i> ${t.check_in}–${t.check_out}`; b.onclick = () => location.hash = '#/attendance'; }
+  if (HR.me && HR.me.on_leave && !t) { b.className = 'btn sec sm'; b.innerHTML = '<i class="i i-leave"></i><span class="pl"> On leave</span>'; b.onclick = () => location.hash = '#/leaves'; return; }
+  if (!t || !t.check_in) { b.className = 'btn sm'; b.innerHTML = '<i class="i i-clock"></i><span class="pl"> Check in</span><span class="ps"> In</span>'; b.onclick = () => punch('in', b); }
+  else if (!t.check_out) { b.className = 'btn ok sm'; b.innerHTML = `<i class="i i-clock"></i><span class="pl"> In since ${t.check_in} · Check out</span><span class="ps"> Out</span>`; b.onclick = () => { if (confirm('Check out now?')) punch('out', b); }; }
+  else { b.className = 'btn sec sm'; b.innerHTML = `<i class="i i-check"></i><span class="pl"> ${t.check_in}–${t.check_out}</span>`; b.onclick = () => location.hash = '#/attendance'; }
 }
 function hrBadge() {
   const a = $('aside a[data-m="leaves"]'); if (!a) return; let b = a.querySelector('.nb');
@@ -75,7 +75,7 @@ async function pgAttendance() {
   const t = me.today, worked = t && t.check_in ? hrsBetween(t.check_in, t.check_out || new Date().toTimeString().slice(0, 5)) : 0;
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:10px"><div><h2 style="margin:0;font-size:26px">Attendance</h2><div class="mut">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · Office ${esc(me.cfg.start)}–${esc(me.cfg.end || '18:00')} · late after ${me.cfg.grace} min · half day if in after / out before ${esc(me.cfg.half_after || '14:00')}</div></div><span class="sp"></span>
     ${mgr ? `<div class="tabs" style="margin:0">${[['today', 'Today'], ['week', 'Weekly (salary)'], ['register', 'Monthly register'], ['mine', 'My attendance']].map(([k, l]) => `<button data-at="${k}" class="${HR.attTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}</div>
-   <div class="grid cols2 ${(HR.attTab === 'register' || HR.attTab === 'week') && mgr ? 'attfull' : ''}" style="grid-template-columns:minmax(280px,360px) minmax(0,1fr);align-items:start">
+   <div class="grid cols2 attg ${(HR.attTab === 'register' || HR.attTab === 'week') && mgr ? 'attfull' : ''}" style="grid-template-columns:minmax(280px,360px) minmax(0,1fr);align-items:start">
     <div class="card punchcard"><div class="pclock" id="pclock">${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
      ${me.on_leave && !t ? `<p class="mut">You are on approved leave today (${esc(me.on_leave.type)}).</p>` : ''}
      <div class="pstat">${t && t.check_in ? pill(t.status, ATT[t.status]) : pill('Not checked in')}</div>

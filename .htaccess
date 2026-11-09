@@ -24,3 +24,6 @@ RedirectMatch 404 /\.git
 <FilesMatch "api\.php$">
   Header set Cache-Control "no-store"
 </FilesMatch>
+
+# Home-screen app manifest (iPhone / iPad / Android)
+AddType application/manifest+json .webmanifest

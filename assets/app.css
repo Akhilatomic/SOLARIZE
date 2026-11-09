@@ -559,6 +559,57 @@ button.ac:not([disabled]){cursor:pointer}button.ac:not([disabled]):hover{outline
 .k-stage .tld,.k-convert .tld{background:#e8f7ec}.k-stage .tld .i,.k-convert .tld .i{background:#1e7a37}
 .k-payment .tld,.k-receipt .tld{background:#fff4e0}.k-payment .tld .i,.k-receipt .tld .i{background:#a05a00}
 .k-disc .tld,.k-wa .tld{background:#f1e9ff}.k-disc .tld .i,.k-wa .tld .i{background:#6b2bbf}
-@media(max-width:1100px){.pfgrid{grid-template-columns:minmax(0,1fr)}.pfright{order:-1}}
+@media(max-width:1250px){.pfgrid{grid-template-columns:minmax(0,1fr) minmax(300px,380px)}.pfr{grid-template-columns:118px minmax(0,1fr)}}@media(max-width:880px){.pfgrid{grid-template-columns:minmax(0,1fr)}.pfright{order:-1}}
 @media(max-width:600px){.pfr{grid-template-columns:110px minmax(0,1fr)}.tle{grid-template-columns:40px 26px minmax(0,1fr)}.tle::before{left:52px}}
 .pfch .sp{flex:1}.tlb small{display:block;margin-top:1px}.pfch h3 a{color:inherit}
+
+/* ===== mobile & iPad ===== */
+html{-webkit-text-size-adjust:100%}body{padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+.top h2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acctw{position:relative;flex:none}.acct{all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;padding:3px 8px 3px 3px;border-radius:22px}.acct:hover{background:var(--fill)}
+.acav{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#0a84ff,#5e5ce6);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.acn{display:flex;flex-direction:column;font-size:13px;font-weight:600;line-height:1.15;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.acn small{font-weight:400;color:var(--mut);font-size:11px}
+.acm{position:absolute;right:0;top:calc(100% + 6px);min-width:220px;z-index:60}.acm.hide{display:none}.acmh{padding:8px 10px 10px;border-bottom:1px solid var(--bd);margin-bottom:4px;display:flex;flex-direction:column}
+#punch .ps{display:none}
+#scrim{display:none}
+@media(max-width:1100px){.acn{display:none}.acct{padding:3px}}
+@media(max-width:820px){
+  body.drawer #scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:35}
+  aside{width:260px;left:-280px;height:100%;height:100dvh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom)}
+  input,select,textarea{font-size:16px}
+  .top{gap:8px}.top h2{font-size:18px}
+  .modal{padding:10px}.modal>div{padding:18px;border-radius:18px}
+  .card{padding:14px}
+}
+@media(max-width:600px){
+  #punch .pl{display:none}#punch .ps{display:inline}
+  #punch,#bell{padding:7px 10px}
+  main{padding:10px}
+  .modal{padding:0;align-items:flex-end}.modal>div{border-radius:20px 20px 0 0;max-height:94vh;max-height:94dvh;overflow-y:auto;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+  .modal.lvmod>div,.modal.xdmod>div{padding:0}
+  .bar{flex-wrap:wrap}
+  h2{font-size:22px}
+}
+@media(pointer:coarse){
+  .btn,.ib{min-height:40px}.btn.sm{min-height:36px}.ib{min-width:40px}
+  .pfv .i{opacity:.6}
+  .menu button{padding:12px 14px}
+}
+@media(max-width:900px){.attg{grid-template-columns:minmax(0,1fr)!important}}
+@media(max-width:820px){.dg{gap:12px}.dg .s3{grid-column:span 6}.dg .s2{grid-column:span 4}}
+@media(max-width:600px){.dg .s3.sc{grid-column:span 6}.dg .sc{padding:12px}.dg .sc .sch{gap:6px}}
+@media(max-width:600px){
+  main .bar>select{flex:1 1 calc(50% - 10px);min-width:0;width:auto!important;max-width:none!important}
+  main .bar>input:not([type=checkbox]):not([type=radio]):not([type=date]):not([type=month]){flex:1 1 100%;max-width:none!important;min-width:0}
+  main .bar>input[type=date],main .bar>input[type=month]{flex:1 1 calc(50% - 10px);min-width:0}
+}
+@media(max-width:640px){
+  .qtbl{display:block}.qtbl thead{display:none}.qtbl tbody{display:block}
+  .qtbl tr{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:6px 8px;padding:10px 0;border-bottom:1px solid var(--bd);align-items:end}
+  .qtbl td{display:block;padding:0!important;border:0!important;width:auto!important}
+  .qtbl td:first-child{grid-column:1/-1}
+  .qtbl td:nth-child(2)::before{content:'Qty'}.qtbl td:nth-child(3)::before{content:'Rate (₹)'}.qtbl td:nth-child(4)::before{content:'Amount'}
+  .qtbl td:nth-child(n+2):nth-child(-n+4)::before{display:block;font-size:11px;font-weight:600;color:var(--mut);text-transform:uppercase;margin-bottom:3px}
+  .qtbl td:nth-child(4){text-align:left!important;padding-bottom:10px!important;font-weight:600}
+}
+@media(max-width:600px){table.stack tr{grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px 12px;padding:12px}}

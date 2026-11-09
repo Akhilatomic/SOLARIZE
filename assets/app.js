@@ -52,18 +52,22 @@ function shell() {
   const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : canR(m[3]));
   app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span></h1>
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}">${m[2]} <span class="lbl">${m[1]}</span></a>`).join('')}
-   </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2><span class="mut" style="font-size:13px">${esc(ME.name)} · ${esc(ME.role_name || ME.role)}</span>
-   <button class="btn sec sm" id="pwb">Password</button><button class="btn sec sm" id="lo">Sign out</button></div><main id="main"></main></div></div>`;
-  $('#bg').onclick = () => $('#side').classList.toggle('open');
+   </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2>
+   <div id="pwb" class="acctw"><button class="acct" id="acct" title="Account"><span class="acav">${esc((ME.name || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase())}</span><span class="acn">${esc(ME.name)}<small>${esc(ME.role_name || ME.role)}</small></span></button>
+    <div class="card menu acm hide" id="acm"><div class="acmh"><b>${esc(ME.name)}</b><small class="mut">${esc(ME.role_name || ME.role)} · @${esc(ME.username || '')}</small></div><button id="pwc"><i class="i i-lock"></i>Change password</button><button id="lo"><i class="i i-x"></i>Sign out</button></div></div></div><main id="main"></main></div><div id="scrim"></div></div>`;
+  $('#bg').onclick = () => { $('#side').classList.toggle('open'); document.body.classList.toggle('drawer', $('#side').classList.contains('open')); };
+  $('#scrim').onclick = () => { $('#side').classList.remove('open'); document.body.classList.remove('drawer'); };
+  $('#acct').onclick = e => { e.stopPropagation(); $('#acm').classList.toggle('hide'); };
+  document.addEventListener('click', e => { const m = $('#acm'); if (m && !m.contains(e.target)) m.classList.add('hide'); });
   new MutationObserver(fitSoon).observe($('#main'), { childList: true, subtree: true });
   $('#lo').onclick = async () => { await api('auth', 'logout', {}); location.hash = ''; location.reload(); };
-  $('#pwb').onclick = async () => { const o = prompt('Current password'); if (!o) return; const n = prompt('New password (min 8 characters)'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
+  $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (min 8 characters)'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
 }
 window.onhashchange = () => ME && route();
 async function route() {
   const [, mod = 'dashboard', id] = location.hash.split('/');
   $$('aside a').forEach(a => a.classList.toggle('on', a.dataset.m === mod));
-  $('#side')?.classList.remove('open');
+  $('#side')?.classList.remove('open'); document.body.classList.remove('drawer');
   const t = MODS.find(m => m[0] === mod);
   $('#title').textContent = t ? t[1] : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
@@ -84,7 +88,7 @@ function autoFit() {
     if (hs.length) t.querySelectorAll(':scope > tbody > tr').forEach(tr => [...tr.children].forEach((td, i) => { if (td.dataset.label === undefined && !td.hasAttribute('colspan')) td.dataset.label = hs[i] || ''; }));
     const min = +t.dataset.min || 0;
     t.classList.remove('stack');
-    if ((min && box.clientWidth < min) || t.scrollWidth > box.clientWidth + 1) t.classList.add('stack');
+    if ((min && box.clientWidth < min) || t.scrollWidth > box.clientWidth + 1 || (box.clientWidth < 600 && hs.length >= 4)) t.classList.add('stack'); // phones: 4+ columns read better as cards
   });
   $$('.fitbox', main).forEach(b => { const top = b.getBoundingClientRect().top; b.style.maxHeight = Math.max(280, innerHeight - top - 18) + 'px'; });
 }
