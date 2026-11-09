@@ -457,3 +457,5 @@ button.ac:not([disabled]){cursor:pointer}button.ac:not([disabled]):hover{outline
 .holrow{display:grid;grid-template-columns:150px 110px minmax(0,1fr) auto;gap:8px;align-items:center}.holwd{font-size:12px;white-space:nowrap}
 @media(max-width:600px){.holadd{grid-template-columns:1fr 1fr}.holadd input:nth-child(2){grid-column:1/-1;order:-1}.holrow{grid-template-columns:1fr auto auto}.holrow .holwd{display:none}.holrow [data-f=name]{grid-column:1/-1;order:3}}
 #holset .hollist{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:6px 18px;max-height:none}#holset .holadd{max-width:720px}
+
+.aplace{font-size:13px;line-height:1.35;max-width:320px}.aplace small{display:inline-block;min-width:26px}.aplace a{color:var(--pri);text-decoration:none}.aplace a:hover{text-decoration:underline}

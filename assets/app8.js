@@ -4,6 +4,7 @@ const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const hmAgo = t => t || '—';
 const hrsBetween = (a, b) => a && b ? Math.max(0, (+b.slice(0, 2) * 60 + +b.slice(3)) - (+a.slice(0, 2) * 60 + +a.slice(3))) / 60 : 0;
 const fmtH = h => h ? Math.floor(h) + 'h ' + String(Math.round((h % 1) * 60)).padStart(2, '0') + 'm' : '—';
+const placeCell = (lbl, place, lat, lng, acc) => lat ? `<div class="aplace"><small class="mut">${lbl}</small> <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" title="Open in Google Maps${acc ? ' · accuracy ±' + acc + ' m' : ''}">${esc(place || 'Open map')}</a></div>` : '';
 const mapLink = (lat, lng) => lat ? `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" title="Open location"><i class="i i-target"></i></a>` : '';
 const ATT = { Present: 'g', Late: 'y', 'Half day': 'y', Absent: 'r', 'On duty': 'b' };
 
@@ -15,7 +16,7 @@ function getLoc() {
 async function punch(kind, btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'Getting location…'; }
   const loc = await getLoc();
-  try { const r = await api('hr', 'punch', { kind, ...loc }); toast(kind === 'in' ? `Checked in at ${r.time}${r.status === 'Half day' ? ' (half day)' : r.late ? ' (late)' : ''}${loc.lat ? '' : ' · location not shared'}` : `Checked out at ${r.time} · ${fmtH(r.hours)}${r.status === 'Half day' ? ' · half day' : r.early ? ' · left early' : ''}`); }
+  try { const r = await api('hr', 'punch', { kind, ...loc }); toast(kind === 'in' ? `Checked in at ${r.time}${r.status === 'Half day' ? ' (half day)' : r.late ? ' (late)' : ''}${loc.lat ? (r.place ? ' · ' + r.place : '') : ' · location not shared'}` : `Checked out at ${r.time} · ${fmtH(r.hours)}${r.status === 'Half day' ? ' · half day' : r.early ? ' · left early' : ''}`); }
   finally { await hrMe(); if (location.hash.startsWith('#/attendance')) route(); }
 }
 // top-bar check-in / check-out button
@@ -63,7 +64,7 @@ async function attToday() {
   box.innerHTML = `<div class="grid stats" style="margin-bottom:12px">${[['Present', d.rows.filter(r => r.check_in).length, 'g'], ['Late', cnt('Late'), 'y'], ['On leave', cnt('leave'), 'b'], ['Not in yet', cnt('absent'), 'r']].map(([l, v]) => `<div class="card stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
    <div class="card tw" style="padding:0"><table id="att"><thead><tr><th>Staff</th><th>Status</th><th>In</th><th>Out</th><th>Hours</th><th>Location</th><th class="right">Edit</th></tr></thead><tbody>
    ${d.rows.map(r => `<tr><td><b>${esc(r.name)}</b><br><small class="mut">${esc((S.role_names || {})[r.role] || r.role)}</small></td><td>${r.leave ? pill('Leave · ' + r.leave, 'b') : r.status ? pill(r.status, ATT[r.status]) : pill('Not in', 'r')}${r.notes ? `<br><small class="mut">${esc(r.notes)}</small>` : ''}</td>
-     <td>${hmAgo(r.check_in)}</td><td>${hmAgo(r.check_out)}${r.check_out && r.check_out < (HR.me.cfg.end || '18:00') ? ' <span class="pill y" title="Left before office end">early</span>' : ''}</td><td>${fmtH(hrsBetween(r.check_in, r.check_out))}</td><td>${mapLink(r.in_lat, r.in_lng)} ${mapLink(r.out_lat, r.out_lng)}</td>
+     <td>${hmAgo(r.check_in)}</td><td>${hmAgo(r.check_out)}${r.check_out && r.check_out < (HR.me.cfg.end || '18:00') ? ' <span class="pill y" title="Left before office end">early</span>' : ''}</td><td>${fmtH(hrsBetween(r.check_in, r.check_out))}</td><td>${placeCell('In', r.in_place, r.in_lat, r.in_lng) + placeCell('Out', r.out_place, r.out_lat, r.out_lng) || (r.check_in ? '<small class="mut">Not shared</small>' : '')}</td>
      <td class="right"><button class="ib" data-ed="${r.user_id}" title="Correct attendance"><i class="i i-pencil"></i></button></td></tr>`).join('')}</tbody></table></div>`;
   $$('[data-ed]', box).forEach(b => b.onclick = () => { const r = d.rows.find(x => x.user_id == b.dataset.ed); attEdit({ user_id: r.user_id, name: r.name, date: d.date, ...r }, attToday); });
 }
@@ -188,7 +189,7 @@ async function attWeek(mine) {
     if (r && r.status === 'Absent') return { k: 'A', c: 'ab', pay: 0, work: 1, tip: 'Absent' + (r.notes ? ' · ' + r.notes : '') };
     if (r && (r.check_in || r.status)) { const hd = r.status === 'Half day', h = hrsBetween(r.check_in, r.check_out);
       return { k: { Present: 'P', Late: 'L', 'Half day': 'HD', 'On duty': 'OD' }[r.status] || 'P', c: { Present: 'pr', Late: 'lt', 'Half day': 'hd', 'On duty': 'od' }[r.status] || 'pr', pay: hd ? .5 : 1, work: d.cfg.week_off.includes(wd) || hol[ds] ? 0 : 1, hrs: h, late: r.status === 'Late', hd, early: r.check_out && r.check_out < (d.cfg.end || '18:00') && !hd,
-        tip: `${r.status} ${r.check_in || ''}${r.check_out ? '–' + r.check_out : ' (no check-out)'}${r.notes ? ' · ' + r.notes : ''}` }; }
+        tip: `${r.status} ${r.check_in || ''}${r.check_out ? '–' + r.check_out : ' (no check-out)'}${r.in_place ? ' · in at ' + r.in_place : ''}${r.out_place && r.out_place !== r.in_place ? ' · out at ' + r.out_place : ''}${r.notes ? ' · ' + r.notes : ''}` }; }
     if (hol[ds]) return { k: 'H', c: 'ho', pay: d.cfg.week_off.includes(wd) ? 0 : 1, work: 0, tip: 'Holiday · ' + hol[ds] };
     if (d.cfg.week_off.includes(wd)) return { k: 'WO', c: 'wo', pay: 0, work: 0, tip: 'Weekly off' };
     if (l) { const p = paid[l.type] ? (l.half ? .5 : 1) : 0; return { k: l.half ? 'HL' : 'LV', c: 'lv', pay: p, work: 1, lv: l.half ? .5 : 1, lop: paid[l.type] ? 0 : (l.half ? .5 : 1), tip: 'Leave · ' + l.type + (paid[l.type] ? ' (paid)' : ' (unpaid)') }; }

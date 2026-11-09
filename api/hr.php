@@ -12,6 +12,34 @@ function hr_cfg() {
   if (empty($s['holidays']) && empty($s['holidays_set'])) unset($s['holidays']); // no list saved yet: use the 2026 office holiday list
   return $s + $d;
 }
+// place name for a GPS point (OpenStreetMap Nominatim), cached per ~100 m so each spot is looked up once
+function hr_place($lat, $lng) {
+  if ($lat === null || $lng === null || $lat === '' || $lng === '') return '';
+  $k = sprintf('%.3f,%.3f', $lat, $lng);
+  $c = row('SELECT name FROM geo_cache WHERE k=?', [$k]); if ($c) return $c['name'];
+  $url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&accept-language=en&lat=' . urlencode((string)$lat) . '&lon=' . urlencode((string)$lng);
+  $ch = curl_init($url);
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 4, CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_USERAGENT => 'SolarizeCRM/1.0 (+https://solarize.jasper.solar)']);
+  $res = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+  if ($code !== 200 || !$res) return '';
+  $j = json_decode($res, true); $a = $j['address'] ?? []; if (!$a) return '';
+  $pick = fn($keys) => array_values(array_filter(array_map(fn($x) => $a[$x] ?? '', $keys)))[0] ?? '';
+  $local = $pick(['amenity', 'building', 'shop', 'office']);
+  $area = $pick(['neighbourhood', 'suburb', 'quarter', 'hamlet']);
+  $town = $pick(['village', 'town', 'city', 'municipality', 'city_district', 'county']);
+  $dist = $pick(['state_district', 'county', 'state']);
+  $parts = array_values(array_unique(array_filter([$local, $area, $town, $dist])));
+  $name = mb_substr(implode(', ', $parts) ?: (string)($j['display_name'] ?? ''), 0, 120);
+  if ($name !== '') q('INSERT OR REPLACE INTO geo_cache(k,name) VALUES(?,?)', [$k, $name]);
+  return $name;
+}
+// fill missing place names for a few rows per request (keeps lookups slow-paced and pages fast)
+function hr_fill_places($limit = 3) {
+  foreach (rows("SELECT id,in_lat,in_lng,out_lat,out_lng,in_place,out_place FROM attendance WHERE (in_lat IS NOT NULL AND COALESCE(in_place,'')='') OR (out_lat IS NOT NULL AND COALESCE(out_place,'')='') ORDER BY id DESC LIMIT " . (int)$limit) as $r) {
+    if ($r['in_lat'] !== null && ($r['in_place'] ?? '') === '') { $p = hr_place($r['in_lat'], $r['in_lng']); if ($p === '') return; q('UPDATE attendance SET in_place=? WHERE id=?', [$p, $r['id']]); }
+    if ($r['out_lat'] !== null && ($r['out_place'] ?? '') === '') { $p = hr_place($r['out_lat'], $r['out_lng']); if ($p === '') return; q('UPDATE attendance SET out_place=? WHERE id=?', [$p, $r['id']]); }
+  }
+}
 function hr_mgr($m) { return can($m, true); }
 function hr_now() { return [date('Y-m-d'), date('H:i')]; }
 function hr_hol($cfg) { $h = []; foreach ($cfg['holidays'] as $x) if (!empty($x['date'])) $h[$x['date']] = $x['name'] ?? 'Holiday'; return $h; }
@@ -54,17 +82,19 @@ function handle_hr($a) {
         $st = hr_mins($t) >= hr_mins($cfg['half_after']) ? 'Half day' : ($late ? 'Late' : 'Present');
         if ($r) q('UPDATE attendance SET check_in=?, in_lat=?, in_lng=?, in_acc=?, status=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$t, $lat, $lng, $acc, $st, $r['id']]);
         else q('INSERT INTO attendance(user_id,date,check_in,in_lat,in_lng,in_acc,status) VALUES(?,?,?,?,?,?,?)', [$uid, $d, $t, $lat, $lng, $acc, $st]);
-        audit('check_in', 'attendance', $uid, $t . ($late ? ' (late)' : '')); out(['ok' => true, 'time' => $t, 'late' => $late, 'status' => $st]);
+        $place = hr_place($lat, $lng); if ($place !== '') q('UPDATE attendance SET in_place=? WHERE user_id=? AND date=?', [$place, $uid, $d]);
+        audit('check_in', 'attendance', $uid, $t . ($late ? ' (late)' : '') . ($place ? ' @ ' . $place : '')); out(['ok' => true, 'time' => $t, 'late' => $late, 'status' => $st, 'place' => $place]);
       }
       if (!$r || !$r['check_in']) fail('Check in first');
       if ($r['check_out']) fail('You already checked out at ' . $r['check_out']);
       $hrs = max(0, hr_mins($t) - hr_mins($r['check_in'])) / 60;
       $status = (hr_mins($t) < hr_mins($cfg['half_after']) || ((float)$cfg['half_hours'] > 0 && $hrs < (float)$cfg['half_hours'])) ? 'Half day' : $r['status'];
       q('UPDATE attendance SET check_out=?, out_lat=?, out_lng=?, out_acc=?, status=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$t, $lat, $lng, $acc, $status, $r['id']]);
-      audit('check_out', 'attendance', $uid, $t); out(['ok' => true, 'time' => $t, 'hours' => round($hrs, 2), 'status' => $status, 'early' => hr_mins($t) < hr_mins($cfg['end'])]);
+      $place = hr_place($lat, $lng); if ($place !== '') q('UPDATE attendance SET out_place=? WHERE id=?', [$place, $r['id']]);
+      audit('check_out', 'attendance', $uid, $t . ($place ? ' @ ' . $place : '')); out(['ok' => true, 'time' => $t, 'hours' => round($hrs, 2), 'status' => $status, 'early' => hr_mins($t) < hr_mins($cfg['end']), 'place' => $place]);
     case 'today':
-      need('attendance', true); [$d] = hr_now();
-      out(['date' => $d, 'rows' => rows("SELECT u.id user_id, u.name, u.role, a.check_in, a.check_out, a.status, a.in_lat, a.in_lng, a.out_lat, a.out_lng, a.notes,
+      need('attendance', true); [$d] = hr_now(); hr_fill_places();
+      out(['date' => $d, 'rows' => rows("SELECT u.id user_id, u.name, u.role, a.check_in, a.check_out, a.status, a.in_lat, a.in_lng, a.out_lat, a.out_lng, a.in_place, a.out_place, a.notes,
         (SELECT type || CASE WHEN half<>'' THEN ' (half)' ELSE '' END FROM leaves l WHERE l.user_id=u.id AND l.status='Approved' AND ? BETWEEN l.from_date AND l.to_date LIMIT 1) leave
         FROM users u LEFT JOIN attendance a ON a.user_id=u.id AND a.date=? WHERE u.active=1 ORDER BY u.name", [$d, $d])]);
     case 'month':

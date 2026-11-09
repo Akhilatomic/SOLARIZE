@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 11; // bump when tables/columns change
+const SCHEMA_VERSION = 12; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -97,6 +97,9 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS files(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, project_id INTEGER, kind TEXT, item TEXT, name TEXT, path TEXT, size INTEGER, user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, lead_id INTEGER, phone TEXT, text TEXT, user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE TABLE IF NOT EXISTS datasheets(id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, title TEXT, brand TEXT, model TEXT, notes TEXT, file_name TEXT, path TEXT, size INTEGER, available INTEGER DEFAULT 1, avail_note TEXT DEFAULT '', token TEXT UNIQUE, user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec("CREATE TABLE IF NOT EXISTS geo_cache(k TEXT PRIMARY KEY, name TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $ac = array_column($db->query('PRAGMA table_info(attendance)')->fetchAll(), 'name');
+  foreach (['in_place', 'out_place'] as $c) if ($ac && !in_array($c, $ac)) { try { $db->exec("ALTER TABLE attendance ADD COLUMN $c TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   $uc = array_column($db->query('PRAGMA table_info(users)')->fetchAll(), 'name');
   if (!in_array('can_claim', $uc)) {
     try { $db->exec('ALTER TABLE users ADD COLUMN can_claim INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; }
@@ -120,7 +123,7 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS wa_chats(id INTEGER PRIMARY KEY AUTOINCREMENT, wa_id TEXT UNIQUE, name TEXT DEFAULT '', lead_id INTEGER, customer_id INTEGER, assigned_to INTEGER, last_msg TEXT DEFAULT '', last_at TEXT, last_in_at TEXT, last_in_wamid TEXT DEFAULT '', unread INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE TABLE IF NOT EXISTS wa_msgs(id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER, dir TEXT, type TEXT, body TEXT DEFAULT '', wamid TEXT DEFAULT '', status TEXT DEFAULT '', error TEXT DEFAULT '', user TEXT DEFAULT '', media_id TEXT DEFAULT '', file_path TEXT DEFAULT '', filename TEXT DEFAULT '', mime TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec('CREATE INDEX IF NOT EXISTS wam_chat ON wa_msgs(chat_id, id)'); $db->exec('CREATE INDEX IF NOT EXISTS wam_wamid ON wa_msgs(wamid)');
-  $db->exec("CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, check_in TEXT, check_out TEXT, in_lat REAL, in_lng REAL, in_acc INTEGER, out_lat REAL, out_lng REAL, out_acc INTEGER, status TEXT DEFAULT 'Present', notes TEXT DEFAULT '', edited_by TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, date))");
+  $db->exec("CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, check_in TEXT, check_out TEXT, in_lat REAL, in_lng REAL, in_acc INTEGER, out_lat REAL, out_lng REAL, out_acc INTEGER, in_place TEXT DEFAULT '', out_place TEXT DEFAULT '', status TEXT DEFAULT 'Present', notes TEXT DEFAULT '', edited_by TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, date))");
   $db->exec("CREATE TABLE IF NOT EXISTS leaves(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, from_date TEXT, to_date TEXT, half TEXT DEFAULT '', days REAL, reason TEXT DEFAULT '', status TEXT DEFAULT 'Pending', approver_id INTEGER, approver_note TEXT DEFAULT '', decided_at TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   migrateV1($db);
 }
