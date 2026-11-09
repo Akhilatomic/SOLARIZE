@@ -36,7 +36,9 @@ function handle_reset($a) {
 
   $db->beginTransaction();
   try {
-    foreach (['customers', 'projects', 'quotes', 'payments', 'checklist', 'files', 'project_steps', 'stage_data', 'services', 'events', 'notes', 'messages', 'wa_chats', 'wa_msgs', 'discussions', 'disc_msgs', 'disc_reads', 'notifs'] as $t) $db->exec("DELETE FROM $t");
+    foreach (['customers', 'projects', 'quotes', 'payments', 'checklist', 'files', 'project_steps', 'stage_data', 'services', 'events', 'notes', 'messages', 'wa_chats', 'wa_msgs'] as $t) $db->exec("DELETE FROM $t");
+    $db->exec('DELETE FROM disc_msgs WHERE discussion_id IN (SELECT id FROM discussions WHERE customer_id IS NOT NULL)'); $db->exec('DELETE FROM disc_reads WHERE discussion_id IN (SELECT id FROM discussions WHERE customer_id IS NOT NULL)');
+    $db->exec('DELETE FROM discussions WHERE customer_id IS NOT NULL'); $db->exec('DELETE FROM notifs WHERE customer_id IS NOT NULL');
     $db->exec("UPDATE leads SET customer_id=NULL, status=CASE WHEN status='Won' THEN 'Contacted' ELSE status END"); // leads stay; links to deleted customers removed
     if (!empty($o['audit'])) $db->exec('DELETE FROM audit_log');
     if (!empty($o['datasheets'])) $db->exec('DELETE FROM datasheets');

@@ -93,6 +93,9 @@ function handle_crud($t, $a) {
         q('DELETE FROM quotes WHERE customer_id=?', [$id]); q('DELETE FROM messages WHERE customer_id=?', [$id]); q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$id]);
       }
       if ($t === 'projects') { purge_project($id); q('DELETE FROM project_steps WHERE project_id=?', [$id]); q('DELETE FROM stage_data WHERE project_id=?', [$id]); q('DELETE FROM services WHERE project_id=?', [$id]); }
+      if ($t === 'leads' || $t === 'customers') { $col = $t === 'leads' ? 'lead_id' : 'customer_id';
+        foreach (rows("SELECT id FROM discussions WHERE $col=?", [$id]) as $d) { q('DELETE FROM disc_msgs WHERE discussion_id=?', [$d['id']]); q('DELETE FROM disc_reads WHERE discussion_id=?', [$d['id']]); }
+        q("DELETE FROM discussions WHERE $col=?", [$id]); q("DELETE FROM notifs WHERE $col=?", [$id]); }
       if ($t === 'campaigns') { q('DELETE FROM ad_spend WHERE campaign_id=?', [$id]); q('UPDATE leads SET campaign_id=NULL WHERE campaign_id=?', [$id]); }
       q("DELETE FROM $t WHERE id=?", [$id]); q('DELETE FROM notes WHERE entity=? AND entity_id=?', [$t, $id]);
       audit('delete', $t, $id); out(['ok' => true]);
@@ -120,8 +123,7 @@ function handle_crud($t, $a) {
       q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$cu['id']]);
       q('UPDATE quotes SET lead_id=COALESCE(lead_id, ?), customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // quotes stay with the lead
       q("UPDATE notes SET entity='leads', entity_id=? WHERE entity='customers' AND entity_id=?", [$lid, $cu['id']]);
-      foreach (rows('SELECT id FROM discussions WHERE customer_id=?', [$cu['id']]) as $d) { q('DELETE FROM disc_msgs WHERE discussion_id=?', [$d['id']]); q('DELETE FROM disc_reads WHERE discussion_id=?', [$d['id']]); }
-      q('DELETE FROM discussions WHERE customer_id=?', [$cu['id']]); q('DELETE FROM notifs WHERE customer_id=?', [$cu['id']]);
+      q('UPDATE discussions SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); q('UPDATE notifs SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // discussions follow it back
       q('UPDATE messages SET lead_id=COALESCE(lead_id, ?), customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // WhatsApp log stays with the lead
       q('DELETE FROM customers WHERE id=?', [$cu['id']]);
       audit('revert', 'customers', $cu['id'], "{$cu['name']} → lead $lid" . ($why ? " · $why" : ''));
@@ -134,6 +136,7 @@ function handle_crud($t, $a) {
       $cid = (int)db()->lastInsertId();
       q("UPDATE leads SET customer_id=?, status='Won', updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
       q('UPDATE quotes SET customer_id=? WHERE lead_id=? AND customer_id IS NULL', [$cid, $l['id']]);
+      q('UPDATE discussions SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]); q('UPDATE notifs SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]);
       audit('convert', 'leads', $l['id'], "→ customer $cid"); out(['customer_id' => $cid]);
   }
   fail('Unknown action', 404);

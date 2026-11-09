@@ -281,7 +281,7 @@ async function assignLead(id) {
   });
 }
 async function pgLeads() {
-  const [leads, camps] = await Promise.all([list('leads'), canR('ads') ? list('campaigns') : []]);
+  const [leads, camps] = await Promise.all([list('leads'), canR('ads') ? list('campaigns') : [], discSummary()]);
   CACHE.leads = leads; CACHE.camps = camps; const w = canW('leads');
   const cities = [...new Set(leads.map(l => l.city).filter(Boolean))].sort();
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Leads</h2><div class="mut" id="lcount"></div></div><span class="sp"></span>
@@ -323,7 +323,7 @@ async function pgLeads() {
       remark: l => ed(l, 'remark', l.remark ? `<span class="clamp">${esc(l.remark)}</span>` : (l.can_edit ? '<span class="mut"><i>Add remark</i></span>' : ''), l.remark),
       appt: l => ed(l, 'appt', apptBadge(l)) };
     const acts = l => !l.can_edit ? `<button class="ib" title="View" data-a="vw"><i class="i i-eye"></i></button>`
-      : `${l.phone ? '<button class="ib wa" title="WhatsApp" data-a="wa"><i class="i i-chat"></i></button><a class="ib" title="Call" href="tel:' + esc(l.phone) + '"><i class="i i-phone"></i></a>' : ''}<button class="ib" title="View / edit" data-a="vw"><i class="i i-eye"></i></button><button class="ib" title="More actions" data-a="more"><i class="i i-dots"></i></button>`;
+      : `${discBtn(l.id, 1)}${l.phone ? '<a class="ib" title="Call" href="tel:' + esc(l.phone) + '"><i class="i i-phone"></i></a>' : ''}<button class="ib" title="View / edit" data-a="vw"><i class="i i-eye"></i></button><button class="ib" title="More actions" data-a="more"><i class="i i-dots"></i></button>`;
     $('#ltb').innerHTML = `<colgroup>${show.map(([k]) => `<col${LW[k] ? ` style="width:${LW[k]}px"` : ''}>`).join('')}<col style="width:${isAdm() ? 136 : 128}px"></colgroup>
       <thead><tr>${show.map(([k, t]) => `<th data-sort="${sk(k)}">${t}<span class="so">${LF.sort === sk(k) ? (LF.dir > 0 ? '↑' : '↓') : '⇅'}</span></th>`).join('')}<th class="right">Actions</th></tr></thead>
       <tbody>${rows.map(l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}<td class="lact">${acts(l)}</td></tr>`).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
@@ -343,6 +343,7 @@ async function pgLeads() {
     if (a === 'unlock') { if (await unlockLead(l.id, l.assigned_to == ME.id)) route(); return; }
     if (a === 'assign') { if (await assignLead(l.id)) route(); return; }
     if (a === 'wa') waOpen({ name: l.name, phone: l.phone, lead_id: l.id });
+    if (a === 'ds') discOpen({ lead_id: l.id });
     if (a === 'vw' || a === 'ed') leadModal(l.id);
     if (a === 'rm') { const r = prompt('Remark for ' + l.name, l.remark || ''); if (r !== null) { l.remark = r; await api('leads', 'save', { ...l }); draw(); } }
     if (a === 'cv') { if (confirm('Convert ' + l.name + ' to a customer?')) { const r = await api('leads', 'convert', { id: l.id }); location.hash = '#/customers/' + r.customer_id; } }
@@ -352,7 +353,7 @@ async function pgLeads() {
   const closeMenu = () => { const m = $('#lmenu'); if (m) m.remove(); };
   const moreMenu = (l, btn) => {
     closeMenu();
-    const items = [['rm', 'note', 'Add remark'], ['ed', 'pencil', 'Edit lead'], l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
+    const items = [l.phone ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['ed', 'pencil', 'Edit lead'], l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
       l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ['unlock', 'lock', l.assigned_to == ME.id ? 'Unclaim (release lead)' : 'Unclaim / unlock (admin)'] : null, isAdm() ? ['assign', 'users', 'Assign to user (admin)'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu';
     m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('');
@@ -382,7 +383,7 @@ async function pgLeads() {
   $$('[data-col]').forEach(c => c.onchange = () => { LHIDE = $$('[data-col]').filter(x => !x.checked).map(x => x.dataset.col); try { localStorage.lcols = JSON.stringify(LHIDE); } catch (e) { } draw(); });
   $('#lex').onclick = () => csvDownload('leads-' + today() + '.csv', ['name', 'phone', 'email', 'city', 'location', 'source', 'status', 'appt', 'remark', 'kw', 'budget', 'added_by', 'created', 'notes'], leads);
   if ($('#lim')) $('#lim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; const rows = csvObjs(await f.text()); let n = 0; for (const r of rows) { if (!r.name) continue; await api('leads', 'save', { ...r, status: r.status || 'New' }); n++; } alert('Imported ' + n + ' leads'); route(); };
-  draw();
+  draw(); DISC.lredraw = draw;
 }
 async function leadModal(id) {
   const l = id ? await api('leads', 'get', undefined, '&id=' + id) : { status: 'New', source: S.lead_sources[0] };
@@ -394,7 +395,7 @@ async function leadModal(id) {
   const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}</span>` : '<span class="mut">Not claimed yet. Claim it to see the full number and start working on it.</span>'}<span class="sp"></span>${l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? '<button class="btn sm sec" id="mul"><i class="i i-lock"></i> Unclaim</button>' : ''}${isAdm() ? '<button class="btn sm sec" id="mas"><i class="i i-users"></i> Assign</button>' : ''}</div>` : '';
   const m = modal(`<h2 style="margin-top:0">${id ? 'Lead' : 'New lead'}</h2>${lock}<div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(l.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px">${w ? '<button class="btn" id="sv">Save</button>' : ''}<button class="btn sec" id="cx">Close</button>
-   ${id && l.phone && w ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(l.phone) + '">Call</a>' : ''}
+   ${id && l.can_edit !== 0 ? '<button class="btn sec" id="lds"><i class="i i-chat"></i> Discussion</button>' : ''}${id && l.phone && w ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(l.phone) + '">Call</a>' : ''}
    ${id && w && !l.customer_id ? '<button class="btn sec" id="cv">Convert to customer</button>' : ''}${l.customer_id ? `<a class="btn sec" href="#/customers/${l.customer_id}" id="oc">Open customer</a>` : ''}
    ${id && canW('quotes') && w ? '<button class="btn sec" id="qt">Create quotation</button>' : ''}<span class="sp"></span>${id && w ? '<button class="btn bad" id="dl">Delete</button>' : ''}</div>
    ${id ? `<p class="mut" style="font-size:12px">Added by ${esc(l.added_by || '—')} on ${dmy(l.created)}</p>` + noteBox('leads', id, l.notes_log) + `<div class="card" style="margin-top:10px"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div>` : ''}`);
@@ -406,6 +407,7 @@ async function leadModal(id) {
   if ($('#oc', m)) $('#oc', m).onclick = () => m.remove();
   if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m) }; if (!o.name) return alert('Name required'); await api('leads', 'save', o); m.remove(); route(); };
   if ($('#wa', m)) $('#wa', m).onclick = () => waOpen({ name: l.name, phone: l.phone, lead_id: id });
+  if ($('#lds', m)) $('#lds', m).onclick = () => { m.remove(); discOpen({ lead_id: id }); };
   if ($('#cv', m)) $('#cv', m).onclick = async () => { const r = await api('leads', 'convert', { id }); m.remove(); location.hash = '#/customers/' + r.customer_id; };
   if ($('#qt', m)) $('#qt', m).onclick = () => { m.remove(); sessionStorage.lead2quote = JSON.stringify({ lead_id: id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; };
   if ($('#dl', m)) $('#dl', m).onclick = async () => { if (confirm('Delete this lead?')) { await api('leads', 'delete', { id }); m.remove(); route(); } };

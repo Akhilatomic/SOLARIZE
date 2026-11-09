@@ -1,27 +1,32 @@
-// Customer discussions: team chat per customer with @mentions, notifications in the bell, "end discussion".
-let DISC = { sum: {}, notifs: [], count: 0, seen: null, timer: null, live: null, redraw: null };
+// Team discussions on customers and leads: chat with @mentions, notifications in the bell, "end discussion".
+let DISC = { sum: {}, lsum: {}, notifs: [], count: 0, seen: null, timer: null, live: null, redraw: null, lredraw: null };
+// a discussion subject: a customer id (number) or {customer_id} / {lead_id}
+const discT = t => (t && typeof t === 'object') ? (t.lead_id ? { lead_id: +t.lead_id } : { customer_id: +t.customer_id }) : { customer_id: +t };
 const discRank = id => { const x = DISC.sum[id]; return x ? (+x.unread ? 2 : 1) : 0; };
 // desktop notifications: ask once on the first click (browsers only allow the prompt after a user action)
-function discDesk(title, body, cid) {
+function discDesk(title, body, tgt) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  try { const n = new Notification(title, { body, tag: 'disc-' + cid + '-' + Date.now(), icon: 'assets/logo.png' }); n.onclick = () => { window.focus(); n.close(); if (cid) discOpen(cid); }; } catch (e) { }
+  try { const n = new Notification(title, { body, tag: 'disc-' + Date.now(), icon: 'assets/logo.png' }); n.onclick = () => { window.focus(); n.close(); if (tgt) discOpen(tgt); }; } catch (e) { }
 }
 document.addEventListener('click', function askDesk() { document.removeEventListener('click', askDesk, true);
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().then(p => { if (p === 'granted') toast('Desktop notifications turned on'); }); }, true);
 
 async function discSummary() {
-  if (!canR('customers')) return;
+  if (!canR('customers') && !canR('leads')) return;
   let r; try { r = await api('disc', 'summary'); } catch (e) { return; }
-  const before = JSON.stringify(DISC.sum); DISC.sum = Object.fromEntries(r.map(x => [x.customer_id, x]));
-  const ids = r.map(x => x.id);
-  if (DISC.live) r.filter(x => !DISC.live.includes(x.id) && x.created_by != ME.id).forEach(x => {
-    toast(`Live discussion started on ${x.customer_name} by ${x.created_name}`);
-    discDesk('Live discussion · ' + x.customer_name, (x.created_name || 'Someone') + ' started a discussion' + (x.topic ? ': ' + x.topic : ''), x.customer_id); });
+  const before = JSON.stringify([DISC.sum, DISC.lsum]);
+  DISC.sum = Object.fromEntries(r.customers.map(x => [x.customer_id, x])); DISC.lsum = Object.fromEntries(r.leads.map(x => [x.lead_id, x]));
+  const all = [...r.customers, ...r.leads], ids = all.map(x => x.id);
+  if (DISC.live) all.filter(x => !DISC.live.includes(x.id) && x.created_by != ME.id).forEach(x => { const what = (x.lead_id ? 'lead ' : '') + x.subject;
+    toast(`Live discussion started on ${what} by ${x.created_name}`);
+    discDesk('Live discussion · ' + what, (x.created_name || 'Someone') + ' started a discussion' + (x.topic ? ': ' + x.topic : ''), x.lead_id ? { lead_id: x.lead_id } : { customer_id: x.customer_id }); });
   DISC.live = ids;
-  if (JSON.stringify(DISC.sum) !== before && DISC.redraw && /^#\/customers\/?$/.test(location.hash) && !document.querySelector('.xdmod')) DISC.redraw();
+  if (JSON.stringify([DISC.sum, DISC.lsum]) !== before && !document.querySelector('.xdmod')) {
+    if (DISC.redraw && /^#\/customers\/?$/.test(location.hash)) DISC.redraw();
+    if (DISC.lredraw && /^#\/leads\/?$/.test(location.hash) && !document.querySelector('#ltb .editing, #ltb input, #ltb select')) DISC.lredraw(); }
 }
-function discBtn(cid) {
-  const s = DISC.sum[cid], n = s ? +s.unread : 0;
+function discBtn(cid, lead) {
+  const s = (lead ? DISC.lsum : DISC.sum)[cid], n = s ? +s.unread : 0;
   return `<button class="ib xdb ${s ? 'on live' : ''}" data-a="ds" title="${s ? `LIVE discussion · ${s.msgs} message${s.msgs == 1 ? '' : 's'}${n ? ` · ${n} unread` : ''}` : 'Start a team discussion'}"><i class="i i-chat"></i>${n ? `<span class="xdn">${n > 9 ? '9+' : n}</span>` : ''}</button>`;
 }
 
@@ -39,21 +44,22 @@ function discMsgs(d, data) {
     : `<div class="xdmsg ${m.user_id == data.me ? 'me' : ''}"><div class="xdav">${esc((m.user_name || '?').trim().charAt(0).toUpperCase())}</div><div class="xdbub"><div class="xdhd"><b>${esc(m.user_name || 'Removed user')}</b><span>${discTime(m.created)}</span></div><div class="xdtx">${discFmt(m, data.users)}</div></div></div>`).join('');
 }
 
-async function discOpen(cid) {
+async function discOpen(tgt) {
+  const T = discT(tgt), isLead = !!T.lead_id;
   let data, openD, pastOpen = {};
   const m = modal('<div class="xdw"><p class="mut" style="padding:20px">Loading…</p></div>'); m.classList.add('xdmod');
-  const close = () => { clearInterval(DISC.timer); m.remove(); discSummary().then(() => { if (/^#\/customers\/?$/.test(location.hash) || location.hash === '#/customers') route(); }); refreshNotifs(); };
+  const close = () => { clearInterval(DISC.timer); m.remove(); discSummary().then(() => { if (/^#\/(customers|leads)\/?$/.test(location.hash)) route(); }); refreshNotifs(); };
   m.addEventListener('mouseup', () => { if (!document.body.contains(m)) close(); });
-  const load = async () => { data = await api('disc', 'thread', undefined, '&customer_id=' + cid); openD = data.discussions.find(d => d.status === 'Open'); };
+  const load = async () => { data = await api('disc', 'thread', undefined, isLead ? '&lead_id=' + T.lead_id : '&customer_id=' + T.customer_id); openD = data.discussions.find(d => d.status === 'Open'); };
   const draw = () => {
     const c = data.customer, past = data.discussions.filter(d => d.status !== 'Open');
     const keep = $('#xdtx', m) ? { v: $('#xdtx', m).value, s: $('#xdtx', m).selectionStart, f: document.activeElement === $('#xdtx', m), tags: m._tags } : null;
     $('.xdw', m).innerHTML = `
-     <div class="xdh"><span class="lvi"><i class="i i-chat"></i></span><div class="xdht"><h2>${esc(c.name)}</h2><small>${openD ? `Discussion${openD.topic ? ' · ' + esc(openD.topic) : ''} · started by ${esc(openD.created_name || '')} ${agoStr(openD.created)}` : 'Team discussion about this customer'}</small></div>
+     <div class="xdh"><span class="lvi"><i class="i i-chat"></i></span><div class="xdht"><h2>${isLead ? '<span class="pill b" style="vertical-align:3px;margin-right:6px">Lead</span>' : ''}${esc(c.name)}</h2><small>${openD ? `Discussion${openD.topic ? ' · ' + esc(openD.topic) : ''} · started by ${esc(openD.created_name || '')} ${agoStr(openD.created)}` : (isLead ? 'Team discussion about this lead' : 'Team discussion about this customer')}</small></div>
       ${openD && openD.can_end ? '<button class="btn sec sm" id="xdend"><i class="i i-check"></i> End discussion</button>' : ''}<button class="lvx" id="xdx" title="Close"><i class="i i-x"></i></button></div>
      <div class="xdbody" id="xdb">
       ${past.length ? `<details class="xdpast"><summary>Earlier discussions (${past.length})</summary>${past.map(d => `<details class="xdold" data-pd="${d.id}" ${pastOpen[d.id] ? 'open' : ''}><summary><b>${esc(d.topic || 'Discussion')}</b> <span class="mut">· ${discTime(d.created)} → ended ${discTime(d.closed_at)} by ${esc(d.closed_name || '')}</span>${d.outcome ? `<div class="xdout">${esc(d.outcome)}</div>` : ''}</summary><div class="xdlist">${discMsgs(d, data)}</div></details>`).join('')}</details>` : ''}
-      ${openD ? `<div class="xdlist" id="xdl">${discMsgs(openD, data)}</div>` : `<div class="xdnew"><i class="i i-chat"></i><b>No open discussion</b><span class="mut">Start one to discuss status and updates with the team. Tag people with @ to notify them.</span><input id="xdtopic" placeholder="Topic (optional), e.g. KSEB feasibility delay" maxlength="120"></div>`}
+      ${openD ? `<div class="xdlist" id="xdl">${discMsgs(openD, data)}</div>` : `<div class="xdnew"><i class="i i-chat"></i><b>No open discussion</b><span class="mut">Start one to discuss ${isLead ? 'this lead' : 'status and updates'} with the team. Tag people with @ to notify them.</span><input id="xdtopic" placeholder="Topic (optional), e.g. KSEB feasibility delay" maxlength="120"></div>`}
      </div>
      <div class="xdcomp"><div class="xdmenu hide" id="xdmenu"></div>
       <textarea id="xdtx" rows="2" placeholder="${openD ? 'Write an update… type @ to tag someone' : 'First message… type @ to tag someone'}"></textarea>
@@ -90,7 +96,7 @@ async function discOpen(cid) {
       const body = tx.value.trim(); if (!body) return tx.focus();
       const mentions = Object.entries(m._tags).filter(([, n]) => body.includes('@' + n)).map(([id]) => +id);
       const b = $('#xdsend', m); b.disabled = true;
-      try { await api('disc', 'post', { customer_id: cid, body, mentions, topic: $('#xdtopic', m) ? $('#xdtopic', m).value : '' }); tx.value = ''; m._tags = {};
+      try { await api('disc', 'post', { ...T, body, mentions, topic: $('#xdtopic', m) ? $('#xdtopic', m).value : '' }); tx.value = ''; m._tags = {};
         if (mentions.length) toast(`Sent · ${mentions.length} tagged user${mentions.length === 1 ? '' : 's'} notified`);
         await load(); draw(); $('#xdtx', m).focus(); } finally { if (document.body.contains(b)) b.disabled = false; } };
     $('#xdsend', m).onclick = send;
@@ -111,7 +117,7 @@ async function refreshNotifs() {
   if (DISC.seen) { const fresh = DISC.notifs.filter(n => !DISC.seen.includes(n.id));
     fresh.slice(0, 3).forEach(n => toast(n.kind === 'mention' ? `${n.from_name} tagged you · ${n.customer_name}` : n.text));
     if (fresh.length && typeof SOUND !== 'undefined' && SOUND) try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 990; g.gain.setValueAtTime(.0001, a.currentTime); g.gain.exponentialRampToValueAtTime(.12, a.currentTime + .02); g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + .4); o.start(); o.stop(a.currentTime + .4); } catch (e) { }
-    fresh.slice(0, 3).forEach(n => discDesk(n.kind === 'mention' ? `${n.from_name} tagged you · ${n.customer_name}` : n.kind === 'end' ? `Discussion ended · ${n.customer_name}` : `${n.from_name} · ${n.customer_name}`, n.text.replace(/^.*?:\s/, ''), n.customer_id)); }
+    fresh.slice(0, 3).forEach(n => discDesk(n.kind === 'mention' ? `${n.from_name} tagged you · ${n.customer_name}` : n.kind === 'end' ? `Discussion ended · ${n.customer_name}` : `${n.from_name} · ${n.customer_name}`, n.text.replace(/^.*?:\s/, ''), n.lead_id ? { lead_id: n.lead_id } : { customer_id: n.customer_id })); }
   DISC.seen = ids;
   if (typeof drawBell === 'function') drawBell();
   const p = $('#bellp'); if (p && !p.classList.contains('hide') && typeof drawBellPanel === 'function') drawBellPanel();
@@ -120,14 +126,14 @@ function discBellHtml() {
   const N = DISC.notifs; if (!N.length) return '';
   const lbl = { mention: 'tagged you', reply: 'replied', end: 'ended the discussion' };
   return `<div class="bar" style="margin:0 0 4px"><b>Discussions (${DISC.count})</b><span class="sp"></span><button class="btn sec sm" id="dnall">Mark all read</button></div>
-   ${N.slice(0, 8).map(n => `<div class="nl xdnot" data-dn="${n.id}" data-dc="${n.customer_id}"><div class="xdav">${esc((n.from_name || '?').charAt(0).toUpperCase())}</div><div class="nlm"><b>${esc(n.from_name || '')}</b> ${lbl[n.kind] || ''} <span class="mut">· ${agoStr(n.created)}</span><br><span style="font-size:13px"><b>${esc(n.customer_name || 'Customer')}</b> — ${esc(n.text.replace(/^.*?:\s/, ''))}</span></div></div>`).join('')}<div class="bsep"></div>`;
+   ${N.slice(0, 8).map(n => `<div class="nl xdnot" data-dn="${n.id}" data-dt='${JSON.stringify(n.lead_id ? { lead_id: n.lead_id } : { customer_id: n.customer_id })}'><div class="xdav">${esc((n.from_name || '?').charAt(0).toUpperCase())}</div><div class="nlm"><b>${esc(n.from_name || '')}</b> ${lbl[n.kind] || ''} <span class="mut">· ${agoStr(n.created)}</span><br><span style="font-size:13px"><b>${n.lead_id ? '<span class="pill b">Lead</span> ' : ''}${esc(n.customer_name || '')}</b> — ${esc(n.text.replace(/^.*?:\s/, ''))}</span></div></div>`).join('')}<div class="bsep"></div>`;
 }
 function discBellBind(root) {
   if ($('#dnall', root)) $('#dnall', root).onclick = async e => { e.stopPropagation(); await api('disc', 'seen', { all: 1 }); refreshNotifs(); };
-  $$('[data-dn]', root).forEach(x => x.onclick = async () => { const p = $('#bellp'); if (p) p.classList.add('hide'); api('disc', 'seen', { id: +x.dataset.dn }); discOpen(+x.dataset.dc); });
+  $$('[data-dn]', root).forEach(x => x.onclick = async () => { const p = $('#bellp'); if (p) p.classList.add('hide'); api('disc', 'seen', { id: +x.dataset.dn }); discOpen(JSON.parse(x.dataset.dt)); });
 }
 function startDisc() {
-  if (!canR('customers')) return;
+  if (!canR('customers') && !canR('leads')) return;
   if (typeof mountBell === 'function') mountBell();
   discSummary(); refreshNotifs(); setInterval(() => { refreshNotifs(); discSummary(); }, document.hidden ? 30000 : 20000);
 }
