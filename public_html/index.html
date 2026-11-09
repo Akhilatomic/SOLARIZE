@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Solarize CRM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b2430;--mut:#6b7686;--bd:#e3e7ed;--pri:#f59e0b;--pri2:#d97706;--ok:#16a34a;--bad:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#10151c;--card:#19212b;--tx:#e8edf3;--mut:#93a0b1;--bd:#2a3543}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;margin-right:auto}header h1 span{color:var(--pri)}
+nav{display:flex;gap:4px}nav button{background:none;border:0;padding:8px 12px;border-radius:8px;color:var(--mut);font:inherit;cursor:pointer}
+nav button.on{background:var(--pri);color:#fff}
+main{max-width:1200px;margin:0 auto;padding:16px}
+.btn{background:var(--pri);color:#fff;border:0;padding:8px 14px;border-radius:8px;font:inherit;cursor:pointer}.btn:hover{background:var(--pri2)}
+.btn.sec{background:var(--card);color:var(--tx);border:1px solid var(--bd)}.btn.bad{background:var(--bad)}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit}
+label{display:block;font-size:12px;color:var(--mut);margin:8px 0 3px}
+.grid{display:grid;gap:12px}.stats{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px}
+.stat b{display:block;font-size:24px}.stat span{color:var(--mut);font-size:13px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--bd);font-size:14px}
+th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase}tr.row{cursor:pointer}tr.row:hover{background:var(--bg)}
+.tw{overflow-x:auto}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;background:var(--bd)}
+.pill.Commissioned{background:#dcfce7;color:#166534}.pill.Lost{background:#fee2e2;color:#991b1b}.pill.Lead{background:#e0f2fe;color:#075985}
+.pill.Installation,.pill.Approved{background:#fef3c7;color:#92400e}
+.bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}.bar input{max-width:300px}.bar select{max-width:180px}
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:250px;gap:10px;overflow-x:auto;padding-bottom:10px}
+.col{background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:8px;min-height:200px}
+.col h3{font-size:13px;margin:4px 6px 8px;display:flex;justify-content:space-between}
+.k{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:9px;margin-bottom:8px;cursor:grab;font-size:13px}
+.k small{color:var(--mut);display:block}
+.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px;z-index:20}
+.modal>div{background:var(--card);border-radius:14px;padding:18px;width:100%;max-width:720px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}@media(max-width:560px){.two{grid-template-columns:1fr}}
+.act{border-left:3px solid var(--pri);padding:2px 10px;margin:8px 0;font-size:13px}.act small{color:var(--mut)}
+.login{max-width:340px;margin:12vh auto}.err{color:var(--bad);font-size:13px;min-height:18px}
+.over{color:var(--bad);font-weight:600}.hide{display:none}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const STAGES=['Lead','Site Survey','Quotation','Negotiation','Approved','Installation','Commissioned','Lost'];
+const $=(s,r=document)=>r.querySelector(s), app=$('#app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const inr=n=>'₹'+Math.round(+n||0).toLocaleString('en-IN');
+const today=()=>new Date().toISOString().slice(0,10);
+let data=[],view='dash',q='',fs='';
+async function api(a,body,id){
+  const r=await fetch('api.php?a='+a+(id?'&id='+id:''),{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  const j=await r.json().catch(()=>({error:'Bad response'}));
+  if(r.status===401&&a!=='login'){boot();throw j}
+  if(j.error&&a!=='login'&&a!=='setup')alert(j.error);
+  return j;
+}
+async function boot(){
+  const s=await fetch('api.php?a=status').then(r=>r.json());
+  if(s.auth){data=await api('list');render()}else loginView(s.setup);
+}
+function loginView(setup){
+  app.innerHTML=`<div class="card login"><h2 style="margin-top:0">☀️ Solarize <span style="color:var(--pri)">CRM</span></h2>
+  <p style="color:var(--mut)">${setup?'First run: choose an admin password (min 8 chars).':'Sign in to continue.'}</p>
+  <input id="pw" type="password" placeholder="Password" autofocus><div class="err" id="e"></div>
+  <button class="btn" style="width:100%" id="go">${setup?'Set password':'Sign in'}</button></div>`;
+  const go=async()=>{const j=await api(setup?'setup':'login',{password:$('#pw').value});j.ok?boot():$('#e').textContent=j.error||'Failed'};
+  $('#go').onclick=go;$('#pw').onkeydown=e=>e.key==='Enter'&&go();
+}
+function render(){
+  app.innerHTML=`<header><h1>☀️ Solarize <span>CRM</span></h1>
+  <nav>${[['dash','Dashboard'],['list','Customers'],['board','Pipeline']].map(([k,l])=>`<button data-v="${k}" class="${view===k?'on':''}">${l}</button>`).join('')}</nav>
+  <button class="btn" id="add">+ New</button>
+  <button class="btn sec" id="more">⋯</button></header><main id="main"></main>`;
+  document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{view=b.dataset.v;render()});
+  $('#add').onclick=()=>edit();$('#more').onclick=menu;
+  ({dash,list,board})[view]();
+}
+function dash(){
+  const act=data.filter(c=>!['Lost','Commissioned'].includes(c.stage));
+  const due=data.filter(c=>c.followup&&c.followup<=today()&&!['Lost','Commissioned'].includes(c.stage)).sort((a,b)=>a.followup.localeCompare(b.followup));
+  const pipe=act.reduce((s,c)=>s+c.quote,0),rec=data.reduce((s,c)=>s+c.paid,0);
+  const out=data.filter(c=>c.stage!=='Lost').reduce((s,c)=>s+Math.max(0,c.quote-c.paid),0);
+  const kw=data.filter(c=>c.stage==='Commissioned').reduce((s,c)=>s+c.kw,0);
+  $('#main').innerHTML=`<div class="grid stats">
+  <div class="card stat"><b>${data.length}</b><span>Total customers</span></div>
+  <div class="card stat"><b>${act.length}</b><span>Active deals</span></div>
+  <div class="card stat"><b>${inr(pipe)}</b><span>Pipeline value</span></div>
+  <div class="card stat"><b>${inr(rec)}</b><span>Payments received</span></div>
+  <div class="card stat"><b>${inr(out)}</b><span>Outstanding</span></div>
+  <div class="card stat"><b>${kw.toFixed(1)} kW</b><span>Commissioned</span></div></div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:12px">
+  <div class="card"><h3 style="margin-top:0">Follow-ups due (${due.length})</h3>${due.length?due.map(c=>`<div class="act" style="cursor:pointer" data-id="${c.id}"><b>${esc(c.name)}</b> <span class="over">${c.followup<today()?'overdue ':''}${c.followup}</span><br><small>${esc(c.phone)} · ${c.stage}</small></div>`).join(''):'<p style="color:var(--mut)">Nothing due 🎉</p>'}</div>
+  <div class="card"><h3 style="margin-top:0">By stage</h3>${STAGES.map(s=>{const n=data.filter(c=>c.stage===s).length;return `<div style="display:flex;align-items:center;gap:8px;margin:6px 0"><span style="width:100px;font-size:13px">${s}</span><div style="flex:1;background:var(--bd);border-radius:6px;height:14px"><div style="width:${data.length?n/data.length*100:0}%;background:var(--pri);height:100%;border-radius:6px"></div></div><b>${n}</b></div>`}).join('')}</div></div>`;
+  document.querySelectorAll('.act[data-id]').forEach(e=>e.onclick=()=>edit(+e.dataset.id));
+}
+function list(){
+  $('#main').innerHTML=`<div class="bar"><input id="q" placeholder="Search name, phone, address…" value="${esc(q)}"><select id="fs"><option value="">All stages</option>${STAGES.map(s=>`<option ${fs===s?'selected':''}>${s}</option>`).join('')}</select></div>
+  <div class="card tw"><table><thead><tr><th>Name</th><th>Phone</th><th>kW</th><th>Stage</th><th>Quote</th><th>Balance</th><th>Follow-up</th></tr></thead><tbody id="tb"></tbody></table></div>`;
+  const draw=()=>{const t=q.toLowerCase();
+    const rows=data.filter(c=>(!fs||c.stage===fs)&&(!t||[c.name,c.phone,c.address,c.email].join(' ').toLowerCase().includes(t)));
+    $('#tb').innerHTML=rows.map(c=>`<tr class="row" data-id="${c.id}"><td><b>${esc(c.name)}</b><br><small style="color:var(--mut)">${esc(c.address).slice(0,40)}</small></td><td>${esc(c.phone)}</td><td>${c.kw||''}</td><td><span class="pill ${c.stage.replace(' ','')}">${c.stage}</span></td><td>${inr(c.quote)}</td><td>${inr(c.quote-c.paid)}</td><td class="${c.followup&&c.followup<today()?'over':''}">${c.followup||''}</td></tr>`).join('')||'<tr><td colspan=7 style="color:var(--mut)">No customers</td></tr>';
+    document.querySelectorAll('tr.row').forEach(r=>r.onclick=()=>edit(+r.dataset.id));};
+  $('#q').oninput=e=>{q=e.target.value;draw()};$('#fs').onchange=e=>{fs=e.target.value;draw()};draw();
+}
+function board(){
+  $('#main').innerHTML=`<div class="board">${STAGES.map(s=>{const cs=data.filter(c=>c.stage===s);
+  return `<div class="col" data-s="${s}"><h3><span>${s}</span><span>${cs.length}</span></h3>${cs.map(c=>`<div class="k" draggable="true" data-id="${c.id}"><b>${esc(c.name)}</b><small>${c.kw?c.kw+' kW · ':''}${inr(c.quote)}</small><small>${esc(c.phone)}</small></div>`).join('')}</div>`}).join('')}</div>`;
+  document.querySelectorAll('.k').forEach(k=>{k.ondragstart=e=>e.dataTransfer.setData('id',k.dataset.id);k.onclick=()=>edit(+k.dataset.id)});
+  document.querySelectorAll('.col').forEach(c=>{c.ondragover=e=>e.preventDefault();c.ondrop=async e=>{e.preventDefault();await api('stage',{id:+e.dataTransfer.getData('id'),stage:c.dataset.s});data=await api('list');board()}});
+}
+async function edit(id){
+  let c={stage:'Lead',followup:'',activities:[]};
+  if(id)c=await api('get',null,id);
+  const f=(k,l,t='text')=>`<div><label>${l}</label><input data-k="${k}" type="${t}" value="${esc(c[k]??'')}"></div>`;
+  const m=document.createElement('div');m.className='modal';
+  m.innerHTML=`<div><h2 style="margin-top:0">${id?'Edit':'New'} customer</h2><div class="two">
+  ${f('name','Name')}${f('phone','Phone','tel')}${f('email','Email','email')}${f('source','Source (referral, walk-in…)')}
+  <div style="grid-column:1/-1">${f('address','Address')}</div>
+  <div><label>Stage</label><select data-k="stage">${STAGES.map(s=>`<option ${c.stage===s?'selected':''}>${s}</option>`).join('')}</select></div>
+  ${f('followup','Next follow-up','date')}${f('kw','System size (kW)','number')}${f('kseb_ref','KSEB / MNRE application no.')}
+  ${f('panel','Panels')}${f('inverter','Inverter')}${f('quote','Quote (₹)','number')}${f('paid','Paid so far (₹)','number')}</div>
+  <label>Notes</label><textarea data-k="notes" rows="3">${esc(c.notes||'')}</textarea>
+  <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button>
+  ${c.phone?`<a class="btn sec" style="text-decoration:none" href="tel:${esc(c.phone)}">Call</a><a class="btn sec" style="text-decoration:none" target="_blank" href="https://wa.me/${(c.phone||'').replace(/\D/g,'').replace(/^(\d{10})$/,'91$1')}">WhatsApp</a>`:''}
+  ${id?'<button class="btn bad" id="dl" style="margin-left:auto">Delete</button>':''}</div>
+  ${id?`<h3>Activity</h3><div style="display:flex;gap:8px"><input id="nt" placeholder="Add a note / call log…"><button class="btn" id="an">Add</button></div>
+  ${c.activities.map(a=>`<div class="act">${esc(a.text)}<br><small>${a.created}</small></div>`).join('')}`:''}</div>`;
+  document.body.appendChild(m);
+  $('#cx',m).onclick=()=>m.remove();
+  $('#sv',m).onclick=async()=>{const o={id};m.querySelectorAll('[data-k]').forEach(e=>o[e.dataset.k]=e.value);const j=await api('save',o);if(!j.error){m.remove();data=await api('list');render()}};
+  if(id){$('#dl',m).onclick=async()=>{if(confirm('Delete this customer permanently?')){await api('delete',{id});m.remove();data=await api('list');render()}};
+    $('#an',m).onclick=async()=>{const t=$('#nt',m).value;if(!t)return;await api('note',{id,text:t});m.remove();edit(id)}}
+}
+function menu(){
+  const m=document.createElement('div');m.className='modal';
+  m.innerHTML=`<div style="max-width:380px"><h3 style="margin-top:0">Tools</h3>
+  <button class="btn sec" style="width:100%;margin-bottom:8px" id="ex">Export CSV</button>
+  <button class="btn sec" style="width:100%;margin-bottom:8px" id="im">Import CSV (headers: name,phone,address,kw,quote…)</button>
+  <button class="btn sec" style="width:100%;margin-bottom:8px" id="pw">Change password</button>
+  <button class="btn sec" style="width:100%;margin-bottom:8px" id="lo">Sign out</button>
+  <button class="btn sec" style="width:100%" id="cx">Close</button><input type="file" id="fi" accept=".csv" class="hide"></div>`;
+  document.body.appendChild(m);$('#cx',m).onclick=()=>m.remove();
+  $('#lo',m).onclick=async()=>{await api('logout',{});location.reload()};
+  $('#pw',m).onclick=async()=>{const o=prompt('Current password');if(!o)return;const n=prompt('New password (min 8)');if(!n)return;const j=await api('password',{old:o,new:n});if(j.ok)alert('Changed')};
+  $('#ex',m).onclick=()=>{const cols=['name','phone','email','address','stage','kw','panel','inverter','source','quote','paid','followup','kseb_ref','notes'];
+    const csv=[cols.join(',')].concat(data.map(c=>cols.map(k=>'"'+String(c[k]??'').replace(/"/g,'""')+'"').join(','))).join('\r\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));a.download='solarize-customers-'+today()+'.csv';a.click()};
+  $('#im',m).onclick=()=>$('#fi',m).click();
+  $('#fi',m).onchange=async e=>{const t=await e.target.files[0].text();const rows=parseCSV(t.replace(/^﻿/,''));const h=rows.shift().map(x=>x.trim().toLowerCase());
+    const objs=rows.filter(r=>r.some(x=>x)).map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]])));
+    const j=await api('import',{rows:objs});alert('Imported '+j.imported);m.remove();data=await api('list');render()};
+}
+function parseCSV(t){const rows=[];let r=[],f='',q=false;for(let i=0;i<t.length;i++){const c=t[i];
+  if(q){if(c=='"'){if(t[i+1]=='"'){f+='"';i++}else q=false}else f+=c}
+  else if(c=='"')q=true;else if(c==',')r.push(f),f='';else if(c=='\n'){r.push(f.replace(/\r$/,''));rows.push(r);r=[];f=''}else f+=c}
+  if(f||r.length){r.push(f);rows.push(r)}return rows}
+boot();
+</script>
+</body>
+</html>

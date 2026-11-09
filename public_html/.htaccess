@@ -1,0 +1,7 @@
+Options -Indexes
+<FilesMatch "\.(sqlite|db)$">
+  Require all denied
+</FilesMatch>
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
