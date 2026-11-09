@@ -83,10 +83,13 @@ function handle_wa_hook() {
   $c = wa_cfg();
   if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     header('Content-Type: text/plain');
-    if (($_GET['hub_mode'] ?? '') === 'subscribe' && $c['verify_token'] !== '' && hash_equals($c['verify_token'], (string)($_GET['hub_verify_token'] ?? ''))) { echo $_GET['hub_challenge'] ?? ''; exit; }
+    if (($_GET['hub_mode'] ?? '') === 'subscribe' && $c['verify_token'] !== '' && hash_equals($c['verify_token'], (string)($_GET['hub_verify_token'] ?? ''))) { $h = kv_get('wa_hook', ['count' => 0]); $h['verified_at'] = gmdate('Y-m-d H:i:s'); kv_set('wa_hook', $h); echo $_GET['hub_challenge'] ?? ''; exit; }
     http_response_code(403); echo 'forbidden'; exit;
   }
   $raw = file_get_contents('php://input');
+  $sigOk = $c['app_secret'] === '' || hash_equals('sha256=' . hash_hmac('sha256', $raw, $c['app_secret']), $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? '');
+  $pk = json_decode($raw, true) ?: []; $kind = isset($pk['entry'][0]['changes'][0]['value']['messages']) ? 'message' : (isset($pk['entry'][0]['changes'][0]['value']['statuses']) ? 'status' : 'other');
+  $h = kv_get('wa_hook', ['count' => 0]); $h['count']++; $h['last_at'] = gmdate('Y-m-d H:i:s'); $h['last_ok'] = $sigOk ? 1 : 0; $h['last_kind'] = $kind; if ($sigOk && $kind === 'message') $h['last_msg_at'] = $h['last_at']; kv_set('wa_hook', $h);
   if ($c['app_secret'] !== '') { $sig = $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? ''; if (!hash_equals('sha256=' . hash_hmac('sha256', $raw, $c['app_secret']), $sig)) { http_response_code(401); echo 'bad signature'; exit; } }
   $p = json_decode($raw, true) ?: [];
   foreach ($p['entry'] ?? [] as $e) foreach ($e['changes'] ?? [] as $ch) {
@@ -132,7 +135,7 @@ function handle_wa($a) {
     case 'status': need('whatsapp'); $c = wa_cfg(); out(['connected' => wa_on(), 'display' => $c['display']]);
     case 'config':
       $c = wa_cfg(); if ($c['verify_token'] === '') { $c['verify_token'] = bin2hex(random_bytes(12)); kv_set('wa_cfg', $c); }
-      out(['phone_id' => $c['phone_id'], 'waba_id' => $c['waba_id'], 'token_set' => $c['token'] !== '', 'token_hint' => $c['token'] ? '••••' . substr($c['token'], -4) : '', 'secret_set' => $c['app_secret'] !== '', 'verify_token' => $c['verify_token'], 'display' => $c['display']]);
+      out(['phone_id' => $c['phone_id'], 'waba_id' => $c['waba_id'], 'token_set' => $c['token'] !== '', 'token_hint' => $c['token'] ? '••••' . substr($c['token'], -4) : '', 'secret_set' => $c['app_secret'] !== '', 'verify_token' => $c['verify_token'], 'display' => $c['display'], 'hook' => kv_get('wa_hook', ['count' => 0])]);
     case 'save':
       $c = wa_cfg(); $c['phone_id'] = preg_replace('/\D/', '', (string)($in['phone_id'] ?? '')); $c['waba_id'] = preg_replace('/\D/', '', (string)($in['waba_id'] ?? ''));
       if (!empty($in['token'])) $c['token'] = trim((string)$in['token']); if (!empty($in['app_secret'])) $c['app_secret'] = trim((string)$in['app_secret']);
@@ -149,7 +152,9 @@ function handle_wa($a) {
       [$code, $j] = wa_http('GET', $c['phone_id'] . '?fields=display_phone_number,verified_name,quality_rating');
       if ($e = wa_err($j)) out(['ok' => false, 'error' => $e]);
       $c['display'] = trim(($j['verified_name'] ?? '') . ' · ' . ($j['display_phone_number'] ?? ''), ' ·'); kv_set('wa_cfg', $c);
-      out(['ok' => true, 'name' => $j['verified_name'] ?? '', 'number' => $j['display_phone_number'] ?? '', 'quality' => $j['quality_rating'] ?? '']);
+      $sub = 'WhatsApp Business Account ID missing';
+      if ($c['waba_id'] !== '') { [$sc, $sj] = wa_http('POST', $c['waba_id'] . '/subscribed_apps', []); $sub = ($e2 = wa_err($sj)) ? $e2 : 'ok'; }
+      out(['ok' => true, 'subscribed' => $sub, 'name' => $j['verified_name'] ?? '', 'number' => $j['display_phone_number'] ?? '', 'quality' => $j['quality_rating'] ?? '']);
     case 'unread':
       out(['unread' => (int)(row('SELECT COALESCE(SUM(unread),0) n FROM wa_chats c WHERE ' . wa_scope('c'))['n'] ?? 0)]);
     case 'chats':

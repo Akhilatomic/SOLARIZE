@@ -426,3 +426,5 @@ aside a .nb{margin-left:auto;background:#25d366;color:#fff;font-size:11px;font-w
 .wpl{max-height:52vh;overflow:auto}.wpr{display:flex;align-items:center;gap:10px}
 @media(max-width:1200px){.wai{grid-template-columns:280px minmax(0,1fr) 0}.wai .wi{display:none}}
 @media(max-width:760px){.wai{grid-template-columns:1fr;grid-template-rows:240px minmax(0,1fr)}.wl{border-right:0;border-bottom:1px solid var(--bd)}}
+
+.whk{background:var(--fill);border-radius:12px;padding:10px 12px;margin-top:12px;font-size:13px;line-height:1.7}
