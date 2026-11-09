@@ -9,7 +9,7 @@ function hr_cfg() {
     'leave_types' => [['code' => 'CL', 'name' => 'Casual leave', 'quota' => 12], ['code' => 'SL', 'name' => 'Sick leave', 'quota' => 12], ['code' => 'EL', 'name' => 'Earned leave', 'quota' => 15], ['code' => 'LOP', 'name' => 'Unpaid leave (LOP)', 'quota' => 0]]];
   $r = row("SELECT v FROM settings WHERE k='hr'"); $s = $r ? (json_decode($r['v'], true) ?: []) : [];
   if ($s && !isset($s['half_after'])) unset($s['start'], $s['half_hours'], $s['full_hours']); // settings saved before 9–6 office hours: take the new defaults
-  if (empty($s['holidays'])) unset($s['holidays']); // no list saved yet: use the 2026 office holiday list
+  if (empty($s['holidays']) && empty($s['holidays_set'])) unset($s['holidays']); // no list saved yet: use the 2026 office holiday list
   return $s + $d;
 }
 function hr_mgr($m) { return can($m, true); }
@@ -138,6 +138,16 @@ function handle_hr($a) {
     case 'days': // preview count for the apply form
       need('leaves'); $from = hr_dt($_GET['from'] ?? '', 'From'); $to = hr_dt($_GET['to'] ?? $from, 'To');
       out(['days' => $to < $from ? 0 : hr_days($from, $to, !empty($_GET['half']), $cfg)]);
+    case 'holidays_save': // add / edit / remove holidays (admin)
+      if (!is_admin()) fail('Admin only', 403);
+      $c = hr_cfg(); $seen = []; $list = [];
+      foreach ((array)($in['holidays'] ?? []) as $x) {
+        $dt = (string)($x['date'] ?? ''); $nm = mb_substr(trim((string)($x['name'] ?? '')), 0, 60);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dt) || !strtotime($dt)) continue;
+        if (isset($seen[$dt])) fail("Two holidays on $dt"); $seen[$dt] = 1; $list[] = ['date' => $dt, 'name' => $nm ?: 'Holiday'];
+      }
+      usort($list, fn($a, $b) => strcmp($a['date'], $b['date']));
+      $c['holidays'] = $list; $c['holidays_set'] = 1; kv_set('hr', $c); audit('hr_holidays', 'settings', null, count($list) . ' holidays'); out(['ok' => true, 'holidays' => $list]);
     case 'cfg_save':
       if (!is_admin()) fail('Admin only', 403);
       $c = hr_cfg(); $v = $in['value'] ?? [];
@@ -147,7 +157,7 @@ function handle_hr($a) {
       $c['holidays'] = array_values(array_filter(array_map(fn($h) => ['date' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $h['date'] ?? '') ? $h['date'] : '', 'name' => mb_substr(trim((string)($h['name'] ?? '')), 0, 60)], (array)($v['holidays'] ?? [])), fn($h) => $h['date']));
       $lt = array_values(array_filter(array_map(fn($t) => ['code' => strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($t['code'] ?? ''))), 'name' => mb_substr(trim((string)($t['name'] ?? '')), 0, 40), 'quota' => max(0, (float)($t['quota'] ?? 0))], (array)($v['leave_types'] ?? [])), fn($t) => $t['code'] && $t['name']));
       if ($lt) $c['leave_types'] = $lt;
-      $c['pay_day'] = max(0, min(6, (int)($v['pay_day'] ?? 6))); kv_set('hr', $c); audit('hr_settings', 'settings', null, 'updated'); out(['ok' => true]);
+      $c['pay_day'] = max(0, min(6, (int)($v['pay_day'] ?? 6))); if (isset($v['holidays'])) $c['holidays_set'] = 1; kv_set('hr', $c); audit('hr_settings', 'settings', null, 'updated'); out(['ok' => true]);
   }
   fail('Unknown action', 404);
 }

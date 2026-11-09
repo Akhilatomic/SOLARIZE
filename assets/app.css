@@ -451,3 +451,9 @@ button.ac:not([disabled]){cursor:pointer}button.ac:not([disabled]):hover{outline
 
 .wkt td{vertical-align:top;padding:6px 2px}.wkt .ac{max-width:40px;height:26px;font-size:12px}.wkt .ac sup{font-size:8px;margin-left:1px}.wkh{display:block;font-size:10px;color:var(--mut);margin-top:2px;white-space:nowrap}
 .wkt th.pay,.wkt td.pay{background:#f2f7ff;width:110px}.wkt th:nth-last-child(-n+6),.wkt td:nth-last-child(-n+6){width:70px}.wkt th.pay,.wkt td.pay{width:110px}
+
+.holadd{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:8px;margin-bottom:10px}
+.hollist{display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto}
+.holrow{display:grid;grid-template-columns:150px 110px minmax(0,1fr) auto;gap:8px;align-items:center}.holwd{font-size:12px;white-space:nowrap}
+@media(max-width:600px){.holadd{grid-template-columns:1fr 1fr}.holadd input:nth-child(2){grid-column:1/-1;order:-1}.holrow{grid-template-columns:1fr auto auto}.holrow .holwd{display:none}.holrow [data-f=name]{grid-column:1/-1;order:3}}
+#holset .hollist{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:6px 18px;max-height:none}#holset .holadd{max-width:720px}

@@ -160,15 +160,15 @@ async function drawHrSettings() {
     <div><label>Also half day if worked less than (hours, 0 = off)</label><input type="number" step="0.5" id="hs3" value="${c.half_hours}"></div><div><label>Full day hours</label><input type="number" step="0.5" id="hs4" value="${c.full_hours}"></div>
     <div class="full"><label>Salary day (weekly attendance ends on)</label><select id="hs9">${WD.map((w, i) => `<option value="${i}" ${(c.pay_day ?? 6) == i ? 'selected' : ''}>${w}</option>`).join('')}</select></div>
     <div class="full"><label>Weekly off</label><div class="wkd">${WD.map((w, i) => `<label class="ck"><input type="checkbox" data-wo="${i}" ${c.week_off.includes(i) ? 'checked' : ''}> ${w}</label>`).join('')}</div></div>
-    <div class="full"><label>Holidays (one per line: YYYY-MM-DD | name)</label><textarea id="hs5" rows="5" placeholder="2026-12-25 | Christmas">${esc(c.holidays.map(h => h.date + ' | ' + h.name).join('\n'))}</textarea></div>
     <div class="full"><label>Leave types (one per line: CODE | name | days per year, 0 = unlimited/unpaid)</label><textarea id="hs6" rows="5">${esc(c.leave_types.map(t => t.code + ' | ' + t.name + ' | ' + t.quota).join('\n'))}</textarea></div></div>
     <button class="btn" id="hssv" style="margin-top:10px">Save attendance & leave settings</button>`;
   $('#hssv').onclick = async () => {
     const lines = id => $(id).value.split('\n').map(x => x.split('|').map(s => s.trim())).filter(x => x[0]);
     await api('hr', 'cfg_save', { value: { start: $('#hs1').value, end: $('#hs7').value, half_after: $('#hs8').value, pay_day: +$('#hs9').value, grace: $('#hs2').value, half_hours: $('#hs3').value, full_hours: $('#hs4').value, week_off: $$('[data-wo]').filter(x => x.checked).map(x => +x.dataset.wo),
-      holidays: lines('#hs5').map(([date, name]) => ({ date, name: name || 'Holiday' })), leave_types: lines('#hs6').map(([code, name, quota]) => ({ code, name, quota: +quota || 0 })) } });
+      leave_types: lines('#hs6').map(([code, name, quota]) => ({ code, name, quota: +quota || 0 })) } });
     toast('Attendance & leave settings saved'); hrMe(); drawHrSettings();
   };
+  drawHolidays(c.holidays);
 }
 
 // ---------- Weekly attendance (salary week ends on the pay day, default Saturday) ----------
@@ -211,4 +211,31 @@ async function attWeek(mine) {
   if (!mine) $$('.wkt button.ac:not([disabled])', box).forEach(b => b.onclick = () => { const u = d.users.find(x => x.id == b.dataset.u), r = rec[b.dataset.u + '|' + b.dataset.d] || {}; attEdit({ ...r, user_id: u.id, name: u.name, date: b.dataset.d }, () => attWeek(false)); });
   if ($('#wkcsv')) $('#wkcsv').onclick = () => csvDownload(`attendance-week-${from}-to-${to}.csv`, ['name', ...days.map(x => WD[new Date(x + 'T00:00:00').getDay()] + ' ' + x.slice(8)), 'hours', 'late', 'half_days', 'leave', 'unpaid_leave', 'absent', 'payable_days', 'working_days'],
     d.users.map(u => { const s = sum(u.id), o = { name: u.name, hours: s.hrs.toFixed(2), late: s.L, half_days: s.HD, leave: s.LV, unpaid_leave: s.LOP, absent: s.A, payable_days: s.pay, working_days: s.work }; days.forEach(ds => o[WD[new Date(ds + 'T00:00:00').getDay()] + ' ' + ds.slice(8)] = day(u.id, ds).k); return o; }));
+}
+
+// ---------- Holidays (Settings): add / edit / remove, saved instantly ----------
+async function drawHolidays(list) {
+  const box = $('#holset'); if (!box) return;
+  HR.hol = list.map(x => ({ ...x }));
+  const years = [...new Set([...HR.hol.map(x => +x.date.slice(0, 4)), new Date().getFullYear(), new Date().getFullYear() + 1])].sort();
+  if (!HR.holYr) HR.holYr = new Date().getFullYear();
+  const save = async (next, msg) => { try { const r = await api('hr', 'holidays_save', { holidays: next }); toast(msg); hrMe(); drawHolidays(r.holidays); } catch (e) { drawHolidays(HR.hol); } };
+  const rows = HR.hol.map((x, i) => ({ ...x, i })).filter(x => x.date.startsWith(HR.holYr + '-'));
+  const wd = ds => WD[new Date(ds + 'T00:00:00').getDay()], off = ds => (HR.me?.cfg.week_off || [0]).includes(new Date(ds + 'T00:00:00').getDay());
+  box.innerHTML = `<div class="ch"><h3>Holidays</h3><span class="sp"></span><select id="hly" style="width:auto">${years.map(y => `<option ${y == HR.holYr ? 'selected' : ''}>${y}</option>`).join('')}</select></div>
+    <div class="holadd"><input type="date" id="hld" min="${HR.holYr}-01-01" max="${HR.holYr}-12-31"><input id="hln" placeholder="Holiday name, e.g. Thiruvonam" maxlength="60"><button class="btn" id="hlad"><i class="i i-plus"></i> Add</button></div>
+    <div class="hollist">${rows.length ? rows.map(x => `<div class="holrow" data-i="${x.i}"><input type="date" value="${x.date}" data-f="date"><span class="mut holwd">${wd(x.date)}${off(x.date) ? ' · weekly off' : ''}</span><input value="${esc(x.name)}" data-f="name" maxlength="60"><button class="btn sec sm" data-del title="Remove holiday"><i class="i i-x"></i></button></div>`).join('') : '<p class="mut" style="margin:8px 0">No holidays for ' + HR.holYr + ' yet.</p>'}</div>
+    <p class="mut" style="font-size:12px;margin:8px 0 0">${rows.length} holiday${rows.length === 1 ? '' : 's'} in ${HR.holYr} · changes save instantly · holidays are paid and are not counted as leave days.</p>`;
+  $('#hly').onchange = e => { HR.holYr = +e.target.value; drawHolidays(HR.hol); };
+  const add = () => { const date = $('#hld').value, name = $('#hln').value.trim();
+    if (!date) return toast('Pick a date'); if (!name) return toast('Enter the holiday name');
+    if (HR.hol.some(x => x.date === date)) return toast('There is already a holiday on that date');
+    HR.holYr = +date.slice(0, 4); save([...HR.hol, { date, name }], 'Holiday added'); };
+  $('#hlad').onclick = add; $('#hln').onkeydown = e => { if (e.key === 'Enter') add(); };
+  $$('.holrow', box).forEach(r => { const i = +r.dataset.i;
+    $$('input', r).forEach(inp => inp.onchange = () => { const v = inp.value.trim(); if (!v) return drawHolidays(HR.hol);
+      if (inp.dataset.f === 'date' && HR.hol.some((x, j) => j !== i && x.date === v)) { toast('There is already a holiday on that date'); return drawHolidays(HR.hol); }
+      save(HR.hol.map((x, j) => j === i ? { ...x, [inp.dataset.f]: v } : x), 'Holiday updated'); });
+    $('[data-del]', r).onclick = () => { if (confirm(`Remove "${HR.hol[i].name}" (${HR.hol[i].date})?`)) save(HR.hol.filter((_, j) => j !== i), 'Holiday removed'); };
+  });
 }
