@@ -3,7 +3,7 @@ const DOC_TYPES = ['Aadhaar card', 'Aadhaar card back side', 'Aadhaar 2', 'PAN c
   'Loan Quotation', 'Loan Papers', 'Building tax', 'Land tax', 'Agreement', 'Feasibility', 'Acknowledgement', 'Site Photo', 'Geo-tagged Photo', 'Customer Geo Tagged Photo'];
 const PL_OPTS = {
   panel_type: ['Mono PERC', 'TOPCon', 'Bifacial', 'HJT', 'Polycrystalline'], inverter_type: ['Single phase', 'Three phase', 'Hybrid', 'Micro inverter', 'Optimizer (SolarEdge)'],
-  structure_type: ['Hot Dip Galvanized', 'GI elevated', 'Aluminium', 'Shed / sheet mount', 'Ground mount'], structure_material: ['Hot-dip galvanised iron', 'Aluminium', 'MS painted'], panel_arrangement: ['Portrait', 'Landscape', 'Mixed'],
+  meter_type: ['Generation meter', 'Net meter (bi-directional)', 'Generation + net meter'], structure_type: ['Hot Dip Galvanized', 'GI elevated', 'Aluminium', 'Shed / sheet mount', 'Ground mount'], structure_material: ['Hot-dip galvanised iron', 'Aluminium', 'MS painted'], panel_arrangement: ['Portrait', 'Landscape', 'Mixed'],
   system_type: ['On-grid', 'Off-grid', 'Hybrid'], rooftop_type: ['RCC flat', 'RCC sloped', 'Sheet / tin', 'Tile', 'Ground'], rooftop_penetration: ['No (ballasted)', 'Yes (anchored)'],
 };
 const PL_SECTIONS = [
@@ -11,6 +11,7 @@ const PL_SECTIONS = [
   ['Inverter', 'gear', [['inverter_make', 'Inverter make'], ['inverter_count', 'Number of inverters', 'n'], ['inverter_type', 'Inverter type'], ['inverter_capacity', 'Inverter capacity (kW)', 'n']]],
   ['Structure', 'project', [['structure_type', 'Structure type'], ['structure_material', 'Material'], ['panel_arrangement', 'Panel arrangement']]],
   ['Rooftop', 'target', [['system_type', 'System type'], ['rooftop_type', 'Rooftop type'], ['rooftop_age', 'Rooftop age (years)', 'n'], ['building_height', 'Building height (m)', 'n'], ['floors', 'Number of floors', 'n'], ['rooftop_penetration', 'Rooftop penetration'], ['slab_thickness', 'Slab thickness (mm)', 'n'], ['slab_slope', 'Slope of slab (degrees)', 'n']]],
+  ['Energy meter', 'gauge', [['meter_type', 'Meter type'], ['meter_make', 'Meter make'], ['meter_serial', 'Meter serial no.']]],
   ['Application', 'receipt', [['application_no', 'Application no.'], ['application_date', 'Application date', 'd'], ['gst_invoice_no', 'GST invoice no.'], ['commissioned_on', 'Commissioned on', 'd'], ['warranty_till', 'Warranty till', 'd']]],
 ];
 const cpv = (v, l) => v ? `<button class="pfv" data-cp="${esc(v)}" data-l="${esc(l)}" title="Click to copy">${esc(v)}<i class="i i-copy"></i></button>` : '<em class="mut">—</em>';
@@ -34,7 +35,7 @@ async function renderPlant(box, c, id, edit) {
     <div class="plcols">
      ${sec(PL_SECTIONS[0], `<div class="pfsub">Panels (${d.panels.length})${pw ? ` · ${(pw / 1000).toFixed(2)} kWp total` : ''}</div>${serialList(d.panels, 'Panel', [['make', 'Make'], ['wattage', 'W', ' W']])}`)}
      ${sec(PL_SECTIONS[1], `<div class="pfsub">Inverters (${d.inverters.length})</div>${serialList(d.inverters, 'Inverter', [['make', 'Make'], ['type', 'Type'], ['capacity', 'kW', ' kW']])}`)}
-     ${sec(PL_SECTIONS[2])}${sec(PL_SECTIONS[3])}${sec(PL_SECTIONS[4])}
+     ${sec(PL_SECTIONS[2])}${sec(PL_SECTIONS[3])}${sec(PL_SECTIONS[4])}${sec(PL_SECTIONS[5])}
      ${pay ? `<div class="card pfc"><div class="pfch"><i class="i i-coin"></i><h3>Project cost & payment</h3>${r.project ? `<span class="sp"></span><a class="btn sec sm" href="#/projects/${r.project.id}">Open project</a>` : ''}</div>
        <div class="plpay"><div class="b"><small>Total project cost</small><b>${pay.cost ? inr(pay.cost) : 'Not set'}</b></div><div class="g"><small>Total paid</small><b>${inr(pay.paid)}</b><em>${pay.count} payment${pay.count === 1 ? '' : 's'}</em></div>
         <div class="y"><small>Pending</small><b>${inr(pay.pending)}</b></div><div class="n"><small>Status</small><b>${pay.status}</b></div></div></div>` : ''}

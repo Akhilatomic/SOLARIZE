@@ -16,7 +16,8 @@ function printDoc(title, inner) {
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${DOC_CSS}@page{size:A4;margin:12mm}body{margin:0;background:#fff}.doc{box-shadow:none;margin:0 auto;border:0}</style></head><body>${inner}</body></html>`);
   w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 350);
 }
-const DOC_CSS = `.doc{font:12px/1.45 -apple-system,"Segoe UI",Arial,sans-serif;color:#1d1d1f;background:#fff;padding:26px 28px;max-width:794px}
+const DOC_CSS = `.tbg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px 12px;margin-top:2px}.tbs+.tbs{margin-top:6px}
+.doc{font:12px/1.45 -apple-system,"Segoe UI",Arial,sans-serif;color:#1d1d1f;background:#fff;padding:26px 28px;max-width:794px}
 .doc h1{font-size:18px;letter-spacing:.06em;text-align:center;margin:14px 0 12px;font-weight:700}
 .dhco{display:flex;gap:12px;align-items:center;border-bottom:2px solid #1d1d1f;padding-bottom:10px}.dhco img{width:54px;height:54px;object-fit:contain}.dhco b{font-size:17px}.dhco div div{color:#3a3a3c;font-size:11.5px}
 .dmeta{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;margin:8px 0 12px}.dmeta div{display:flex;gap:6px}.dmeta span{color:#6e6e73;min-width:110px}
@@ -48,6 +49,7 @@ async function renderWarranty(box, c, id) {
       <div class="dmeta"><div><span>Card no.</span><b>${esc(g.doc ? g.doc.number : '(issued on save)')}</b></div><div><span>Issue date</span>${fdt(v.issued_on)}</div>
        <div><span>Customer</span><b>${esc(c.name)}</b></div><div><span>Phone</span>${esc(c.phone || '—')}</div>
        <div><span>Consumer no.</span>${esc(c.consumer_no || '—')}</div><div><span>Commissioned on</span>${fdt(v.commissioned_on)}</div>
+       <div><span>Tax invoice no.</span>${esc(g.tax ? g.tax.number : '—')}</div><div><span>Invoice date</span>${g.tax ? fdt(g.tax.issued_on) : '—'}</div>
        <div style="grid-column:1/-1"><span>Installation address</span>${esc([c.address, c.district, c.pincode].filter(Boolean).join(', ') || '—')}</div></div>
       <div class="dbox"><h4>System</h4>${esc([P.capacity ? P.capacity + ' kWp' : (g.project && g.project.kw ? g.project.kw + ' kWp' : ''), P.system_type || 'On-grid'].filter(Boolean).join(' · '))}<br>
        Panels: ${esc([P.panel_count ? P.panel_count + ' ×' : '', P.panel_make, P.panel_type, P.panel_wattage ? P.panel_wattage + ' W' : ''].filter(Boolean).join(' ') || '—')}<br>
@@ -126,8 +128,11 @@ async function renderTax(box, c, id) {
   const cs = String(co.gstin || '32').slice(0, 2);
   let D = (g.doc || {}).data;
   if (!D) { const items = g.quote && g.quote.items.length ? g.quote.items.map(i => { const h = guessHsn(i.desc); return { desc: i.desc, hsn: h[1], qty: i.qty, rate: i.rate, gst: h[2] }; })
-      : [{ desc: `Solar PV power plant ${P.capacity || (g.project || {}).kw || ''} kWp — supply, installation & commissioning`.replace(/\s+kWp/, ' kWp'), hsn: '85414300', qty: 1, rate: (g.project || {}).cost || 0, gst: 5 }];
+      : [{ desc: `Solar PV power plant ${P.capacity || (g.project || {}).kw || ''} kWp — supply, installation & commissioning`.replace(/\s+kWp/, ' kWp'), hsn: '85414300', qty: 1, rate: Math.round(((g.acct || {}).cost || (g.project || {}).cost || 0) / 1.05 * 100) / 100, gst: 5 }];
     D = { bill_name: c.name, bill_address: [c.address, c.district, c.pincode].filter(Boolean).join(', '), cust_gstin: c.gst_no || '', interstate: c.gst_no && String(c.gst_no).slice(0, 2) !== cs ? 1 : 0, items, notes: 'Goods once sold will not be taken back. Subject to Thiruvananthapuram jurisdiction.' }; }
+  D.ser = D.ser || { p: 1, i: 1, m: 1 }; D.show_paid = +D.show_paid || 0;
+  let A = g.acct || { project_id: 0, cost: 0, payments: [], paid: 0 };
+  const pn = (P.panels || []).filter(x => x.serial), iv = (P.inverters || []).filter(x => x.serial);
   const issued = (g.doc || {}).issued_on || today();
   box.innerHTML = `<div class="gdl"><div class="card gdf"><div class="pfch"><i class="i i-receipt"></i><h3>Tax bill</h3><span class="sp"></span><span class="pill ${g.doc ? 'g' : ''}">${g.doc ? esc(g.doc.number) : 'Not issued yet'}</span></div>
       ${g.quote && !g.doc ? `<p class="mut" style="font-size:12.5px;margin:0 0 6px">Items copied from quotation ${esc(g.quote.number)} — check HSN codes and GST rates before issuing.</p>` : ''}
@@ -137,16 +142,19 @@ async function renderTax(box, c, id) {
        <div class="full"><label>Billing address</label><input data-t="bill_address" value="${esc(D.bill_address || '')}" ${w ? '' : 'disabled'}></div></div>
       <label style="margin-top:12px">Items</label><div id="titems"></div>${w ? '<button class="btn sec sm" id="tadd" type="button"><i class="i i-plus"></i> Add line</button>' : ''}
       <label>Notes</label><textarea data-t="notes" rows="2" ${w ? '' : 'disabled'}>${esc(D.notes || '')}</textarea>
+      <label>Print on the bill</label><div class="tbo">${[['p', `Panel serial numbers (${pn.length})`], ['i', `Inverter serial numbers (${iv.length})`], ['m', `Energy meter serial${P.meter_serial ? '' : ' (not entered)'}`]].map(([k, l]) => `<label><input type="checkbox" data-o="${k}" ${D.ser[k] ? 'checked' : ''} ${w ? '' : 'disabled'}> ${l}</label>`).join('')}<label><input type="checkbox" data-o="paid" ${D.show_paid ? 'checked' : ''} ${w ? '' : 'disabled'}> Payments received & balance</label></div>
+      ${!pn.length && !iv.length && !P.meter_serial ? '<p class="mut" style="font-size:12.5px;margin:4px 0 0">Add serial numbers in <b>Plant details</b> to print them on the bill.</p>' : ''}
       <div class="bar" style="margin-top:12px">${w ? `<button class="btn" id="tsv">${g.doc ? 'Save changes' : 'Issue tax bill'}</button>` : ''}<button class="btn sec" id="tpr"><i class="i i-download"></i> Print / PDF</button></div>
       <p class="mut" style="font-size:12px;margin:8px 0 0">HSN codes and GST rates are suggestions — confirm them with your accountant. The invoice number is issued once and never reused.</p></div>
     <div class="gdp"><div class="doc" id="tdoc"></div></div></div>
+    <div class="tbx"><div class="card" id="tacc"></div><div class="card" id="tsum"></div></div>
     <datalist id="hsnl">${['85414300 — Solar PV modules', '85044090 — Inverters', '73089090 — Mounting structure', '85444999 — Cables', '853690 — Connectors / DB', '995461 — Installation services', '998732 — Repair & maintenance'].map(x => `<option value="${x.split(' ')[0]}">${x}</option>`).join('')}</datalist>`;
   let I = (D.items || []).map(x => ({ ...x }));
   const drawItems = () => { $('#titems', box).innerHTML = I.map((x, i) => `<div class="tirow"><input data-i="${i}" data-f="desc" value="${esc(x.desc)}" placeholder="Description" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="hsn" value="${esc(x.hsn || '')}" placeholder="HSN/SAC" list="hsnl" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="qty" value="${x.qty}" inputmode="decimal" placeholder="Qty" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="rate" value="${x.rate}" inputmode="decimal" placeholder="Rate" ${w ? '' : 'disabled'}><select data-i="${i}" data-f="gst" ${w ? '' : 'disabled'}>${[0, 5, 12, 18, 28].map(r => `<option ${+x.gst === r ? 'selected' : ''}>${r}</option>`).join('')}</select>${w ? `<button class="ib" data-del="${i}" title="Remove line" type="button"><i class="i i-x"></i></button>` : ''}</div>`).join('');
     $$('[data-del]', box).forEach(b => b.onclick = () => { I.splice(+b.dataset.del, 1); drawItems(); upd(); }); };
   const calc = () => { const inter = $('#tinter', box).value === '1'; let tx = 0, tt = 0; const rows = I.filter(x => x.desc).map(x => { const tv = (+x.qty || 0) * (+x.rate || 0), t = tv * (+x.gst || 0) / 100; tx += tv; tt += t; return { ...x, tv, t }; });
     const sum = tx + tt, grand = Math.round(sum); return { inter, rows, tx, tt, ro: grand - sum, grand }; };
-  const val = () => { const o = { items: I, interstate: +$('#tinter', box).value }; $$('[data-t]', box).forEach(e => o[e.dataset.t] = e.value); return o; };
+  const val = () => { const o = { items: I, interstate: +$('#tinter', box).value, ser: {}, show_paid: 0 }; $$('[data-t]', box).forEach(e => o[e.dataset.t] = e.value); $$('[data-o]', box).forEach(e => { if (e.dataset.o === 'paid') o.show_paid = e.checked ? 1 : 0; else o.ser[e.dataset.o] = e.checked ? 1 : 0; }); return o; };
   const html = () => { const v = val(), k = calc();
     return `${coBlock(co)}<h1>TAX INVOICE</h1>
       <div class="dmeta"><div><span>Invoice no.</span><b>${esc(g.doc ? g.doc.number : '(issued on save)')}</b></div><div><span>Invoice date</span>${fdt($('#tdate', box).value)}</div>
@@ -157,10 +165,50 @@ async function renderTax(box, c, id) {
       <table class="dt dtot"><tbody><tr><td>Taxable value</td><td class="r">${inr2(k.tx)}</td></tr>${k.inter ? `<tr><td>IGST</td><td class="r">${inr2(k.tt)}</td></tr>` : `<tr><td>CGST</td><td class="r">${inr2(k.tt / 2)}</td></tr><tr><td>SGST</td><td class="r">${inr2(k.tt / 2)}</td></tr>`}
        <tr><td>Round off</td><td class="r">${inr2(k.ro)}</td></tr><tr><td>Total</td><td class="r">${inr2(k.grand)}</td></tr></tbody></table>
       <div class="dbox"><h4>Amount in words</h4>Rupees ${inWords(k.grand)} only</div>
+      ${v.show_paid ? `<table class="dt dtot"><tbody>${A.payments.map(p => `<tr><td>Received ${fdt(p.date)}${p.mode ? ' · ' + esc(p.mode) : ''}</td><td class="r">${inr2(p.amount)}</td></tr>`).join('')}<tr><td>Total received</td><td class="r">${inr2(A.paid)}</td></tr><tr><td>Balance due</td><td class="r">${inr2(Math.max(0, k.grand - A.paid))}</td></tr></tbody></table>` : ''}
+      ${serBox(v)}
       ${v.notes ? `<div class="dsmall">${esc(v.notes)}</div>` : ''}
       <div class="dsig"><div>Customer signature</div><div>For ${esc(co.name || '')}<br>Authorised signatory</div></div>`; };
-  const upd = () => $('#tdoc', box).innerHTML = html();
-  drawItems(); upd();
+  function serBox(v) { const mk = (t, a) => `<div class="tbs"><b>${t}</b><div class="dser tbg">${a.map((x, i) => `<span>${i + 1}. ${esc(x)}</span>`).join('')}</div></div>`, parts = [];
+    if (v.ser.p && pn.length) parts.push(mk(`Solar panels — ${esc([P.panel_make, P.panel_wattage ? P.panel_wattage + ' W' : ''].filter(Boolean).join(' '))} (${pn.length})`, pn.map(x => x.serial)));
+    if (v.ser.i && iv.length) parts.push(mk(`Inverter — ${esc([P.inverter_make, P.inverter_capacity ? P.inverter_capacity + ' kW' : ''].filter(Boolean).join(' '))}`, iv.map(x => x.serial)));
+    if (v.ser.m && P.meter_serial) parts.push(mk(`Energy meter — ${esc([P.meter_make, P.meter_type].filter(Boolean).join(', '))}`, [P.meter_serial]));
+    return parts.length ? `<div class="dbox"><h4>Serial numbers</h4>${parts.join('')}</div>` : ''; }
+  // ---- plant cost & payments received
+  const MODES = ['UPI', 'Bank transfer', 'Cash', 'Cheque', 'Card', 'Loan', 'Subsidy'];
+  const drawAcc = () => { const bal = Math.max(0, (A.cost || 0) - A.paid), wp = w && canW('payments');
+    $('#tacc', box).innerHTML = `<div class="pfch"><i class="i i-coin"></i><h3>Plant cost & payments</h3>${A.project_id ? `<span class="sp"></span><a class="btn sec sm" href="#/projects/${A.project_id}">Open project</a>` : ''}</div>
+      <div class="tbk"><div><small>Plant cost</small><b>${A.cost ? inr2(A.cost) : 'Not set'}</b></div><div><small>Received</small><b>${inr2(A.paid)}</b></div><div class="${bal > 0 ? 'due' : ''}"><small>Balance</small><b>${A.cost ? inr2(bal) : '—'}</b></div></div>
+      ${w ? `<div class="tbr"><input id="tcost" inputmode="decimal" placeholder="Total plant cost (₹)" value="${A.cost || ''}"><button class="btn sec" id="tcsv">Save cost</button></div>` : ''}
+      <div class="tbl">${A.payments.map(p => `<div class="tbp"><span>${fdt(p.date)}</span><span>${esc(p.mode || '—')}${p.note ? `<em>${esc(p.note)}</em>` : ''}</span><b>${inr2(p.amount)}</b>${wp ? `<button class="ib" data-pdel="${p.id}" title="Delete payment"><i class="i i-trash"></i></button>` : ''}</div>`).join('') || '<p class="mut" style="margin:6px 0">No payments recorded yet.</p>'}</div>
+      ${wp ? `<div class="tbr tba"><input type="date" id="tpd" value="${today()}"><input id="tpa" inputmode="decimal" placeholder="Amount (₹)"><select id="tpm">${MODES.map(m => `<option>${m}</option>`).join('')}</select><input id="tpn" placeholder="Reference / note"><button class="btn" id="tpadd">Add payment</button></div>` : ''}
+      ${!A.project_id && w ? '<p class="mut" style="font-size:12px;margin:6px 0 0">Saving the plant cost also starts this customer\'s project in the pipeline.</p>' : ''}`;
+    const reload = async () => { A = (await api('gen', 'get', undefined, `&kind=tax&customer_id=${id}`)).acct; drawAcc(); upd(); };
+    if ($('#tcsv', box)) $('#tcsv', box).onclick = async e => { e.currentTarget.disabled = true; try { const r = await api('gen', 'cost', { kind: 'tax', customer_id: id, cost: +$('#tcost', box).value || 0 }); A = r.acct; toast('Plant cost saved'); drawAcc(); upd(); } catch (x) { drawAcc(); } };
+    if ($('#tpadd', box)) $('#tpadd', box).onclick = async e => { const amt = +$('#tpa', box).value || 0; if (amt <= 0) return toast('Enter the amount received', true);
+      if (!A.project_id) return toast('Save the plant cost first', true); e.currentTarget.disabled = true;
+      try { await api('payments', 'save', { project_id: A.project_id, date: $('#tpd', box).value || today(), amount: amt, mode: $('#tpm', box).value, note: $('#tpn', box).value.trim() }); toast('Payment added'); } catch (x) { } reload(); };
+    $$('[data-pdel]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this payment? It goes to the Recycle bin for 72 hours.')) return; try { await api('payments', 'delete', { id: +b.dataset.pdel }); toast('Payment deleted'); } catch (x) { } reload(); }); };
+  // ---- bill details for the warranty card and GST filing
+  const sumRows = () => { const v = val(), k = calc(), hs = {};
+    k.rows.forEach(x => { const key = (x.hsn || '—') + '|' + (+x.gst); (hs[key] = hs[key] || { hsn: x.hsn || '—', gst: +x.gst, qty: 0, tv: 0, t: 0 }); hs[key].qty += +x.qty || 0; hs[key].tv += x.tv; hs[key].t += x.t; });
+    return { v, k, hs: Object.values(hs), info: [['Invoice no.', g.doc ? g.doc.number : 'Not issued yet'], ['Invoice date', fdt($('#tdate', box).value)], ['Customer', v.bill_name], ['Customer GSTIN', v.cust_gstin || 'Unregistered (B2C)'], ['Place of supply', k.inter ? 'Outside Kerala (IGST)' : '32 — Kerala'], ['Supplier GSTIN', co.gstin || '—'],
+      ['Taxable value', inr2(k.tx)], ...(k.inter ? [['IGST', inr2(k.tt)]] : [['CGST', inr2(k.tt / 2)], ['SGST', inr2(k.tt / 2)]]), ['Invoice total', inr2(k.grand)], ['Plant cost', A.cost ? inr2(A.cost) : 'Not set'], ['Payments received', inr2(A.paid)], ['Balance due', inr2(Math.max(0, k.grand - A.paid))]] }; };
+  const drawSum = () => { const { k, hs, info } = sumRows(), diff = A.cost && Math.abs(A.cost - k.grand) >= 1;
+    $('#tsum', box).innerHTML = `<div class="pfch"><i class="i i-file"></i><h3>Bill details</h3><span class="sp"></span><button class="btn sec sm" id="tscp"><i class="i i-copy"></i> Copy</button><button class="btn sec sm" id="tscsv"><i class="i i-download"></i> CSV</button></div>
+      <p class="mut" style="font-size:12.5px;margin:0 0 8px">For the warranty card and GST filing (GSTR-1). The bill number is also saved in Plant details.</p>
+      <div class="tbd">${info.map(([l, x]) => `<div><span>${l}</span><b>${esc(x)}</b></div>`).join('')}</div>
+      ${diff ? `<p class="mfw">Plant cost (${inr2(A.cost)}) and invoice total (${inr2(k.grand)}) differ by ${inr2(Math.abs(A.cost - k.grand))}.${w ? ' <button class="btn sec sm" id="tmatch" title="Scale the item rates so the invoice total (with GST) equals the plant cost">Match plant cost</button>' : ''}</p>` : ''}
+      <table class="tbh"><thead><tr><th>HSN/SAC</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Taxable</th>${k.inter ? '<th class="r">IGST</th>' : '<th class="r">CGST</th><th class="r">SGST</th>'}</tr></thead>
+      <tbody>${hs.map(h => `<tr><td>${esc(h.hsn)}</td><td class="r">${+h.qty.toFixed(2)}</td><td class="r">${h.gst}%</td><td class="r">${inr2(h.tv)}</td>${k.inter ? `<td class="r">${inr2(h.t)}</td>` : `<td class="r">${inr2(h.t / 2)}</td><td class="r">${inr2(h.t / 2)}</td>`}</tr>`).join('')}</tbody></table>`;
+    if ($('#tmatch', box)) $('#tmatch', box).onclick = () => { const f = A.cost / calc().grand; I.forEach(x => x.rate = Math.round((+x.rate || 0) * f * 100) / 100); drawItems(); upd(); const d = A.cost - calc().grand; if (Math.abs(d) >= 0.5 && I.length) { const x = I.find(y => +y.qty === 1) || I[0]; x.rate = Math.round((x.rate + d / (+x.qty || 1) / (1 + (+x.gst || 0) / 100)) * 100) / 100; drawItems(); upd(); } toast('Item rates adjusted — save to keep'); };
+    $('#tscp', box).onclick = () => { const r = sumRows(); copyText(r.info.map(([l, x]) => `${l}: ${x}`).join('\n') + '\n\nHSN summary\n' + r.hs.map(h => `${h.hsn} · ${h.gst}% · taxable ${inr2(h.tv)} · tax ${inr2(h.t)}`).join('\n'), 'bill details'); };
+    $('#tscsv', box).onclick = () => { const r = sumRows(), q = x => '"' + String(x).replace(/"/g, '""') + '"', n = x => (Math.round(x * 100) / 100).toFixed(2);
+      const csv = ['Invoice no,Invoice date,Customer,Customer GSTIN,Place of supply,HSN/SAC,Qty,GST rate %,Taxable value,CGST,SGST,IGST,Invoice total',
+        ...r.hs.map(h => [g.doc ? g.doc.number : '', $('#tdate', box).value, r.v.bill_name, r.v.cust_gstin, r.k.inter ? 'Other state' : '32-Kerala', h.hsn, +h.qty.toFixed(2), h.gst, n(h.tv), r.k.inter ? 0 : n(h.t / 2), r.k.inter ? 0 : n(h.t / 2), r.k.inter ? n(h.t) : 0, r.k.grand].map(q).join(','))].join('\r\n');
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv' })); a.download = `Tax bill ${(g.doc ? g.doc.number : 'draft').replace(/\//g, '-')} - ${c.name}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }; };
+  const upd = () => { $('#tdoc', box).innerHTML = html(); drawSum(); };
+  drawItems(); drawAcc(); upd();
   box.addEventListener('input', e => { if (e.target.dataset.i !== undefined) { const x = I[+e.target.dataset.i]; x[e.target.dataset.f] = e.target.dataset.f === 'desc' || e.target.dataset.f === 'hsn' ? e.target.value : +e.target.value || 0;
       if (e.target.dataset.f === 'desc' && !x.hsn) { const h = guessHsn(x.desc); if (h[1]) { x.hsn = h[1]; x.gst = h[2]; drawItems(); } } } upd(); });
   box.addEventListener('change', e => { if (e.target.dataset.f === 'gst') { I[+e.target.dataset.i].gst = +e.target.value; } upd(); });

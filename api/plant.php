@@ -6,7 +6,7 @@ const PLANT_KEYS = [
   'inverter_make', 'inverter_count', 'inverter_type', 'inverter_capacity',
   'structure_type', 'structure_material', 'panel_arrangement',
   'system_type', 'rooftop_type', 'rooftop_age', 'building_height', 'floors', 'rooftop_penetration', 'slab_thickness', 'slab_slope',
-  'gst_invoice_no', 'application_no', 'application_date', 'commissioned_on', 'warranty_till',
+  'meter_make', 'meter_type', 'meter_serial', 'gst_invoice_no', 'application_no', 'application_date', 'commissioned_on', 'warranty_till',
 ];
 
 // lead survey (site condition) and proposed system (plant) — stored as JSON on the lead, copied to the customer on conversion
