@@ -4,7 +4,14 @@
 
 function wa_cfg() { return kv_get('wa_cfg', ['phone_id' => '', 'waba_id' => '', 'token' => '', 'app_secret' => '', 'verify_token' => '', 'api_base' => 'https://graph.facebook.com/v21.0', 'display' => '']); }
 function wa_on() { $c = wa_cfg(); return $c['phone_id'] !== '' && $c['token'] !== ''; }
-function wa_digits($p) { $d = preg_replace('/\D/', '', (string)$p); if (strlen($d) === 10) $d = '91' . $d; if (strlen($d) === 11 && $d[0] === '0') $d = '91' . substr($d, 1); return $d; }
+function wa_digits($p) {
+  $raw = trim((string)$p); $d = preg_replace('/\D/', '', $raw);
+  if ($raw !== '' && $raw[0] === '+') return strlen($d) >= 8 ? $d : '';         // full international number
+  if (strlen($d) === 10 && strpos('6789', $d[0]) !== false) return '91' . $d;   // Indian mobile
+  if (strlen($d) === 11 && $d[0] === '0') return '91' . substr($d, 1);
+  if (strlen($d) === 12 && strpos($d, '91') === 0) return $d;
+  return '';
+}
 
 // HTTP to Graph (JSON or multipart); token only ever sent to the configured API host
 function wa_http($method, $url, $json = null, $multipart = null, $raw = false) {
@@ -27,7 +34,7 @@ function wa_err($j) { $e = $j['error'] ?? null; if (!$e) return ''; $m = $e['err
 
 // --- chats ---
 function wa_chat_for($wa, $name = '') {
-  $wa = wa_digits($wa); if ($wa === '') fail('Invalid phone number');
+  $wa = wa_digits($wa); if ($wa === '') fail('Enter a 10-digit Indian mobile number, or the full number starting with + and the country code');
   $c = row('SELECT * FROM wa_chats WHERE wa_id=?', [$wa]); if ($c) { if ($name && !$c['name']) q('UPDATE wa_chats SET name=? WHERE id=?', [$name, $c['id']]); return row('SELECT * FROM wa_chats WHERE id=?', [$c['id']]); }
   $ten = substr($wa, -10);
   $lead = row("SELECT id,name FROM leads WHERE phone<>'' AND substr(replace(replace(replace(phone,' ',''),'+',''),'-',''),-10)=? ORDER BY id DESC LIMIT 1", [$ten]);
@@ -87,7 +94,7 @@ function handle_wa_hook() {
     $names = []; foreach ($v['contacts'] ?? [] as $ct) $names[$ct['wa_id'] ?? ''] = $ct['profile']['name'] ?? '';
     foreach ($v['messages'] ?? [] as $m) {
       $from = (string)($m['from'] ?? ''); if ($from === '' || row('SELECT 1 FROM wa_msgs WHERE wamid=?', [$m['id'] ?? ''])) continue;
-      $chat = wa_chat_for($from, $names[$from] ?? '');
+      $chat = wa_chat_for('+' . $from, $names[$from] ?? '');
       $t = $m['type'] ?? 'text'; $body = ''; $media = ''; $mime = ''; $fn = '';
       if ($t === 'text') $body = $m['text']['body'] ?? '';
       elseif (in_array($t, ['image', 'document', 'audio', 'video', 'sticker'])) { $media = $m[$t]['id'] ?? ''; $mime = $m[$t]['mime_type'] ?? ''; $body = $m[$t]['caption'] ?? ''; $fn = $m[$t]['filename'] ?? ''; }
@@ -118,7 +125,7 @@ function handle_wa_hook() {
 
 function handle_wa($a) {
   $in = body();
-  $adminOnly = ['config', 'save', 'test'];
+  $adminOnly = ['config', 'save', 'test', 'register', 'delete_chat'];
   if (in_array($a, $adminOnly) && !is_admin()) fail('Admin only', 403);
   if (!in_array($a, $adminOnly) && $a !== 'status') { need('whatsapp', !in_array($a, ['chats', 'thread', 'templates', 'media', 'unread'])); if (!wa_on()) fail('WhatsApp inbox is not connected yet', 409); }
   switch ($a) {
@@ -132,6 +139,11 @@ function handle_wa($a) {
       if (!empty($in['disconnect'])) { $c['token'] = ''; $c['display'] = ''; }
       if ($c['verify_token'] === '') $c['verify_token'] = bin2hex(random_bytes(12));
       kv_set('wa_cfg', $c); audit('wa_config', 'settings', null, 'updated'); out(['ok' => true]);
+    case 'register': // activates the business number for the Cloud API (fixes error #133010)
+      $c = wa_cfg(); $pin = preg_replace('/\D/', '', (string)($in['pin'] ?? '')); if (strlen($pin) !== 6) fail('Enter a 6-digit PIN');
+      [$code, $j] = wa_http('POST', $c['phone_id'] . '/register', ['messaging_product' => 'whatsapp', 'pin' => $pin]);
+      if ($e = wa_err($j)) out(['ok' => false, 'error' => $e]);
+      audit('wa_register', 'settings', null, 'phone registered'); out(['ok' => true]);
     case 'test':
       $c = wa_cfg(); if (!wa_on()) fail('Save the Phone number ID and access token first');
       [$code, $j] = wa_http('GET', $c['phone_id'] . '?fields=display_phone_number,verified_name,quality_rating');
@@ -206,6 +218,8 @@ function handle_wa($a) {
       header_remove('Content-Type'); header('Content-Type: ' . ($m['mime'] ?: 'application/octet-stream')); header('X-Content-Type-Options: nosniff');
       header('Content-Disposition: ' . (preg_match('#^(image|audio|video)/|pdf#', (string)$m['mime']) ? 'inline' : 'attachment') . '; filename="' . str_replace('"', '', $m['filename'] ?: basename($p)) . '"');
       readfile($p); exit;
+    case 'delete_chat':
+      $c = wa_chat_get($in['chat_id'] ?? 0); q('DELETE FROM wa_msgs WHERE chat_id=?', [$c['id']]); q('DELETE FROM wa_chats WHERE id=?', [$c['id']]); audit('wa_delete', 'wa_chats', $c['id'], $c['wa_id']); out(['ok' => true]);
     case 'assign':
       $c = wa_chat_get($in['chat_id'] ?? 0); $to = (int)($in['user_id'] ?? 0);
       if (!is_admin() && $to !== uid() && $to !== 0) fail('Only the admin can assign chats to others', 403);

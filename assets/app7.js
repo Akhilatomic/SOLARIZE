@@ -47,9 +47,12 @@ async function waSetup() {
      <div class="full"><label>App secret ${c.secret_set ? '<span class="pill g">saved</span>' : ''}</label><input id="wsec" type="password" autocomplete="off" placeholder="${c.secret_set ? 'Leave blank to keep' : 'Paste app secret'}"></div>
      <div class="full"><label>Webhook callback URL</label><input readonly value="${esc(hook)}" onclick="this.select()"></div>
      <div class="full"><label>Webhook verify token</label><input readonly value="${esc(c.verify_token)}" onclick="this.select()"></div></div>
-     <div class="bar" style="margin-top:12px"><button class="btn" id="wsv">Save</button><button class="btn sec" id="wts">Test connection</button></div><div id="wres" class="mut" style="font-size:13px"></div></div></div>`;
+     <div class="bar" style="margin-top:12px"><button class="btn" id="wsv">Save</button><button class="btn sec" id="wts">Test connection</button></div><div id="wres" class="mut" style="font-size:13px"></div>
+     <h3 style="margin-top:20px">Register the number</h3><p class="mut" style="font-size:13px;margin:0 0 8px">If sending fails with <b>“Account not registered (#133010)”</b>, the business number must be activated once for the Cloud API. Choose a 6-digit PIN (it becomes the number's two-step verification PIN — write it down) and click Register.</p>
+     <div class="bar" style="margin:0"><input id="wpin" inputmode="numeric" maxlength="6" placeholder="6-digit PIN" style="max-width:160px"><button class="btn sec" id="wreg">Register number</button></div><div id="wrr" class="mut" style="font-size:13px;margin-top:6px"></div></div></div>`;
   const save = () => api('wa', 'save', { phone_id: $('#wpid').value, waba_id: $('#wwab').value, token: $('#wtok').value, app_secret: $('#wsec').value });
   $('#wsv').onclick = async () => { await save(); toast('Saved'); waSetup(); };
+  $('#wreg').onclick = async () => { const pin = $('#wpin').value.replace(/\D/g, ''); if (pin.length !== 6) return toast('Enter a 6-digit PIN', true); $('#wrr').textContent = 'Registering…'; const r = await api('wa', 'register', { pin }); $('#wrr').innerHTML = r.ok ? '<span style="color:var(--ok)">Number registered — you can send messages now.</span>' : '<span class="over">' + esc(r.error) + '</span>'; };
   $('#wts').onclick = async () => { await save(); $('#wres').textContent = 'Testing…'; const r = await api('wa', 'test', {}); $('#wres').innerHTML = r.ok ? `<span style="color:var(--ok)">Connected: ${esc(r.name)} · ${esc(r.number)} (quality ${esc(r.quality || '—')})</span>` : `<span class="over">${esc(r.error)}</span>`; if (r.ok) { WA.tab = 'inbox'; setTimeout(pgWa, 1200); } };
 }
 
@@ -111,7 +114,7 @@ function waInfo(c) {
    <label>Linked lead</label>${c.lead ? `<div class="act"><a href="#" id="wol"><b>${esc(c.lead.name)}</b></a> ${pill(c.lead.status, stageCls(c.lead.status))}<br><small>${esc(c.lead.source || '')}${c.lead.city ? ' · ' + esc(c.lead.city) : ''}</small></div>` : '<p class="mut" style="margin:4px 0">None</p>'}
    <label>Linked customer</label>${c.customer ? `<div class="act"><a href="#/customers/${c.customer.id}"><b>${esc(c.customer.name)}</b></a><br><small>${esc(c.customer.district || '')}</small></div>` : `<p class="mut" style="margin:4px 0">None${canW('customers') && c.lead ? ' — <a href="#" id="wcv">convert lead to customer</a>' : ''}</p>`}
    <label>Assigned to</label>${adm ? `<select id="was"><option value="0">Unassigned</option>${(WA.users || []).map(u => `<option value="${u.id}" ${c.assigned_to == u.id ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select>` : `<p style="margin:4px 0">${c.assigned_name ? esc(c.assigned_name) : 'Unassigned'} ${c.assigned_to == ME.id ? '<a href="#" id="wrel">(release)</a>' : (!c.assigned_to ? '<a href="#" id="wtake">(take this chat)</a>' : '')}</p>`}
-   <div class="bar" style="margin-top:14px"><button class="btn sec sm" id="wopenweb"><i class="i i-chat"></i> Open in WhatsApp Web</button><a class="btn sec sm" href="tel:+${esc(c.wa_id)}"><i class="i i-phone"></i> Call</a></div>`;
+   <div class="bar" style="margin-top:14px"><button class="btn sec sm" id="wopenweb"><i class="i i-chat"></i> Open in WhatsApp Web</button><a class="btn sec sm" href="tel:+${esc(c.wa_id)}"><i class="i i-phone"></i> Call</a>${adm ? '<button class="btn bad sm" id="wdel">Delete chat</button>' : ''}</div>`;
   if (adm && !WA.users) api('calendar', 'list', undefined, '&from=2000-01-01&to=2000-01-01').then(r => { WA.users = r.users; waInfo(c); }).catch(() => { });
   $('#wnms').onclick = async () => { await api('wa', 'link', { chat_id: c.id, name: $('#wnm').value }); toast('Saved'); WA.sig = ''; openChat(c.id); loadChats(true); };
   if ($('#wol')) $('#wol').onclick = e => { e.preventDefault(); leadModal(c.lead.id); };
@@ -120,6 +123,7 @@ function waInfo(c) {
   if ($('#wtake')) $('#wtake').onclick = async e => { e.preventDefault(); await api('wa', 'assign', { chat_id: c.id, user_id: ME.id }); WA.sig = ''; openChat(c.id); loadChats(true); };
   if ($('#wrel')) $('#wrel').onclick = async e => { e.preventDefault(); await api('wa', 'assign', { chat_id: c.id, user_id: 0 }); WA.sig = ''; openChat(c.id); loadChats(true); };
   $('#wopenweb').onclick = () => waLaunch(c.wa_id, '');
+  if ($('#wdel')) $('#wdel').onclick = async () => { if (!confirm('Delete this chat and its messages from the CRM? (Nothing is deleted on WhatsApp.)')) return; await api('wa', 'delete_chat', { chat_id: c.id }); WA.chat = null; toast('Chat deleted'); pgWa(); };
 }
 function fillTpl(text, c) { return text.replace(/\{name\}/g, (c.name || '').split(' ')[0]).replace(/\{company\}/g, S.company.name).replace(/\{amount\}/g, '').replace(/\{quote_no\}/g, '').replace(/\{date\}/g, ''); }
 function quickReplies(btn, c, tx) {
@@ -152,7 +156,7 @@ async function newChatModal() {
   const [cs, ls] = await Promise.all([canR('customers') ? api('customers', 'list') : [], canR('leads') ? api('leads', 'list') : []]);
   const people = cs.filter(x => x.phone).map(x => ({ n: x.name, p: x.phone, k: 'customer_id', id: x.id })).concat(ls.filter(l => l.phone && l.can_edit && !l.customer_id).map(l => ({ n: l.name, p: l.phone, k: 'lead_id', id: l.id })));
   const m = modal(`<h2 style="margin-top:0">New chat</h2><label>Customer or lead</label><input id="ncq" list="ncl" placeholder="Search name…" autocomplete="off"><datalist id="ncl">${people.map(p => `<option value="${esc(p.n)} · ${esc(p.p)}"></option>`).join('')}</datalist>
-   <label>…or phone number</label><input id="ncp" type="tel" placeholder="10-digit mobile"><label>Name</label><input id="ncn">
+   <label>…or phone number</label><input id="ncp" type="tel" placeholder="10-digit mobile, e.g. 9400044297 (or +country code)"><label>Name</label><input id="ncn">
    <p class="mut" style="font-size:13px">New conversations must start with an approved template (WhatsApp rule).</p>
    <div class="bar"><button class="btn" id="ncg">Open chat</button><button class="btn sec" id="ncx">Cancel</button></div>`);
   let pick = null; $('#ncq', m).oninput = e => { pick = people.find(p => `${p.n} · ${p.p}` === e.target.value) || null; if (pick) { $('#ncp', m).value = pick.p; $('#ncn', m).value = pick.n; } };
