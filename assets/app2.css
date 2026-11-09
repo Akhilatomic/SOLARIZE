@@ -1,0 +1,124 @@
+/* =====================================================================
+   Solarize — macOS-inspired theme layer (loaded after app.css)
+   One signature: a soft solar-dawn wallpaper seen through a frosted
+   sidebar, with System-Settings-style colour tiles. Everything else
+   quiet: white surfaces, hairlines, Apple blue for actions.
+   ===================================================================== */
+:root{
+  --bg:#f2f2f5;--card:#fff;--tx:#1d1d1f;--mut:#6e6e73;--bd:rgba(0,0,0,.09);--fill:#f2f2f7;
+  --pri:#007aff;--pri2:#0066d6;--ok:#28a745;--bad:#ff3b30;
+  --hair:0 0 0 .5px rgba(0,0,0,.08);
+  --shadow:0 0 0 .5px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04),0 8px 24px -10px rgba(0,0,0,.10);
+  --r:14px;--rc:8px;
+  --side:rgba(242,242,247,.62);
+}
+/* typography: SF on Apple devices, Segoe UI Variable on Windows 11 (closest match) */
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI Variable","Segoe UI","Inter",Roboto,Helvetica,Arial,sans-serif;font-size:14.5px;letter-spacing:-.008em;
+  background:
+    radial-gradient(1100px 620px at -8% -14%,rgba(255,176,46,.30),rgba(255,176,46,0) 62%),
+    radial-gradient(900px 560px at 18% 112%,rgba(255,120,60,.10),rgba(255,120,60,0) 60%),
+    radial-gradient(1000px 640px at 112% -12%,rgba(10,132,255,.16),rgba(10,132,255,0) 58%),
+    linear-gradient(180deg,#f5f5f8,#eceef3);
+  background-attachment:fixed}
+h1,h2,h3,.top h2{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Segoe UI Variable","Segoe UI",sans-serif;letter-spacing:-.022em}
+main h2{font-weight:700}
+
+/* ---------- colour tiles (System Settings style) ---------- */
+.ft{--tc:#8e8e93;width:24px;height:24px;border-radius:7px;display:inline-grid;place-items:center;flex:none;color:#fff;
+  background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0) 60%),var(--tc);
+  box-shadow:inset 0 0 0 .5px rgba(0,0,0,.10),0 1px 1.5px rgba(0,0,0,.12)}
+.ft .i{background:#fff!important;width:15px!important;height:15px!important;opacity:1}
+.ft.lg{width:44px;height:44px;border-radius:11px}.ft.lg .i{width:24px!important;height:24px!important}
+.t-dashboard{--tc:#0a84ff}.t-calendar{--tc:#ff3b30}.t-leads{--tc:#ff9500}.t-customers{--tc:#34c759}.t-projects{--tc:#5e5ce6}
+.t-folder{--tc:#32ade6}.t-quotes{--tc:#ff2d55}.t-subsidy{--tc:#f5a300}.t-kseb{--tc:#00b8b0}.t-whatsapp{--tc:#25d366}.t-ads{--tc:#bf5af2}
+.t-attendance{--tc:#30b0c7}.t-leaves{--tc:#ac8e68}.t-settings{--tc:#8e8e93}.t-recycle{--tc:#636366}.t-admin{--tc:#3a3a3c}
+
+/* ---------- sidebar: frosted glass over the wallpaper ---------- */
+aside{background:var(--side);backdrop-filter:saturate(190%) blur(30px);-webkit-backdrop-filter:saturate(190%) blur(30px);border-right:.5px solid rgba(0,0,0,.12);padding:14px 10px}
+aside h1.brand{margin:4px 8px 14px}
+aside a{gap:9px;padding:5px 8px;border-radius:7px;font-size:13.5px;font-weight:500;color:#1d1d1f;margin-bottom:1px;min-height:32px}
+aside a:hover{background:rgba(0,0,0,.055)}
+aside a.on{background:rgba(0,122,255,.92);color:#fff;box-shadow:0 1px 2px rgba(0,80,200,.25)}
+aside a.on .ft{box-shadow:0 0 0 1px rgba(255,255,255,.55),0 1px 1.5px rgba(0,0,0,.15)}
+aside .sep{text-transform:none;letter-spacing:0;font-size:11.5px;font-weight:600;color:#8e8e93;margin:14px 10px 4px}
+@media(min-width:821px) and (max-width:1440px){aside a{padding:6px 0;min-height:38px}aside a .ft{width:30px;height:30px;border-radius:8px}aside a .ft .i{width:17px!important;height:17px!important}aside .sep{margin:8px 10px;height:.5px;background:rgba(0,0,0,.12)}}
+@media(max-width:820px){aside{background:rgba(246,246,249,.94)}}
+
+/* ---------- toolbar ---------- */
+.top{background:rgba(250,250,252,.72);backdrop-filter:saturate(190%) blur(24px);-webkit-backdrop-filter:saturate(190%) blur(24px);border-bottom:.5px solid rgba(0,0,0,.12);padding:9px 22px;min-height:54px}
+.top h2{font-size:17px;font-weight:700;display:flex;align-items:center;gap:9px}
+.top h2 .ft{width:26px;height:26px}
+
+/* ---------- surfaces ---------- */
+.card{border:0;border-radius:var(--r);box-shadow:var(--shadow)}
+.card h3{font-size:15px;font-weight:650}
+.k{box-shadow:var(--shadow);border-radius:11px}
+.col{background:rgba(255,255,255,.45);box-shadow:inset 0 0 0 .5px rgba(0,0,0,.06)}
+
+/* ---------- controls: macOS push buttons ---------- */
+.btn{border-radius:var(--rc);padding:7px 15px;font-weight:550;min-height:32px;
+  background:linear-gradient(180deg,#2d8cff,#0a72ec);box-shadow:inset 0 .5px 0 rgba(255,255,255,.35),0 .5px 1px rgba(0,0,0,.25),0 1px 2px rgba(0,90,200,.18)}
+.btn:hover{background:linear-gradient(180deg,#3a94ff,#0b6ad8)}
+.btn.sec{background:#fff;color:#1d1d1f;box-shadow:0 0 0 .5px rgba(0,0,0,.16),0 .5px 1.5px rgba(0,0,0,.10)}
+.btn.sec:hover{background:#f7f7f9}
+.btn.sec .i{background:#3a3a3c}
+.btn.bad{background:#fff;color:var(--bad);box-shadow:0 0 0 .5px rgba(255,59,48,.35),0 .5px 1.5px rgba(0,0,0,.08)}.btn.bad:hover{background:#fff5f4}
+.btn.ok{background:linear-gradient(180deg,#3a3a3c,#1d1d1f);box-shadow:inset 0 .5px 0 rgba(255,255,255,.2),0 .5px 1px rgba(0,0,0,.3)}
+.btn.sm{padding:4px 11px;min-height:28px;font-size:12.5px}
+.btn:focus-visible,.ib:focus-visible,.tabs button:focus-visible,aside a:focus-visible{outline:0;box-shadow:0 0 0 3.5px rgba(0,122,255,.38)}
+.ib{border-radius:7px}
+
+/* inputs */
+input,select,textarea{border-radius:var(--rc);border:0;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.20),inset 0 .5px 1px rgba(0,0,0,.05);padding:8px 11px}
+input:focus,select:focus,textarea:focus{box-shadow:0 0 0 .5px #0a84ff,0 0 0 3.5px rgba(0,122,255,.30)}
+input:disabled,select:disabled,textarea:disabled{background:#f5f5f7;box-shadow:0 0 0 .5px rgba(0,0,0,.08)}
+label{font-size:12px;font-weight:550;color:#6e6e73}
+input[type=checkbox],input[type=radio]{box-shadow:none;accent-color:#007aff}
+
+/* segmented controls */
+.tabs{background:rgba(118,118,128,.12);padding:2px;border-radius:9px;gap:0}
+.tabs button{border-radius:7px;padding:5px 14px;font-size:13px;font-weight:550;color:#1d1d1f}
+.tabs button.on{background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.04),0 2px 6px rgba(0,0,0,.10),0 1px 1px rgba(0,0,0,.06)}
+
+/* pills */
+.pill{font-weight:550;padding:2px 9px;font-size:11.5px}
+
+/* tables: quiet sentence-case headers */
+th{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:#86868b}
+th,td{border-bottom:.5px solid rgba(0,0,0,.08)}
+tr.row:hover,#ltb tbody tr:hover{background:rgba(0,122,255,.045)}
+table.stack td[data-label]:not([data-label=""])::before{text-transform:none;letter-spacing:0;font-size:11.5px;color:#86868b}
+
+/* section labels everywhere: sentence case like macOS, not shouting caps */
+.pfsub,.lsgh,.cfg,.plf>span,.lpsum small,.plpay small,.xdhl,.ah,.dvh small{text-transform:none!important;letter-spacing:0!important}
+.lsgh,.cfg{font-size:13px;font-weight:650}
+.plf>span,.lpsum small,.plpay small{font-size:12px}
+
+/* ---------- sheets & menus ---------- */
+.modal{background:rgba(30,30,40,.18);backdrop-filter:blur(10px) saturate(140%);-webkit-backdrop-filter:blur(10px) saturate(140%)}
+.modal>div{border-radius:16px;box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 30px 80px rgba(0,0,0,.28),0 10px 24px rgba(0,0,0,.10);animation:sheetIn .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes sheetIn{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+.menu{border-radius:11px;padding:5px;background:rgba(250,250,252,.86);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);box-shadow:0 0 0 .5px rgba(0,0,0,.14),0 14px 40px rgba(0,0,0,.20)}
+.menu button{border-radius:6px;padding:6px 10px;font-size:13.5px}
+.menu button:hover{background:#0a84ff;color:#fff}.menu button:hover .i{background:#fff}
+
+/* ---------- notifications (toasts) like macOS banners ---------- */
+.toast{background:rgba(250,250,252,.88);color:#1d1d1f;backdrop-filter:blur(26px) saturate(180%);-webkit-backdrop-filter:blur(26px) saturate(180%);box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 12px 32px rgba(0,0,0,.18);border-radius:14px;font-weight:500}
+.toast .i{background:#007aff}
+
+/* ---------- dashboard: tiles on stat cards & quick actions ---------- */
+.sc .ic.ft{width:30px;height:30px;border-radius:8px}.sc .ic.ft .i{width:17px!important;height:17px!important}
+.qb{background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);border-radius:12px;padding:14px 6px 12px;gap:8px}
+.qb:hover{background:#fafafc;box-shadow:0 0 0 .5px rgba(0,0,0,.10),0 4px 12px rgba(0,0,0,.08)}
+.qb .ft{width:40px;height:40px;border-radius:10px}.qb .ft .i{width:21px!important;height:21px!important}
+
+/* ---------- scrollbars: thin, macOS-like ---------- */
+*{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.25) transparent}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,.22);border-radius:10px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.38);background-clip:content-box}
+
+@media(prefers-reduced-motion:reduce){.modal>div,.toast{animation:none!important}*{transition-duration:0s!important}}
+@media(max-width:600px){.top{padding:8px 12px}.top h2{font-size:16px}.top h2 .ft{width:24px;height:24px}.modal>div{border-radius:16px 16px 0 0}}
+.sc .ic.ft,.qb .ft{background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0) 60%),var(--tc)}
+@media(min-width:821px) and (max-width:1440px){aside .sep{font-size:0!important;color:transparent}}

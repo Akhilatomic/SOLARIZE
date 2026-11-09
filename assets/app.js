@@ -14,7 +14,7 @@ const MODS = [ // id, label, icon, perm
   ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['calendar', 'Calendar', '<i class="i i-calendar"></i>', 'calendar'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
   ['projects', 'Project pipeline', '<i class="i i-project"></i>', 'projects'], ['folder', 'Folder', '<i class="i i-file"></i>', 'folder'], ['quotes', 'Quotations', '<i class="i i-receipt"></i>', 'quotes'],
   ['subsidy', 'Subsidy (PM Surya Ghar)', '<i class="i i-coin"></i>', 'checklist'], ['kseb', 'KSEB documentation', '<i class="i i-folder"></i>', 'checklist'],
-  ['whatsapp', 'WhatsApp', '<i class="i i-chat"></i>', 'whatsapp'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['attendance', 'Attendance', '<i class="i i-clock"></i>', 'attendance'], ['leaves', 'Leaves', '<i class="i i-leave"></i>', 'leaves'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['recycle', 'Recycle bin', '<i class="i i-trash"></i>', 'recycle'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
+  ['whatsapp', 'WhatsApp', '<i class="i i-whatsapp"></i>', 'whatsapp'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['attendance', 'Attendance', '<i class="i i-clock"></i>', 'attendance'], ['leaves', 'Leaves', '<i class="i i-leave"></i>', 'leaves'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['recycle', 'Recycle bin', '<i class="i i-trash"></i>', 'recycle'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
 const canW = m => ME && (ME.write === '*' || ME.write.includes(m));
 const FIN = () => canR('finance');
 const canR = m => ME && (ME.read === '*' || ME.read.includes(m));
@@ -55,7 +55,7 @@ function loginView(setup, brand) {
 function shell() {
   const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : canR(m[3]));
   app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span></h1>
-   ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}">${m[2]} <span class="lbl">${m[1]}</span></a>`).join('')}
+   ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}"><span class="ft t-${m[0]}">${m[2]}</span><span class="lbl">${m[1]}</span></a>`).join('')}
    </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2>
    <div id="pwb" class="acctw"><button class="acct" id="acct" title="Account"><span class="acav">${esc((ME.name || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase())}</span><span class="acn">${esc(ME.name)}<small>${esc(ME.role_name || ME.role)}</small></span></button>
     <div class="card menu acm hide" id="acm"><div class="acmh"><b>${esc(ME.name)}</b><small class="mut">${esc(ME.role_name || ME.role)} · @${esc(ME.username || '')}</small></div><button id="pwc"><i class="i i-lock"></i>Change password</button><button id="lo"><i class="i i-x"></i>Sign out</button></div></div></div><main id="main"></main></div><div id="scrim"></div></div>`;
@@ -73,7 +73,7 @@ async function route() {
   $$('aside a').forEach(a => a.classList.toggle('on', a.dataset.m === mod));
   $('#side')?.classList.remove('open'); document.body.classList.remove('drawer');
   const t = MODS.find(m => m[0] === mod);
-  $('#title').textContent = t ? t[1] : '';
+  $('#title').innerHTML = t ? `<span class="ft t-${t[0]}">${t[2]}</span><span class="ttl">${esc(t[1])}</span>` : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
   const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, subsidy: () => pgOverview('subsidy'), kseb: () => pgOverview('kseb'), whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
@@ -182,9 +182,9 @@ async function pgDashboard() {
   const first = (ME.name || '').split(' ')[0];
   const hr = new Date().getHours(), gm = hr < 12 ? 'Morning' : hr < 17 ? 'Afternoon' : 'Evening';
   const vs = n => `${n >= 0 ? '+' : '-'}${Math.abs(n)}% vs last month`;
-  const card = (ic, label, val, tdy, v, col, go) => `<a class="s3 card sc" href="${go}"><div class="sch"><span class="ic">${ic}</span>${label}</div><b>${val}</b><small>${tdy} today</small><div class="line"></div><small class="mut">${v}</small></a>`;
+  const card = (ic, label, val, tdy, v, col, go) => `<a class="s3 card sc" href="${go}"><div class="sch"><span class="ic ft t-${String(go).replace('#/', '').split('/')[0]}">${ic}</span>${label}</div><b>${val}</b><small>${tdy} today</small><div class="line"></div><small class="mut">${v}</small></a>`;
   const QA = [['<i class="i i-plus"></i>', 'Add Lead', 'leads', 'new'], ['<i class="i i-target"></i>', 'View Leads', 'leads', '#/leads'], ['<i class="i i-users"></i>', 'Customers', 'customers', '#/customers'], ['<i class="i i-project"></i>', 'Projects', 'projects', '#/projects'], ['<i class="i i-receipt"></i>', 'Quotations', 'quotes', '#/quotes'], ['<i class="i i-note"></i>', 'New Quote', 'quotes', 'quote'],
-    ['<i class="i i-coin"></i>', 'Subsidy', 'checklist', '#/subsidy'], ['<i class="i i-folder"></i>', 'KSEB Docs', 'checklist', '#/kseb'], ['<i class="i i-chat"></i>', 'WhatsApp', 'whatsapp', '#/whatsapp'], ['<i class="i i-megaphone"></i>', 'Meta Ads', 'ads', '#/ads'], ['<i class="i i-gear"></i>', 'Settings', 'settings', '#/settings'], ['<i class="i i-shield"></i>', 'Admin', 'admin', '#/admin']]
+    ['<i class="i i-coin"></i>', 'Subsidy', 'checklist', '#/subsidy'], ['<i class="i i-folder"></i>', 'KSEB Docs', 'checklist', '#/kseb'], ['<i class="i i-whatsapp"></i>', 'WhatsApp', 'whatsapp', '#/whatsapp'], ['<i class="i i-megaphone"></i>', 'Meta Ads', 'ads', '#/ads'], ['<i class="i i-gear"></i>', 'Settings', 'settings', '#/settings'], ['<i class="i i-shield"></i>', 'Admin', 'admin', '#/admin']]
     .filter(q => q[2] === 'admin' ? ME.role === 'admin' : canR(q[2]) && (q[3] !== 'new' || canW('leads')) && (q[3] !== 'quote' || canW('quotes')));
   // lead trend (30 days)
   const days = [...Array(30)].map((_, i) => { const x = new Date(); x.setDate(x.getDate() - 29 + i); return x.toISOString().slice(0, 10); });
@@ -215,7 +215,7 @@ async function pgDashboard() {
 
    ${card('<i class="i i-target"></i>', 'Active Leads', d.leads_total, d.leads_today, vs(d.leads_vs), '', '#/leads')}${card('<i class="i i-users"></i>', 'Customers', d.cust_total, d.cust_today, vs(d.cust_vs), '', '#/customers')}${card('<i class="i i-project"></i>', 'Active Projects', d.proj_active, d.proj_today, vs(d.proj_vs), '', '#/projects')}${card('<i class="i i-alert"></i>', 'Overdue Follow-ups', d.overdue, d.due_today, d.due_today + ' due today', '', '#/leads')}
 
-   <div class="s12 card">${head('Quick Actions')}<div class="qa">${QA.map(q => `<button class="qb" data-qa="${q[3]}" data-go="${q[1]}"><span>${q[0]}</span>${q[1]}</button>`).join('')}</div></div>
+   <div class="s12 card">${head('Quick Actions')}<div class="qa">${QA.map(q => `<button class="qb" data-qa="${q[3]}" data-go="${q[1]}"><span class="ft t-${q[3].startsWith('#/') ? q[3].slice(2) : q[3] === 'quote' ? 'quotes' : q[2]}">${q[0]}</span>${q[1]}</button>`).join('')}</div></div>
 
    ${d.finance ? [['Pipeline value', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="s2 card stat"><b>${v}</b><span>${l}</span></div>`).join('') : ''}
 
