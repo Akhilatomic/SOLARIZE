@@ -6,7 +6,7 @@ function handle_auth($a) {
   $count = (int)row('SELECT COUNT(*) c FROM users')['c'];
   $old = dirname(__DIR__) . '/data/config.php'; // v1 single-password install -> first admin
   if ($count === 0 && is_file($old)) { $cfg = include $old; q('INSERT INTO users(name,username,hash,role) VALUES(?,?,?,?)', ['Admin', 'admin', $cfg['hash'], 'admin']); $count = 1; }
-  if ($a === 'status') out(['setup' => $count === 0, 'auth' => !empty($_SESSION['uid']), 'user' => me()]);
+  if ($a === 'status') out(['setup' => $count === 0, 'auth' => !empty($_SESSION['uid']), 'user' => me(), 'brand' => branding()]);
   if ($a === 'setup') {
     if ($count) fail('Already set up', 403);
     $u = trim($in['username'] ?? ''); $pw = $in['password'] ?? ''; $n = trim($in['name'] ?? '') ?: $u;

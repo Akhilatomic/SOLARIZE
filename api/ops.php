@@ -83,12 +83,37 @@ function handle_whatsapp($a) {
 }
 
 function handle_settings($a) {
-  need('settings', $a === 'save');
+  need('settings', in_array($a, ['save', 'upload_bg', 'remove_bg']));
   if ($a === 'get') out(settings());
+  if ($a === 'upload_bg' || $a === 'remove_bg') {
+    if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
+    $dir = dirname(__DIR__) . '/uploads';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    file_put_contents("$dir/.htaccess", "Options -Indexes\n<FilesMatch \"\\.(php|phtml|phar|html?|js)$\">\n  Require all denied\n</FilesMatch>\n");
+    $cur = settings()['login'];
+    $olds = glob("$dir/login-bg-*") ?: [];
+    if ($a === 'remove_bg') { $cur['bg'] = ''; }
+    else {
+      $fl = $_FILES['file'] ?? null;
+      if (!$fl || $fl['error'] !== UPLOAD_ERR_OK) fail('Upload failed (file too large for the server?)');
+      if ($fl['size'] > 6 * 1024 * 1024) fail('Image too large (max 6 MB)');
+      $info = @getimagesize($fl['tmp_name']);
+      $ext = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'][$info[2] ?? 0] ?? null;
+      if (!$ext) fail('Please upload a JPG, PNG or WebP image');
+      $name = 'login-bg-' . bin2hex(random_bytes(5)) . '.' . $ext;
+      if (!move_uploaded_file($fl['tmp_name'], "$dir/$name")) fail('Could not save image', 500);
+      $cur['bg'] = $name; $olds = array_diff($olds, ["$dir/$name"]);
+    }
+    foreach ($olds as $old) @unlink($old);
+    q('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', ['login', json_encode($cur)]);
+    audit($a, 'settings', null, 'login'); out(['ok' => true, 'brand' => branding()]);
+  }
   if ($a === 'save') {
     if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
     $in = body(); $k = $in['key'] ?? ''; if (!array_key_exists($k, defaults())) fail('Unknown setting');
-    q('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', [$k, json_encode($in['value'], JSON_UNESCAPED_UNICODE)]);
+    $val = $in['value'];
+    if ($k === 'login') { $val = ['bg' => settings()['login']['bg'], 'tagline' => mb_substr((string)($val['tagline'] ?? ''), 0, 80), 'dim' => max(0, min(80, (int)($val['dim'] ?? 35)))]; }
+    q('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', [$k, json_encode($val, JSON_UNESCAPED_UNICODE)]);
     audit('settings', 'settings', null, $k); out(['ok' => true]);
   }
   fail('Unknown action', 404);

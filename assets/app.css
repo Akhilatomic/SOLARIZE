@@ -123,3 +123,21 @@ aside a .i{width:17px;height:17px;opacity:.85}aside a.on .i{opacity:1}
 .btn.sec{color:var(--tx)}.btn.bad .i{color:inherit}
 
 aside h1.brand{display:flex;align-items:center;gap:8px;margin:0 2px 16px}aside h1.brand img{width:52px;height:52px;object-fit:contain;flex-shrink:0}aside h1.brand .bt{font-size:17px;line-height:1.15}
+
+.i-lock{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'1.8'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Crect%20x%3D'3'%20y%3D'11'%20width%3D'18'%20height%3D'11'%20rx%3D'2'%2F%3E%3Cpath%20d%3D'M7%2011V7a5%205%200%200%201%2010%200v4'%2F%3E%3C%2Fsvg%3E")}
+
+/* login */
+.lg{min-height:100vh;display:grid;place-items:center;padding:20px;position:relative;background:radial-gradient(1200px 700px at 15% 10%,#dbe9ff 0,transparent 60%),radial-gradient(900px 600px at 90% 90%,#ffe3d6 0,transparent 55%),#f5f5f7;overflow:hidden}
+.lg-dim{position:absolute;inset:0;background:#000;pointer-events:none}
+.lg-card{position:relative;width:100%;max-width:380px;padding:34px 30px 24px;border-radius:26px;background:rgba(255,255,255,.94);backdrop-filter:saturate(180%) blur(30px);-webkit-backdrop-filter:saturate(180%) blur(30px);border:1px solid rgba(255,255,255,.7);box-shadow:0 24px 70px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.06);text-align:center;animation:lgin .45s cubic-bezier(.2,.8,.2,1)}
+@keyframes lgin{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+.lg-logo{width:84px;height:84px;object-fit:contain;display:block;margin:0 auto 14px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.18))}
+.lg-card h2{margin:0;font-size:26px;font-weight:700;letter-spacing:-.03em}
+.lg-sub{margin:4px 0 22px;color:var(--mut);font-size:14px}.lg-note{margin:-8px 0 14px;font-size:13px;color:var(--mut)}
+.lg-f{position:relative;margin-bottom:12px}.lg-f>.i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#8e8e93;width:18px;height:18px;pointer-events:none}
+.lg-f input{padding:13px 44px 13px 42px;border-radius:14px;background:rgba(255,255,255,.85);font-size:15px}
+.lg-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;padding:8px;cursor:pointer;color:#8e8e93}.lg-eye .i{width:18px;height:18px}.lg-eye:hover{color:var(--tx)}
+.lg-go{width:100%;padding:13px;border-radius:14px;font-size:16px;font-weight:600;margin-top:6px}.lg-go:disabled{opacity:.6;cursor:wait}
+.lg-card .err{text-align:left;padding-left:4px;margin-top:-4px}
+.lg-foot{margin:20px 0 0;font-size:12px;color:#8e8e93}
+@media(max-width:480px){.lg-card{padding:28px 20px 20px;border-radius:22px}}

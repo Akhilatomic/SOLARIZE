@@ -30,17 +30,22 @@ const stageCls = s => ({ Won: 'g', Commissioned: 'g', Closed: 'g', Released: 'g'
 
 async function boot() {
   const s = await api('auth', 'status');
-  if (!s.auth) return loginView(s.setup);
+  if (!s.auth) return loginView(s.setup, s.brand || {});
   ME = s.user; S = await api('settings', 'get');
   shell(); route();
 }
-function loginView(setup) {
-  app.innerHTML = `<div class="card login"><img src="assets/logo.png" alt="Jasper" style="width:96px;height:96px;object-fit:contain;display:block;margin:0 0 12px"><h2 style="margin:0 0 4px">Solarize <span style="color:var(--pri)">CRM</span></h2>
-  <p class="mut">${setup ? 'First run: create the administrator account.' : 'Sign in to continue.'}</p>
-  ${setup ? '<label>Your name</label><input id="nm">' : ''}<label>Username</label><input id="un" autocomplete="username"><label>Password${setup ? ' (min 8)' : ''}</label><input id="pw" type="password" autocomplete="current-password">
-  <div class="err" id="e"></div><button class="btn" style="width:100%" id="go">${setup ? 'Create admin' : 'Sign in'}</button></div>`;
-  const go = async () => { try { await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value }); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; } };
-  $('#go').onclick = go; $('#pw').onkeydown = e => e.key === 'Enter' && go();
+function loginView(setup, brand) {
+  const bg = brand.bg ? `url('${brand.bg}') center/cover no-repeat` : '';
+  app.innerHTML = `<div class="lg" style="${bg ? 'background:' + bg : ''}"><div class="lg-dim" style="opacity:${bg ? (brand.dim ?? 35) / 100 : 0}"></div>
+   <form class="lg-card" id="lf" autocomplete="on"><img src="assets/logo.png" alt="Jasper" class="lg-logo">
+    <h2>${setup ? 'Welcome' : 'Welcome back'}</h2><p class="lg-sub">${esc(brand.tagline || 'Max speed CRM')}</p>
+    ${setup ? '<p class="lg-note">First run: create the administrator account.</p><div class="lg-f"><i class="i i-user"></i><input id="nm" placeholder="Your name" autocomplete="name"></div>' : ''}
+    <div class="lg-f"><i class="i i-user"></i><input id="un" placeholder="Username" autocomplete="username" autofocus></div>
+    <div class="lg-f"><i class="i i-lock"></i><input id="pw" type="password" placeholder="Password${setup ? ' (min 8 characters)' : ''}" autocomplete="${setup ? 'new-password' : 'current-password'}"><button type="button" class="lg-eye" id="eye" title="Show password" tabindex="-1"><i class="i i-eye"></i></button></div>
+    <div class="err" id="e"></div><button class="btn lg-go" id="go" type="submit">${setup ? 'Create admin account' : 'Sign in'}</button>
+    <p class="lg-foot">Jasper Solar Solutions</p></form></div>`;
+  $('#eye').onclick = () => { const p = $('#pw'); p.type = p.type === 'password' ? 'text' : 'password'; };
+  $('#lf').onsubmit = async e => { e.preventDefault(); const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value }); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
 }
 function shell() {
   const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : canR(m[3]));
