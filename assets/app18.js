@@ -61,21 +61,26 @@ async function renderWarranty(box, c, id) {
       toast('Attach the warranty card file, send it, then tick the step');
       if (F.length && k === 'wa') window.open(fileUrl(F[0], 1), '_blank', 'noopener'); }); };
   const drawU = () => {
-    $('#wcu', box).innerHTML = `<div class="pfch"><i class="i i-file"></i><h3>Warranty card file</h3><span class="sp"></span><span class="pill g">Kept forever</span></div>
-      <p class="mut" style="font-size:12.5px;margin:0 0 10px">The manufacturer's warranty card. It is never deleted automatically (other documents expire after 200 days); only an admin can delete it.</p>
-      <div class="wcf">${F.map((f, i) => `<div class="wci"><button class="dcth" data-wv="${i}" title="View">${isImg(f) ? `<img loading="lazy" src="${fileUrl(f)}" alt="">` : `<span class="dcic"><i class="i i-file"></i><b>${esc((f.name.split('.').pop() || '').toUpperCase())}</b></span>`}</button>
+    const G = [['Panel warranty card', 'Solar panels', ''], ['Inverter warranty card', 'Inverter', ''], ['Energy meter warranty card', 'Energy meter', '']];
+    if (F.some(f => !G.some(x => x[0] === f.item))) G.push(['Warranty card', 'Other', '']);
+    const card = (f, i) => `<div class="wci"><button class="dcth" data-wv="${i}" title="View">${isImg(f) ? `<img loading="lazy" src="${fileUrl(f)}" alt="">` : `<span class="dcic"><i class="i i-file"></i><b>${esc((f.name.split('.').pop() || '').toUpperCase())}</b></span>`}</button>
         <div class="wcm"><b title="${esc(f.name)}">${esc(f.name)}</b><small class="mut">Uploaded ${fdt(String(f.created).slice(0, 10))} · ${Math.round(f.size / 1024)} KB</small>
-        <div class="bar"><a class="btn sec sm" href="${fileUrl(f, 1)}"><i class="i i-download"></i> Download</a>${(ME && ME.role === 'admin') ? `<button class="ib" data-wx="${f.id}" title="Delete"><i class="i i-trash"></i></button>` : ''}</div></div></div>`).join('') || '<p class="mut" style="margin:4px 0 10px">No warranty card uploaded yet.</p>'}</div>
-      ${wf ? `<label class="btn wcup"><input type="file" accept="image/*,.pdf" hidden multiple><i class="i i-upload"></i> Upload warranty card</label>` : ''}`;
+        <div class="bar"><a class="btn sec sm" href="${fileUrl(f, 1)}"><i class="i i-download"></i> Download</a>${(ME && ME.role === 'admin') ? `<button class="ib" data-wx="${f.id}" title="Delete"><i class="i i-trash"></i></button>` : ''}</div></div></div>`;
+    $('#wcu', box).innerHTML = `<div class="pfch"><i class="i i-file"></i><h3>Warranty cards</h3><span class="sp"></span><span class="pill g">Kept forever</span></div>
+      <p class="mut" style="font-size:12.5px;margin:0 0 6px">Manufacturer warranty cards. They are never deleted automatically (other documents expire after 200 days); only an admin can delete them.</p>
+      ${G.map(([item, label]) => { const L = F.map((f, i) => [f, i]).filter(([f]) => item === 'Warranty card' ? !G.slice(0, 3).some(x => x[0] === f.item) : f.item === item);
+        return `<div class="wcsec"><div class="wch"><b>${label}</b><span class="wcst ${L.length ? 'ok' : ''}">${L.length ? '<i class="i i-check"></i> Uploaded' : 'Not uploaded'}</span><span class="sp"></span>
+          ${wf && item !== 'Warranty card' ? `<label class="btn sec sm wcup" title="Upload the ${label.toLowerCase()} warranty card"><input type="file" accept="image/*,.pdf" hidden multiple data-item="${item}"><i class="i i-upload"></i> Upload</label>` : ''}</div>
+          ${L.length ? `<div class="wcf">${L.map(([f, i]) => card(f, i)).join('')}</div>` : ''}</div>`; }).join('')}`;
     $$('[data-wv]', box).forEach(b => b.onclick = () => docViewer(F, +b.dataset.wv));
     $$('[data-wx]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this warranty card? It goes to the Recycle bin for 72 hours.')) return; try { await api('files', 'delete', { id: +b.dataset.wx }); toast('Warranty card deleted'); renderWarranty(box, c, id); } catch (e) { } });
-    const inp = $('.wcup input', box); if (inp) inp.onchange = async () => { const files = [...inp.files]; inp.value = ''; if (!files.length) return; const lab = inp.parentElement; lab.classList.add('busy'); let n = 0;
+    $$('.wcup input', box).forEach(inp => inp.onchange = async () => { const files = [...inp.files]; inp.value = ''; if (!files.length) return; const lab = inp.parentElement; lab.classList.add('busy'); let n = 0;
       for (const f0 of files) { const f = f0.size > 10 * 1024 * 1024 && /^image\//.test(f0.type) ? await shrinkImage(f0) : f0;
         if (f.size > 10 * 1024 * 1024) { toast(`${f0.name} is larger than 10 MB`, true); continue; }
-        const fd = new FormData(); fd.append('file', f, f.name); fd.append('customer_id', id); fd.append('kind', 'warranty'); fd.append('item', 'Warranty card');
+        const fd = new FormData(); fd.append('file', f, f.name); fd.append('customer_id', id); fd.append('kind', 'warranty'); fd.append('item', inp.dataset.item);
         try { await api('files', 'upload', fd); n++; } catch (e) { } }
       lab.classList.remove('busy');
-      if (n) { toast('Warranty card uploaded'); if (!S.steps.recv && w) { S.steps.recv = { on: today(), by: (ME || {}).name || '' }; await save(); } renderWarranty(box, c, id); } }; };
+      if (n) { toast('Warranty card uploaded'); if (!S.steps.recv && w) { S.steps.recv = { on: today(), by: (ME || {}).name || '' }; await save(); } renderWarranty(box, c, id); } }); };
   drawS(); drawU(); renderMfr($('#mfr', box), c, id);
 }
 
