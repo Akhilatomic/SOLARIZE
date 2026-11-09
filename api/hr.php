@@ -2,11 +2,14 @@
 // Attendance (check-in/out with optional location) and Leaves (apply / approve / balances).
 // Permissions: 'attendance' / 'leaves' read = use your own; write = manage the team (approve, correct, view everyone).
 
+const HR_HOLIDAYS_2026 = [['date' => '2026-01-02', 'name' => 'Mannam Jayanthi'], ['date' => '2026-01-26', 'name' => 'Republic Day'], ['date' => '2026-02-15', 'name' => 'Maha Sivaratri'], ['date' => '2026-04-01', 'name' => 'Annual Closing of Bank Accounts'], ['date' => '2026-04-02', 'name' => 'Maundy Thursday'], ['date' => '2026-04-03', 'name' => 'Good Friday'], ['date' => '2026-04-05', 'name' => 'Easter Sunday'], ['date' => '2026-04-14', 'name' => 'Dr. B.R. Ambedkar Jayanthi'], ['date' => '2026-04-15', 'name' => 'Vishu'], ['date' => '2026-05-01', 'name' => 'May Day (Labour Day)'], ['date' => '2026-08-12', 'name' => 'Karkadaka Vavu'], ['date' => '2026-08-15', 'name' => 'Independence Day'], ['date' => '2026-08-25', 'name' => 'First Onam'], ['date' => '2026-08-26', 'name' => 'Thiruvonam'], ['date' => '2026-08-27', 'name' => 'Third Onam'], ['date' => '2026-08-28', 'name' => 'Fourth Onam / Sree Narayana Guru Jayanthi'], ['date' => '2026-09-04', 'name' => 'Sreekrishna Jayanthi'], ['date' => '2026-09-21', 'name' => 'Sree Narayana Guru Samadhi Day'], ['date' => '2026-10-02', 'name' => 'Gandhi Jayanthi'], ['date' => '2026-10-20', 'name' => 'Mahanavami'], ['date' => '2026-10-21', 'name' => 'Vijayadasami'], ['date' => '2026-11-08', 'name' => 'Deepavali'], ['date' => '2026-12-25', 'name' => 'Christmas Day']];
+
 function hr_cfg() {
-  $d = ['start' => '09:00', 'end' => '18:00', 'half_after' => '14:00', 'pay_day' => 6, 'grace' => 15, 'half_hours' => 0, 'full_hours' => 9, 'week_off' => [0], 'holidays' => [],
+  $d = ['start' => '09:00', 'end' => '18:00', 'half_after' => '14:00', 'pay_day' => 6, 'grace' => 15, 'half_hours' => 0, 'full_hours' => 9, 'week_off' => [0], 'holidays' => HR_HOLIDAYS_2026,
     'leave_types' => [['code' => 'CL', 'name' => 'Casual leave', 'quota' => 12], ['code' => 'SL', 'name' => 'Sick leave', 'quota' => 12], ['code' => 'EL', 'name' => 'Earned leave', 'quota' => 15], ['code' => 'LOP', 'name' => 'Unpaid leave (LOP)', 'quota' => 0]]];
   $r = row("SELECT v FROM settings WHERE k='hr'"); $s = $r ? (json_decode($r['v'], true) ?: []) : [];
   if ($s && !isset($s['half_after'])) unset($s['start'], $s['half_hours'], $s['full_hours']); // settings saved before 9–6 office hours: take the new defaults
+  if (empty($s['holidays'])) unset($s['holidays']); // no list saved yet: use the 2026 office holiday list
   return $s + $d;
 }
 function hr_mgr($m) { return can($m, true); }
