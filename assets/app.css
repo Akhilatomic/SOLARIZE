@@ -380,3 +380,8 @@ main.pg-calendar{padding-bottom:12px}
 @media(max-width:1100px){.stepper-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.psteps{grid-template-columns:1fr}}
 @media(max-width:600px){.stepper-tabs{grid-template-columns:1fr}}
 .psi.done{opacity:1;text-decoration:none}
+
+/* total reset */
+.card.danger{border:1px solid rgba(229,52,43,.25)}
+.rbox{display:flex;flex-direction:column;gap:3px;background:#fff1f0;border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:13px}.rbox b{color:var(--bad)}.rbox.keep{background:#e8f7ec}.rbox.keep b{color:#1e7a37}
+.ropt{display:flex;gap:10px;align-items:flex-start;padding:7px 0;margin:0;color:var(--tx);cursor:pointer}.ropt input{width:auto;margin-top:3px}.ropt b{display:block;font-size:14px}.ropt small{display:block;color:var(--mut);font-size:12px}

@@ -157,10 +157,39 @@ async function pgAdmin() {
     ab.innerHTML = table([['When', l => l.created], ['User', l => esc(l.user)], ['Action', l => esc(l.action)], ['Entity', l => esc(l.entity) + (l.entity_id ? ' #' + l.entity_id : '')], ['Detail', l => esc(l.detail)]], log, () => { });
   }
   if (t === 'system') {
-    const s = await api('admin', 'stats');
-    ab.innerHTML = `<div class="grid stats">${Object.entries(s).map(([k, v]) => `<div class="card stat"><b>${v}</b><span>${k.replace('_', ' ')}</span></div>`).join('')}</div>
-     <div class="card" style="margin-top:12px"><h3>Backup</h3><p class="mut">Download a full copy of the database (customers, projects, users, settings). Uploaded files are stored separately in the server's data/uploads folder (download them via Hostinger File Manager).</p><a class="btn" href="api.php?m=admin&a=backup">Download database backup</a></div>`;
+    const [st, bk] = await Promise.all([api('admin', 'stats'), api('reset', 'backups')]);
+    ab.innerHTML = `<div class="grid stats">${Object.entries(st).map(([k, v]) => `<div class="card stat"><b>${v}</b><span>${k.replace('_', ' ')}</span></div>`).join('')}</div>
+     <div class="grid cols2" style="margin-top:12px">
+      <div class="card"><h3>Backup</h3><p class="mut">Download a full copy of the database (customers, projects, users, settings). Uploaded files are stored separately in the server's data/uploads folder.</p><a class="btn" href="api.php?m=admin&a=backup"><i class="i i-download"></i> Download database backup</a>
+       <h3 style="margin-top:18px">Saved backups</h3>${bk.map(b => `<div class="act"><a href="api.php?m=reset&a=backup_get&name=${encodeURIComponent(b.name)}"><i class="i i-download"></i> ${esc(b.name)}</a> <small>${b.time} · ${Math.round(b.size / 1024)} KB</small></div>`).join('') || '<p class="mut" style="font-size:13px">None yet. A backup is saved automatically before every reset.</p>'}</div>
+      <div class="card danger"><h3>Total reset</h3><p style="margin:0 0 8px">Start fresh: deletes all customers, projects, quotations, payments, receipts & files, KSEB/subsidy checklists, AMC & service records, calendar events, notes and WhatsApp history.</p>
+       <p class="mut" style="font-size:13px;margin:0 0 12px"><b>Always kept:</b> all leads, Meta Ads connection & sync, campaigns & ad spend, and your admin login. A full backup is saved first.</p>
+       <button class="btn bad" id="rst"><i class="i i-alert"></i> Total reset…</button></div></div>`;
+    $('#rst').onclick = resetModal;
   }
+}
+function resetModal() {
+  const opt = (k, t, d, on) => `<label class="ropt"><input type="checkbox" data-o="${k}" ${on ? 'checked' : ''}><span><b>${t}</b><small>${d}</small></span></label>`;
+  const m = modal(`<h2 style="margin-top:0;color:var(--bad)">Total reset</h2>
+   <div class="rbox"><b>Will be deleted</b><span>Customers · Projects & pipeline history · Quotations · Payments · Receipts & uploaded files · KSEB & subsidy checklists · AMC & service records · Calendar events · Notes · WhatsApp message log</span></div>
+   <div class="rbox keep"><b>Always kept</b><span>All leads (and their claims) · Meta Ads connection, sync & campaigns · Your admin login</span></div>
+   <h3 style="margin:16px 0 6px">Also delete (optional)</h3>
+   ${opt('audit', 'Audit log', 'Clear the history of who did what', true)}${opt('datasheets', 'Folder datasheets', 'Product datasheets and their share links', false)}${opt('settings', 'Settings', 'Company details, rates, catalogue, templates, login page — back to defaults', false)}${opt('users', 'Other user accounts', 'Remove every login except yours; their lead claims are released', false)}
+   <div class="two" style="margin-top:12px"><div><label>Your admin password</label><input type="password" id="rpw" autocomplete="current-password"></div><div><label>Type <b>RESET</b> to confirm</label><input id="rcf" autocomplete="off" placeholder="RESET"></div></div>
+   <div class="err" id="rer"></div>
+   <div class="bar" style="margin-top:8px"><button class="btn bad" id="rgo" disabled>Delete everything listed</button><button class="btn sec" id="rcx">Cancel</button></div>`);
+  const ok = () => $('#rgo', m).disabled = !($('#rcf', m).value === 'RESET' && $('#rpw', m).value.length >= 1);
+  $('#rcf', m).oninput = ok; $('#rpw', m).oninput = ok;
+  $('#rcx', m).onclick = () => m.remove();
+  $('#rgo', m).onclick = async () => {
+    const opts = Object.fromEntries($$('[data-o]', m).map(c => [c.dataset.o, c.checked ? 1 : 0]));
+    $('#rgo', m).disabled = true; $('#rgo', m).textContent = 'Resetting…';
+    const r = await fetch('api.php?m=reset&a=reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('#rpw', m).value, confirm: $('#rcf', m).value, opts }) }).then(x => x.json()).catch(() => ({ error: 'Network error' }));
+    if (r.error) { $('#rer', m).textContent = r.error; $('#rgo', m).textContent = 'Delete everything listed'; ok(); return; }
+    m.remove(); S = await api('settings', 'get');
+    modal(`<h2 style="margin-top:0">Reset complete</h2><p>The CRM has been reset. <b>${r.leads_kept}</b> leads were kept.</p><p class="mut">A full backup of everything before the reset was saved as <b>${esc(r.backup)}</b>.</p>
+      <div class="bar"><a class="btn sec" href="api.php?m=reset&a=backup_get&name=${encodeURIComponent(r.backup)}"><i class="i i-download"></i> Download backup</a><button class="btn" onclick="this.closest('.modal').remove();location.hash='#/dashboard';route()">Done</button></div>`);
+  };
 }
 function userModal(u) {
   const id = u.id;

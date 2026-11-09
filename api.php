@@ -13,6 +13,7 @@ require __DIR__ . '/api/folder.php';
 require __DIR__ . '/api/claims.php';
 require __DIR__ . '/api/calendar.php';
 require __DIR__ . '/api/pipeline.php';
+require __DIR__ . '/api/reset.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';
@@ -21,7 +22,7 @@ try {
   if ($m === 'share') handle_share();   // public datasheet link (token-protected)
   if (empty($_SESSION['uid'])) fail('Unauthorized', 401);
   // CSRF-light: state-changing calls must be POST
-  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
+  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
   if (isset($E[$m])) handle_crud($m, $a);
   switch ($m) {
     case 'dashboard': handle_dashboard();
@@ -36,6 +37,7 @@ try {
     case 'folder': handle_folder($a);
     case 'calendar': handle_calendar($a);
     case 'pipeline': handle_pipeline($a);
+    case 'reset': handle_reset($a);
   }
   fail('Unknown module', 404);
 } catch (Throwable $e) {
