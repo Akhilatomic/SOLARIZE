@@ -94,6 +94,7 @@ function defaults() {
   return [
     'company' => ['name'=>'Jasper Solar Solutions','gstin'=>'32CZHPA7698N1ZR','address'=>'Nedumangad, Thiruvananthapuram, Kerala','phone'=>'','email'=>'','quote_prefix'=>'JS','terms'=>"1. Prices valid for 15 days.\n2. 50% advance with order, balance on commissioning.\n3. 25 years panel performance warranty, 5 years inverter warranty (as per manufacturer).\n4. Net-metering and KSEB formalities handled by Jasper Solar.\n5. Central subsidy (PM Surya Ghar) credited by the government directly to the customer's bank account."],
     'gst_rate' => 8.9,
+    'lead_target' => 1000,
     'lead_sources' => ['Meta Ads','Referral','Walk-in','Website','Google','Existing customer','Other'],
     'lead_statuses' => ['New','Contacted','Site Visit','Quoted','Won','Lost'],
     'project_stages' => ['Survey','Design','Quotation','Approval','Material','Installation','Net-meter','Commissioned','Subsidy','Closed'],

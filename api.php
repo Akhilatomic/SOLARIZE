@@ -2,6 +2,7 @@
 // Router: api.php?m=<module>&a=<action>
 session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax', 'secure' => !empty($_SERVER['HTTPS'])]);
 session_start();
+date_default_timezone_set('Asia/Kolkata');
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 require __DIR__ . '/api/lib.php';

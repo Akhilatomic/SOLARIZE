@@ -21,7 +21,27 @@ function handle_dashboard() {
   $ktotal = count($S['kseb_items']);
   $kpending = array_values(array_filter(array_map(fn($p) => $p + ['total' => $ktotal], $ks), fn($p) => $p['done'] < $ktotal));
   $overdue = rows('SELECT p.id,p.title,c.name customer, p.cost - COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) due FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE p.stage NOT IN (\'Survey\',\'Design\',\'Quotation\') AND due > 1 ORDER BY due DESC LIMIT 10');
-  out(['leads_month' => $leadsM, 'won_month' => $wonM, 'conversion' => $leadsM ? round($wonM / $leadsM * 100) : 0, 'spend_month' => $spendM,
+  $td = date('Y-m-d'); $loc = "date(created,'+330 minutes')";
+  $cnt = fn($sql, $a = []) => (int)(row($sql, $a)['v'] ?? 0);
+  $pct = fn($n, $p) => $p ? (int)round(($n - $p) / $p * 100) : ($n ? 100 : 0);
+  $m0 = date('Y-m'); $m1 = date('Y-m', strtotime('first day of last month'));
+  $mc = fn($t, $m) => $cnt("SELECT COUNT(*) v FROM $t WHERE substr($loc,1,7)=?", [$m]);
+  $tc = fn($t) => $cnt("SELECT COUNT(*) v FROM $t WHERE $loc=?", [$td]);
+  $extra = [
+    'leads_total' => $cnt("SELECT COUNT(*) v FROM leads WHERE status NOT IN ('Won','Lost')"), 'leads_today' => $tc('leads'), 'leads_vs' => $pct($mc('leads', $m0), $mc('leads', $m1)),
+    'cust_total' => $cnt('SELECT COUNT(*) v FROM customers'), 'cust_today' => $tc('customers'), 'cust_vs' => $pct($mc('customers', $m0), $mc('customers', $m1)),
+    'proj_active' => $cnt("SELECT COUNT(*) v FROM projects WHERE stage NOT IN ('Closed','Commissioned','Subsidy')"), 'proj_today' => $tc('projects'), 'proj_vs' => $pct($mc('projects', $m0), $mc('projects', $m1)),
+    'overdue' => $cnt("SELECT COUNT(*) v FROM leads WHERE appt<>'' AND appt<? AND status NOT IN ('Won','Lost')", [$td]),
+    'due_today' => $cnt("SELECT COUNT(*) v FROM leads WHERE appt=? AND status NOT IN ('Won','Lost')", [$td]),
+    'trend' => rows("SELECT $loc d, COUNT(*) n, SUM(status='Won') won FROM leads WHERE $loc>=date('now','+330 minutes','-29 day') GROUP BY d"),
+    'sources' => rows("SELECT COALESCE(NULLIF(source,''),'Unknown') s, COUNT(*) n FROM leads GROUP BY s ORDER BY n DESC"),
+    'appts' => rows("SELECT id,name,appt d,status FROM leads WHERE appt<>'' AND appt BETWEEN date('now','-62 day') AND date('now','+180 day')"),
+    'recent' => rows('SELECT user,action,entity,detail,created FROM audit_log ORDER BY id DESC LIMIT 8'),
+    'lead_year' => $cnt("SELECT COUNT(*) v FROM leads WHERE substr($loc,1,4)=?", [date('Y')]),
+    'lead_target' => (int)settings()['lead_target'],
+    'converted' => $cnt('SELECT COUNT(*) v FROM leads WHERE customer_id IS NOT NULL'), 'leads_all' => $cnt('SELECT COUNT(*) v FROM leads'),
+  ];
+  out($extra + ['leads_month' => $leadsM, 'won_month' => $wonM, 'conversion' => $leadsM ? round($wonM / $leadsM * 100) : 0, 'spend_month' => $spendM,
     'cpl' => $adLeadsM ? round($spendM / $adLeadsM) : 0, 'pipeline' => $pipeline, 'billed' => $billed, 'paid' => $paid, 'outstanding' => max(0, $billed - $paid),
     'stages' => $stages, 'lead_status' => $lstat, 'followups' => $follow, 'subsidy_open' => $sub, 'kseb_pending' => array_slice($kpending, 0, 10), 'dues' => $overdue,
     'customers' => (int)row('SELECT COUNT(*) c FROM customers')['c'], 'projects' => (int)row('SELECT COUNT(*) c FROM projects')['c']]);

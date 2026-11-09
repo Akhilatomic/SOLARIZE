@@ -130,17 +130,71 @@ function waOpen(ctx) {
 
 // ---------- Dashboard ----------
 async function pgDashboard() {
-  const d = await api('dashboard', 'get'); // any action: handled by module
-  $('#main').innerHTML = `<div class="grid stats">
-   ${[['Leads this month', d.leads_month], ['Won this month', d.won_month], ['Lead conversion', d.conversion + '%'], ['Active pipeline', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="card stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
-   <div class="grid cols2" style="margin-top:12px">
-   <div class="card"><h3>Follow-ups due (${d.followups.length})</h3>${d.followups.map(f => `<div class="act"><a href="#/leads"><b>${esc(f.name)}</b></a> <span class="${f.followup < today() ? 'over' : ''}">${f.followup}</span><br><small>${esc(f.phone)} · ${f.status}</small></div>`).join('') || '<p class="mut">Nothing due 🎉</p>'}</div>
-   <div class="card"><h3>Payments pending</h3>${d.dues.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`).join('') || '<p class="mut">All clear</p>'}</div>
-   <div class="card"><h3>Projects by stage</h3>${bars(d.stages.map(s => [s.stage, s.n]), S.project_stages)}</div>
-   <div class="card"><h3>Leads by status</h3>${bars(d.lead_status.map(s => [s.status, s.n]), S.lead_statuses)}</div>
+  const d = await api('dashboard', 'get');
+  const first = (ME.name || '').split(' ')[0];
+  const hr = new Date().getHours(), gm = hr < 12 ? 'Morning' : hr < 17 ? 'Afternoon' : 'Evening';
+  const vs = n => `${n >= 0 ? '+' : '-'}${Math.abs(n)}% vs last month`;
+  const card = (ic, label, val, tdy, v, col, go) => `<a class="card sc" href="${go}" style="--c:${col}"><div class="sch"><span class="ic">${ic}</span>${label}</div><b>${val}</b><small>${tdy} today</small><div class="line"></div><small class="mut">${v}</small></a>`;
+  const QA = [['➕', 'Add Lead', 'leads', 'new'], ['🎯', 'View Leads', 'leads', '#/leads'], ['👥', 'Customers', 'customers', '#/customers'], ['🏗️', 'Projects', 'projects', '#/projects'], ['🧾', 'Quotations', 'quotes', '#/quotes'], ['📝', 'New Quote', 'quotes', 'quote'],
+    ['💰', 'Subsidy', 'checklist', '#/subsidy'], ['📁', 'KSEB Docs', 'checklist', '#/kseb'], ['💬', 'WhatsApp', 'whatsapp', '#/whatsapp'], ['📣', 'Meta Ads', 'ads', '#/ads'], ['⚙️', 'Settings', 'settings', '#/settings'], ['🛡️', 'Admin', 'admin', '#/admin']]
+    .filter(q => q[2] === 'admin' ? ME.role === 'admin' : canR(q[2]) && (q[3] !== 'new' || canW('leads')) && (q[3] !== 'quote' || canW('quotes')));
+  // lead trend (30 days)
+  const days = [...Array(30)].map((_, i) => { const x = new Date(); x.setDate(x.getDate() - 29 + i); return x.toISOString().slice(0, 10); });
+  const tm = Object.fromEntries(d.trend.map(t => [t.d, t])), max = Math.max(3, ...days.map(k => tm[k]?.n || 0));
+  const px = i => 20 + i * (560 / 29), py = v => 120 - v / max * 100;
+  const line = f => days.map((k, i) => `${px(i).toFixed(1)},${py(tm[k]?.[f] || 0).toFixed(1)}`).join(' ');
+  const trend = `<svg viewBox="0 0 600 150" style="width:100%;height:auto"><defs><linearGradient id="gA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0071e3" stop-opacity=".25"/><stop offset="1" stop-color="#0071e3" stop-opacity="0"/></linearGradient></defs>
+   ${[0, 1, 2, 3].map(i => `<line x1="20" x2="580" y1="${20 + i * 33.3}" y2="${20 + i * 33.3}" stroke="#ececf0"/>`).join('')}
+   <polygon points="${px(0)},120 ${line('n')} ${px(29)},120" fill="url(#gA)"/><polyline points="${line('n')}" fill="none" stroke="#0071e3" stroke-width="2.5" stroke-linejoin="round"/><polyline points="${line('won')}" fill="none" stroke="#30a14e" stroke-width="2" stroke-dasharray="4 3"/>
+   ${[0, 7, 14, 21, 29].map(i => `<text x="${px(i)}" y="142" font-size="11" fill="#8e8e93" text-anchor="middle">${dmy(days[i]).slice(0, 6)}</text>`).join('')}</svg>`;
+  // source bars
+  const smax = Math.max(1, ...d.sources.map(s => s.n)), cols = ['#0071e3', '#30a14e', '#ff9f0a', '#af52de', '#ff375f', '#64d2ff', '#8e8e93'];
+  const src = d.sources.length ? d.sources.map((s, i) => `<div style="display:flex;align-items:center;gap:10px;margin:9px 0"><span style="width:110px;font-size:13px">${esc(s.s)}</span><div class="prog" style="flex:1"><i style="width:${s.n / smax * 100}%;background:${cols[i % cols.length]}"></i></div><b>${s.n}</b></div>`).join('') : '<div style="text-align:center;padding:30px 0"><b style="font-size:30px">0</b><br><small class="mut">LEADS</small></div>';
+  // conversion
+  const conv = d.leads_all ? Math.round(d.converted / d.leads_all * 1000) / 10 : 0;
+  // target gauge
+  const f = Math.min(1, d.lead_year / (d.lead_target || 1000));
+  const gauge = `<svg viewBox="0 0 220 130" style="width:260px;max-width:100%"><path d="M10 115 A100 100 0 0 1 210 115" pathLength="100" fill="none" stroke="#ececf0" stroke-width="26"/><path d="M10 115 A100 100 0 0 1 210 115" pathLength="100" fill="none" stroke="#0071e3" stroke-width="26" stroke-dasharray="${f * 100} 100" stroke-linecap="butt"/>
+   <text x="110" y="100" text-anchor="middle" font-size="26" font-weight="700" fill="#1d1d1f">${d.lead_year}</text><text x="110" y="118" text-anchor="middle" font-size="11" fill="#6e6e73">leads this year</text></svg>`;
+  $('#main').innerHTML = `<div style="margin-bottom:16px"><h2 style="margin:0;font-size:26px">Hello, ${esc(first)}!</h2><div class="mut">Here's how Jasper Solar is doing today.</div></div>
+  <div class="dash"><div>
+   <div class="grid stats4">${card('🎯', 'Leads', d.leads_total, d.leads_today, vs(d.leads_vs), '#30a14e', '#/leads')}${card('👥', 'Customers', d.cust_total, d.cust_today, vs(d.cust_vs), '#0071e3', '#/customers')}${card('🏗️', 'Active Projects', d.proj_active, d.proj_today, vs(d.proj_vs), '#af52de', '#/projects')}${card('⚠️', 'Overdue Follow-ups', d.overdue, d.due_today, d.due_today + ' due today', '#ff375f', '#/leads')}</div>
+   <div class="grid stats" style="margin-top:14px">${[['Pipeline value', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="card stat" style="padding:12px 14px"><b style="font-size:19px">${v}</b><span>${l}</span></div>`).join('')}</div>
+   <div class="card" style="margin-top:14px"><div class="bar" style="margin:0 0 8px"><h3 style="margin:0">Quick Actions</h3></div><div class="qa">${QA.map(q => `<button class="qb" data-qa="${q[3]}" data-go="${q[1]}"><span>${q[0]}</span>${q[1]}</button>`).join('')}</div></div>
+   <div class="grid cols2" style="margin-top:14px"><div class="card"><div class="bar" style="margin:0"><h3 style="margin:0">Lead Trend · 30 days</h3><span class="sp"></span><small><span style="color:#0071e3">●</span> Leads &nbsp;<span style="color:#30a14e">●</span> Won</small></div>${trend}</div>
+   <div class="card"><h3>Lead by Source</h3>${src}</div></div>
+   <div class="grid cols2" style="margin-top:14px"><div class="card"><div class="bar" style="margin:0"><h3 style="margin:0">Lead → Customer Conversion</h3><span class="sp"></span><b style="font-size:26px;color:var(--ok)">${conv}%</b></div><div class="mut" style="font-size:12px;margin-bottom:10px">${d.converted} of ${d.leads_all} leads converted</div><div class="prog" style="height:10px"><i style="width:${Math.min(100, conv)}%"></i></div>
+     <h3 style="margin-top:20px">Projects by stage</h3>${bars(d.stages.map(s => [s.stage, s.n]), S.project_stages)}</div>
+   <div class="card" style="text-align:center"><h3 style="text-align:left">LEAD GENERATION TARGET — THIS YEAR</h3>${gauge}<div class="mut" style="font-size:13px">Remaining: <b style="color:var(--tx)">${Math.max(0, d.lead_target - d.lead_year)}</b> &nbsp;·&nbsp; Target: <b style="color:var(--tx)">${d.lead_target}</b></div></div></div>
+   <div class="grid cols2" style="margin-top:14px"><div class="card"><h3>Payments pending (${d.dues.length})</h3>${d.dues.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`).join('') || '<p class="mut">All clear</p>'}</div>
    <div class="card"><h3>KSEB documents pending (${d.kseb_pending.length})</h3>${d.kseb_pending.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`).join('') || '<p class="mut">All documents complete</p>'}</div>
-   <div class="card"><h3>Subsidy in progress (${d.subsidy_open.length})</h3>${d.subsidy_open.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status || 'Not applied', stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`).join('') || '<p class="mut">None</p>'}</div>
-   </div>`;
+   <div class="card"><h3>Subsidy in progress (${d.subsidy_open.length})</h3>${d.subsidy_open.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status || 'Not applied', stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`).join('') || '<p class="mut">None</p>'}</div></div>
+  </div>
+  <div>
+   <div class="card"><div style="display:flex;gap:12px;align-items:center"><div class="avatar">☀️</div><div><b style="font-size:16px">Solarize Assistant</b><div class="mut" style="font-size:12px">Your daily summary</div></div></div>
+    <p style="margin:14px 0 2px"><b>Good ${gm}, ${esc(first)} 👋</b></p><div class="mut" style="font-size:13px;margin-bottom:12px">Here's what's happening today.</div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">${[['📅', d.due_today, 'Follow-ups today'], ['⚠️', d.overdue, 'Overdue'], ['💳', d.dues.length, 'Payments due'], ['📁', d.kseb_pending.length, 'Docs pending']].map(([i, n, l]) => `<div class="tile"><span>${i}</span><div><b>${n}</b><small>${l}</small></div></div>`).join('')}</div>
+    <div class="warn"><span>${d.overdue ? '⏰ ' + d.overdue + ' follow-up' + (d.overdue > 1 ? 's are' : ' is') + ' overdue' : '✅ No overdue follow-ups'}</span>${d.overdue ? '<button class="btn sm" id="vod">View Overdue</button>' : ''}</div></div>
+   <div class="card" style="margin-top:14px" id="cal"></div>
+   <div class="card" style="margin-top:14px"><div class="bar" style="margin:0 0 6px"><h3 style="margin:0">Recent Activity</h3></div>${d.recent.map(r => `<div class="act"><b>${esc(r.user)}</b> ${esc(r.action)} ${esc(r.entity)} <span class="mut">${esc(r.detail || '')}</span><br><small>${r.created}</small></div>`).join('') || '<p class="mut" style="text-align:center;padding:14px 0">No recent activities</p>'}</div>
+  </div></div>`;
+  $$('[data-qa]').forEach(b => b.onclick = () => { const q = b.dataset.qa; if (q === 'new') leadModal(0); else if (q === 'quote') { sessionStorage.removeItem('lead2quote'); location.hash = '#/quotes/new'; } else location.hash = q; });
+  if ($('#vod')) $('#vod').onclick = () => { LF.appt = 'overdue'; LF.active = 'active'; location.hash = '#/leads'; };
+  // calendar with appointment dots
+  let cm = new Date(); cm.setDate(1); let sel = today();
+  const drawCal = () => {
+    const y = cm.getFullYear(), mo = cm.getMonth(), start = (new Date(y, mo, 1).getDay() + 6) % 7, dim = new Date(y, mo + 1, 0).getDate(), by = {};
+    d.appts.forEach(a => (by[a.d] = by[a.d] || []).push(a));
+    const cells = []; for (let i = 0; i < start; i++) cells.push(''); for (let i = 1; i <= dim; i++) cells.push(`${y}-${String(mo + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`);
+    const ev = by[sel] || [];
+    $('#cal').innerHTML = `<div class="calw"><div><div class="bar" style="margin:0 0 6px"><h3 style="margin:0;margin-right:auto">Calendar</h3><button class="btn sec sm" id="cp">‹</button><b style="font-size:13px">${cm.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b><button class="btn sec sm" id="cn">›</button></div>
+     <div class="cg">${['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(x => `<i class="mut">${x}</i>`).join('')}${cells.map(c => c ? `<button class="cd ${c === today() ? 'tdy' : ''} ${c === sel ? 'sel' : ''}" data-d="${c}">${+c.slice(8)}${by[c] ? '<u></u>' : ''}</button>` : '<span></span>').join('')}</div></div>
+     <div class="cev"><b>${new Date(sel + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}</b> <small class="mut">${ev.length} appointment${ev.length === 1 ? '' : 's'}</small>
+      ${ev.map(e => `<div class="act"><a href="#/leads">${esc(e.name)}</a><br><small>${esc(e.status)}</small></div>`).join('') || '<p class="mut" style="font-size:13px">No appointments scheduled.</p>'}</div></div>`;
+    $('#cp').onclick = () => { cm.setMonth(cm.getMonth() - 1); drawCal(); }; $('#cn').onclick = () => { cm.setMonth(cm.getMonth() + 1); drawCal(); };
+    $$('.cd').forEach(b => b.onclick = () => { sel = b.dataset.d; drawCal(); });
+  };
+  drawCal();
 }
 function bars(data, order) {
   const m = Object.fromEntries(data), max = Math.max(1, ...data.map(d => d[1]));
