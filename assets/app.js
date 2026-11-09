@@ -457,7 +457,7 @@ async function pgCustomers() {
    <div class="bar cbar" style="margin-top:12px"><input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
    <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity'], ...(canR('fees') ? [['feas', 'Feasibility expiry']] : [])].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
-   <span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex">Export CSV</button>' : ''}${w ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
+   <label class="hsw" title="Show status, next step and feasibility when you point at a customer"><input type="checkbox" id="chov" ${hoverOn() ? 'checked' : ''}><span class="hswt"></span>Hover info</label><span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex">Export CSV</button>' : ''}${w ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
    <div class="card tw fitbox" style="padding:0"><table id="ctb" class="ctb2" data-min="680"></table></div>`;
   const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}" aria-label="${t}"><i class="i i-${i}"></i></button>`;
   const draw = () => {
@@ -518,6 +518,7 @@ async function pgCustomers() {
   $('#cq').oninput = e => { CUF.q = e.target.value; draw(); };
   $('#cst').onchange = e => { CUF.st = e.target.value; draw(); }; $('#csort').onchange = e => { CUF.sort = e.target.value; draw(); };
   $('#cref').onclick = () => route();
+  $('#chov').onchange = e => { try { localStorage.custHover = e.target.checked ? '1' : '0'; } catch (x) { } if (FH) FH.classList.remove('on'); toast('Hover info ' + (e.target.checked ? 'on' : 'off')); };
   if ($('#cconv')) $('#cconv').onclick = convertLeadModal;
   if ($('#cex')) $('#cex').onclick = () => csvDownload('customers-' + today() + '.csv', ['name', 'phone', 'email', 'address', 'district', 'consumer_no', 'kseb_section', 'sanctioned_load', 'roof_type', 'gst_no', 'status', 'kw', 'added_by', 'created', 'notes'], cs);
   if ($('#cnew')) $('#cnew').onclick = () => customerModal(0);

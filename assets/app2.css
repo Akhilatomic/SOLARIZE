@@ -267,3 +267,17 @@ input[type=range]{box-shadow:none;padding:0;accent-color:#007aff}
 .gdp .dsmall{font-size:10.5px;color:#3a3a3c;white-space:pre-wrap}.gdp .dser{columns:3;column-gap:16px;font-size:10.5px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .tirow{grid-template-columns:minmax(0,1.2fr) 52px minmax(0,1fr) 64px 30px;padding:6px;border-radius:9px;background:#f7f7f9}.tirow input[data-f=desc]{grid-column:1/-1}
 .gdp .dt .h{white-space:nowrap}
+
+/* hover card: status · next step · feasibility */
+#feash{min-width:220px;max-width:300px;padding:10px 12px}
+#feash .fhn{font-weight:700;font-size:13.5px;margin-bottom:6px;padding-bottom:6px;border-bottom:.5px solid rgba(0,0,0,.1)}
+#feash .fhs{padding:5px 0}#feash .fhs+.fhs{border-top:.5px solid rgba(0,0,0,.06)}
+#feash .fh2{font-size:14px;margin:1px 0 0}#feash .fh2.nx{color:#007aff}
+/* on/off switch (macOS style) */
+.hsw{display:inline-flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:500;color:#1d1d1f;cursor:pointer;white-space:nowrap;user-select:none}
+.hsw input{position:absolute;opacity:0;width:0;height:0}
+.hsw .hswt{width:34px;height:20px;border-radius:10px;background:#d1d1d6;position:relative;transition:background .15s;flex:none}
+.hsw .hswt::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.hsw input:checked+.hswt{background:#34c759}.hsw input:checked+.hswt::after{transform:translateX(14px)}
+.hsw input:focus-visible+.hswt{box-shadow:0 0 0 3px rgba(0,122,255,.35)}
+@media(hover:none){.hsw{display:none}}

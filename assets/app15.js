@@ -130,12 +130,24 @@ function feasText(f) {
 // touch devices have no hover → small chip under the name (only when it matters)
 function feasChip(id) { if (!canR('fees') || matchMedia('(hover: hover)').matches) return ''; const f = feasOf(id); if (!f) return ''; const x = feasText(f); return `<small class="feasc ${x.c}">Feasibility · ${x.t}</small>`; }
 let FH = null;
+const hoverOn = () => { try { return localStorage.custHover !== '0'; } catch (e) { return true; } };
+// current pipeline stage and what comes next
+function stageInfo(c) {
+  const P = PIPE || [], i = P.findIndex(x => x[1] === c.status);
+  if (!c.project_id || i < 0) return { cur: c.status || 'New', step: '', next: canW('projects') ? 'Start a project' : 'Waiting for a project', nf: '' };
+  const st = (STEPS.find(x => x[0] === P[i][2]) || [])[2] || '', n = P[i + 1];
+  return { cur: P[i][1], step: st ? `Step ${P[i][2]} · ${st}` : '', next: n ? n[1] : 'Project completed — AMC & service', nf: n ? (n[3] === 'receipt' ? 'receipt needed to move on' : n[3] === 'optional' ? 'optional' : '') : '' };
+}
 function feasHover(tr, c) {
-  if (!canR('fees') || !matchMedia('(hover: hover)').matches) return;
-  tr.onmouseenter = e => { const x = feasText(feasOf(c.id)); FH = FH || Object.assign(document.createElement('div'), { id: 'feash' });
-    FH.innerHTML = `<div class="fh1"><span class="fhd ${x.c}"></span><b>Feasibility</b></div><div class="fh2 ${x.c}">${x.t}</div>${x.d ? `<div class="fh3">${x.d}</div>` : ''}`;
+  if (!matchMedia('(hover: hover)').matches) return;
+  tr.onmouseenter = e => { if (!hoverOn()) return; const s = stageInfo(c), f = canR('fees') ? feasText(feasOf(c.id)) : null;
+    FH = FH || Object.assign(document.createElement('div'), { id: 'feash' });
+    FH.innerHTML = `<div class="fhn">${esc(c.name)}</div>
+      <div class="fhs"><div class="fh1">Current status</div><div class="fh2">${esc(s.cur)}</div>${s.step ? `<div class="fh3">${esc(s.step)}</div>` : ''}</div>
+      <div class="fhs"><div class="fh1">Next step</div><div class="fh2 nx">${esc(s.next)}</div>${s.nf ? `<div class="fh3">${esc(s.nf)}</div>` : ''}</div>
+      ${f ? `<div class="fhs"><div class="fh1"><span class="fhd ${f.c}"></span>Feasibility</div><div class="fh2 ${f.c}">${f.t}</div>${f.d ? `<div class="fh3">${f.d}</div>` : ''}</div>` : ''}`;
     document.body.appendChild(FH); FH.classList.add('on'); place(e); };
-  const place = e => { if (!FH) return; const w = FH.offsetWidth, h = FH.offsetHeight; let x = e.clientX + 16, y = e.clientY + 18; if (x + w > innerWidth - 8) x = e.clientX - w - 12; if (y + h > innerHeight - 8) y = e.clientY - h - 12; FH.style.left = x + 'px'; FH.style.top = y + 'px'; };
+  const place = e => { if (!FH || !FH.classList.contains('on')) return; const w = FH.offsetWidth, h = FH.offsetHeight; let x = e.clientX + 16, y = e.clientY + 18; if (x + w > innerWidth - 8) x = e.clientX - w - 12; if (y + h > innerHeight - 8) y = e.clientY - h - 12; FH.style.left = x + 'px'; FH.style.top = Math.max(8, y) + 'px'; };
   tr.onmousemove = place;
   tr.onmouseleave = () => { if (FH) FH.classList.remove('on'); };
 }
