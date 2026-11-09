@@ -13,6 +13,7 @@ const MODS = [ // id, label, icon, perm
   ['subsidy', 'Subsidy (PM Surya Ghar)', '<i class="i i-coin"></i>', 'checklist'], ['kseb', 'KSEB documentation', '<i class="i i-folder"></i>', 'checklist'],
   ['whatsapp', 'WhatsApp', '<i class="i i-chat"></i>', 'whatsapp'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
 const canW = m => ME && (ME.write === '*' || ME.write.includes(m));
+const FIN = () => canR('finance');
 const canR = m => ME && (ME.read === '*' || ME.read.includes(m));
 
 async function api(m, a, body, qs = '') {
@@ -51,7 +52,7 @@ function shell() {
   const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : canR(m[3]));
   app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span></h1>
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}">${m[2]} <span class="lbl">${m[1]}</span></a>`).join('')}
-   </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2><span class="mut" style="font-size:13px">${esc(ME.name)} · ${ME.role}</span>
+   </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2><span class="mut" style="font-size:13px">${esc(ME.name)} · ${esc(ME.role_name || ME.role)}</span>
    <button class="btn sec sm" id="pwb">Password</button><button class="btn sec sm" id="lo">Sign out</button></div><main id="main"></main></div></div>`;
   $('#bg').onclick = () => $('#side').classList.toggle('open');
   new MutationObserver(fitSoon).observe($('#main'), { childList: true, subtree: true });
@@ -203,7 +204,7 @@ async function pgDashboard() {
 
    <div class="s12 card">${head('Quick Actions')}<div class="qa">${QA.map(q => `<button class="qb" data-qa="${q[3]}" data-go="${q[1]}"><span>${q[0]}</span>${q[1]}</button>`).join('')}</div></div>
 
-   ${[['Pipeline value', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="s2 card stat"><b>${v}</b><span>${l}</span></div>`).join('')}
+   ${d.finance ? [['Pipeline value', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="s2 card stat"><b>${v}</b><span>${l}</span></div>`).join('') : ''}
 
    <div class="s6 card">${head('Lead Trend · 30 days', '<small class="mut"><span style="color:#0071e3">●</span> Leads &nbsp;<span style="color:#30a14e">●</span> Won</small>')}${trend}</div>
    <div class="s3 card">${head('Lead by Source')}${src}</div>
@@ -214,7 +215,7 @@ async function pgDashboard() {
    <div class="s4 card" id="cal"></div>
    <div class="s4 card">${head('Recent Activity')}${lst(d.recent, r => `<div class="act"><b>${esc(r.user)}</b> ${esc(r.action)} ${esc(r.entity)} <span class="mut">${esc(r.detail || '')}</span><br><small>${r.created}</small></div>`, 'No recent activity')}</div>
 
-   <div class="s4 card">${head('Payments pending', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}${lst(d.dues, p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
+   <div class="s4 card ${d.finance ? '' : 'hide'}">${head('Payments pending', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}${lst(d.dues, p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
    <div class="s4 card">${head('KSEB documents pending', `<span class="pill">${d.kseb_pending.length}</span>`)}${lst(d.kseb_pending, p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`, 'All documents complete')}</div>
    <div class="s4 card">${head('Subsidy in progress', `<span class="pill">${d.subsidy_open.length}</span>`)}${lst(d.subsidy_open, p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status || 'Not applied', stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`, 'None')}</div>
   </div>`;
@@ -384,7 +385,7 @@ async function leadModal(id) {
   const l = id ? await api('leads', 'get', undefined, '&id=' + id) : { status: 'New', source: S.lead_sources[0] };
   if (id && !l.location) l.location = l.address;
   const F = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'source', l: 'Source', opts: S.lead_sources }, { k: 'city', l: 'City' }, { k: 'location', l: 'Location / address' },
-    { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'appt', l: 'Appointment date', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, { k: 'budget', l: 'Budget (₹)', t: 'number' }, { k: 'remark', l: 'Remark', full: 1 }];
+    { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'appt', l: 'Appointment date', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, ...(FIN() ? [{ k: 'budget', l: 'Budget (₹)', t: 'number' }] : []), { k: 'remark', l: 'Remark', full: 1 }];
   if ((CACHE.camps || []).length) F.splice(4, 0, { k: 'campaign_id', l: 'Meta campaign', opts: opt(CACHE.camps.map(c => [c.id, c.name]), '— none —') });
   const w = canW('leads') && (!id || !!l.can_edit);
   const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}</span>` : '<span class="mut">Not claimed yet. Claim it to see the full number and start working on it.</span>'}<span class="sp"></span>${l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? '<button class="btn sm sec" id="mul"><i class="i i-lock"></i> Unclaim</button>' : ''}${isAdm() ? '<button class="btn sm sec" id="mas"><i class="i i-users"></i> Assign</button>' : ''}</div>` : '';
@@ -488,7 +489,7 @@ async function pgCustomer(id) {
    <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(c.name)}</h2>${c.phone ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(c.phone) + '">Call</a>' : ''}${w ? '<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>' : ''}</div>
    <p class="mut" style="margin:6px 0 0">${esc(c.phone)} ${c.email ? '· ' + esc(c.email) : ''}<br>${esc(c.address)}${c.district ? ' · ' + esc(c.district) : ''}<br>${c.consumer_no ? 'Consumer no. <b>' + esc(c.consumer_no) + '</b>' : ''} ${c.kseb_section ? '· Section: ' + esc(c.kseb_section) : ''} ${c.sanctioned_load ? '· Load ' + c.sanctioned_load + ' kW' : ''} ${c.roof_type ? '· ' + esc(c.roof_type) + ' roof' : ''} ${c.gst_no ? '· GST ' + esc(c.gst_no) : ''}</p></div>
    <div class="grid cols2" style="margin-top:12px"><div class="card"><h3>Projects ${canW('projects') ? '<button class="btn sm" id="np" style="float:right">+ New project</button>' : ''}</h3>
-    ${c.projects.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.stage, stageCls(p.stage))}<br><small>${p.kw} kW · ${inr(p.cost)} · paid ${inr(p.paid)}</small></div>`).join('') || '<p class="mut">No projects yet</p>'}</div>
+    ${c.projects.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.stage, stageCls(p.stage))}<br><small>${p.kw} kW${FIN() ? ' · ' + inr(p.cost) + ' · paid ' + inr(p.paid) : ''}</small></div>`).join('') || '<p class="mut">No projects yet</p>'}</div>
    <div class="card"><h3>Quotations ${canW('quotes') ? '<button class="btn sm" id="nq" style="float:right">+ New quote</button>' : ''}</h3>${c.quotes.map(q => `<div class="act"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${inr(q.total)}<br><small>${q.date}</small></div>`).join('') || '<p class="mut">No quotations</p>'}</div>
    <div class="card"><h3>Documents ${canW('files') ? '<button class="btn sm" id="up" style="float:right">Upload</button>' : ''}</h3>${c.files.map(f => `<div class="act">${fileLink(f)}${f.item ? '<br><small>' + esc(f.item) + '</small>' : ''}</div>`).join('') || '<p class="mut">No documents</p>'}</div>
    <div class="card"><h3>WhatsApp messages</h3>${c.messages.map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None sent</p>'}</div></div>
@@ -520,7 +521,7 @@ async function pgProjects() {
 async function projectModal(id, p = {}) {
   const cs = await list('customers');
   const F = [{ k: 'customer_id', l: 'Customer', opts: opt(cs.map(c => [c.id, c.name]), '— select —'), full: 1 }, { k: 'title', l: 'Project title', d: p.title || '3 kW rooftop solar', full: 1 }, { k: 'kw', l: 'System size (kW)', t: 'number' }, { k: 'loan', l: 'Loan taken?', opts: [['', 'Not decided'], 'Yes', 'No'] },
-    { k: 'panel', l: 'Panels', d: 'ReNew 550 Wp M10 Bifacial' }, { k: 'inverter', l: 'Inverter' }, { k: 'cost', l: 'Project value (₹)', t: 'number' }, { k: 'engineer', l: 'Site engineer' }, { k: 'start', l: 'Start date', t: 'date' }, { k: 'end', l: 'Completion date', t: 'date' }];
+    { k: 'panel', l: 'Panels', d: 'ReNew 550 Wp M10 Bifacial' }, { k: 'inverter', l: 'Inverter' }, ...(FIN() ? [{ k: 'cost', l: 'Project value (₹)', t: 'number' }] : []), { k: 'engineer', l: 'Site engineer' }, { k: 'start', l: 'Start date', t: 'date' }, { k: 'end', l: 'Completion date', t: 'date' }];
   const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} project</h2><div class="two">${F.map(f => fld(f, p)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(p.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
   $('#cx', m).onclick = () => m.remove();
@@ -536,7 +537,7 @@ async function pgProject(id) {
     const t = TAB.proj || 'overview';
     let body = '';
     if (t === 'overview') body = `<div class="grid cols2"><div class="card"><h3>Details</h3><p class="mut" style="margin:0">Panels: ${esc(p.panel)}<br>Inverter: ${esc(p.inverter)}<br>Engineer: ${esc(p.engineer) || '—'}<br>Start: ${esc(p.start) || '—'} · Completion: ${esc(p.end) || '—'}<br>${esc(p.notes)}</p></div>
-      <div class="card"><h3>Payments ${canW('payments') ? '<button class="btn sm" id="ap" style="float:right">+ Payment</button>' : ''}</h3><p>Value <b>${inr(p.cost)}</b> · Received <b>${inr(paid)}</b> · Balance <b class="${p.cost - paid > 0 ? 'over' : ''}">${inr(p.cost - paid)}</b></p>
+      ${!FIN() ? '<div class="card"><h3>Payments</h3><p class="mut">Finance details are hidden for your role.</p></div>' : ''}<div class="card ${FIN() ? '' : 'hide'}"><h3>Payments ${canW('payments') ? '<button class="btn sm" id="ap" style="float:right">+ Payment</button>' : ''}</h3><p>Value <b>${inr(p.cost)}</b> · Received <b>${inr(paid)}</b> · Balance <b class="${p.cost - paid > 0 ? 'over' : ''}">${inr(p.cost - paid)}</b></p>
       ${p.payments.map(x => `<div class="act">${inr(x.amount)} ${x.mode ? '· ' + esc(x.mode) : ''} <small>${x.date}${x.note ? ' · ' + esc(x.note) : ''}</small> ${canW('payments') ? `<a href="#" data-dp="${x.id}"><i class="i i-x"></i></a>` : ''}</div>`).join('') || '<p class="mut">No payments recorded</p>'}</div></div>
       <div style="margin-top:12px">${noteBox('projects', id, p.notes_log)}</div>`;
     if (t === 'subsidy') body = `<div class="card"><h3>PM Surya Ghar subsidy</h3><div class="two">

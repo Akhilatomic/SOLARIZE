@@ -42,11 +42,11 @@ function lead_guard($a, $in) {
   switch ($a) {
     case 'list':
       need('leads');
-      out(array_map('lead_mask', rows('SELECT l.*, u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC')));
+      out(array_map(fn($x) => strip_fin(lead_mask($x)), rows('SELECT l.*, u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC')));
     case 'get':
       need('leads');
       $l = lead_or_404($_GET['id'] ?? 0);
-      $r = lead_mask(detail('leads', $l)); $r['owner_name'] = owner_name($l['assigned_to']);
+      $r = strip_fin(lead_mask(detail('leads', $l))); $r['owner_name'] = owner_name($l['assigned_to']);
       if (!empty($r['masked'])) $r['messages'] = [];
       out($r);
     case 'claim':

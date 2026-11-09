@@ -33,8 +33,8 @@ function handle_auth($a) {
 function login_as($u) { session_regenerate_id(true); $_SESSION['uid'] = (int)$u['id']; $_SESSION['role'] = $u['role']; $_SESSION['username'] = $u['username']; $_SESSION['name'] = $u['name']; }
 function me() {
   if (empty($_SESSION['uid'])) return null;
-  $r = ROLES[$_SESSION['role']]; $cc = can_claim();
-  return ['id' => $_SESSION['uid'], 'name' => $_SESSION['name'], 'username' => $_SESSION['username'], 'role' => $_SESSION['role'], 'read' => $cc && $r[0] !== '*' ? array_values(array_unique(array_merge($r[0], CLAIM_GRANTS))) : $r[0], 'write' => $cc && $r[1] !== '*' ? array_values(array_unique(array_merge($r[1], CLAIM_GRANTS))) : $r[1], 'can_claim' => $cc ? 1 : 0];
+  $r = roles()[$_SESSION['role']] ?? [[], []]; $cc = can_claim();
+  return ['id' => $_SESSION['uid'], 'name' => $_SESSION['name'], 'username' => $_SESSION['username'], 'role' => $_SESSION['role'], 'role_name' => ROLE_NAMES[$_SESSION['role']] ?? $_SESSION['role'], 'read' => $cc && $r[0] !== '*' ? array_values(array_unique(array_merge($r[0], CLAIM_GRANTS))) : $r[0], 'write' => $cc && $r[1] !== '*' ? array_values(array_unique(array_merge($r[1], CLAIM_GRANTS))) : $r[1], 'can_claim' => $cc ? 1 : 0];
 }
 
 function handle_crud($t, $a) {
@@ -45,16 +45,16 @@ function handle_crud($t, $a) {
   if ($t === 'leads') lead_guard($a, $in);
   switch ($a) {
     case 'list':
-      if ($t === 'customers') out(rows("SELECT c.*, lp.id project_id, lp.stage, lp.kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects
-        FROM customers c LEFT JOIN projects lp ON lp.id=(SELECT id FROM projects WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) ORDER BY c.created DESC, c.id DESC"));
-      if ($t === 'projects') out(rows('SELECT p.*, c.name customer, c.phone, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p LEFT JOIN customers c ON c.id=p.customer_id ORDER BY p.updated DESC'));
+      if ($t === 'customers') out(array_map('strip_fin', rows("SELECT c.*, lp.id project_id, lp.stage, lp.kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects
+        FROM customers c LEFT JOIN projects lp ON lp.id=(SELECT id FROM projects WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) ORDER BY c.created DESC, c.id DESC")));
+      if ($t === 'projects') out(array_map('strip_fin', rows('SELECT p.*, c.name customer, c.phone, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p LEFT JOIN customers c ON c.id=p.customer_id ORDER BY p.updated DESC')));
       $w = []; $args = [];
       foreach (['customer_id','project_id','campaign_id','lead_id','status','stage','source','assigned_to'] as $f)
         if (in_array($f, $cols) && isset($_GET[$f]) && $_GET[$f] !== '') { $w[] = "$f=?"; $args[] = $_GET[$f]; }
       out(rows("SELECT * FROM $t" . ($w ? ' WHERE ' . implode(' AND ', $w) : '') . ' ORDER BY updated DESC, id DESC', $args));
     case 'get':
       $r = row("SELECT * FROM $t WHERE id=?", [(int)($_GET['id'] ?? 0)]); if (!$r) fail('Not found', 404);
-      out(detail($t, $r));
+      out(in_array($t, ['projects', 'customers', 'leads']) ? strip_fin(detail($t, $r)) : detail($t, $r));
     case 'save':
       $v = pick($in, $cols);
       if (isset($v['name']) && $v['name'] === '') fail('Name required');
@@ -64,7 +64,8 @@ function handle_crud($t, $a) {
       if ($t === 'leads' && $v['status'] === '') $v['status'] = 'New';
       if (!empty($in['id'])) {
         $id = (int)$in['id'];
-        if ($t === 'projects') { foreach (['stage', 'amc_start', 'amc_end', 'amc_interval'] as $k) unset($v[$k]); $cols = array_values(array_diff($cols, ['stage', 'amc_start', 'amc_end', 'amc_interval'])); }
+        if ($t === 'projects') { $prot = ['stage', 'amc_start', 'amc_end', 'amc_interval']; if (!can('finance')) array_push($prot, 'cost', 'subsidy_amount'); foreach ($prot as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $prot)); }
+        if ($t === 'leads' && !can('finance')) { unset($v['budget']); $cols = array_values(array_diff($cols, ['budget'])); }
         if ($t === 'customers') { unset($v['added_by']); $cols = array_values(array_diff($cols, ['added_by'])); }
         if ($t === 'leads') { $keep = ['added_by','meta_id','meta_form','meta_ad','meta_campaign','notify','assigned_to','claimed_at']; foreach ($keep as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $keep)); }
         $set = implode(',', array_map(fn($c) => "$c=:$c", $cols));

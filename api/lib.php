@@ -16,19 +16,35 @@ $E = [
 ];
 
 // role => [read modules, write modules]; '*' = everything
-const ROLES = [
+// Permission modules. 'finance' = every money figure (project values, payments, balances, ad spend, dashboard money cards).
+const MODULES = ['dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','quotes','payments','ads','finance','settings'];
+const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts'];
+// role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
+const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
-  'sales' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects']],
-  'engineer' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings'], ['projects','checklist','files','customers','folder','calendar']],
-  'accounts' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings'], ['quotes','payments','ads','calendar']],
+  'assistant_manager' => [['dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','settings'], ['calendar','leads','customers','projects','checklist','files','folder','whatsapp']],
+  'sales' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings','finance'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects']],
+  'engineer' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings','finance'], ['projects','checklist','files','customers','folder','calendar']],
+  'accounts' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings','finance'], ['quotes','payments','ads','calendar']],
 ];
+function roles() {
+  static $r = null; if ($r !== null) return $r;
+  $r = ROLE_DEFAULTS;
+  try { $o = row("SELECT v FROM settings WHERE k='role_perms'"); } catch (Throwable $e) { $o = null; }
+  if ($o) foreach (json_decode($o['v'], true) ?: [] as $role => $p) {
+    if ($role === 'admin' || !isset(ROLE_DEFAULTS[$role])) continue;
+    $rd = array_values(array_intersect($p['read'] ?? [], MODULES)); $wt = array_values(array_intersect($p['write'] ?? [], MODULES));
+    $r[$role] = [array_values(array_unique(array_merge($rd, $wt))), $wt]; // edit implies view
+  }
+  return $r;
+}
 
 function out($d, $code = 200) { http_response_code($code); echo json_encode($d, JSON_UNESCAPED_UNICODE); exit; }
 function fail($msg, $code = 400) { out(['error' => $msg], $code); }
 function body() { static $b; if ($b === null) $b = json_decode(file_get_contents('php://input'), true) ?: []; return $b; }
 
 function can($module, $write = false) {
-  $r = ROLES[$_SESSION['role'] ?? ''] ?? null; if (!$r) return false;
+  $r = roles()[$_SESSION['role'] ?? ''] ?? null; if (!$r) return false;
   $list = $r[$write ? 1 : 0];
   if ($list === '*' || in_array($module, $list)) return true;
   // 'Can see & claim leads' (Admin → Users) lets any role work the leads they claim; ownership is enforced in claims.php
@@ -121,6 +137,7 @@ function defaults() {
     'company' => ['name'=>'Jasper Solar Solutions','gstin'=>'32CZHPA7698N1ZR','address'=>'Nedumangad, Thiruvananthapuram, Kerala','phone'=>'','email'=>'','quote_prefix'=>'JS','terms'=>"1. Prices valid for 15 days.\n2. 50% advance with order, balance on commissioning.\n3. 25 years panel performance warranty, 5 years inverter warranty (as per manufacturer).\n4. Net-metering and KSEB formalities handled by Jasper Solar.\n5. Central subsidy (PM Surya Ghar) credited by the government directly to the customer's bank account."],
     'gst_rate' => 8.9,
     'lead_target' => 1000,
+    'role_perms' => [],
     'ds_categories' => ['Solar Panel', 'On-Grid String Inverter', 'Micro Inverter', 'SolarEdge'],
     'login' => ['bg' => '', 'tagline' => 'Max speed CRM', 'dim' => 35],
     'lead_sources' => ['Meta Ads','Referral','Walk-in','Website','Google','Existing customer','Other'],
@@ -169,4 +186,13 @@ function branding() {
   $bg = basename((string)$v['bg']);
   $ok = $bg !== '' && is_file(dirname(__DIR__) . '/uploads/' . $bg);
   return ['bg' => $ok ? 'uploads/' . $bg . '?v=' . filemtime(dirname(__DIR__) . '/uploads/' . $bg) : '', 'tagline' => (string)$v['tagline'], 'dim' => max(0, min(80, (int)$v['dim']))];
+}
+
+function strip_fin($r) {
+  if (can('finance')) return $r;
+  foreach (['cost', 'paid', 'budget', 'subsidy_amount', 'due', 'total', 'spend', 'amount', 'quote'] as $k) unset($r[$k]);
+  if (isset($r['payments'])) $r['payments'] = [];
+  if (isset($r['stage_data'])) foreach ($r['stage_data'] as &$d) unset($d['amount']);
+  if (isset($r['services'])) foreach ($r['services'] as &$s) unset($s['cost']);
+  return $r;
 }

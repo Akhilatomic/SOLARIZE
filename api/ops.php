@@ -41,7 +41,8 @@ function handle_dashboard() {
     'lead_target' => (int)settings()['lead_target'],
     'converted' => $cnt('SELECT COUNT(*) v FROM leads WHERE customer_id IS NOT NULL'), 'leads_all' => $cnt('SELECT COUNT(*) v FROM leads'),
   ];
-  out($extra + ['leads_month' => $leadsM, 'won_month' => $wonM, 'conversion' => $leadsM ? round($wonM / $leadsM * 100) : 0, 'spend_month' => $spendM,
+  if (!can('finance')) { $pipeline = $billed = $paid = $spendM = 0; $overdue = []; }
+  out($extra + ['finance' => can('finance') ? 1 : 0, 'leads_month' => $leadsM, 'won_month' => $wonM, 'conversion' => $leadsM ? round($wonM / $leadsM * 100) : 0, 'spend_month' => $spendM,
     'cpl' => $adLeadsM ? round($spendM / $adLeadsM) : 0, 'pipeline' => $pipeline, 'billed' => $billed, 'paid' => $paid, 'outstanding' => max(0, $billed - $paid),
     'stages' => $stages, 'lead_status' => $lstat, 'followups' => $follow, 'subsidy_open' => $sub, 'kseb_pending' => array_slice($kpending, 0, 10), 'dues' => $overdue,
     'customers' => (int)row('SELECT COUNT(*) c FROM customers')['c'], 'projects' => (int)row('SELECT COUNT(*) c FROM projects')['c']]);
@@ -86,7 +87,7 @@ function handle_whatsapp($a) {
 
 function handle_settings($a) {
   need('settings', in_array($a, ['save', 'upload_bg', 'remove_bg']));
-  if ($a === 'get') out(settings());
+  if ($a === 'get') out(settings() + ['modules' => MODULES, 'role_names' => ROLE_NAMES, 'role_defaults' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], ROLE_DEFAULTS), 'roles_now' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], roles())]);
   if ($a === 'upload_bg' || $a === 'remove_bg') {
     if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
     $dir = dirname(__DIR__) . '/uploads';
@@ -114,6 +115,7 @@ function handle_settings($a) {
     if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
     $in = body(); $k = $in['key'] ?? ''; if (!array_key_exists($k, defaults())) fail('Unknown setting');
     $val = $in['value'];
+    if ($k === 'role_perms') { $clean = []; foreach ((array)$val as $role => $p) { if ($role === 'admin' || !isset(ROLE_DEFAULTS[$role])) continue; $clean[$role] = ['read' => array_values(array_intersect((array)($p['read'] ?? []), MODULES)), 'write' => array_values(array_intersect((array)($p['write'] ?? []), MODULES))]; } $val = $clean; }
     if ($k === 'login') { $val = ['bg' => settings()['login']['bg'], 'tagline' => mb_substr((string)($val['tagline'] ?? ''), 0, 80), 'dim' => max(0, min(80, (int)($val['dim'] ?? 35)))]; }
     q('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', [$k, json_encode($val, JSON_UNESCAPED_UNICODE)]);
     audit('settings', 'settings', null, $k); out(['ok' => true]);
@@ -127,7 +129,7 @@ function handle_admin($a) {
   switch ($a) {
     case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads FROM users u ORDER BY u.id'));
     case 'user_save':
-      $role = $in['role'] ?? 'sales'; if (!isset(ROLES[$role])) fail('Bad role');
+      $role = $in['role'] ?? 'sales'; if (!isset(ROLE_DEFAULTS[$role])) fail('Bad role');
       $name = trim($in['name'] ?? ''); $u = trim($in['username'] ?? ''); if ($u === '' || $name === '') fail('Name and username required');
       if (!empty($in['id'])) {
         $id = (int)$in['id'];

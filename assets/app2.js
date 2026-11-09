@@ -116,6 +116,7 @@ async function pgSettings() {
     ${adm ? '<div class="bar" style="margin:10px 0 0"><button class="btn" id="lgup">Upload image</button><button class="btn sec" id="lgrm">Remove</button></div>' : ''}
     <div class="two"><div><label>Tagline under the logo</label><input id="lgtag" value="${esc((S.login || {}).tagline || '')}" ${adm ? '' : 'disabled'}></div><div><label>Image darkness (0–80%)</label><input id="lgdim" type="number" min="0" max="80" value="${(S.login || {}).dim ?? 35}" ${adm ? '' : 'disabled'}></div></div>
     ${adm ? '<button class="btn" id="lgsv" style="margin-top:10px">Save login text</button>' : ''}</div>
+   ${adm ? '<div class="card full2" id="uacc"></div>' : ''}
    <div class="card"><h3>Rates</h3><div class="two"><div><label>Default GST %</label><input id="s-gst" type="number" step="any" value="${S.gst_rate}"></div><div><label>Yearly lead target</label><input id="s-tgt" type="number" value="${S.lead_target}"></div><div><label>Subsidy per kW (first 2 kW) ₹</label><input id="s-r1" type="number" value="${r.per_kw_first2}"></div><div><label>3rd kW subsidy ₹</label><input id="s-r2" type="number" value="${r.third_kw}"></div><div><label>Subsidy cap ₹</label><input id="s-r3" type="number" value="${r.cap}"></div></div>${adm ? '<button class="btn" id="s-rates" style="margin-top:10px">Save rates</button>' : ''}</div>
    ${[['lead_sources', 'Lead sources', 'one per line'], ['ds_categories', 'Datasheet categories (Folder)', 'one per line. Existing files keep their old category name if you rename one'], ['lead_statuses', 'Lead statuses', 'one per line, in order. Keep "Won" and "Lost"'], ['project_stages', 'Project stages', 'one per line, in order. Keep "Closed"'], ['subsidy_steps', 'Subsidy steps (PM Surya Ghar)', 'one per line'], ['kseb_items', 'KSEB documentation checklist', 'one per line']].map(([k, l, h]) => `<div class="card"><h3>${l}</h3><p class="mut" style="margin:0 0 6px;font-size:12px">${h}</p><textarea id="s-${k}" rows="8" ${adm ? '' : 'disabled'}>${esc(lines(k))}</textarea>${adm ? `<button class="btn" data-sl="${k}" style="margin-top:8px">Save</button>` : ''}</div>`).join('')}
    <div class="card"><h3>Quotation item catalog</h3><p class="mut" style="margin:0 0 6px;font-size:12px">one per line: description | rate</p><textarea id="s-catalog" rows="8" ${adm ? '' : 'disabled'}>${esc(S.catalog.map(c => c.desc.trim() + ' | ' + c.rate).join('\n'))}</textarea>${adm ? '<button class="btn" id="s-cat" style="margin-top:8px">Save</button>' : ''}</div>
@@ -130,6 +131,7 @@ async function pgSettings() {
     $('#lgrm').onclick = async () => { if (confirm('Remove the login background image?')) { const r = await api('settings', 'remove_bg', {}); prev(r.brand); } };
     $('#lgsv').onclick = () => save('login', { ...(S.login || {}), tagline: $('#lgtag').value, dim: Math.max(0, Math.min(80, +$('#lgdim').value || 0)) });
   }
+  if (adm) drawAccess();
   if (adm) {
     $('#s-co').onclick = () => save('company', collect($('.card'))); // first card
     $('#s-rates').onclick = async () => { await save('gst_rate', +$('#s-gst').value); await save('lead_target', +$('#s-tgt').value || 1000); await save('subsidy_rates', { per_kw_first2: +$('#s-r1').value, third_kw: +$('#s-r2').value, cap: +$('#s-r3').value }); };
@@ -148,8 +150,8 @@ async function pgAdmin() {
   if (t === 'users') {
     const us = await api('admin', 'users');
     ab.innerHTML = `<div class="bar"><span class="sp"></span><button class="btn" id="nu">+ New user</button></div>` +
-      table([['Name', u => `<b>${esc(u.name)}</b>`], ['Username', u => esc(u.username)], ['Role', u => pill(u.role, u.role === 'admin' ? 'y' : 'b')], ['Active', u => u.active ? pill('Yes', 'g') : pill('Disabled', 'r')], ['Leads access', u => u.role === 'admin' ? pill('All leads', 'b') : u.can_claim ? pill('Can see & claim', 'g') : pill('Own leads only')], ['Claimed leads', u => u.leads || 0], ['Created', u => dt(u.created)]], us, id => userModal(us.find(u => u.id == id))) +
-      `<div class="card" style="margin-top:12px"><h3>Role permissions</h3><table><tr><th>Role</th><th>Can edit</th></tr><tr><td>admin</td><td>Everything, users, settings, backup</td></tr><tr><td>sales</td><td>Leads, customers, quotations, WhatsApp, files</td></tr><tr><td>engineer</td><td>Projects, subsidy & KSEB checklists, files, customers</td></tr><tr><td>accounts</td><td>Quotations, payments, ads spend</td></tr></table><p class="mut">All roles can view the other business modules except Admin.</p></div>`;
+      table([['Name', u => `<b>${esc(u.name)}</b>`], ['Username', u => esc(u.username)], ['Role', u => pill((S.role_names || {})[u.role] || u.role, u.role === 'admin' ? 'y' : u.role === 'assistant_manager' ? 'p' : 'b')], ['Active', u => u.active ? pill('Yes', 'g') : pill('Disabled', 'r')], ['Leads access', u => u.role === 'admin' ? pill('All leads', 'b') : u.can_claim ? pill('Can see & claim', 'g') : pill('Own leads only')], ['Claimed leads', u => u.leads || 0], ['Created', u => dt(u.created)]], us, id => userModal(us.find(u => u.id == id))) +
+      `<div class="card" style="margin-top:12px"><h3>Role permissions</h3><p class="mut" style="margin:0">Choose what each role can view and edit in <a href="#/settings">Settings → User access</a>. Admin always has full access.</p></div>`;
     $('#nu').onclick = () => userModal({});
   }
   if (t === 'audit') {
@@ -193,8 +195,34 @@ function resetModal() {
 }
 function userModal(u) {
   const id = u.id;
-  const m = modal(`<h3 style="margin-top:0">${id ? 'Edit' : 'New'} user</h3><div class="two">${[{ k: 'name', l: 'Full name' }, { k: 'username', l: 'Username' }, { k: 'role', l: 'Role', opts: ['admin', 'sales', 'engineer', 'accounts'] }, { k: 'active', l: 'Active', opts: [['1', 'Yes'], ['0', 'Disabled']], d: '1' }, { k: 'can_claim', l: 'Leads access', opts: [['1', 'Can see & claim unclaimed leads'], ['0', 'Only leads assigned to them']] }, { k: 'password', l: id ? 'New password (leave blank to keep)' : 'Password (min 8)', t: 'password', full: 1 }].map(f => fld(f, { ...u, active: u.active === 0 ? '0' : '1', can_claim: u.can_claim === 0 ? '0' : (u.can_claim ? '1' : '0') })).join('')}</div>
+  const m = modal(`<h3 style="margin-top:0">${id ? 'Edit' : 'New'} user</h3><div class="two">${[{ k: 'name', l: 'Full name' }, { k: 'username', l: 'Username' }, { k: 'role', l: 'Role', opts: Object.entries(S.role_names || {}).map(([k, v]) => [k, v]) }, { k: 'active', l: 'Active', opts: [['1', 'Yes'], ['0', 'Disabled']], d: '1' }, { k: 'can_claim', l: 'Leads access', opts: [['1', 'Can see & claim unclaimed leads'], ['0', 'Only leads assigned to them']] }, { k: 'password', l: id ? 'New password (leave blank to keep)' : 'Password (min 8)', t: 'password', full: 1 }].map(f => fld(f, { ...u, active: u.active === 0 ? '0' : '1', can_claim: u.can_claim === 0 ? '0' : (u.can_claim ? '1' : '0') })).join('')}</div>
    <div class="bar" style="margin-top:12px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button></div>`);
   $('#cx', m).onclick = () => m.remove();
   $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; o.active = o.active === '1' ? 1 : 0; o.can_claim = o.can_claim === '1' ? 1 : 0; await api('admin', 'user_save', o); m.remove(); route(); };
+}
+
+// ---------- Settings → User access (role × module matrix) ----------
+const MOD_LABELS = { dashboard: 'Dashboard', calendar: 'Calendar', leads: 'Leads', customers: 'Customers', projects: 'Project pipeline', checklist: 'Subsidy & KSEB checklists', files: 'Files & documents', folder: 'Folder (datasheets)', whatsapp: 'WhatsApp', quotes: 'Quotations', payments: 'Payments', ads: 'Meta Ads & ad spend', finance: 'Finance figures (values, balances, costs)', settings: 'Settings (view)' };
+const FIN_MODS = ['quotes', 'payments', 'ads', 'finance'];
+function drawAccess() {
+  const box = $('#uacc'); if (!box) return;
+  const roles = Object.keys(S.role_names).filter(r => r !== 'admin'), now = JSON.parse(JSON.stringify(S.roles_now));
+  const render = () => {
+    box.innerHTML = `<div class="ch"><h3>User access</h3><span class="mut" style="font-size:12px">Tick what each role can <b>view</b> and <b>edit</b>. Admin always has full access. Changes apply on the user's next page load.</span></div>
+     <div class="tw"><table class="acc"><thead><tr><th>Area</th>${roles.map(r => `<th>${esc(S.role_names[r])}<small><a href="#" data-allr="${r}">all</a> · <a href="#" data-nofin="${r}">no finance</a> · <a href="#" data-def="${r}">default</a></small></th>`).join('')}</tr></thead><tbody>
+     ${S.modules.map(mod => `<tr class="${FIN_MODS.includes(mod) ? 'finrow' : ''}"><td><b>${MOD_LABELS[mod] || mod}</b>${FIN_MODS.includes(mod) ? ' <span class="pill y">finance</span>' : ''}</td>${roles.map(r => { const rd = now[r].read.includes(mod), wt = now[r].write.includes(mod);
+       return `<td><label class="ck"><input type="checkbox" data-r="${r}" data-m="${mod}" data-k="read" ${rd ? 'checked' : ''}> View</label>${mod === 'finance' || mod === 'dashboard' || mod === 'settings' ? '' : `<label class="ck"><input type="checkbox" data-r="${r}" data-m="${mod}" data-k="write" ${wt ? 'checked' : ''}> Edit</label>`}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>
+     <div class="bar" style="margin-top:12px"><button class="btn" id="uasv">Save user access</button><button class="btn sec" id="uars">Reset all to defaults</button></div>`;
+    $$('input[data-r]', box).forEach(c => c.onchange = () => { const r = now[c.dataset.r], m = c.dataset.m, k = c.dataset.k, set = new Set(r[k]);
+      c.checked ? set.add(m) : set.delete(m); r[k] = [...set];
+      if (k === 'write' && c.checked && !r.read.includes(m)) r.read.push(m);          // edit needs view
+      if (k === 'read' && !c.checked) r.write = r.write.filter(x => x !== m);           // no view → no edit
+      render(); });
+    $$('[data-allr]', box).forEach(x => x.onclick = e => { e.preventDefault(); const r = x.dataset.allr; now[r] = { read: [...S.modules], write: S.modules.filter(m => !['finance', 'dashboard', 'settings'].includes(m)) }; render(); });
+    $$('[data-nofin]', box).forEach(x => x.onclick = e => { e.preventDefault(); const r = x.dataset.nofin; now[r].read = now[r].read.filter(m => !FIN_MODS.includes(m)); now[r].write = now[r].write.filter(m => !FIN_MODS.includes(m)); render(); });
+    $$('[data-def]', box).forEach(x => x.onclick = e => { e.preventDefault(); const r = x.dataset.def; now[r] = JSON.parse(JSON.stringify(S.role_defaults[r])); render(); });
+    $('#uasv', box).onclick = async () => { await api('settings', 'save', { key: 'role_perms', value: now }); S = await api('settings', 'get'); toast('User access saved'); drawAccess(); };
+    $('#uars', box).onclick = async () => { if (!confirm('Reset every role to its default access?')) return; await api('settings', 'save', { key: 'role_perms', value: {} }); S = await api('settings', 'get'); toast('Defaults restored'); drawAccess(); };
+  };
+  render();
 }

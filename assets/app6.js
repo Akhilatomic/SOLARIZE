@@ -33,7 +33,7 @@ async function pgPipeline() {
   const cols = PIPE.filter(s => s[2] === PL.step);
   if (PL.view === 'list') {
     const rows = ps.filter(p => stepOf(p.stage) === PL.step);
-    body.innerHTML = `<div class="card tw fitbox" style="padding:0"><table id="ptb"><thead><tr><th>Customer</th><th>Project</th><th>Stage</th><th>In stage</th><th>Receipts</th><th>Engineer</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(p => `<tr class="row" data-id="${p.id}"><td><b>${esc(p.customer)}</b><br><small class="mut">${esc(p.phone || '')}</small></td><td>${esc(p.title)}<br><small class="mut">${p.kw} kW · ${inr(p.cost)}</small></td><td>${pill(p.stage, stepCls(p.stage))}</td><td>${daysSince(p.since)}d</td><td>${rcBadges(p)}</td><td>${esc(p.engineer) || '—'}</td><td class="right">${w ? nextBtn(p) : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="mut">No projects in this step</td></tr>'}</tbody></table></div>`;
+    body.innerHTML = `<div class="card tw fitbox" style="padding:0"><table id="ptb"><thead><tr><th>Customer</th><th>Project</th><th>Stage</th><th>In stage</th><th>Receipts</th><th>Engineer</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(p => `<tr class="row" data-id="${p.id}"><td><b>${esc(p.customer)}</b><br><small class="mut">${esc(p.phone || '')}</small></td><td>${esc(p.title)}<br><small class="mut">${p.kw} kW${FIN() ? ' · ' + inr(p.cost) : ''}</small></td><td>${pill(p.stage, stepCls(p.stage))}</td><td>${daysSince(p.since)}d</td><td>${rcBadges(p)}</td><td>${esc(p.engineer) || '—'}</td><td class="right">${w ? nextBtn(p) : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="mut">No projects in this step</td></tr>'}</tbody></table></div>`;
     $$('#ptb tr.row').forEach(r => r.onclick = e => { if (!e.target.closest('button')) location.hash = '#/projects/' + r.dataset.id; });
     bindNext(body, ps); return;
   }
@@ -96,13 +96,13 @@ async function startModal({ customer_id }) {
   const cs = canR('customers') ? await api('customers', 'list') : [];
   const m = modal(`<h2 style="margin-top:0">Start a project</h2><p class="mut" style="margin-top:-6px">Projects start from a customer. To turn a lead into a customer, use <b>Convert lead</b> on the Customers page.</p><div class="two">
    <div class="full"><label>Customer</label><select id="sfrom"><option value="">— choose a customer —</option>${cs.map(c => `<option value="${c.id}" ${customer_id == c.id ? 'selected' : ''}>${esc(c.name)}${c.phone ? ' · ' + esc(c.phone) : ''}${c.stage ? ' (has a project)' : ''}</option>`).join('')}</select></div>
-   <div><label>System size (kW)</label><input id="skw" type="number" step="any"></div><div><label>Project value (₹)</label><input id="scost" type="number" step="any"></div>
+   <div><label>System size (kW)</label><input id="skw" type="number" step="any"></div>${FIN() ? '<div><label>Project value (₹)</label><input id="scost" type="number" step="any"></div>' : ''}
    <div><label>Loan taken?</label><select id="sloan"><option value="">Not decided</option><option>Yes</option><option>No</option></select></div><div><label>Site engineer</label><input id="seng"></div>
    <div class="full"><label>Project title</label><input id="stitle" placeholder="e.g. 3 kW rooftop solar (blank = automatic)"></div></div>
    <div class="bar" style="margin-top:14px"><button class="btn" id="ssv">Start project</button><button class="btn sec" id="scx">Cancel</button><span class="sp"></span><a class="btn sec" href="#/customers" id="sgoc">Go to Customers</a></div>`);
   $('#scx', m).onclick = () => m.remove(); $('#sgoc', m).onclick = () => m.remove();
   $('#ssv', m).onclick = async () => { const v = $('#sfrom', m).value; if (!v) return toast('Choose a customer', true);
-    const r = await api('pipeline', 'start', { customer_id: +v, kw: $('#skw', m).value, cost: $('#scost', m).value, loan: $('#sloan', m).value, engineer: $('#seng', m).value, title: $('#stitle', m).value });
+    const r = await api('pipeline', 'start', { customer_id: +v, kw: $('#skw', m).value, cost: $('#scost', m)?.value || 0, loan: $('#sloan', m).value, engineer: $('#seng', m).value, title: $('#stitle', m).value });
     m.remove(); toast('Project started'); location.hash = '#/projects/' + r.id; };
 }
 

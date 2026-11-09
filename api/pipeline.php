@@ -34,7 +34,7 @@ function handle_pipeline($a) {
         (SELECT MAX(created) FROM project_steps s WHERE s.project_id=p.id) since FROM projects p LEFT JOIN customers c ON c.id=p.customer_id ORDER BY p.updated DESC");
       $rec = []; foreach (rows("SELECT project_id,stage FROM stage_data WHERE file_id IS NOT NULL") as $r) $rec[$r['project_id']][$r['stage']] = true;
       $svc = []; foreach (rows("SELECT project_id, MAX(CASE WHEN status='Done' THEN date END) last_done, MIN(CASE WHEN status='Scheduled' THEN date END) next_sched, COUNT(*) n FROM services GROUP BY project_id") as $r) $svc[$r['project_id']] = $r;
-      foreach ($ps as &$p) { $p['receipts'] = ['feas_pay' => !empty($rec[$p['id']]['feas_pay']), 'reg_pay' => !empty($rec[$p['id']]['reg_pay'])]; $p['svc'] = $svc[$p['id']] ?? null; } unset($p);
+      foreach ($ps as &$p) { $p = strip_fin($p); $p['receipts'] = ['feas_pay' => !empty($rec[$p['id']]['feas_pay']), 'reg_pay' => !empty($rec[$p['id']]['reg_pay'])]; $p['svc'] = $svc[$p['id']] ?? null; } unset($p);
       out(['stages' => PIPE, 'projects' => $ps, 'service_types' => SERVICE_TYPES]);
     case 'move':
       need('projects', true);
@@ -61,7 +61,7 @@ function handle_pipeline($a) {
       if (!$cid || !row('SELECT 1 FROM customers WHERE id=?', [$cid])) fail('Choose a lead or customer');
       $kw = (float)($in['kw'] ?? 0); $title = trim((string)($in['title'] ?? '')) ?: (($kw ? $kw . ' kW ' : '') . 'rooftop solar');
       $loan = in_array($in['loan'] ?? '', ['Yes', 'No']) ? $in['loan'] : '';
-      q("INSERT INTO projects(customer_id,title,kw,stage,cost,loan,engineer) VALUES(?,?,?,?,?,?,?)", [$cid, $title, $kw, 'Customer', (float)($in['cost'] ?? 0), $loan, trim((string)($in['engineer'] ?? ''))]);
+      q("INSERT INTO projects(customer_id,title,kw,stage,cost,loan,engineer) VALUES(?,?,?,?,?,?,?)", [$cid, $title, $kw, 'Customer', can('finance') ? (float)($in['cost'] ?? 0) : 0, $loan, trim((string)($in['engineer'] ?? ''))]);
       $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Project started'); audit('create', 'projects', $pid, $title);
       out(['id' => $pid, 'customer_id' => $cid]);
     case 'receipt': // KSEB payment receipt: JPG/PDF only, max 2 MB
