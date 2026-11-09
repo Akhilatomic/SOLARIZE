@@ -173,7 +173,7 @@ async function applyModal(d) {
     <div class="two"><div><label>From Date <em>*</em></label><input type="date" id="lfr" value="${today()}"></div><div><label>To Date <em>*</em></label><input type="date" id="lto" value="${today()}"></div></div>
     <div class="lvd" id="ldy"><i class="i i-calendar"></i> <span>…</span></div>
     <div id="lhw"><label>Duration</label><select id="lhf"><option value="">Full day</option><option value="first">Half day — first half (morning)</option><option value="second">Half day — second half (afternoon)</option></select></div>
-    <div><label>Leave Type <em>*</em></label><select id="lty"><option value="">— Select leave type —</option>${d.cfg.leave_types.map(t => { const l = left(t.code); return `<option value="${t.code}">${esc(t.name)}${l !== null ? ` (${l} left)` : ''}</option>`; }).join('')}</select></div>
+    <div><label>Leave Type <em>*</em></label><select id="lty"><option value="">— Select leave type —</option>${d.cfg.leave_types.map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('')}</select></div>
     <div><label>Reason / Remarks <em>*</em></label><textarea id="lrs" rows="3" placeholder="Briefly describe the reason for your leave..."></textarea></div>
    </div>
    <div class="lvf"><button class="btn sec" id="lcx">Cancel</button><button class="btn" id="lsv">Submit Request</button></div></div>`);
