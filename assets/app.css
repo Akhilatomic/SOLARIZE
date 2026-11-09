@@ -459,3 +459,15 @@ button.ac:not([disabled]){cursor:pointer}button.ac:not([disabled]):hover{outline
 #holset .hollist{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:6px 18px;max-height:none}#holset .holadd{max-width:720px}
 
 .aplace{font-size:13px;line-height:1.35;max-width:320px}.aplace small{display:inline-block;min-width:26px}.aplace a{color:var(--pri);text-decoration:none}.aplace a:hover{text-decoration:underline}
+
+/* leave request form (reference design) */
+.modal.lvmod>div{max-width:540px;padding:0;overflow:hidden}
+.lvh{display:flex;gap:12px;align-items:center;padding:18px 20px;background:linear-gradient(180deg,#eef4ff,#f6f9ff);border-bottom:1px solid var(--bd)}
+.lvh h2{margin:0;font-size:17px}.lvh small{color:var(--mut);font-size:13px}
+.lvi{width:42px;height:42px;border-radius:12px;background:#dfeafe;display:grid;place-items:center;color:var(--pri);flex:none}.lvi .i{width:22px;height:22px;background:var(--pri)}
+.lvx{margin-left:auto;border:0;background:transparent;cursor:pointer;padding:6px;border-radius:8px}.lvx:hover{background:var(--fill)}
+.lvb{padding:18px 20px;display:flex;flex-direction:column;gap:14px}.lvb label{font-weight:600;color:var(--tx)}.lvb label em{color:#c4271f;font-style:normal}
+.lvd{display:flex;gap:8px;align-items:center;background:#eef4ff;border:1px solid #d6e4fb;color:#0a5fc0;border-radius:10px;padding:10px 12px;font-size:14px}.lvd .i{background:#0a5fc0;width:16px;height:16px}.lvd.bad{background:#fff1f0;border-color:#ffd2ce;color:#c4271f}.lvd.bad .i{background:#c4271f}
+.lvf{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 20px;border-top:1px solid var(--bd);background:#fafbfc}.lvf .btn{justify-content:center;padding:12px}
+/* leave requests in the bell */
+.lvn .nla{flex-wrap:wrap}.bsep{height:1px;background:var(--bd);margin:8px 0 10px}

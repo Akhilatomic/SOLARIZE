@@ -6,7 +6,7 @@ const HR_HOLIDAYS_2026 = [['date' => '2026-01-02', 'name' => 'Mannam Jayanthi'],
 
 function hr_cfg() {
   $d = ['start' => '09:00', 'end' => '18:00', 'half_after' => '14:00', 'pay_day' => 6, 'grace' => 15, 'half_hours' => 0, 'full_hours' => 9, 'week_off' => [0], 'holidays' => HR_HOLIDAYS_2026,
-    'leave_types' => [['code' => 'CL', 'name' => 'Casual leave', 'quota' => 12], ['code' => 'SL', 'name' => 'Sick leave', 'quota' => 12], ['code' => 'EL', 'name' => 'Earned leave', 'quota' => 15], ['code' => 'LOP', 'name' => 'Unpaid leave (LOP)', 'quota' => 0]]];
+    'leave_types' => [['code' => 'SL', 'name' => 'Sick Leave', 'quota' => 12], ['code' => 'CL', 'name' => 'Casual Leave', 'quota' => 12], ['code' => 'EL', 'name' => 'Earned Leave', 'quota' => 15], ['code' => 'ML', 'name' => 'Maternity Leave', 'quota' => 182], ['code' => 'PL', 'name' => 'Paternity Leave', 'quota' => 5], ['code' => 'OT', 'name' => 'Other', 'quota' => 0], ['code' => 'LOP', 'name' => 'Unpaid Leave (LOP)', 'quota' => 0]]];
   $r = row("SELECT v FROM settings WHERE k='hr'"); $s = $r ? (json_decode($r['v'], true) ?: []) : [];
   if ($s && !isset($s['half_after'])) unset($s['start'], $s['half_hours'], $s['full_hours']); // settings saved before 9–6 office hours: take the new defaults
   if (empty($s['holidays']) && empty($s['holidays_set'])) unset($s['holidays']); // no list saved yet: use the 2026 office holiday list
@@ -40,6 +40,7 @@ function hr_fill_places($limit = 3) {
     if ($r['out_lat'] !== null && ($r['out_place'] ?? '') === '') { $p = hr_place($r['out_lat'], $r['out_lng']); if ($p === '') return; q('UPDATE attendance SET out_place=? WHERE id=?', [$p, $r['id']]); }
   }
 }
+function hr_leave_on($user, $date) { return row("SELECT id,type,half FROM leaves WHERE user_id=? AND status='Approved' AND ? BETWEEN from_date AND to_date ORDER BY half='' DESC LIMIT 1", [$user, $date]); }
 function hr_mgr($m) { return can($m, true); }
 function hr_now() { return [date('Y-m-d'), date('H:i')]; }
 function hr_hol($cfg) { $h = []; foreach ($cfg['holidays'] as $x) if (!empty($x['date'])) $h[$x['date']] = $x['name'] ?? 'Holiday'; return $h; }
@@ -78,6 +79,7 @@ function handle_hr($a) {
       $r = row('SELECT * FROM attendance WHERE user_id=? AND date=?', [$uid, $d]);
       if ($kind === 'in') {
         if ($r && $r['check_in']) fail('You already checked in at ' . $r['check_in']);
+        $lv = hr_leave_on($uid, $d); if ($lv && $lv['half'] === '') fail("You are on approved leave today ({$lv['type']}), so attendance can't be marked. Ask a manager to cancel the leave if you are working.");
         $late = hr_mins($t) > hr_mins($cfg['start']) + (int)$cfg['grace'];
         $st = hr_mins($t) >= hr_mins($cfg['half_after']) ? 'Half day' : ($late ? 'Late' : 'Present');
         if ($r) q('UPDATE attendance SET check_in=?, in_lat=?, in_lng=?, in_acc=?, status=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$t, $lat, $lng, $acc, $st, $r['id']]);
@@ -121,6 +123,7 @@ function handle_hr($a) {
       $d = hr_dt($in['date'] ?? '', 'Date'); $st = in_array($in['status'] ?? '', ['Present', 'Late', 'Half day', 'Absent', 'On duty']) ? $in['status'] : 'Present';
       $ci = hr_tm($in['check_in'] ?? ''); $co = hr_tm($in['check_out'] ?? ''); $note = mb_substr(trim((string)($in['notes'] ?? '')), 0, 200);
       if ($ci && $co && hr_mins($co) < hr_mins($ci)) fail('Check-out must be after check-in');
+      $lv = hr_leave_on($u, $d); if ($lv && $lv['half'] === '' && empty($in['clear'])) fail("Approved leave ({$lv['type']}) on $d — cancel the leave first to mark attendance.");
       if (($in['clear'] ?? 0)) { q('DELETE FROM attendance WHERE user_id=? AND date=?', [$u, $d]); audit('att_clear', 'attendance', $u, $d); out(['ok' => true]); }
       q('INSERT INTO attendance(user_id,date,check_in,check_out,status,notes,edited_by) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id,date) DO UPDATE SET check_in=excluded.check_in, check_out=excluded.check_out, status=excluded.status, notes=excluded.notes, edited_by=excluded.edited_by, updated=CURRENT_TIMESTAMP',
         [$u, $d, $ci ?: null, $co ?: null, $st, $note, $_SESSION['name'] ?? '']);
@@ -133,6 +136,9 @@ function handle_hr($a) {
       if (!empty($_GET['status'])) { $w .= ' AND l.status=?'; $args[] = $_GET['status']; }
       out(['rows' => rows("SELECT l.*, u.name user_name, a.name approver_name FROM leaves l LEFT JOIN users u ON u.id=l.user_id LEFT JOIN users a ON a.id=l.approver_id WHERE $w ORDER BY CASE l.status WHEN 'Pending' THEN 0 ELSE 1 END, l.from_date DESC LIMIT 500", $args),
         'balance' => hr_balance($uid, date('Y'), $cfg), 'cfg' => $cfg, 'manage' => hr_mgr('leaves') ? 1 : 0]);
+    case 'pending': // leave requests waiting for this manager
+      need('leaves', true);
+      out(['rows' => rows("SELECT l.id,l.user_id,l.type,l.from_date,l.to_date,l.half,l.days,l.reason,l.created,u.name user_name FROM leaves l LEFT JOIN users u ON u.id=l.user_id WHERE l.status='Pending'" . (is_admin() ? '' : ' AND l.user_id<>' . $uid) . ' ORDER BY l.created DESC LIMIT 30')]);
     case 'balances':
       need('leaves', true); $y = (int)($_GET['year'] ?? date('Y'));
       out(array_map(fn($u) => ['user' => $u, 'balance' => hr_balance($u['id'], $y, $cfg)], rows('SELECT id,name,role FROM users WHERE active=1 ORDER BY name')));
@@ -156,7 +162,9 @@ function handle_hr($a) {
       if ((int)$l['user_id'] === $uid && !is_admin()) fail('Someone else has to approve your own leave', 403);
       $dec = ($in['decision'] ?? '') === 'Approved' ? 'Approved' : 'Rejected';
       q('UPDATE leaves SET status=?, approver_id=?, approver_note=?, decided_at=CURRENT_TIMESTAMP WHERE id=?', [$dec, $uid, mb_substr(trim((string)($in['note'] ?? '')), 0, 300), $l['id']]);
-      audit('leave_' . strtolower($dec), 'leaves', $l['id'], "{$l['type']} {$l['from_date']}→{$l['to_date']}"); out(['ok' => true]);
+      $cleared = 0; if ($dec === 'Approved' && $l['half'] === '') { $cleared = (int)row('SELECT COUNT(*) c FROM attendance WHERE user_id=? AND date BETWEEN ? AND ?', [$l['user_id'], $l['from_date'], $l['to_date']])['c'];
+        if ($cleared) q('DELETE FROM attendance WHERE user_id=? AND date BETWEEN ? AND ?', [$l['user_id'], $l['from_date'], $l['to_date']]); }
+      audit('leave_' . strtolower($dec), 'leaves', $l['id'], "{$l['type']} {$l['from_date']}→{$l['to_date']}" . ($cleared ? " · cleared $cleared attendance" : '')); out(['ok' => true, 'cleared' => $cleared]);
     case 'cancel':
       need('leaves');
       $l = row('SELECT * FROM leaves WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$l) fail('Not found', 404);

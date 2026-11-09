@@ -8,7 +8,39 @@ const placeCell = (lbl, place, lat, lng, acc) => lat ? `<div class="aplace"><sma
 const mapLink = (lat, lng) => lat ? `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" title="Open location"><i class="i i-target"></i></a>` : '';
 const ATT = { Present: 'g', Late: 'y', 'Half day': 'y', Absent: 'r', 'On duty': 'b' };
 
-async function hrMe() { try { HR.me = await api('hr', 'me'); } catch (e) { HR.me = null; } drawPunch(); hrBadge(); return HR.me; }
+async function hrMe() { try { HR.me = await api('hr', 'me'); } catch (e) { HR.me = null; } drawPunch(); hrBadge(); hrPending(); return HR.me; }
+// leave requests waiting for approval → bell + toast for managers
+async function hrPending() {
+  if (!HR.me || !HR.me.manage_lv) { HR.pend = []; return; }
+  if (typeof mountBell === 'function') mountBell();
+  try { HR.pend = (await api('hr', 'pending')).rows; } catch (e) { return; }
+  const ids = HR.pend.map(x => x.id);
+  if (HR.pendSeen) { const fresh = HR.pend.filter(x => !HR.pendSeen.includes(x.id));
+    fresh.slice(0, 3).forEach(x => toast(`Leave request from ${x.user_name}: ${x.type} · ${lvRange(x)}`));
+    if (fresh.length && typeof SOUND !== 'undefined' && SOUND) try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 740; g.gain.setValueAtTime(.0001, a.currentTime); g.gain.exponentialRampToValueAtTime(.12, a.currentTime + .02); g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + .5); o.start(); o.stop(a.currentTime + .5); } catch (e) { }
+    if (fresh.length && 'Notification' in window && Notification.permission === 'granted' && document.hidden) try { new Notification('Leave request', { body: fresh.map(x => x.user_name + ' · ' + x.type + ' · ' + lvRange(x)).join('\n') }); } catch (e) { } }
+  HR.pendSeen = ids;
+  if (typeof drawBell === 'function') drawBell();
+  const p = $('#bellp'); if (p && !p.classList.contains('hide') && typeof drawBellPanel === 'function') drawBellPanel();
+}
+const lvRange = x => { const f = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); return (x.from_date === x.to_date ? f(x.from_date) : f(x.from_date) + ' – ' + f(x.to_date)) + ` (${+x.days} day${+x.days === 1 ? '' : 's'}${x.half ? ', ' + x.half + ' half' : ''})`; };
+function hrBellHtml() {
+  const P = HR.pend || []; if (!P.length) return '';
+  return `<div class="bar" style="margin:0 0 4px"><b>Leave requests (${P.length})</b><span class="sp"></span><a class="btn sec sm" href="#/leaves">Open</a></div>
+   ${P.slice(0, 8).map(x => `<div class="nl lvn"><div class="nlm"><b>${esc(x.user_name || '')}</b> <span class="mut">· ${agoStr(x.created)}</span><br><span style="font-size:13px"><span class="pill b">${esc(x.type)}</span> ${esc(lvRange(x))}</span>${x.reason ? `<br><small class="mut">${esc(x.reason)}</small>` : ''}</div>
+     <div class="nla"><button class="btn ok sm" data-lap="${x.id}"><i class="i i-check"></i> Approve</button><button class="btn sec sm" data-lrj="${x.id}"><i class="i i-x"></i> Reject</button></div></div>`).join('')}<div class="bsep"></div>`;
+}
+function hrBellBind(root) {
+  const go = async (id, decision, btn) => {
+    let note = '';
+    if (decision === 'Rejected') { note = prompt('Reason for rejecting:', ''); if (note === null) return; if (!note.trim()) return toast('Add a reason for rejecting', true); }
+    btn.disabled = true;
+    try { const r = await api('hr', 'decide', { id, decision, note }); toast(decision === 'Approved' ? 'Leave approved' + (r.cleared ? ` · ${r.cleared} attendance entr${r.cleared === 1 ? 'y' : 'ies'} removed` : '') : 'Leave rejected');
+      await hrMe(); if (/^#\/(leaves|attendance)/.test(location.hash)) route(); } catch (e) { btn.disabled = false; } };
+  $$('[data-lap]', root).forEach(b => b.onclick = e => { e.stopPropagation(); go(+b.dataset.lap, 'Approved', b); });
+  $$('[data-lrj]', root).forEach(b => b.onclick = e => { e.stopPropagation(); go(+b.dataset.lrj, 'Rejected', b); });
+}
+
 function getLoc() {
   return new Promise(res => { if (!navigator.geolocation) return res({});
     navigator.geolocation.getCurrentPosition(p => res({ lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6), acc: Math.round(p.coords.accuracy) }), () => res({}), { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }); });
@@ -34,7 +66,7 @@ function hrBadge() {
   const n = HR.me ? HR.me.pending_requests : 0; if (!b) { b = document.createElement('span'); b.className = 'nb nbo'; a.appendChild(b); }
   b.textContent = n || ''; b.style.display = n ? '' : 'none';
 }
-function startHr() { if (canR('attendance') || canR('leaves')) hrMe(); setInterval(() => { if (!document.hidden && (canR('attendance') || canR('leaves'))) hrMe(); }, 120000); }
+function startHr() { if (canR('attendance') || canR('leaves')) hrMe(); setInterval(() => { if (canR('attendance') || canR('leaves')) { if (!document.hidden) hrMe(); else if (HR.me && HR.me.manage_lv) hrPending(); } }, 60000); }
 
 // ---------- Attendance page ----------
 async function pgAttendance() {
@@ -108,7 +140,7 @@ async function pgLeaves() {
   const pend = d.rows.filter(r => r.status === 'Pending' && (r.user_id != ME.id || ME.role === 'admin')).length;
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:10px"><div><h2 style="margin:0;font-size:26px">Leaves</h2><div class="mut">${new Date().getFullYear()} balances · weekly off: ${d.cfg.week_off.map(x => WD[x]).join(', ') || 'none'}</div></div><span class="sp"></span>
     ${mgr ? `<div class="tabs" style="margin:0">${[['requests', `Requests${pend ? ' (' + pend + ')' : ''}`], ['all', 'All leaves'], ['bal', 'Team balances'], ['mine', 'My leaves']].map(([k, l]) => `<button data-lt="${k}" class="${HR.lvTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
-    <button class="btn" id="lapply"><i class="i i-plus"></i> Apply for leave</button></div>
+    <button class="btn" id="lapply"><i class="i i-plus"></i> New Leave Request</button></div>
    <div class="grid stats" style="margin-bottom:14px">${d.balance.map(b => `<div class="card stat lbal"><b>${b.left === null ? (b.used || 0) : b.left}</b><span>${esc(b.name)}</span><small class="mut">${b.left === null ? 'days taken (no limit)' : `left of ${b.quota} · used ${b.used}${b.pending ? ' · ' + b.pending + ' pending' : ''}`}</small></div>`).join('')}</div><div id="lvb"></div>`;
   $$('[data-lt]').forEach(b => b.onclick = () => { HR.lvTab = b.dataset.lt; pgLeaves(); });
   $('#lapply').onclick = () => applyModal(d);
@@ -133,22 +165,33 @@ async function pgLeaves() {
 async function applyModal(d) {
   const mgr = !!d.manage; let users = [];
   if (mgr) { try { users = (await api('calendar', 'list', undefined, '&from=2000-01-01&to=2000-01-01')).users; } catch (e) { } }
-  const m = modal(`<h2 style="margin-top:0">Apply for leave</h2><div class="two">
-   ${mgr && users.length ? `<div class="full"><label>For</label><select id="lu">${users.map(u => `<option value="${u.id}" ${u.id == ME.id ? 'selected' : ''}>${esc(u.name)}${u.id == ME.id ? ' (me)' : ''}</option>`).join('')}</select></div>` : ''}
-   <div class="full"><label>Leave type</label><select id="lty">${d.cfg.leave_types.map(t => { const b = d.balance.find(x => x.code === t.code); return `<option value="${t.code}">${esc(t.name)}${b && b.left !== null ? ` — ${b.left - b.pending} left` : ''}</option>`; }).join('')}</select></div>
-   <div><label>From</label><input type="date" id="lfr" value="${today()}"></div><div><label>To</label><input type="date" id="lto" value="${today()}"></div>
-   <div class="full" id="lhw"><label>Half day?</label><select id="lhf"><option value="">Full day</option><option value="first">First half</option><option value="second">Second half</option></select></div>
-   <div class="full"><label>Reason</label><textarea id="lrs" rows="3" placeholder="Reason for leave"></textarea></div></div>
-   <div class="ldays" id="ldy"></div>
-   <div class="bar" style="margin-top:12px"><button class="btn" id="lsv">Submit request</button><button class="btn sec" id="lcx">Cancel</button></div>`);
+  const left = c => { const b = d.balance.find(x => x.code === c); return b && b.left !== null ? b.left - b.pending : null; };
+  const m = modal(`<div class="lvm">
+   <div class="lvh"><span class="lvi"><i class="i i-calendar"></i></span><div><h2>New Leave Request</h2><small>Request time off from work</small></div><button class="lvx" id="lcx2" title="Close"><i class="i i-x"></i></button></div>
+   <div class="lvb">
+    ${mgr && users.length ? `<div><label>For</label><select id="lu">${users.map(u => `<option value="${u.id}" ${u.id == ME.id ? 'selected' : ''}>${esc(u.name)}${u.id == ME.id ? ' (me)' : ''}</option>`).join('')}</select></div>` : ''}
+    <div class="two"><div><label>From Date <em>*</em></label><input type="date" id="lfr" value="${today()}"></div><div><label>To Date <em>*</em></label><input type="date" id="lto" value="${today()}"></div></div>
+    <div class="lvd" id="ldy"><i class="i i-calendar"></i> <span>…</span></div>
+    <div id="lhw"><label>Duration</label><select id="lhf"><option value="">Full day</option><option value="first">Half day — first half (morning)</option><option value="second">Half day — second half (afternoon)</option></select></div>
+    <div><label>Leave Type <em>*</em></label><select id="lty"><option value="">— Select leave type —</option>${d.cfg.leave_types.map(t => { const l = left(t.code); return `<option value="${t.code}">${esc(t.name)}${l !== null ? ` (${l} left)` : ''}</option>`; }).join('')}</select></div>
+    <div><label>Reason / Remarks <em>*</em></label><textarea id="lrs" rows="3" placeholder="Briefly describe the reason for your leave..."></textarea></div>
+   </div>
+   <div class="lvf"><button class="btn sec" id="lcx">Cancel</button><button class="btn" id="lsv">Submit Request</button></div></div>`);
+  m.classList.add('lvmod');
   const upd = async () => { const f = $('#lfr', m).value, t = $('#lto', m).value; $('#lhw', m).style.display = f && f === t ? '' : 'none'; if (f !== t) $('#lhf', m).value = '';
-    if (!f || !t || t < f) { $('#ldy', m).textContent = '“To” must be on or after “From”'; return; }
-    try { const r = await api('hr', 'days', undefined, `&from=${f}&to=${t}${$('#lhf', m).value ? '&half=1' : ''}`); $('#ldy', m).innerHTML = `<b>${r.days}</b> working day${r.days === 1 ? '' : 's'} <span class="mut">(weekly offs and holidays are not counted)</span>`; } catch (e) { } };
-  ['#lfr', '#lto', '#lhf'].forEach(s => $(s, m).onchange = upd); upd();
+    const box = $('#ldy span', m); $('#ldy', m).classList.remove('bad');
+    if (!f || !t || t < f) { box.textContent = '“To Date” must be on or after “From Date”'; $('#ldy', m).classList.add('bad'); return; }
+    try { const r = await api('hr', 'days', undefined, `&from=${f}&to=${t}${$('#lhf', m).value ? '&half=1' : ''}`);
+      box.innerHTML = r.days ? `<b>${r.days}</b> day${r.days === 1 ? '' : 's'} of leave <span class="mut">· weekly offs and holidays not counted</span>` : 'These dates are all holidays or weekly offs'; if (!r.days) $('#ldy', m).classList.add('bad'); } catch (e) { } };
+  ['#lfr', '#lto', '#lhf'].forEach(x => $(x, m).onchange = upd); upd();
   $('#lfr', m).addEventListener('change', () => { if ($('#lto', m).value < $('#lfr', m).value) { $('#lto', m).value = $('#lfr', m).value; upd(); } });
-  $('#lcx', m).onclick = () => m.remove();
-  $('#lsv', m).onclick = async () => { const r = await api('hr', 'apply', { user_id: $('#lu', m)?.value, type: $('#lty', m).value, from: $('#lfr', m).value, to: $('#lto', m).value, half: $('#lhf', m).value, reason: $('#lrs', m).value });
-    m.remove(); toast(`Leave request sent (${r.days} day${r.days === 1 ? '' : 's'})`); HR.lvTab = 'mine'; hrMe(); pgLeaves(); };
+  $('#lcx', m).onclick = $('#lcx2', m).onclick = () => m.remove();
+  $('#lsv', m).onclick = async () => {
+    if (!$('#lty', m).value) { $('#lty', m).focus(); return toast('Select a leave type', true); }
+    if (!$('#lrs', m).value.trim()) { $('#lrs', m).focus(); return toast('Add a reason', true); }
+    const b = $('#lsv', m); b.disabled = true;
+    try { const r = await api('hr', 'apply', { user_id: $('#lu', m)?.value, type: $('#lty', m).value, from: $('#lfr', m).value, to: $('#lto', m).value, half: $('#lhf', m).value, reason: $('#lrs', m).value });
+      m.remove(); toast(`Leave request sent for approval (${r.days} day${r.days === 1 ? '' : 's'})`); HR.lvTab = 'mine'; hrMe(); if (location.hash.startsWith('#/leaves')) pgLeaves(); } finally { b.disabled = false; } };
 }
 
 // ---------- Settings → Attendance & leave ----------

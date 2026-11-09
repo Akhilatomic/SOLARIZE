@@ -41,8 +41,9 @@ function toast(msg, bad, click) {
   box.appendChild(t); setTimeout(() => t.remove(), bad ? 7000 : 9000);
 }
 function drawBell() {
-  const b = $('#bell'); if (b) { const n = FEED.count; b.querySelector('.bd').textContent = n > 99 ? '99+' : n; b.classList.toggle('has', n > 0); }
-  document.title = (FEED.count ? '(' + FEED.count + ') ' : '') + 'Solarize CRM';
+  const lv = typeof HR !== 'undefined' && HR.pend ? HR.pend.length : 0, n = FEED.count + lv;
+  const b = $('#bell'); if (b) { b.querySelector('.bd').textContent = n > 99 ? '99+' : n; b.classList.toggle('has', n > 0); b.title = (FEED.count ? FEED.count + ' new lead(s)' : 'New leads') + (lv ? ' · ' + lv + ' leave request(s)' : ''); }
+  document.title = (n ? '(' + n + ') ' : '') + 'Solarize CRM';
 }
 function nlRow(l) {
   const w = canW('leads') && !!l.can_edit;
@@ -69,24 +70,25 @@ function renderNewLeads() {
   const p = $('#bellp'); if (p && !p.classList.contains('hide')) drawBellPanel();
 }
 function drawBellPanel() {
-  const p = $('#bellp'); const L = FEED.leads.slice(0, 12);
-  p.innerHTML = `<div class="bar" style="margin:0 0 4px"><b>New leads (${FEED.count})</b><span class="sp"></span>${FEED.count ? '<button class="btn sec sm" id="bclr">Mark all seen</button>' : ''}</div>
+  const p = $('#bellp'); const L = FEED.leads.slice(0, 12), hrH = typeof hrBellHtml === 'function' ? hrBellHtml() : '';
+  if (!canR('leads')) { p.innerHTML = hrH || '<p class="mut" style="font-size:13px;margin:8px 0">No leave requests waiting.</p>'; hrBellBind(p); return; }
+  p.innerHTML = hrH + `<div class="bar" style="margin:0 0 4px"><b>New leads (${FEED.count})</b><span class="sp"></span>${FEED.count ? '<button class="btn sec sm" id="bclr">Mark all seen</button>' : ''}</div>
    ${L.map(nlRow).join('') || '<p class="mut" style="font-size:13px;margin:8px 0">No new leads waiting.</p>'}
    <div class="bar" style="margin:8px 0 0"><label style="margin:0;display:flex;gap:6px;align-items:center;color:var(--tx);font-size:12px"><input type="checkbox" id="bsnd" style="width:auto" ${SOUND ? 'checked' : ''}> Sound</label><button class="btn sec sm" id="bpush">Desktop alerts</button><span class="sp"></span><button class="btn sec sm" id="bsy"><i class="i i-refresh"></i> Sync</button></div>`;
-  bindNl(p);
+  bindNl(p); if (hrH) hrBellBind(p);
   if ($('#bclr')) $('#bclr').onclick = async () => { await api('meta', 'ack', { all: 1 }); refreshFeed(); };
   $('#bsnd').onchange = e => { SOUND = e.target.checked; try { localStorage.metaSound = SOUND ? '1' : '0'; } catch (x) { } };
   $('#bpush').onclick = async () => { if (!('Notification' in window)) return alert('This browser does not support desktop notifications'); const r = await Notification.requestPermission(); toast(r === 'granted' ? 'Desktop alerts enabled' : 'Desktop alerts blocked in browser settings', r !== 'granted'); };
   $('#bsy').onclick = e => manualSync(e.currentTarget);
 }
 function mountBell() {
-  if (!canR('leads') || $('#bell')) return;
+  if ((!canR('leads') && !(typeof HR !== 'undefined' && HR.me && HR.me.manage_lv)) || $('#bell')) return;
   const top = $('.top'); if (!top) return;
   const w = document.createElement('div'); w.style.position = 'relative';
   w.innerHTML = '<button class="btn sec sm" id="bell" title="New leads"><i class="i i-bell"></i><span class="bd">0</span></button><div id="bellp" class="card hide"></div>';
   top.insertBefore(w, $('#pwb')); drawBell();
   $('#bell').onclick = e => { e.stopPropagation(); const p = $('#bellp'); p.classList.toggle('hide'); if (!p.classList.contains('hide')) drawBellPanel(); };
-  document.addEventListener('click', e => { const p = $('#bellp'); if (p && !p.classList.contains('hide') && !p.contains(e.target) && !e.target.closest('[data-done],[data-ack],[data-wa],.modal')) p.classList.add('hide'); });
+  document.addEventListener('click', e => { const p = $('#bellp'); if (p && !p.classList.contains('hide') && !p.contains(e.target) && !e.target.closest('[data-done],[data-ack],[data-wa],[data-lap],[data-lrj],.modal')) p.classList.add('hide'); });
 }
 
 // ---------- Meta Ads page: sync status + connection ----------
