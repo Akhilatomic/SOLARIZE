@@ -115,7 +115,7 @@ function handle_settings($a) {
     if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
     $in = body(); $k = $in['key'] ?? ''; if (!array_key_exists($k, defaults())) fail('Unknown setting');
     $val = $in['value'];
-    if ($k === 'role_perms') { $clean = []; foreach ((array)$val as $role => $p) { if ($role === 'admin' || !isset(ROLE_DEFAULTS[$role])) continue; $clean[$role] = ['read' => array_values(array_intersect((array)($p['read'] ?? []), MODULES)), 'write' => array_values(array_intersect((array)($p['write'] ?? []), MODULES))]; } $val = $clean; }
+    if ($k === 'role_perms') { $clean = []; foreach ((array)$val as $role => $p) { if ($role === 'admin' || !isset(ROLE_DEFAULTS[$role])) continue; $clean[$role] = ['read' => array_values(array_intersect((array)($p['read'] ?? []), MODULES)), 'write' => array_values(array_intersect((array)($p['write'] ?? []), MODULES))]; } $clean['_modules'] = MODULES; $val = $clean; }
     if ($k === 'login') { $val = ['bg' => settings()['login']['bg'], 'tagline' => mb_substr((string)($val['tagline'] ?? ''), 0, 80), 'dim' => max(0, min(80, (int)($val['dim'] ?? 35)))]; }
     q('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', [$k, json_encode($val, JSON_UNESCAPED_UNICODE)]);
     audit('settings', 'settings', null, $k); out(['ok' => true]);

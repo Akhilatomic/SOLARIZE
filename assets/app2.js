@@ -116,7 +116,7 @@ async function pgSettings() {
     ${adm ? '<div class="bar" style="margin:10px 0 0"><button class="btn" id="lgup">Upload image</button><button class="btn sec" id="lgrm">Remove</button></div>' : ''}
     <div class="two"><div><label>Tagline under the logo</label><input id="lgtag" value="${esc((S.login || {}).tagline || '')}" ${adm ? '' : 'disabled'}></div><div><label>Image darkness (0–80%)</label><input id="lgdim" type="number" min="0" max="80" value="${(S.login || {}).dim ?? 35}" ${adm ? '' : 'disabled'}></div></div>
     ${adm ? '<button class="btn" id="lgsv" style="margin-top:10px">Save login text</button>' : ''}</div>
-   ${adm ? '<div class="card full2" id="uacc"></div>' : ''}
+   ${adm ? '<div class="card full2" id="uacc"></div>' : ''}${adm ? '<div class="card" id="hrset"></div>' : ''}
    <div class="card"><h3>Rates</h3><div class="two"><div><label>Default GST %</label><input id="s-gst" type="number" step="any" value="${S.gst_rate}"></div><div><label>Yearly lead target</label><input id="s-tgt" type="number" value="${S.lead_target}"></div><div><label>Subsidy per kW (first 2 kW) ₹</label><input id="s-r1" type="number" value="${r.per_kw_first2}"></div><div><label>3rd kW subsidy ₹</label><input id="s-r2" type="number" value="${r.third_kw}"></div><div><label>Subsidy cap ₹</label><input id="s-r3" type="number" value="${r.cap}"></div></div>${adm ? '<button class="btn" id="s-rates" style="margin-top:10px">Save rates</button>' : ''}</div>
    ${[['lead_sources', 'Lead sources', 'one per line'], ['ds_categories', 'Datasheet categories (Folder)', 'one per line. Existing files keep their old category name if you rename one'], ['lead_statuses', 'Lead statuses', 'one per line, in order. Keep "Won" and "Lost"'], ['project_stages', 'Project stages', 'one per line, in order. Keep "Closed"'], ['subsidy_steps', 'Subsidy steps (PM Surya Ghar)', 'one per line'], ['kseb_items', 'KSEB documentation checklist', 'one per line']].map(([k, l, h]) => `<div class="card"><h3>${l}</h3><p class="mut" style="margin:0 0 6px;font-size:12px">${h}</p><textarea id="s-${k}" rows="8" ${adm ? '' : 'disabled'}>${esc(lines(k))}</textarea>${adm ? `<button class="btn" data-sl="${k}" style="margin-top:8px">Save</button>` : ''}</div>`).join('')}
    <div class="card"><h3>Quotation item catalog</h3><p class="mut" style="margin:0 0 6px;font-size:12px">one per line: description | rate</p><textarea id="s-catalog" rows="8" ${adm ? '' : 'disabled'}>${esc(S.catalog.map(c => c.desc.trim() + ' | ' + c.rate).join('\n'))}</textarea>${adm ? '<button class="btn" id="s-cat" style="margin-top:8px">Save</button>' : ''}</div>
@@ -131,7 +131,7 @@ async function pgSettings() {
     $('#lgrm').onclick = async () => { if (confirm('Remove the login background image?')) { const r = await api('settings', 'remove_bg', {}); prev(r.brand); } };
     $('#lgsv').onclick = () => save('login', { ...(S.login || {}), tagline: $('#lgtag').value, dim: Math.max(0, Math.min(80, +$('#lgdim').value || 0)) });
   }
-  if (adm) drawAccess();
+  if (adm) { drawAccess(); drawHrSettings(); }
   if (adm) {
     $('#s-co').onclick = () => save('company', collect($('.card'))); // first card
     $('#s-rates').onclick = async () => { await save('gst_rate', +$('#s-gst').value); await save('lead_target', +$('#s-tgt').value || 1000); await save('subsidy_rates', { per_kw_first2: +$('#s-r1').value, third_kw: +$('#s-r2').value, cap: +$('#s-r3').value }); };
@@ -202,7 +202,7 @@ function userModal(u) {
 }
 
 // ---------- Settings → User access (role × module matrix) ----------
-const MOD_LABELS = { dashboard: 'Dashboard', calendar: 'Calendar', leads: 'Leads', customers: 'Customers', projects: 'Project pipeline', checklist: 'Subsidy & KSEB checklists', files: 'Files & documents', folder: 'Folder (datasheets)', whatsapp: 'WhatsApp', quotes: 'Quotations', payments: 'Payments', ads: 'Meta Ads & ad spend', finance: 'Finance figures (values, balances, costs)', settings: 'Settings (view)' };
+const MOD_LABELS = { dashboard: 'Dashboard', calendar: 'Calendar', attendance: 'Attendance (Edit = manage team)', leaves: 'Leaves (Edit = approve team)', leads: 'Leads', customers: 'Customers', projects: 'Project pipeline', checklist: 'Subsidy & KSEB checklists', files: 'Files & documents', folder: 'Folder (datasheets)', whatsapp: 'WhatsApp', quotes: 'Quotations', payments: 'Payments', ads: 'Meta Ads & ad spend', finance: 'Finance figures (values, balances, costs)', settings: 'Settings (view)' };
 const FIN_MODS = ['quotes', 'payments', 'ads', 'finance'];
 function drawAccess() {
   const box = $('#uacc'); if (!box) return;

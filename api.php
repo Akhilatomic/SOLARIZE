@@ -15,6 +15,7 @@ require __DIR__ . '/api/calendar.php';
 require __DIR__ . '/api/pipeline.php';
 require __DIR__ . '/api/reset.php';
 require __DIR__ . '/api/wa.php';
+require __DIR__ . '/api/hr.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';
@@ -24,7 +25,7 @@ try {
   if ($m === 'wa' && $a === 'hook') handle_wa_hook();   // WhatsApp webhook (public, signature-checked)   // public datasheet link (token-protected)
   if (empty($_SESSION['uid'])) fail('Unauthorized', 401);
   // CSRF-light: state-changing calls must be POST
-  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
+  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status', 'me', 'today', 'month', 'leaves', 'balances', 'days']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
   if (isset($E[$m])) handle_crud($m, $a);
   switch ($m) {
     case 'dashboard': handle_dashboard();
@@ -41,6 +42,7 @@ try {
     case 'pipeline': handle_pipeline($a);
     case 'reset': handle_reset($a);
     case 'wa': handle_wa($a);
+    case 'hr': handle_hr($a);
   }
   fail('Unknown module', 404);
 } catch (Throwable $e) {

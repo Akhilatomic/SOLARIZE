@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 10; // bump when tables/columns change
+const SCHEMA_VERSION = 11; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -17,23 +17,29 @@ $E = [
 
 // role => [read modules, write modules]; '*' = everything
 // Permission modules. 'finance' = every money figure (project values, payments, balances, ad spend, dashboard money cards).
-const MODULES = ['dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','quotes','payments','ads','finance','settings'];
+const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','files','folder','whatsapp','quotes','payments','ads','finance','settings'];
 const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts'];
 // role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
 const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
-  'assistant_manager' => [['dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','settings'], ['calendar','leads','customers','projects','checklist','files','folder','whatsapp']],
-  'sales' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings','finance'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects']],
-  'engineer' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings','finance'], ['projects','checklist','files','customers','folder','calendar']],
-  'accounts' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings','finance'], ['quotes','payments','ads','calendar']],
+  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','settings'], ['attendance','leaves','calendar','leads','customers','projects','checklist','files','folder','whatsapp']],
+  'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings','finance'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects']],
+  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings','finance'], ['projects','checklist','files','customers','folder','calendar']],
+  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings','finance'], ['quotes','payments','ads','calendar']],
 ];
 function roles() {
   static $r = null; if ($r !== null) return $r;
   $r = ROLE_DEFAULTS;
   try { $o = row("SELECT v FROM settings WHERE k='role_perms'"); } catch (Throwable $e) { $o = null; }
-  if ($o) foreach (json_decode($o['v'], true) ?: [] as $role => $p) {
-    if ($role === 'admin' || !isset(ROLE_DEFAULTS[$role])) continue;
-    $rd = array_values(array_intersect($p['read'] ?? [], MODULES)); $wt = array_values(array_intersect($p['write'] ?? [], MODULES));
+  $saved = $o ? (json_decode($o['v'], true) ?: []) : [];
+  // areas added after the admin saved custom access start from their defaults
+  $seen = $saved['_modules'] ?? array_values(array_diff(MODULES, ['attendance', 'leaves']));
+  $fresh = array_values(array_diff(MODULES, $seen));
+  foreach ($saved as $role => $p) {
+    if ($role === '_modules' || $role === 'admin' || !isset(ROLE_DEFAULTS[$role]) || !is_array($p)) continue;
+    $def = ROLE_DEFAULTS[$role];
+    $rd = array_values(array_unique(array_merge(array_intersect($p['read'] ?? [], MODULES), array_intersect($def[0], $fresh))));
+    $wt = array_values(array_unique(array_merge(array_intersect($p['write'] ?? [], MODULES), array_intersect($def[1], $fresh))));
     $r[$role] = [array_values(array_unique(array_merge($rd, $wt))), $wt]; // edit implies view
   }
   return $r;
@@ -114,6 +120,8 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS wa_chats(id INTEGER PRIMARY KEY AUTOINCREMENT, wa_id TEXT UNIQUE, name TEXT DEFAULT '', lead_id INTEGER, customer_id INTEGER, assigned_to INTEGER, last_msg TEXT DEFAULT '', last_at TEXT, last_in_at TEXT, last_in_wamid TEXT DEFAULT '', unread INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE TABLE IF NOT EXISTS wa_msgs(id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER, dir TEXT, type TEXT, body TEXT DEFAULT '', wamid TEXT DEFAULT '', status TEXT DEFAULT '', error TEXT DEFAULT '', user TEXT DEFAULT '', media_id TEXT DEFAULT '', file_path TEXT DEFAULT '', filename TEXT DEFAULT '', mime TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec('CREATE INDEX IF NOT EXISTS wam_chat ON wa_msgs(chat_id, id)'); $db->exec('CREATE INDEX IF NOT EXISTS wam_wamid ON wa_msgs(wamid)');
+  $db->exec("CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, check_in TEXT, check_out TEXT, in_lat REAL, in_lng REAL, in_acc INTEGER, out_lat REAL, out_lng REAL, out_acc INTEGER, status TEXT DEFAULT 'Present', notes TEXT DEFAULT '', edited_by TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, date))");
+  $db->exec("CREATE TABLE IF NOT EXISTS leaves(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, from_date TEXT, to_date TEXT, half TEXT DEFAULT '', days REAL, reason TEXT DEFAULT '', status TEXT DEFAULT 'Pending', approver_id INTEGER, approver_note TEXT DEFAULT '', decided_at TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   migrateV1($db);
 }
 

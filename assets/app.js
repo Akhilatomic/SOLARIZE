@@ -11,7 +11,7 @@ const MODS = [ // id, label, icon, perm
   ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['calendar', 'Calendar', '<i class="i i-calendar"></i>', 'calendar'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
   ['projects', 'Project pipeline', '<i class="i i-project"></i>', 'projects'], ['folder', 'Folder', '<i class="i i-file"></i>', 'folder'], ['quotes', 'Quotations', '<i class="i i-receipt"></i>', 'quotes'],
   ['subsidy', 'Subsidy (PM Surya Ghar)', '<i class="i i-coin"></i>', 'checklist'], ['kseb', 'KSEB documentation', '<i class="i i-folder"></i>', 'checklist'],
-  ['whatsapp', 'WhatsApp', '<i class="i i-chat"></i>', 'whatsapp'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
+  ['whatsapp', 'WhatsApp', '<i class="i i-chat"></i>', 'whatsapp'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['attendance', 'Attendance', '<i class="i i-clock"></i>', 'attendance'], ['leaves', 'Leaves', '<i class="i i-leave"></i>', 'leaves'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
 const canW = m => ME && (ME.write === '*' || ME.write.includes(m));
 const FIN = () => canR('finance');
 const canR = m => ME && (ME.read === '*' || ME.read.includes(m));
@@ -33,7 +33,7 @@ async function boot() {
   const s = await api('auth', 'status');
   if (!s.auth) return loginView(s.setup, s.brand || {});
   ME = s.user; S = await api('settings', 'get');
-  shell(); mountBell(); startMeta(); startCal(); startWa(); route();
+  shell(); mountBell(); startMeta(); startCal(); startWa(); startHr(); route();
 }
 function loginView(setup, brand) {
   const bg = brand.bg ? `url('${brand.bg}') center/cover no-repeat` : '';
@@ -51,7 +51,7 @@ function loginView(setup, brand) {
 function shell() {
   const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : canR(m[3]));
   app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span></h1>
-   ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}">${m[2]} <span class="lbl">${m[1]}</span></a>`).join('')}
+   ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}">${m[2]} <span class="lbl">${m[1]}</span></a>`).join('')}
    </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2><span class="mut" style="font-size:13px">${esc(ME.name)} · ${esc(ME.role_name || ME.role)}</span>
    <button class="btn sec sm" id="pwb">Password</button><button class="btn sec sm" id="lo">Sign out</button></div><main id="main"></main></div></div>`;
   $('#bg').onclick = () => $('#side').classList.toggle('open');
@@ -67,7 +67,7 @@ async function route() {
   const t = MODS.find(m => m[0] === mod);
   $('#title').textContent = t ? t[1] : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
-  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, calendar: pgCalendar, subsidy: () => pgOverview('subsidy'), kseb: () => pgOverview('kseb'), whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
+  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, subsidy: () => pgOverview('subsidy'), kseb: () => pgOverview('kseb'), whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
   try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
@@ -79,7 +79,7 @@ async function route() {
 function autoFit() {
   const main = $('#main'); if (!main) return;
   $$('table', main).forEach(t => {
-    const box = t.parentElement; if (!box || !box.clientWidth) return;
+    const box = t.parentElement; if (!box || !box.clientWidth || t.dataset.nofit) return;
     const hs = [...t.querySelectorAll(':scope > thead th')].map(th => th.textContent.replace(/[⇅↑↓]/g, '').trim());
     if (hs.length) t.querySelectorAll(':scope > tbody > tr').forEach(tr => [...tr.children].forEach((td, i) => { if (td.dataset.label === undefined && !td.hasAttribute('colspan')) td.dataset.label = hs[i] || ''; }));
     const min = +t.dataset.min || 0;
