@@ -15,7 +15,9 @@ function copyText(t, what) {
 const tlTime = (ts, local) => { const d = local ? new Date(String(ts).replace(' ', 'T')) : new Date(String(ts).replace(' ', 'T') + (String(ts).length > 10 ? 'Z' : '')); return isNaN(d) ? { day: ts, time: '' } : { day: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }), time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) }; };
 const mapsLink = c => c.lat && c.lng ? `https://www.google.com/maps?q=${c.lat},${c.lng}` : (c.address ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([c.address, c.district, c.pincode].filter(Boolean).join(', ')) : '');
 
+let PFT = 'overview', PFT_ID = 0;
 async function pgCustomer(id) {
+  if (PFT_ID !== id) { PFT = 'overview'; PFT_ID = id; }
   const [c, tl] = await Promise.all([api('customers', 'get', undefined, '&id=' + id), api('profile', 'timeline', undefined, '&customer_id=' + id)]);
   const w = canW('customers'), p0 = tl.progress[tl.progress.length - 1];
   const val = (k, t) => { const v = c[k]; if (v === null || v === undefined || v === '') return ''; return t === 'date' ? new Date(String(v).replace(' ', 'T') + 'Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : String(v); };
@@ -41,13 +43,15 @@ async function pgCustomer(id) {
    <div class="card pfhead"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="mut">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') + ' ' : ''}${c.phone ? `<button class="pfv inl" data-cp="${esc(c.phone)}" data-l="phone">${esc(c.phone)}<i class="i i-copy"></i></button>` : ''}${c.consumer_no ? ` · Consumer no. <button class="pfv inl" data-cp="${esc(c.consumer_no)}" data-l="consumer no.">${esc(c.consumer_no)}<i class="i i-copy"></i></button>` : ''}</div></div>
     <div class="pfact"><button class="btn sec" id="dsc">${discBtnLabel(id)}</button>${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a><button class="btn ok" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>` : ''}
      ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}<button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
-   <div class="pfgrid">
+   <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ['plant', 'Plant details', 'sun'], ['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${l}</button>`).join('')}</div>
+   <div id="pfbody"></div>
+   <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
     <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut" style="margin:0">No project yet.</p></div>`}
      <div class="card"><div class="pfch"><i class="i i-clock"></i><h3>Timeline</h3><span class="sp"></span><small class="mut">${tl.events.length} events</small></div>
       <div class="tladd"><input id="tln" placeholder="Add an update or note… (Enter to save)"><button class="btn sm" id="tlnb">Add</button></div>
       <div class="tl">${tline || '<p class="mut">Nothing yet.</p>'}</div></div></div>
     <div class="pfright">${PF_GROUPS.map(group).join('')}${locCard}
-     <div class="card pfc"><div class="pfch"><i class="i i-file"></i><h3>Documents</h3><span class="sp"></span>${canW('files') ? '<button class="btn sec sm" id="up"><i class="i i-upload"></i> Upload</button>' : ''}</div>${c.files.map(f => `<div class="pfdoc">${fileLink(f)}${f.item ? '<br><small class="mut">' + esc(f.item) + '</small>' : ''}</div>`).join('') || '<p class="mut" style="margin:0;font-size:13px">No documents</p>'}</div>
+     <div class="card pfc"><div class="pfch"><i class="i i-file"></i><h3>Documents</h3><span class="sp"></span><button class="btn sec sm" data-goto="docs">Open</button>${canW('files') ? '<button class="btn sec sm" id="up"><i class="i i-upload"></i> Add</button>' : ''}</div>${c.files.slice(0, 6).map(f => `<div class="pfdoc">${fileLink(f)}${f.item ? '<br><small class="mut">' + esc(f.item) + '</small>' : ''}</div>`).join('') || '<p class="mut" style="margin:0;font-size:13px">No documents</p>'}</div>
      <div class="card pfc"><div class="pfch"><i class="i i-receipt"></i><h3>Quotations</h3><span class="sp"></span>${canW('quotes') ? '<button class="btn sec sm" id="nq">+ New</button>' : ''}</div>${c.quotes.map(q => `<div class="pfdoc"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${q.total != null ? inr(q.total) : ''}<br><small class="mut">${q.date}</small></div>`).join('') || '<p class="mut" style="margin:0;font-size:13px">No quotations</p>'}</div>
      ${c.notes ? `<div class="card pfc"><div class="pfch"><i class="i i-note"></i><h3>Notes</h3></div><div style="font-size:14px;white-space:pre-wrap">${esc(c.notes)}</div></div>` : ''}
     </div></div>`;
@@ -66,9 +70,15 @@ async function pgCustomer(id) {
   if ($('#ed')) $('#ed').onclick = () => customerModal(id, c);
   if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
   if ($('#nq')) $('#nq').onclick = () => { sessionStorage.lead2quote = JSON.stringify({ customer_id: id, name: c.name }); location.hash = '#/quotes/new'; };
-  if ($('#up')) $('#up').onclick = async () => { if (await upload({ customer_id: id })) route(); };
+  if ($('#up')) $('#up').onclick = () => docUploadModal(c, id);
   const addNote = async () => { const t = $('#tln').value.trim(); if (!t) return; await api('notes', 'add', { entity: 'customers', entity_id: id, text: t }); route(); };
   $('#tlnb').onclick = addNote; $('#tln').onkeydown = e => { if (e.key === 'Enter') addNote(); };
+  // tabs
+  const showTab = k => { PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
+    if (k === 'plant') renderPlant(box, c, id); if (k === 'docs') renderDocs(box, c, id); };
+  $$('[data-pt]').forEach(b => b.onclick = () => showTab(b.dataset.pt));
+  $$('[data-goto]').forEach(b => b.onclick = () => { showTab(b.dataset.goto); scrollTo({ top: 0, behavior: 'smooth' }); });
+  if (PFT !== 'overview') showTab(PFT);
   $('#pfmore').onclick = e => { e.stopPropagation(); const old = $('#lmenu'); if (old) { old.remove(); return; }
     const items = [canW('projects') && tl.progress.length ? ['np2', 'project', '+ New project'] : null, w && canW('leads') ? ['rv', 'refresh', 'Revert to lead'] : null, w ? ['dl', 'trash', 'Delete customer'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu'; m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('') || '<p class="mut" style="margin:6px">No actions</p>';

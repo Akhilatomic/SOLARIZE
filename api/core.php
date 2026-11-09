@@ -90,6 +90,7 @@ function handle_crud($t, $a) {
       $id = (int)($in['id'] ?? 0);
       trash_crud($t, $id); // snapshot into the Recycle bin first (restorable for 72 hours)
       if ($t === 'customers') {
+        q('DELETE FROM plant WHERE customer_id=?', [$id]);
         foreach (rows('SELECT id FROM projects WHERE customer_id=?', [$id]) as $p) purge_project($p['id']);
         q('DELETE FROM quotes WHERE customer_id=?', [$id]); q('DELETE FROM messages WHERE customer_id=?', [$id]); q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$id]);
       }
@@ -139,7 +140,7 @@ function handle_crud($t, $a) {
       q("UPDATE notes SET entity='leads', entity_id=? WHERE entity='customers' AND entity_id=?", [$lid, $cu['id']]);
       q('UPDATE discussions SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); q('UPDATE notifs SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // discussions follow it back
       q('UPDATE messages SET lead_id=COALESCE(lead_id, ?), customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // WhatsApp log stays with the lead
-      q('DELETE FROM customers WHERE id=?', [$cu['id']]);
+      q('DELETE FROM plant WHERE customer_id=?', [$cu['id']]); q('DELETE FROM customers WHERE id=?', [$cu['id']]);
       audit('revert', 'customers', $cu['id'], "{$cu['name']} → lead $lid" . ($why ? " · $why" : '') . ($gone ? " · deleted $gone" : ''));
       out(['lead_id' => $lid, 'reopened' => $l ? 1 : 0]);
     case 'convert':
@@ -236,18 +237,19 @@ function handle_files($a) {
     $p = "$dir/" . basename($f['path']); if (!is_file($p)) fail('File missing', 404);
     header_remove('Content-Type');
     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-    $mime = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png'][$ext] ?? 'application/octet-stream';
+    $mime = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'][$ext] ?? 'application/octet-stream'; header('Cache-Control: private, max-age=86400');
     header('Content-Type: ' . $mime); header('X-Content-Type-Options: nosniff');
-    header('Content-Disposition: ' . ($mime === 'application/octet-stream' ? 'attachment' : 'inline') . '; filename="' . str_replace('"', '', $f['name']) . '"');
+    header('Content-Disposition: ' . ($mime === 'application/octet-stream' || !empty($_GET['dl']) ? 'attachment' : 'inline') . '; filename="' . str_replace('"', '', $f['name']) . '"');
     readfile($p); exit;
   }
+  if ($a === 'zip') docs_zip((int)($_GET['customer_id'] ?? 0));
   need('files', true);
   if ($a === 'upload') {
     $fl = $_FILES['file'] ?? null;
     if (!$fl || $fl['error'] !== UPLOAD_ERR_OK) fail('Upload failed (max size is set by the server)');
     if ($fl['size'] > 10 * 1024 * 1024) fail('File too large (max 10 MB)');
     $ext = strtolower(pathinfo($fl['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx', 'txt'])) fail('Allowed: pdf, jpg, png, doc, docx, xls, xlsx, txt');
+    if (!in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx', 'xls', 'xlsx', 'txt'])) fail('Allowed: pdf, jpg, png, webp, doc, docx, xls, xlsx, txt');
     $name = bin2hex(random_bytes(12)) . '.' . $ext;
     if (!move_uploaded_file($fl['tmp_name'], "$dir/$name")) fail('Could not save file', 500);
     $pid = (int)($_POST['project_id'] ?? 0) ?: null; $cid = (int)($_POST['customer_id'] ?? 0) ?: null;
