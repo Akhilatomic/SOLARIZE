@@ -244,3 +244,26 @@ input[type=range]{box-shadow:none;padding:0;accent-color:#007aff}
 #feash .fh2{font-size:15px;font-weight:700;margin:2px 0 1px;color:#1d1d1f}#feash .fh2.r{color:#d70015}#feash .fh2.g{color:#1e7a37}#feash .fh2.y{color:#a05a00}
 #feash .fh3{color:#6e6e73}
 .feasc{display:block;font-size:11px;font-weight:600;margin-top:2px;color:#6e6e73}.feasc.r{color:#d70015}.feasc.g{color:#1e7a37}.feasc.y{color:#a05a00}
+
+/* ===== warranty card & tax bill tabs ===== */
+.gdl{display:grid;grid-template-columns:minmax(320px,440px) minmax(0,1fr);gap:16px;align-items:start}
+.gdf{position:sticky;top:70px;max-height:calc(100vh - 90px);overflow-y:auto}
+.gdp{background:#e9e9ee;border-radius:14px;padding:18px;overflow:hidden}
+.gdp .doc{margin:0 auto;box-shadow:0 1px 3px rgba(0,0,0,.08),0 10px 30px rgba(0,0,0,.10);border-radius:4px;transform-origin:top center}
+
+.tirow{display:grid;grid-template-columns:minmax(0,1fr) 90px 52px 92px 62px 30px;gap:5px;margin-bottom:5px;align-items:center}.tirow input,.tirow select{padding:6px 7px;font-size:13px;min-width:0}
+@media(max-width:1180px){.gdl{grid-template-columns:minmax(0,1fr)}.gdf{position:static;max-height:none}}
+@media(max-width:600px){.gdp{padding:8px}.tirow{grid-template-columns:1fr 1fr 1fr;}.tirow input[data-f=desc]{grid-column:1/-1}.tirow .ib{justify-self:end}}
+
+/* printable documents (preview) */
+.gdp .doc{font:12px/1.45 -apple-system,"Segoe UI",Arial,sans-serif;color:#1d1d1f;background:#fff;padding:26px 28px;max-width:794px}
+.gdp .doc h1{font-size:18px;letter-spacing:.06em;text-align:center;margin:14px 0 12px;font-weight:700}
+.gdp .dhco{display:flex;gap:12px;align-items:center;border-bottom:2px solid #1d1d1f;padding-bottom:10px}.gdp .dhco img{width:54px;height:54px;object-fit:contain}.gdp .dhco b{font-size:17px}.gdp .dhco div div{color:#3a3a3c;font-size:11.5px}
+.gdp .dmeta{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;margin:8px 0 12px}.gdp .dmeta div{display:flex;gap:6px}.gdp .dmeta span{color:#6e6e73;min-width:110px}
+.gdp .dbox{border:1px solid #d1d1d6;border-radius:6px;padding:8px 10px;margin-bottom:10px}.gdp .dbox h4{margin:0 0 4px;font-size:11px;color:#6e6e73;font-weight:600}
+.gdp .dt{width:100%;border-collapse:collapse;margin:6px 0 10px}.gdp .dt th,.gdp .dt td{border:1px solid #d1d1d6;padding:5px 6px;text-align:left;vertical-align:top}.gdp .dt th{background:#f5f5f7;font-size:10.5px;font-weight:600}.gdp .dt .r{text-align:right;white-space:nowrap}
+.gdp .dtot{margin-left:auto;width:320px}.gdp .dtot td{border:0;border-bottom:1px solid #e5e5ea}.gdp .dtot tr:last-child td{font-weight:700;font-size:14px;border-bottom:2px solid #1d1d1f}
+.gdp .dsig{display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px}.gdp .dsig div{text-align:center;min-width:200px;border-top:1px solid #1d1d1f;padding-top:4px;font-size:11px}
+.gdp .dsmall{font-size:10.5px;color:#3a3a3c;white-space:pre-wrap}.gdp .dser{columns:3;column-gap:16px;font-size:10.5px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.tirow{grid-template-columns:minmax(0,1.2fr) 52px minmax(0,1fr) 64px 30px;padding:6px;border-radius:9px;background:#f7f7f9}.tirow input[data-f=desc]{grid-column:1/-1}
+.gdp .dt .h{white-space:nowrap}

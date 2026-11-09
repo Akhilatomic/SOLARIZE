@@ -23,6 +23,7 @@ require __DIR__ . '/api/profile.php';
 require __DIR__ . '/api/plant.php';
 require __DIR__ . '/api/fees.php';
 require __DIR__ . '/api/user.php';
+require __DIR__ . '/api/gen.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';
@@ -60,6 +61,7 @@ try {
     case 'sec': handle_sec($a);
     case 'fees': handle_fees($a);
     case 'user': handle_user($a);
+    case 'gen': handle_gen($a);
   }
   fail('Unknown module', 404);
 } catch (Throwable $e) {

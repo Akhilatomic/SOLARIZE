@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 22; // bump when tables/columns change
+const SCHEMA_VERSION = 23; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -115,6 +115,7 @@ function migrate($db) {
       $st = $db->prepare("UPDATE settings SET v=? WHERE k='role_perms'"); $st->execute([json_encode($p)]); }
     $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('fin_v19','1')");
   }
+  $db->exec("CREATE TABLE IF NOT EXISTS gen_docs(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, kind TEXT, number TEXT, issued_on TEXT, data TEXT, updated TEXT DEFAULT CURRENT_TIMESTAMP, updated_by TEXT DEFAULT '', UNIQUE(customer_id, kind))");
   $db->exec("CREATE TABLE IF NOT EXISTS fees(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, kind TEXT, amount REAL DEFAULT 0, demanded INTEGER DEFAULT 0, demanded_on TEXT DEFAULT '', paid INTEGER DEFAULT 0, paid_on TEXT DEFAULT '', ref TEXT DEFAULT '', note TEXT DEFAULT '', alert INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(customer_id, kind))");
   $db->exec("CREATE TABLE IF NOT EXISTS login_guard(k TEXT PRIMARY KEY, fails INTEGER DEFAULT 0, first INTEGER DEFAULT 0, until INTEGER DEFAULT 0)");
   $ucols = array_column($db->query('PRAGMA table_info(users)')->fetchAll(), 'name');
