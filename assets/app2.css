@@ -206,3 +206,18 @@ aside a.on .ft{box-shadow:none!important}
 .btn{background:#007aff;box-shadow:none}.btn:hover{background:#0066d6}
 .btn.sec{box-shadow:0 0 0 .5px rgba(0,0,0,.18)}
 .btn.ok{background:#1d1d1f;box-shadow:none}
+
+/* ===== dark side menu: white text & icons ===== */
+aside{background:#1c1c1e!important;border-right:0!important;color:#f5f5f7;scrollbar-color:rgba(255,255,255,.22) transparent}
+aside::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22);background-clip:content-box}
+aside h1,aside h1 .bt{color:#fff!important}aside h1 span span{color:#64a8ff!important}
+aside a{color:rgba(255,255,255,.88)!important}
+aside a .ft .i,aside a .i{background:rgba(255,255,255,.88)!important}
+aside a:hover{background:rgba(255,255,255,.08)!important}
+aside a.on{background:rgba(255,255,255,.16)!important;color:#fff!important;font-weight:600}
+aside a.on .ft .i,aside a.on .i{background:#fff!important}
+aside .sep{color:rgba(255,255,255,.45)!important}
+@media(min-width:821px) and (max-width:1440px){aside .sep{background:rgba(255,255,255,.14)!important}aside a.on{background:rgba(255,255,255,.18)!important}}
+aside .sgh .i-chev{background:rgba(255,255,255,.5)!important}
+aside a .nb{box-shadow:0 0 0 2px #1c1c1e}
+@media(max-width:820px){aside{background:#1c1c1e!important}}
