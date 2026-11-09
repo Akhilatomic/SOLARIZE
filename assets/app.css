@@ -658,3 +658,11 @@ html{-webkit-text-size-adjust:100%}body{padding:env(safe-area-inset-top) env(saf
 .pfgrid[hidden]{display:none!important}
 @media(max-width:600px){.pfch{flex-wrap:wrap}.pfch>small.mut{flex-basis:100%;order:9;margin-top:-6px}.plsum .btn{flex:1 1 auto;justify-content:center}}
 @media(max-width:600px){.dcgrid{grid-template-columns:1fr 1fr;gap:10px}.dcth{height:110px}.dcb{padding:8px 10px 10px}.dcb>b{font-size:13px}.dca{gap:2px 14px}.dca a,.dca button{font-size:0;padding:6px 0}.dca .i{width:19px;height:19px}.dcn{display:none}}
+
+/* lead edit: site condition & plant details tabs */
+.ltabs{margin:0 0 12px;display:flex;flex-wrap:wrap}.ltabs button{display:inline-flex;align-items:center;gap:6px}.ltabs .i{width:14px;height:14px}.ltabs .pill{font-size:10px;padding:0 6px}
+.ltp[hidden],.ltp-d[hidden]{display:none!important}
+.lsg{margin-bottom:12px}.lsgh{display:flex;align-items:center;gap:8px;justify-content:space-between;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--pri);border-bottom:1px solid var(--bd);padding:4px 0;margin-bottom:6px}
+.lshint{display:flex;gap:10px;align-items:center;background:#fff8e6;border:1px solid #f5dfa6;border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:12px;flex-wrap:wrap}.lshint>.i{background:#a05a00;flex:none}.lshint>div{flex:1;min-width:200px}.lshint .btn{margin-left:6px}
+.lpsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}.lpsum>div{background:#eef4ff;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:1px}
+.lpsum small{font-size:11px;font-weight:600;text-transform:uppercase;color:var(--mut)}.lpsum b{font-size:18px}.lpsum em{font-style:normal;font-size:12px;color:var(--mut)}

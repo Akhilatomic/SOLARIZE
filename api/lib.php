@@ -1,12 +1,12 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 19; // bump when tables/columns change
+const SCHEMA_VERSION = 20; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
 // entity => [module, columns]
 $E = [
-  'leads' => ['leads', ['name','phone','email','address','city','location','remark','appt','added_by','source','campaign_id','status','assigned_to','followup','kw','budget','customer_id','notes','meta_id','meta_form','meta_ad','meta_campaign','notify','claimed_at']],
+  'leads' => ['leads', ['name','phone','email','address','city','location','remark','appt','added_by','source','campaign_id','status','assigned_to','followup','kw','budget','customer_id','notes','meta_id','meta_form','meta_ad','meta_campaign','notify','claimed_at','site','plant']],
   'customers' => ['customers', ['name','phone','email','address','district','consumer_no','kseb_section','sanctioned_load','roof_type','gst_no','notes','added_by','alt_phone','pincode','phase','tariff','meter_no','bank_holder','bank_name','bank_branch','bank_account','bank_ifsc','lat','lng','landmark']],
   'projects' => ['projects', ['customer_id','title','kw','panel','inverter','stage','engineer','start','end','cost','application_no','subsidy_status','subsidy_amount','notes','loan','amc_start','amc_end','amc_interval']],
   'quotes' => ['quotes', ['customer_id','lead_id','number','date','items','gst_rate','subsidy','terms','status','total']],

@@ -402,19 +402,20 @@ async function leadModal(id) {
   if ((CACHE.camps || []).length) F.splice(4, 0, { k: 'campaign_id', l: 'Meta campaign', opts: opt(CACHE.camps.map(c => [c.id, c.name]), '— none —') });
   const w = canW('leads') && (!id || !!l.can_edit);
   const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}</span>` : '<span class="mut">Not claimed yet. Claim it to see the full number and start working on it.</span>'}<span class="sp"></span>${l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? '<button class="btn sm sec" id="mul"><i class="i i-lock"></i> Unclaim</button>' : ''}${isAdm() ? '<button class="btn sm sec" id="mas"><i class="i i-users"></i> Assign</button>' : ''}</div>` : '';
-  const m = modal(`<h2 style="margin-top:0">${id ? 'Lead' : 'New lead'}</h2>${lock}<div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(l.notes || '')}</textarea>
+  const m = modal(`<h2 style="margin-top:0">${id ? 'Lead' : 'New lead'}</h2>${lock}${leadTabs(l)}<div class="ltp ltp-d"><div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(l.notes || '')}</textarea></div>${leadSitePane(l)}${leadPlantPane(l)}
    <div class="bar" style="margin-top:14px">${w ? '<button class="btn" id="sv">Save</button>' : ''}<button class="btn sec" id="cx">Close</button>
    ${id && l.can_edit !== 0 ? '<button class="btn sec" id="lds"><i class="i i-chat"></i> Discussion</button>' : ''}${id && l.phone && w ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(l.phone) + '">Call</a>' : ''}
    ${id && w && !l.customer_id ? '<button class="btn sec" id="cv">Convert to customer</button>' : ''}${l.customer_id ? `<a class="btn sec" href="#/customers/${l.customer_id}" id="oc">Open customer</a>` : ''}
    ${id && canW('quotes') && w ? '<button class="btn sec" id="qt">Create quotation</button>' : ''}<span class="sp"></span>${id && w ? '<button class="btn bad" id="dl">Delete</button>' : ''}</div>
-   ${id ? `<p class="mut" style="font-size:12px">Added by ${esc(l.added_by || '—')} on ${dmy(l.created)}</p>` + noteBox('leads', id, l.notes_log) + `<div class="card" style="margin-top:10px"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div>` : ''}`);
+   ${id ? `<div class="ltp-d"><p class="mut" style="font-size:12px">Added by ${esc(l.added_by || '—')} on ${dmy(l.created)}</p>` + noteBox('leads', id, l.notes_log) + `<div class="card" style="margin-top:10px"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div></div>` : ''}`, 1);
   $('#cx', m).onclick = () => m.remove();
   if (id && !w) $$('[data-k]', m).forEach(e => e.disabled = true);
+  bindLeadTabs(m, l, w);
   const cl = $('.lockbar .claim', m); if (cl) cl.onclick = async () => { if (await claimLead(id, l.name)) { m.remove(); leadModal(id); if (location.hash.startsWith('#/leads')) route(); } };
   if ($('#mul', m)) $('#mul', m).onclick = async () => { if (await unlockLead(id, l.assigned_to == ME.id)) { m.remove(); route(); } };
   if ($('#mas', m)) $('#mas', m).onclick = async () => { if (await assignLead(id)) { m.remove(); route(); } };
   if ($('#oc', m)) $('#oc', m).onclick = () => m.remove();
-  if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m) }; if (!o.name) return alert('Name required'); await api('leads', 'save', o); m.remove(); route(); };
+  if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m), ...leadExtra(m) }; if (!o.name) return alert('Name required'); await api('leads', 'save', o); m.remove(); route(); };
   if ($('#wa', m)) $('#wa', m).onclick = () => waOpen({ name: l.name, phone: l.phone, lead_id: id });
   if ($('#lds', m)) $('#lds', m).onclick = () => { m.remove(); discOpen({ lead_id: id }); };
   if ($('#cv', m)) $('#cv', m).onclick = async () => { const r = await api('leads', 'convert', { id }); m.remove(); location.hash = '#/customers/' + r.customer_id; };

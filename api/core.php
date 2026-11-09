@@ -69,6 +69,7 @@ function handle_crud($t, $a) {
       if ($t === 'quotes') { $v = prep_quote($v, $in); }
       if ($t === 'projects') $v['stage'] = 'Customer';
       if ($t === 'leads' && $v['status'] === '') $v['status'] = 'New';
+      if ($t === 'leads') { $v['site'] = lead_json_clean($in['site'] ?? '', LEAD_SITE_KEYS); $v['plant'] = lead_json_clean($in['plant'] ?? '', LEAD_PLANT_KEYS); }
       if (!empty($in['id'])) {
         $id = (int)$in['id'];
         if ($t === 'projects') { $prot = ['stage', 'amc_start', 'amc_end', 'amc_interval']; if (!can('finance')) array_push($prot, 'cost', 'subsidy_amount'); foreach ($prot as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $prot)); }
@@ -157,6 +158,7 @@ function handle_crud($t, $a) {
       q('INSERT INTO customers(name,phone,email,address,district,notes,added_by) VALUES(?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '']);
       $cid = (int)db()->lastInsertId();
       q("UPDATE leads SET customer_id=?, status='Won', updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
+      lead_to_customer_plant($l, $cid); // site condition + proposed plant → customer's Plant details
       q('UPDATE quotes SET customer_id=? WHERE lead_id=? AND customer_id IS NULL', [$cid, $l['id']]);
       q('UPDATE discussions SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]); q('UPDATE notifs SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]);
       audit('convert', 'leads', $l['id'], "→ customer $cid"); out(['customer_id' => $cid]);

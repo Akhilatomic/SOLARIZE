@@ -9,6 +9,33 @@ const PLANT_KEYS = [
   'gst_invoice_no', 'application_no', 'application_date', 'commissioned_on', 'warranty_till',
 ];
 
+// lead survey (site condition) and proposed system (plant) — stored as JSON on the lead, copied to the customer on conversion
+const LEAD_SITE_KEYS = ['visit_date', 'surveyed_by', 'roof_type', 'roof_area', 'free_area', 'rooftop_age', 'building_height', 'floors', 'slab_thickness', 'slab_slope', 'orientation', 'shading', 'shade_objects',
+  'phase', 'sanctioned_load', 'monthly_bill', 'monthly_units', 'meter_location', 'cable_distance', 'earthing', 'access', 'water', 'structure_suggest', 'site_remarks'];
+const LEAD_PLANT_KEYS = ['system_type', 'capacity', 'panel_make', 'panel_type', 'panel_wattage', 'panel_count', 'inverter_make', 'inverter_type', 'inverter_capacity', 'inverter_count', 'structure_type', 'plant_remarks'];
+function lead_json_clean($raw, array $keys) {
+  $v = is_array($raw) ? $raw : (json_decode((string)$raw, true) ?: []);
+  $o = []; foreach ($keys as $k) { $x = trim((string)($v[$k] ?? '')); if ($x !== '') $o[$k] = mb_substr($x, 0, $k === 'site_remarks' || $k === 'plant_remarks' ? 1000 : 120); }
+  return $o ? json_encode($o, JSON_UNESCAPED_UNICODE) : '';
+}
+// on conversion: site condition + proposed plant become the customer's plant details & KSEB fields
+function lead_to_customer_plant($lead, $cid) {
+  $s = json_decode((string)($lead['site'] ?? ''), true) ?: []; $pl = json_decode((string)($lead['plant'] ?? ''), true) ?: [];
+  if (!$s && !$pl) return;
+  $map = ['RCC flat' => 'RCC flat', 'RCC sloped' => 'Other', 'Sheet / tin' => 'Sheet / tin', 'Tile' => 'Tile'];
+  $cu = [];
+  if (!empty($s['roof_type'])) $cu['roof_type'] = $map[$s['roof_type']] ?? 'Other';
+  if (!empty($s['sanctioned_load'])) $cu['sanctioned_load'] = (float)$s['sanctioned_load'];
+  if (!empty($s['phase'])) $cu['phase'] = $s['phase'];
+  foreach ($cu as $k => $v) q("UPDATE customers SET $k=? WHERE id=? AND (COALESCE($k,'')='' OR $k=0)", [$v, $cid]);
+  [$d] = plant_get($cid);
+  $from = ['system_type' => $pl['system_type'] ?? '', 'capacity' => $pl['capacity'] ?? '', 'panel_make' => $pl['panel_make'] ?? '', 'panel_type' => $pl['panel_type'] ?? '', 'panel_wattage' => $pl['panel_wattage'] ?? '', 'panel_count' => $pl['panel_count'] ?? '',
+    'inverter_make' => $pl['inverter_make'] ?? '', 'inverter_type' => $pl['inverter_type'] ?? '', 'inverter_capacity' => $pl['inverter_capacity'] ?? '', 'inverter_count' => $pl['inverter_count'] ?? '', 'structure_type' => $pl['structure_type'] ?? ($s['structure_suggest'] ?? ''),
+    'rooftop_type' => $s['roof_type'] ?? '', 'rooftop_age' => $s['rooftop_age'] ?? '', 'building_height' => $s['building_height'] ?? '', 'floors' => $s['floors'] ?? '', 'slab_thickness' => $s['slab_thickness'] ?? '', 'slab_slope' => $s['slab_slope'] ?? ''];
+  foreach ($from as $k => $v) if ($v !== '' && empty($d[$k])) $d[$k] = mb_substr((string)$v, 0, 120);
+  $d['panels'] = $d['panels'] ?? []; $d['inverters'] = $d['inverters'] ?? [];
+  q('INSERT INTO plant(customer_id,data,updated,updated_by) VALUES(?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(customer_id) DO UPDATE SET data=excluded.data, updated=excluded.updated, updated_by=excluded.updated_by', [$cid, json_encode($d, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']);
+}
 function plant_get($cid) { $r = row('SELECT data, updated, updated_by FROM plant WHERE customer_id=?', [$cid]); $d = $r ? (json_decode($r['data'], true) ?: []) : []; return [$d, $r]; }
 
 function handle_plant($a) {
