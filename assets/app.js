@@ -262,10 +262,11 @@ function apptBadgeOld(l) {
 }
 // ---- claiming: a claimed lead is locked to its owner; only the admin can unlock or reassign ----
 const isAdm = () => ME.role === 'admin';
+const ownerCellRow = l => ownerCell(l) + (l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ' <button class="ib unc" data-a="unlock" title="Unclaim — release this lead"><i class="i i-x"></i></button>' : '');
 const ownerCell = l => l.assigned_to ? `<span class="own${l.assigned_to == ME.id ? ' me' : ''}" title="Claimed${l.claimed_at ? ' ' + agoStr(l.claimed_at) : ''}"><i class="i i-lock"></i>${esc(l.assigned_to == ME.id ? 'You' : (l.owner_name || 'Claimed'))}</span>`
   : (ME.can_claim && canW('leads') ? '<button class="btn sm claim" data-a="claim"><i class="i i-userplus"></i> Claim</button>' : '<span class="mut">Unclaimed</span>');
 async function claimLead(id, name) { try { await api('leads', 'claim', { id }); toast('Claimed' + (name ? ': ' + name : '') + ' — locked to you'); return true; } catch (e) { return false; } }
-async function unlockLead(id) { if (!confirm('Unlock this lead? Anyone allowed to claim leads can then claim it.')) return false; await api('leads', 'unlock', { id }); toast('Lead unlocked'); return true; }
+async function unlockLead(id, mine) { if (!confirm(mine ? 'Unclaim this lead? It goes back to the unclaimed pool and anyone allowed can claim it.' : 'Unclaim (unlock) this lead? It goes back to the unclaimed pool.')) return false; await api('leads', 'unclaim', { id }); toast('Lead unclaimed — back in the pool'); return true; }
 async function assignLead(id) {
   const us = (await api('admin', 'users')).filter(u => u.active);
   return new Promise(res => {
@@ -314,7 +315,7 @@ async function pgLeads() {
       phone: l => ed(l, 'phone', `<span class="ph">${esc(l.phone)}</span>`),
       status: l => ed(l, 'status', pill(l.status, stageCls(l.status))),
       city: l => ed(l, 'city', `<span class="clip">${esc(loc(l))}</span>`, loc(l)),
-      owner: l => `<td class="ownc">${ownerCell(l)}</td>`,
+      owner: l => `<td class="ownc">${ownerCellRow(l)}</td>`,
       remark: l => ed(l, 'remark', l.remark ? `<span class="clamp">${esc(l.remark)}</span>` : (l.can_edit ? '<span class="mut"><i>Add remark</i></span>' : ''), l.remark),
       appt: l => ed(l, 'appt', apptBadge(l)) };
     const acts = l => !l.can_edit ? `<button class="ib" title="View" data-a="vw"><i class="i i-eye"></i></button>`
@@ -335,7 +336,7 @@ async function pgLeads() {
     if (a === 'more') return moreMenu(l, btn);
     closeMenu();
     if (a === 'claim') { if (await claimLead(l.id, l.name)) route(); return; }
-    if (a === 'unlock') { if (await unlockLead(l.id)) route(); return; }
+    if (a === 'unlock') { if (await unlockLead(l.id, l.assigned_to == ME.id)) route(); return; }
     if (a === 'assign') { if (await assignLead(l.id)) route(); return; }
     if (a === 'wa') waOpen({ name: l.name, phone: l.phone, lead_id: l.id });
     if (a === 'vw' || a === 'ed') leadModal(l.id);
@@ -348,7 +349,7 @@ async function pgLeads() {
   const moreMenu = (l, btn) => {
     closeMenu();
     const items = [['rm', 'note', 'Add remark'], ['ed', 'pencil', 'Edit lead'], l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
-      isAdm() && l.assigned_to ? ['unlock', 'lock', 'Unlock (admin)'] : null, isAdm() ? ['assign', 'users', 'Assign to user (admin)'] : null].filter(Boolean);
+      l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ['unlock', 'lock', l.assigned_to == ME.id ? 'Unclaim (release lead)' : 'Unclaim / unlock (admin)'] : null, isAdm() ? ['assign', 'users', 'Assign to user (admin)'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu';
     m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('');
     document.body.appendChild(m);
@@ -386,7 +387,7 @@ async function leadModal(id) {
     { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'appt', l: 'Appointment date', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, { k: 'budget', l: 'Budget (₹)', t: 'number' }, { k: 'remark', l: 'Remark', full: 1 }];
   if ((CACHE.camps || []).length) F.splice(4, 0, { k: 'campaign_id', l: 'Meta campaign', opts: opt(CACHE.camps.map(c => [c.id, c.name]), '— none —') });
   const w = canW('leads') && (!id || !!l.can_edit);
-  const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}</span>` : '<span class="mut">Not claimed yet. Claim it to see the full number and start working on it.</span>'}<span class="sp"></span>${isAdm() && l.assigned_to ? '<button class="btn sm sec" id="mul">Unlock</button>' : ''}${isAdm() ? '<button class="btn sm sec" id="mas"><i class="i i-users"></i> Assign</button>' : ''}</div>` : '';
+  const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}</span>` : '<span class="mut">Not claimed yet. Claim it to see the full number and start working on it.</span>'}<span class="sp"></span>${l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? '<button class="btn sm sec" id="mul"><i class="i i-lock"></i> Unclaim</button>' : ''}${isAdm() ? '<button class="btn sm sec" id="mas"><i class="i i-users"></i> Assign</button>' : ''}</div>` : '';
   const m = modal(`<h2 style="margin-top:0">${id ? 'Lead' : 'New lead'}</h2>${lock}<div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(l.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px">${w ? '<button class="btn" id="sv">Save</button>' : ''}<button class="btn sec" id="cx">Close</button>
    ${id && l.phone && w ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(l.phone) + '">Call</a>' : ''}
@@ -396,7 +397,7 @@ async function leadModal(id) {
   $('#cx', m).onclick = () => m.remove();
   if (id && !w) $$('[data-k]', m).forEach(e => e.disabled = true);
   const cl = $('.lockbar .claim', m); if (cl) cl.onclick = async () => { if (await claimLead(id, l.name)) { m.remove(); leadModal(id); if (location.hash.startsWith('#/leads')) route(); } };
-  if ($('#mul', m)) $('#mul', m).onclick = async () => { if (await unlockLead(id)) { m.remove(); route(); } };
+  if ($('#mul', m)) $('#mul', m).onclick = async () => { if (await unlockLead(id, l.assigned_to == ME.id)) { m.remove(); route(); } };
   if ($('#mas', m)) $('#mas', m).onclick = async () => { if (await assignLead(id)) { m.remove(); route(); } };
   if ($('#oc', m)) $('#oc', m).onclick = () => m.remove();
   if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m) }; if (!o.name) return alert('Name required'); await api('leads', 'save', o); m.remove(); route(); };

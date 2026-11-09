@@ -56,11 +56,14 @@ function lead_guard($a, $in) {
       $n = q("UPDATE leads SET assigned_to=?, claimed_at=?, updated=CURRENT_TIMESTAMP WHERE id=? AND (assigned_to IS NULL OR assigned_to=0)", [uid(), gmdate('Y-m-d H:i:s'), $id])->rowCount();
       if (!$n) { $l = row('SELECT assigned_to FROM leads WHERE id=?', [$id]); if (!$l) fail('Not found', 404); fail('Already claimed by ' . owner_name($l['assigned_to']), 409); }
       audit('claim', 'leads', $id, $_SESSION['name'] ?? ''); out(['ok' => true]);
-    case 'unlock':
-      if (!is_admin()) fail('Only the admin can unlock a lead', 403);
-      $id = (int)($in['id'] ?? 0); $prev = owner_name(row('SELECT assigned_to FROM leads WHERE id=?', [$id])['assigned_to'] ?? 0);
+    case 'unlock': case 'unclaim':
+      // the owner can release their own lead; the admin can release any lead
+      $l = lead_or_404($in['id'] ?? 0); $id = (int)$l['id'];
+      if (empty($l['assigned_to'])) out(['ok' => true]);
+      if (!is_admin() && (int)$l['assigned_to'] !== uid()) fail('Only the owner or the admin can unclaim this lead', 403);
+      $prev = owner_name($l['assigned_to']);
       q("UPDATE leads SET assigned_to=NULL, claimed_at='', updated=CURRENT_TIMESTAMP WHERE id=?", [$id]);
-      audit('unlock', 'leads', $id, 'was ' . $prev); out(['ok' => true]);
+      audit('unclaim', 'leads', $id, 'released by ' . ($_SESSION['name'] ?? '') . ' (was ' . $prev . ')'); out(['ok' => true]);
     case 'assign':
       if (!is_admin()) fail('Only the admin can assign a lead', 403);
       $id = (int)($in['id'] ?? 0); $u = row('SELECT id,name FROM users WHERE id=? AND active=1', [(int)($in['user_id'] ?? 0)]);

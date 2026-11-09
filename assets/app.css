@@ -301,3 +301,6 @@ table.stack td:first-child{grid-column:auto}
 #ltb.stack .clip,#ltb.stack .nm b,#ctb.stack .clip,#ltb.stack .clamp{white-space:normal;overflow:visible;text-overflow:clip;-webkit-line-clamp:unset;display:block}
 #ltb.stack .nm{flex-wrap:wrap}
 #ltb.stack td.lact::before,#ctb.stack td.cact::before{display:none}
+
+#ltb td.ownc{display:table-cell}#ltb td.ownc .own{vertical-align:middle;max-width:calc(100% - 26px);display:inline-flex}
+#ltb .ib.unc{padding:3px;vertical-align:middle;opacity:.55}#ltb .ib.unc:hover{opacity:1;color:var(--bad);background:#ffecea}#ltb .ib.unc .i{width:13px;height:13px}
