@@ -232,7 +232,7 @@ async function pgLeads() {
    <select id="lap">${[['', 'All Appointments'], ['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['none', 'Not Scheduled']].map(([v, l]) => `<option value="${v}" ${LF.appt === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
    <div style="position:relative"><button class="btn sec" id="lcol"><i class="i i-menu"></i> Columns</button><div id="lcm" class="card hide" style="position:absolute;z-index:9;top:42px;left:0;width:190px;padding:10px">${LCOLS.map(([k, l]) => `<label style="margin:4px 0;display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-col="${k}" ${LHIDE.includes(k) ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
    <span class="sp"></span><button class="btn sec" id="lex">Export CSV</button>${w ? '<button class="btn sec" id="lim">Import CSV</button>' : ''}</div>
-   ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px"><i class="i i-pencil"></i> ${LF.edit ? 'Click any cell to edit it inline.' : 'Turn Edit ON to edit cells inline.'} Click the column headers to sort.</p>` : ''}
+   ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px"><i class="i i-pencil"></i> ${LF.edit ? 'Click any cell to edit it inline.' : 'Click a Remark or Appt cell to edit it. Turn Edit ON to edit the other columns.'} Click the column headers to sort.</p>` : ''}
    <div class="card tw" style="padding:0"><table id="ltb"></table></div>`;
 
   const filtered = () => {
@@ -247,7 +247,8 @@ async function pgLeads() {
   const draw = () => {
     const rows = filtered(), show = LCOLS.filter(c => !LHIDE.includes(c[0]));
     $('#lcount').textContent = rows.length + ' records';
-    const ed = (l, f, html) => `<td data-f="${f}" ${LF.edit && w ? 'style="cursor:text" title="Click to edit"' : ''}>${html}</td>`;
+    const QE = ['remark', 'appt']; // always editable inline
+    const ed = (l, f, html) => `<td data-f="${f}" ${w && (LF.edit || QE.includes(f)) ? 'class="qe" title="Click to edit"' : ''}>${html}</td>`;
     const cell = { date: l => `<td class="mut" style="white-space:nowrap">${dmy(l.created)}</td>`, name: l => ed(l, 'name', `${l.notify ? '<span class="ndot" title="New lead — not contacted yet"></span>' : ''}<b>${esc(l.name)}</b>${l.source === 'Meta Ads' ? ' <span class="pill" style="font-size:11px">Meta</span>' : ''}`), phone: l => ed(l, 'phone', esc(l.phone)), status: l => ed(l, 'status', pill(l.status, stageCls(l.status))), city: l => ed(l, 'city', esc(l.city)), location: l => ed(l, 'location', esc(l.location || l.address)),
       added_by: l => `<td>${esc(l.added_by)}</td>`, remark: l => ed(l, 'remark', l.remark ? esc(l.remark) : '<span class="mut"><i>Add remark</i></span>'), appt: l => ed(l, 'appt', apptBadge(l)) };
     $('#ltb').innerHTML = `<thead><tr>${show.map(([k, l]) => `<th data-sort="${sk(k)}" style="cursor:pointer;white-space:nowrap">${l}${LF.sort === sk(k) ? (LF.dir > 0 ? ' ↑' : ' ↓') : ' ⇅'}</th>`).join('')}<th class="right">Action</th></tr></thead><tbody>${rows.map(l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}
@@ -256,7 +257,7 @@ async function pgLeads() {
     $$('#ltb th[data-sort]').forEach(h => h.onclick = () => { const k = h.dataset.sort; LF.dir = LF.sort === k ? -LF.dir : (k === 'created' ? -1 : 1); LF.sort = k; draw(); });
     $$('#ltb tbody tr[data-id]').forEach(tr => {
       const l = leads.find(x => x.id == tr.dataset.id);
-      if (LF.edit && w) $$('td[data-f]', tr).forEach(td => td.onclick = () => startEdit(td, l));
+      if (w) $$('td[data-f]', tr).forEach(td => { if (LF.edit || QE.includes(td.dataset.f)) td.onclick = () => startEdit(td, l); });
       $$('[data-a]', tr).forEach(b => b.onclick = async () => {
         const a = b.dataset.a;
         if (a === 'wa') waOpen({ name: l.name, phone: l.phone, lead_id: l.id });
