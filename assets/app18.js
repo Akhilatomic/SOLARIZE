@@ -37,15 +37,15 @@ async function renderWarranty(box, c, id) {
   const [g, cu] = await Promise.all([api('gen', 'get', undefined, `&kind=wcs&customer_id=${id}`), api('customers', 'get', undefined, `&id=${id}`)]);
   const w = canW('customers'), wf = canW('files'), co = g.company || {}, S = Object.assign({ steps: {}, note: '' }, (g.doc || {}).data || {});
   const F = (cu.files || []).filter(f => f.kind === 'warranty');
-  box.innerHTML = `<div class="wcg"><div class="card" id="wcs"></div><div class="card" id="wcu"></div></div><div class="card mfc" id="mfr"><p class="mut">Loading…</p></div>`;
+  box.innerHTML = `<div class="wyg"><div class="card" id="wcs"></div><div class="card" id="wcu"></div></div><div class="card mfc" id="mfr"><p class="mut">Loading…</p></div>`;
   const last = () => { const k = [...WC_STEPS].reverse().find(([k]) => S.steps[k]); return k ? k[1] : 'Not started'; };
   const save = async (msg) => { S.status = last(); try { await api('gen', 'save', { kind: 'wcs', customer_id: id, issued_on: today(), data: S }); if (msg) toast(msg); } catch (e) { } drawS(); };
   const drawS = () => { const done = WC_STEPS.filter(([k]) => S.steps[k]).length;
     $('#wcs', box).innerHTML = `<div class="pfch"><i class="i i-shield"></i><h3>Warranty card handover</h3><span class="sp"></span><span class="pill ${done === WC_STEPS.length ? 'g' : ''}">${esc(last())}</span></div>
-      <div class="wcp"><span style="width:${done / WC_STEPS.length * 100}%"></span></div>
-      <div class="wcl">${WC_STEPS.map(([k, l], i) => { const x = S.steps[k];
-        return `<div class="wcr ${x ? 'on' : ''}"><button class="wcb" data-wk="${k}" ${w ? '' : 'disabled'} title="${x ? 'Mark as not done' : 'Mark as done'}">${x ? '<i class="i i-check"></i>' : i + 1}</button>
-          <div class="wct"><b>${l}</b>${x ? `<small>${fdt(x.on)}${x.by ? ' · ' + esc(x.by) : ''}</small>` : '<small>Pending</small>'}</div>
+      <div class="wyp"><span style="width:${done / WC_STEPS.length * 100}%"></span></div>
+      <div class="wyl">${WC_STEPS.map(([k, l], i) => { const x = S.steps[k];
+        return `<div class="wyr ${x ? 'on' : ''}"><button class="wyb" data-wk="${k}" ${w ? '' : 'disabled'} title="${x ? 'Mark as not done' : 'Mark as done'}">${x ? '<i class="i i-check"></i>' : i + 1}</button>
+          <div class="wyt"><b>${l}</b>${x ? `<small>${fdt(x.on)}${x.by ? ' · ' + esc(x.by) : ''}</small>` : '<small>Pending</small>'}</div>
           ${x && w ? `<input type="date" data-wd="${k}" value="${esc(x.on)}" title="Change the date">` : ''}
           ${k === 'wa' && c.phone ? `<button class="btn sec sm" data-send="wa"><i class="i i-whatsapp"></i> Send</button>` : ''}${k === 'mail' ? `<button class="btn sec sm" data-send="mail"><i class="i i-mail"></i> Send</button>` : ''}${k === 'req' ? '<button class="btn sec sm" data-send="form">Form</button>' : ''}</div>`; }).join('')}</div>
       <label>Note</label><textarea id="wcn" rows="2" placeholder="e.g. courier details, who collected the card" ${w ? '' : 'disabled'}>${esc(S.note || '')}</textarea>
@@ -63,18 +63,18 @@ async function renderWarranty(box, c, id) {
   const drawU = () => {
     const G = [['Panel warranty card', 'Solar panels', ''], ['Inverter warranty card', 'Inverter', ''], ['Energy meter warranty card', 'Energy meter', '']];
     if (F.some(f => !G.some(x => x[0] === f.item))) G.push(['Warranty card', 'Other', '']);
-    const card = (f, i) => `<div class="wci"><button class="dcth" data-wv="${i}" title="View">${isImg(f) ? `<img loading="lazy" src="${fileUrl(f)}" alt="">` : `<span class="dcic"><i class="i i-file"></i><b>${esc((f.name.split('.').pop() || '').toUpperCase())}</b></span>`}</button>
-        <div class="wcm"><b title="${esc(f.name)}">${esc(f.name)}</b><small class="mut">Uploaded ${fdt(String(f.created).slice(0, 10))} · ${Math.round(f.size / 1024)} KB</small>
+    const card = (f, i) => `<div class="wyi"><button class="dcth" data-wv="${i}" title="View">${isImg(f) ? `<img loading="lazy" src="${fileUrl(f)}" alt="">` : `<span class="dcic"><i class="i i-file"></i><b>${esc((f.name.split('.').pop() || '').toUpperCase())}</b></span>`}</button>
+        <div class="wym"><b title="${esc(f.name)}">${esc(f.name)}</b><small class="mut">Uploaded ${fdt(String(f.created).slice(0, 10))} · ${Math.round(f.size / 1024)} KB</small>
         <div class="bar"><a class="btn sec sm" href="${fileUrl(f, 1)}"><i class="i i-download"></i> Download</a>${(ME && ME.role === 'admin') ? `<button class="ib" data-wx="${f.id}" title="Delete"><i class="i i-trash"></i></button>` : ''}</div></div></div>`;
     $('#wcu', box).innerHTML = `<div class="pfch"><i class="i i-file"></i><h3>Warranty cards</h3><span class="sp"></span><span class="pill g">Kept forever</span></div>
       <p class="mut" style="font-size:12.5px;margin:0 0 6px">Manufacturer warranty cards. They are never deleted automatically (other documents expire after 200 days); only an admin can delete them.</p>
       ${G.map(([item, label]) => { const L = F.map((f, i) => [f, i]).filter(([f]) => item === 'Warranty card' ? !G.slice(0, 3).some(x => x[0] === f.item) : f.item === item);
-        return `<div class="wcsec"><div class="wch"><b>${label}</b><span class="wcst ${L.length ? 'ok' : ''}">${L.length ? '<i class="i i-check"></i> Uploaded' : 'Not uploaded'}</span><span class="sp"></span>
-          ${wf && item !== 'Warranty card' ? `<label class="btn sec sm wcup" title="Upload the ${label.toLowerCase()} warranty card"><input type="file" accept="image/*,.pdf" hidden multiple data-item="${item}"><i class="i i-upload"></i> Upload</label>` : ''}</div>
-          ${L.length ? `<div class="wcf">${L.map(([f, i]) => card(f, i)).join('')}</div>` : ''}</div>`; }).join('')}`;
+        return `<div class="wysec"><div class="wyh"><b>${label}</b><span class="wyst ${L.length ? 'ok' : ''}">${L.length ? '<i class="i i-check"></i> Uploaded' : 'Not uploaded'}</span><span class="sp"></span>
+          ${wf && item !== 'Warranty card' ? `<label class="btn sec sm wyup" title="Upload the ${label.toLowerCase()} warranty card"><input type="file" accept="image/*,.pdf" hidden multiple data-item="${item}"><i class="i i-upload"></i> Upload</label>` : ''}</div>
+          ${L.length ? `<div class="wyf">${L.map(([f, i]) => card(f, i)).join('')}</div>` : ''}</div>`; }).join('')}`;
     $$('[data-wv]', box).forEach(b => b.onclick = () => docViewer(F, +b.dataset.wv));
     $$('[data-wx]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this warranty card? It goes to the Recycle bin for 72 hours.')) return; try { await api('files', 'delete', { id: +b.dataset.wx }); toast('Warranty card deleted'); renderWarranty(box, c, id); } catch (e) { } });
-    $$('.wcup input', box).forEach(inp => inp.onchange = async () => { const files = [...inp.files]; inp.value = ''; if (!files.length) return; const lab = inp.parentElement; lab.classList.add('busy'); let n = 0;
+    $$('.wyup input', box).forEach(inp => inp.onchange = async () => { const files = [...inp.files]; inp.value = ''; if (!files.length) return; const lab = inp.parentElement; lab.classList.add('busy'); let n = 0;
       for (const f0 of files) { const f = f0.size > 10 * 1024 * 1024 && /^image\//.test(f0.type) ? await shrinkImage(f0) : f0;
         if (f.size > 10 * 1024 * 1024) { toast(`${f0.name} is larger than 10 MB`, true); continue; }
         const fd = new FormData(); fd.append('file', f, f.name); fd.append('customer_id', id); fd.append('kind', 'warranty'); fd.append('item', inp.dataset.item);
@@ -119,7 +119,7 @@ async function renderMfr(box, c, id, fresh) {
   const fname = v => `${(P.panel_make || 'Renew').replace(/[^\w ]+/g, '').trim() || 'Renew'} Warranty Certificate - ${(v.cust_name || c.name || 'customer').replace(/[\\/:*?"<>|]+/g, '').trim()}.xls`;
   $('#mfx', box).onclick = async e => { const b = e.currentTarget; b.disabled = true;
     try { const X = await loadXlsx(), v = val(), ws = X.utils.aoa_to_sheet(rows(v));
-      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }]; ws['!cols'] = [{ wch: 25 }, { wch: 85.44 }];
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }]; ws['!cols'] = [{ wyh: 25 }, { wyh: 85.44 }];
       const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Sheet1'); X.writeFile(wb, fname(v), { bookType: 'biff8' }); toast('Excel form downloaded');
     } catch (x) { toast(x.message || 'Download failed'); } b.disabled = false; };
   const text = v => rows(v).map(r => r.length > 1 ? `${r[0].trim()} ${r[1]}` : r[0].trim()).join('\n');
