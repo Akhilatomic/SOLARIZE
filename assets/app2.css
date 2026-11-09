@@ -175,3 +175,34 @@ table.stack.ftb td:first-child{display:none}table.stack.ftb td:nth-child(2){grid
 .ctb2 .cact .ib:hover{background:rgba(0,122,255,.10)}.ctb2 .cact .ib:hover .i{background:#007aff}
 .ctb2 .cact .xdb.live .i{background:#fff}
 .ctb2 .cact .ib.off{opacity:.28;cursor:default}.ctb2 .cact .ib.off:hover{background:none}
+
+/* =====================================================================
+   Minimal: flat monochrome icons, one accent (Apple blue), neutral surfaces.
+   Colour is kept only where it carries meaning (status pills, paid / expired).
+   ===================================================================== */
+body{background:#f5f5f7}
+aside{background:rgba(246,246,248,.86)}
+/* icons: no coloured tiles — plain flat glyphs */
+.ft{background:none!important;box-shadow:none!important;width:22px;height:22px;border-radius:0}
+.ft .i{background:#3a3a3c!important}
+aside a .ft .i{background:#48484a!important}
+aside a.on{background:rgba(0,0,0,.075);color:#1d1d1f;box-shadow:none;font-weight:600}
+aside a.on .ft .i{background:#007aff!important}
+aside a.on .ft{box-shadow:none!important}
+.sgc a .ft{width:18px;height:18px}
+@media(min-width:821px) and (max-width:1440px){aside a .ft{width:28px;height:28px}aside a.on{background:rgba(0,122,255,.10)}}
+.top h2 .ft{width:22px;height:22px}.top h2 .ft .i{background:#1d1d1f!important}
+/* dashboard: quiet grey icon wells, dark glyphs */
+.sc .ic.ft,.qb .ft{background:#f2f2f7!important}
+.sc .ic.ft .i,.qb .ft .i{background:#1d1d1f!important}
+.qb .ft{border-radius:10px!important}
+.sc .ic.ft{border-radius:8px!important}
+/* page header icons (Finance) */
+.ft.ftl{background:#f2f2f7!important;border-radius:12px!important}.ft.ftl .i{background:#1d1d1f!important}
+/* numbers: neutral; only alerts keep a tint */
+.fst.o b,.fst.b b,.fst.g b{color:#1d1d1f}.fst.r b{color:#d70015}
+.xdav.warn{background:#1d1d1f}
+/* buttons: flat — no gloss */
+.btn{background:#007aff;box-shadow:none}.btn:hover{background:#0066d6}
+.btn.sec{box-shadow:0 0 0 .5px rgba(0,0,0,.18)}
+.btn.ok{background:#1d1d1f;box-shadow:none}
