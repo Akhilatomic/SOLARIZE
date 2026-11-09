@@ -40,7 +40,7 @@ async function renderWarranty(box, c, id) {
       ${!(P.panels || []).some(p => p.serial) ? '<p class="mut" style="font-size:12.5px">Tip: add the panel and inverter serial numbers in <b>Plant details</b> — they print on the card.</p>' : ''}
       <div class="bar" style="margin-top:12px">${w ? `<button class="btn" id="wsv">${g.doc ? 'Save changes' : 'Issue warranty card'}</button>` : ''}<button class="btn sec" id="wpr"><i class="i i-download"></i> Print / PDF</button></div>
       ${g.doc ? `<p class="mut" style="font-size:12px;margin:8px 0 0">Saved ${new Date(g.doc.updated.replace(' ', 'T') + 'Z').toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${g.doc.updated_by ? ' by ' + esc(g.doc.updated_by) : ''}</p>` : ''}</div>
-    <div class="gdp"><div class="doc" id="wdoc"></div></div></div>`;
+    <div class="gdp"><div class="doc" id="wdoc"></div></div></div><div class="card mfc" id="mfr"><p class="mut">Loading…</p></div>`;
   const val = () => { const o = {}; $$('[data-w]', box).forEach(e => o[e.dataset.w] = e.value); return o; };
   const html = () => { const v = val(), pn = (P.panels || []).filter(p => p.serial), iv = (P.inverters || []).filter(p => p.serial), y = k => (+v[k] || 0) + ' year' + (+v[k] === 1 ? '' : 's');
     const till = (k) => { if (!v.commissioned_on || !+v[k]) return ''; const d = new Date(v.commissioned_on + 'T00:00:00'); d.setFullYear(d.getFullYear() + +v[k]); return ' (till ' + d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ')'; };
@@ -62,11 +62,59 @@ async function renderWarranty(box, c, id) {
       ${iv.length ? `<div class="dbox"><h4>Inverter serial number${iv.length > 1 ? 's' : ''}</h4><div class="dser">${iv.map(p => esc(p.serial)).join('<br>')}</div></div>` : ''}
       <div class="dbox"><h4>Terms</h4><div class="dsmall">${esc(v.terms)}</div></div>
       <div class="dsig"><div>Customer</div><div>For ${esc(co.name || '')}<br>Authorised signatory</div></div>`; };
-  const upd = () => $('#wdoc', box).innerHTML = html(); upd();
+  const upd = () => $('#wdoc', box).innerHTML = html(); upd(); renderMfr($('#mfr', box), c, id);
   box.addEventListener('input', e => { if (e.target.matches('[data-w]')) upd(); });
   $('#wpr', box).onclick = () => printDoc(`Warranty card — ${c.name}`, `<div class="doc">${html()}</div>`);
   if ($('#wsv', box)) $('#wsv', box).onclick = async () => { const v = val(), b = $('#wsv', box); b.disabled = true; const issued_on = v.issued_on; delete v.issued_on;
     try { const r = await api('gen', 'save', { kind: 'warranty', customer_id: id, issued_on, data: v }); toast(`Warranty card ${r.number} saved`); renderWarranty(box, c, id); } catch (e) { b.disabled = false; } };
+}
+
+// ---------------- Panel manufacturer warranty form (e.g. ReNew) ----------------
+// Same rows as the distributor's Excel form; downloads as .xls in that layout.
+const MFR_ROWS = [['distributor', 'Distributer '], ['dealer', 'Dealer Name'], ['module', 'Module Type'], ['serials', 'Sl Nos'], ['sp_invoice', 'Southern Power Invoice No:'], ['cust_name', 'Final Customer Name'], ['cust_invoice', 'Final Customer Invoice No:'], ['invoice_date', 'Final Invoice Date'], ['address', 'Customer Address'], ['phone', 'Customer Phone No: '], ['pdf', 'PDF of Final customer Invoice']];
+const mfDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? d.split('-').reverse().join('-') : (d || '');
+let XLSX_P = null;
+const loadXlsx = () => XLSX_P = XLSX_P || new Promise((ok, no) => { if (window.XLSX) return ok(window.XLSX); const sc = document.createElement('script'); sc.src = 'assets/vendor/xlsx-0.18.5.min.js'; sc.onload = () => ok(window.XLSX); sc.onerror = () => { XLSX_P = null; no(new Error('Could not load the Excel library')); }; document.head.appendChild(sc); });
+async function renderMfr(box, c, id, fresh) {
+  let g; try { g = await api('gen', 'get', undefined, `&kind=mfr&customer_id=${id}`); } catch (e) { box.innerHTML = '<p class="mut">Could not load the manufacturer form.</p>'; return; }
+  const w = canW('customers'), P = g.plant || {}, co = g.company || {}, md = g.mfr_defaults || {}, t = g.tax, sn = (P.panels || []).map(p => (p.serial || '').trim()).filter(Boolean);
+  const def = { title: `Form for Warranty Certificate for ${P.panel_make || 'Renew'} `, distributor: md.distributor || 'Southern Power Source Pvt Ltd', email: md.email || '',
+    dealer: co.name || 'Jasper Solar Solutions', module: [P.panel_make, P.panel_wattage ? P.panel_wattage + 'W' : '', P.panel_type].filter(Boolean).join(' '),
+    serials: sn.join(', '), sp_invoice: '', cust_name: c.name || '', cust_invoice: t ? t.number : '', invoice_date: t ? t.issued_on : '',
+    address: [c.address, c.district, c.pincode].filter(Boolean).join(', '), phone: c.phone || '', pdf: t ? `Attached — ${t.number}.pdf` : 'Attached' };
+  const D = Object.assign({}, def, fresh ? { distributor: def.distributor, email: def.email, sp_invoice: ((g.doc || {}).data || {}).sp_invoice || '' } : ((g.doc || {}).data || {}));
+  const fld = (k, l) => { const v = esc(D[k] ?? ''), dis = w ? '' : 'disabled';
+    const inp = k === 'serials' || k === 'address' ? `<textarea data-m="${k}" rows="${k === 'serials' ? 3 : 2}" ${dis}>${v}</textarea>` : k === 'invoice_date' ? `<input type="date" data-m="${k}" value="${v}" ${dis}>` : `<input data-m="${k}" value="${v}" ${dis}${k === 'sp_invoice' ? ' placeholder="From the distributor\'s bill"' : ''}>`;
+    return `<div class="mfr"><div class="mfl">${esc(l.trim())}${k === 'serials' ? ` <span class="mfn" id="mfn"></span>` : ''}</div><div class="mfv">${inp}</div></div>`; };
+  box.innerHTML = `<div class="pfch"><i class="i i-shield"></i><h3>Manufacturer warranty form</h3><span class="sp"></span><span class="pill ${g.doc ? 'g' : ''}">${g.doc ? 'Saved' : 'Not saved'}</span></div>
+    <p class="mut mfh">Panel warranty certificates are issued by the manufacturer. Check the details, download the Excel form and email it with the customer's invoice PDF.</p>
+    <div class="mfg"><div class="mfr mft"><div class="mfl">Form title</div><div class="mfv"><input data-m="title" value="${esc(D.title)}" ${w ? '' : 'disabled'}></div></div>
+    ${MFR_ROWS.map(([k, l]) => fld(k, l)).join('')}
+    <div class="mfr mfe"><div class="mfl">Send to (email)</div><div class="mfv"><input type="email" data-m="email" value="${esc(D.email)}" placeholder="Distributor's email" ${w ? '' : 'disabled'}></div></div></div>
+    <div id="mfw"></div>
+    <div class="bar" style="margin-top:12px">${w ? '<button class="btn" id="mfs">Save</button>' : ''}<button class="btn sec" id="mfx"><i class="i i-download"></i> Download Excel</button><button class="btn sec" id="mfm"><i class="i i-mail"></i> Email</button><button class="btn sec" id="mfc">Copy details</button>${w ? '<span class="sp"></span><button class="btn sec" id="mfr0" title="Fill again from the profile, plant details and tax bill">Refresh from profile</button>' : ''}</div>
+    ${g.doc ? `<p class="mut" style="font-size:12px;margin:8px 0 0">Saved ${new Date(g.doc.updated.replace(' ', 'T') + 'Z').toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${g.doc.updated_by ? ' by ' + esc(g.doc.updated_by) : ''}</p>` : ''}`;
+  const val = () => { const o = {}; $$('[data-m]', box).forEach(e => o[e.dataset.m] = e.value.trim()); return o; };
+  const nums = v => (v.serials || '').split(/[\s,;]+/).filter(Boolean);
+  const check = () => { const v = val(), n = nums(v), miss = MFR_ROWS.filter(([k]) => !v[k]).map(([, l]) => l.replace(/[: ]+$/, ''));
+    $('#mfn', box).textContent = n.length ? `(${n.length}${P.panel_count && +P.panel_count !== n.length ? ' of ' + P.panel_count : ''})` : '';
+    $('#mfw', box).innerHTML = miss.length ? `<p class="mfw">Still empty: ${esc(miss.join(', '))}</p>` : ''; };
+  check(); box.oninput = check;
+  const rows = v => [[v.title || def.title], ...MFR_ROWS.map(([k, l]) => [l, k === 'invoice_date' ? mfDate(v[k]) : v[k] || ''])];
+  const fname = v => `${(P.panel_make || 'Renew').replace(/[^\w ]+/g, '').trim() || 'Renew'} Warranty Certificate - ${(v.cust_name || c.name || 'customer').replace(/[\\/:*?"<>|]+/g, '').trim()}.xls`;
+  $('#mfx', box).onclick = async e => { const b = e.currentTarget; b.disabled = true;
+    try { const X = await loadXlsx(), v = val(), ws = X.utils.aoa_to_sheet(rows(v));
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }]; ws['!cols'] = [{ wch: 25 }, { wch: 85.44 }];
+      const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Sheet1'); X.writeFile(wb, fname(v), { bookType: 'biff8' }); toast('Excel form downloaded');
+    } catch (x) { toast(x.message || 'Download failed'); } b.disabled = false; };
+  const text = v => rows(v).map(r => r.length > 1 ? `${r[0].trim()} ${r[1]}` : r[0].trim()).join('\n');
+  $('#mfc', box).onclick = () => copyText(text(val()), 'details');
+  $('#mfm', box).onclick = () => { const v = val(), body = `Dear Sir/Madam,\n\nPlease issue the panel warranty certificate for the customer below. The Excel form and the customer invoice PDF are attached.\n\n${text(v)}\n\nRegards,\n${co.name || ''}${co.phone ? '\n' + co.phone : ''}`;
+    location.href = `mailto:${encodeURIComponent(v.email || '')}?subject=${encodeURIComponent(`Warranty certificate request — ${v.cust_name} — ${v.module}`)}&body=${encodeURIComponent(body)}`;
+    toast('Attach the downloaded Excel form and the invoice PDF before sending'); };
+  if ($('#mfs', box)) $('#mfs', box).onclick = async e => { const b = e.currentTarget; b.disabled = true;
+    try { await api('gen', 'save', { kind: 'mfr', customer_id: id, issued_on: today(), data: val() }); toast('Manufacturer form saved'); renderMfr(box, c, id); } catch (x) { b.disabled = false; } };
+  if ($('#mfr0', box)) $('#mfr0', box).onclick = () => renderMfr(box, c, id, true);
 }
 
 // ---------------- Tax bill (GST invoice) ----------------

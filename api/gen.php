@@ -2,7 +2,7 @@
 // Customer documents generated in the CRM: Warranty card and Tax bill (GST invoice).
 // One of each per customer; numbers are issued once per financial year (Apr–Mar) and never reused.
 
-const GEN_KINDS = ['warranty' => 'WC', 'tax' => 'INV'];
+const GEN_KINDS = ['warranty' => 'WC', 'tax' => 'INV', 'mfr' => '']; // mfr = panel manufacturer warranty form (no number)
 
 function gen_fy($date) { $t = strtotime($date ?: 'now'); $y = (int)date('Y', $t); $s = (int)date('n', $t) >= 4 ? $y : $y - 1; return sprintf('%02d-%02d', $s % 100, ($s + 1) % 100); }
 function gen_next_no($kind, $date) {
@@ -32,7 +32,9 @@ function handle_gen($a) {
       out(['doc' => $r ? ['number' => $r['number'], 'issued_on' => $r['issued_on'], 'data' => json_decode($r['data'], true) ?: [], 'updated' => $r['updated'], 'updated_by' => $r['updated_by']] : null,
         'customer' => mask_customer($c), 'plant' => $plant, 'project' => $p ? ['id' => (int)$p['id'], 'title' => $p['title'], 'kw' => $p['kw'], 'stage' => $p['stage'], 'cost' => can('finance') ? (float)$p['cost'] : null] : null,
         'quote' => $q && can('finance') ? ['number' => $q['number'], 'items' => json_decode($q['items'], true) ?: [], 'gst_rate' => (float)$q['gst_rate']] : null,
-        'company' => settings()['company'] ?? []]);
+        'company' => settings()['company'] ?? [],
+        'mfr_defaults' => json_decode((string)(row("SELECT v FROM settings WHERE k='mfr_defaults'")['v'] ?? ''), true) ?: ['distributor' => 'Southern Power Source Pvt Ltd', 'email' => ''],
+        'tax' => (can('finance') || $kind === 'mfr') ? (row("SELECT number, issued_on FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid]) ?: null) : null]);
 
     case 'save':
       need('customers', true); if ($kind === 'tax') need('finance');
@@ -40,8 +42,10 @@ function handle_gen($a) {
       $issued = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['issued_on'] ?? '')) ? $in['issued_on'] : date('Y-m-d');
       $r = row('SELECT * FROM gen_docs WHERE customer_id=? AND kind=?', [$cid, $kind]);
       if ($r) { q('UPDATE gen_docs SET data=?, issued_on=?, updated=CURRENT_TIMESTAMP, updated_by=? WHERE id=?', [json_encode($data, JSON_UNESCAPED_UNICODE), $issued, $_SESSION['name'] ?? '', $r['id']]); $no = $r['number']; }
+      elseif ($kind === 'mfr') { $no = ''; q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, '', $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
       else { $no = gen_next_no($kind, $issued); q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, $no, $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
-      audit($kind === 'tax' ? 'tax_bill' : 'warranty_card', 'customers', $cid, $no . ($kind === 'tax' && isset($data['grand']) ? ' · ₹' . $data['grand'] : ''));
+      if ($kind === 'mfr') kv_set('mfr_defaults', ['distributor' => $data['distributor'] ?? '', 'email' => $data['email'] ?? '']);
+      audit($kind === 'tax' ? 'tax_bill' : ($kind === 'mfr' ? 'mfr_warranty' : 'warranty_card'), 'customers', $cid, $no . ($kind === 'tax' && isset($data['grand']) ? ' · ₹' . $data['grand'] : ''));
       out(['ok' => true, 'number' => $no]);
   }
   fail('Unknown action', 404);
