@@ -267,6 +267,7 @@ function handle_files($a) {
   }
   if ($a === 'delete') {
     $f = row('SELECT * FROM files WHERE id=?', [(int)(body()['id'] ?? 0)]); if (!$f) fail('Not found', 404);
+    if ($f['kind'] === 'warranty' && !is_admin()) fail('Only an admin can delete a warranty card', 403);
     trash_file_row($f); @unlink("$dir/" . basename($f['path'])); q('UPDATE stage_data SET file_id=NULL WHERE file_id=?', [$f['id']]); q('DELETE FROM files WHERE id=?', [$f['id']]); audit('delete', 'files', $f['id'], $f['name']); out(['ok' => true]);
   }
   fail('Unknown action', 404);

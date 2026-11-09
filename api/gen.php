@@ -2,7 +2,7 @@
 // Customer documents generated in the CRM: Warranty card and Tax bill (GST invoice).
 // One of each per customer; numbers are issued once per financial year (Apr–Mar) and never reused.
 
-const GEN_KINDS = ['warranty' => 'WC', 'tax' => 'INV', 'mfr' => '']; // mfr = panel manufacturer warranty form (no number)
+const GEN_KINDS = ['warranty' => 'WC', 'tax' => 'INV', 'mfr' => '', 'wcs' => '']; // mfr = panel manufacturer warranty form, wcs = warranty card handover status (no number)
 
 function gen_fy($date) { $t = strtotime($date ?: 'now'); $y = (int)date('Y', $t); $s = (int)date('n', $t) >= 4 ? $y : $y - 1; return sprintf('%02d-%02d', $s % 100, ($s + 1) % 100); }
 function gen_next_no($kind, $date) {
@@ -61,12 +61,12 @@ function handle_gen($a) {
       $issued = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['issued_on'] ?? '')) ? $in['issued_on'] : date('Y-m-d');
       $r = row('SELECT * FROM gen_docs WHERE customer_id=? AND kind=?', [$cid, $kind]);
       if ($r) { q('UPDATE gen_docs SET data=?, issued_on=?, updated=CURRENT_TIMESTAMP, updated_by=? WHERE id=?', [json_encode($data, JSON_UNESCAPED_UNICODE), $issued, $_SESSION['name'] ?? '', $r['id']]); $no = $r['number']; }
-      elseif ($kind === 'mfr') { $no = ''; q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, '', $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
+      elseif (GEN_KINDS[$kind] === '') { $no = ''; q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, '', $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
       else { $no = gen_next_no($kind, $issued); q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, $no, $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
       if ($kind === 'tax' && $no !== '') { [$pl] = plant_get($cid); if (($pl['gst_invoice_no'] ?? '') !== $no) { $pl['gst_invoice_no'] = $no; $pl['panels'] = $pl['panels'] ?? []; $pl['inverters'] = $pl['inverters'] ?? [];
         q('INSERT INTO plant(customer_id,data,updated,updated_by) VALUES(?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(customer_id) DO UPDATE SET data=excluded.data, updated=excluded.updated, updated_by=excluded.updated_by', [$cid, json_encode($pl, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); } }
       if ($kind === 'mfr') kv_set('mfr_defaults', ['distributor' => $data['distributor'] ?? '', 'email' => $data['email'] ?? '']);
-      audit($kind === 'tax' ? 'tax_bill' : ($kind === 'mfr' ? 'mfr_warranty' : 'warranty_card'), 'customers', $cid, $no . ($kind === 'tax' && isset($data['grand']) ? ' · ₹' . $data['grand'] : ''));
+      audit($kind === 'tax' ? 'tax_bill' : ($kind === 'mfr' ? 'mfr_warranty' : ($kind === 'wcs' ? 'warranty_status' : 'warranty_card')), 'customers', $cid, ($kind === 'wcs' ? (string)($data['status'] ?? '') : $no) . ($kind === 'tax' && isset($data['grand']) ? ' · ₹' . $data['grand'] : ''));
       out(['ok' => true, 'number' => $no]);
   }
   fail('Unknown action', 404);

@@ -29,46 +29,54 @@ const DOC_CSS = `.tbg{display:grid;grid-template-columns:repeat(auto-fill,minmax
 
 // ---------------- Warranty card ----------------
 const W_DEF = { panel_product: 12, panel_perf: 25, inverter: 5, workmanship: 5, structure: 10 };
+// Warranty card tab: handover status (manufacturer → office → customer), the uploaded card (kept forever), manufacturer form
+const WC_STEPS = [['req', 'Warranty card request submitted', 'Request sent to the manufacturer / distributor'], ['recv', 'Warranty card received', 'Card received from the manufacturer'],
+  ['hand', 'Warranty card submitted to customer', 'Handed over to the customer'], ['wa', 'Sent to customer via WhatsApp', 'Card sent on WhatsApp'], ['mail', 'Sent to customer via email', 'Card sent by email']];
 async function renderWarranty(box, c, id) {
   box.innerHTML = '<p class="mut">Loading…</p>';
-  const g = await api('gen', 'get', undefined, `&kind=warranty&customer_id=${id}`), w = canW('customers'), P = g.plant || {}, co = g.company;
-  const D = Object.assign({ ...W_DEF, commissioned_on: P.commissioned_on || '', terms: `1. Solar panel product and performance warranties are given by the panel manufacturer under their terms.\n2. Inverter warranty is given by the inverter manufacturer under their terms.\n3. Installation (workmanship) warranty covers defects in the installation done by ${co.name || 'us'}.\n4. Not covered: damage from natural calamities, lightning, fire, theft, misuse, or changes made by others.\n5. For service, call ${co.phone || 'our office'}${co.email ? ' or email ' + co.email : ''}.` }, (g.doc || {}).data || {});
-  const issued = (g.doc || {}).issued_on || today();
-  const F = [['issued_on', 'Issue date', 'date'], ['commissioned_on', 'Commissioning date', 'date'], ['panel_product', 'Panel product warranty (years)', 'n'], ['panel_perf', 'Panel performance warranty (years)', 'n'], ['inverter', 'Inverter warranty (years)', 'n'], ['workmanship', 'Installation warranty (years)', 'n'], ['structure', 'Structure warranty (years)', 'n']];
-  box.innerHTML = `<div class="gdl"><div class="card gdf"><div class="pfch"><i class="i i-shield"></i><h3>Warranty card</h3><span class="sp"></span><span class="pill ${g.doc ? 'g' : ''}">${g.doc ? esc(g.doc.number) : 'Not issued yet'}</span></div>
-      <div class="two">${F.map(([k, l, t]) => `<div><label>${l}</label><input data-w="${k}" ${t === 'date' ? 'type="date"' : 'inputmode="numeric"'} value="${esc(k === 'issued_on' ? issued : D[k] ?? '')}" ${w ? '' : 'disabled'}></div>`).join('')}</div>
-      <label>Terms</label><textarea data-w="terms" rows="6" ${w ? '' : 'disabled'}>${esc(D.terms)}</textarea>
-      ${!(P.panels || []).some(p => p.serial) ? '<p class="mut" style="font-size:12.5px">Tip: add the panel and inverter serial numbers in <b>Plant details</b> — they print on the card.</p>' : ''}
-      <div class="bar" style="margin-top:12px">${w ? `<button class="btn" id="wsv">${g.doc ? 'Save changes' : 'Issue warranty card'}</button>` : ''}<button class="btn sec" id="wpr"><i class="i i-download"></i> Print / PDF</button></div>
-      ${g.doc ? `<p class="mut" style="font-size:12px;margin:8px 0 0">Saved ${new Date(g.doc.updated.replace(' ', 'T') + 'Z').toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${g.doc.updated_by ? ' by ' + esc(g.doc.updated_by) : ''}</p>` : ''}</div>
-    <div class="gdp"><div class="doc" id="wdoc"></div></div></div><div class="card mfc" id="mfr"><p class="mut">Loading…</p></div>`;
-  const val = () => { const o = {}; $$('[data-w]', box).forEach(e => o[e.dataset.w] = e.value); return o; };
-  const html = () => { const v = val(), pn = (P.panels || []).filter(p => p.serial), iv = (P.inverters || []).filter(p => p.serial), y = k => (+v[k] || 0) + ' year' + (+v[k] === 1 ? '' : 's');
-    const till = (k) => { if (!v.commissioned_on || !+v[k]) return ''; const d = new Date(v.commissioned_on + 'T00:00:00'); d.setFullYear(d.getFullYear() + +v[k]); return ' (till ' + d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ')'; };
-    return `${coBlock(co)}<h1>WARRANTY CARD</h1>
-      <div class="dmeta"><div><span>Card no.</span><b>${esc(g.doc ? g.doc.number : '(issued on save)')}</b></div><div><span>Issue date</span>${fdt(v.issued_on)}</div>
-       <div><span>Customer</span><b>${esc(c.name)}</b></div><div><span>Phone</span>${esc(c.phone || '—')}</div>
-       <div><span>Consumer no.</span>${esc(c.consumer_no || '—')}</div><div><span>Commissioned on</span>${fdt(v.commissioned_on)}</div>
-       <div><span>Tax invoice no.</span>${esc(g.tax ? g.tax.number : '—')}</div><div><span>Invoice date</span>${g.tax ? fdt(g.tax.issued_on) : '—'}</div>
-       <div style="grid-column:1/-1"><span>Installation address</span>${esc([c.address, c.district, c.pincode].filter(Boolean).join(', ') || '—')}</div></div>
-      <div class="dbox"><h4>System</h4>${esc([P.capacity ? P.capacity + ' kWp' : (g.project && g.project.kw ? g.project.kw + ' kWp' : ''), P.system_type || 'On-grid'].filter(Boolean).join(' · '))}<br>
-       Panels: ${esc([P.panel_count ? P.panel_count + ' ×' : '', P.panel_make, P.panel_type, P.panel_wattage ? P.panel_wattage + ' W' : ''].filter(Boolean).join(' ') || '—')}<br>
-       Inverter: ${esc([P.inverter_count ? P.inverter_count + ' ×' : '', P.inverter_make, P.inverter_type, P.inverter_capacity ? P.inverter_capacity + ' kW' : ''].filter(Boolean).join(' ') || '—')}</div>
-      <table class="dt"><thead><tr><th>Warranty</th><th>Period</th><th>Given by</th></tr></thead><tbody>
-       <tr><td>Solar panels — product</td><td>${y('panel_product')}${till('panel_product')}</td><td>${esc(P.panel_make || 'Panel manufacturer')}</td></tr>
-       <tr><td>Solar panels — performance</td><td>${y('panel_perf')}${till('panel_perf')}</td><td>${esc(P.panel_make || 'Panel manufacturer')}</td></tr>
-       <tr><td>Inverter</td><td>${y('inverter')}${till('inverter')}</td><td>${esc(P.inverter_make || 'Inverter manufacturer')}</td></tr>
-       <tr><td>Mounting structure</td><td>${y('structure')}${till('structure')}</td><td>${esc(co.name || '')}</td></tr>
-       <tr><td>Installation (workmanship)</td><td>${y('workmanship')}${till('workmanship')}</td><td>${esc(co.name || '')}</td></tr></tbody></table>
-      ${pn.length ? `<div class="dbox"><h4>Panel serial numbers (${pn.length})</h4><div class="dser">${pn.map((p, i) => `${i + 1}. ${esc(p.serial)}`).join('<br>')}</div></div>` : ''}
-      ${iv.length ? `<div class="dbox"><h4>Inverter serial number${iv.length > 1 ? 's' : ''}</h4><div class="dser">${iv.map(p => esc(p.serial)).join('<br>')}</div></div>` : ''}
-      <div class="dbox"><h4>Terms</h4><div class="dsmall">${esc(v.terms)}</div></div>
-      <div class="dsig"><div>Customer</div><div>For ${esc(co.name || '')}<br>Authorised signatory</div></div>`; };
-  const upd = () => $('#wdoc', box).innerHTML = html(); upd(); renderMfr($('#mfr', box), c, id);
-  box.addEventListener('input', e => { if (e.target.matches('[data-w]')) upd(); });
-  $('#wpr', box).onclick = () => printDoc(`Warranty card — ${c.name}`, `<div class="doc">${html()}</div>`);
-  if ($('#wsv', box)) $('#wsv', box).onclick = async () => { const v = val(), b = $('#wsv', box); b.disabled = true; const issued_on = v.issued_on; delete v.issued_on;
-    try { const r = await api('gen', 'save', { kind: 'warranty', customer_id: id, issued_on, data: v }); toast(`Warranty card ${r.number} saved`); renderWarranty(box, c, id); } catch (e) { b.disabled = false; } };
+  const [g, cu] = await Promise.all([api('gen', 'get', undefined, `&kind=wcs&customer_id=${id}`), api('customers', 'get', undefined, `&id=${id}`)]);
+  const w = canW('customers'), wf = canW('files'), co = g.company || {}, S = Object.assign({ steps: {}, note: '' }, (g.doc || {}).data || {});
+  const F = (cu.files || []).filter(f => f.kind === 'warranty');
+  box.innerHTML = `<div class="wcg"><div class="card" id="wcs"></div><div class="card" id="wcu"></div></div><div class="card mfc" id="mfr"><p class="mut">Loading…</p></div>`;
+  const last = () => { const k = [...WC_STEPS].reverse().find(([k]) => S.steps[k]); return k ? k[1] : 'Not started'; };
+  const save = async (msg) => { S.status = last(); try { await api('gen', 'save', { kind: 'wcs', customer_id: id, issued_on: today(), data: S }); if (msg) toast(msg); } catch (e) { } drawS(); };
+  const drawS = () => { const done = WC_STEPS.filter(([k]) => S.steps[k]).length;
+    $('#wcs', box).innerHTML = `<div class="pfch"><i class="i i-shield"></i><h3>Warranty card handover</h3><span class="sp"></span><span class="pill ${done === WC_STEPS.length ? 'g' : ''}">${esc(last())}</span></div>
+      <div class="wcp"><span style="width:${done / WC_STEPS.length * 100}%"></span></div>
+      <div class="wcl">${WC_STEPS.map(([k, l], i) => { const x = S.steps[k];
+        return `<div class="wcr ${x ? 'on' : ''}"><button class="wcb" data-wk="${k}" ${w ? '' : 'disabled'} title="${x ? 'Mark as not done' : 'Mark as done'}">${x ? '<i class="i i-check"></i>' : i + 1}</button>
+          <div class="wct"><b>${l}</b>${x ? `<small>${fdt(x.on)}${x.by ? ' · ' + esc(x.by) : ''}</small>` : '<small>Pending</small>'}</div>
+          ${x && w ? `<input type="date" data-wd="${k}" value="${esc(x.on)}" title="Change the date">` : ''}
+          ${k === 'wa' && c.phone ? `<button class="btn sec sm" data-send="wa"><i class="i i-whatsapp"></i> Send</button>` : ''}${k === 'mail' ? `<button class="btn sec sm" data-send="mail"><i class="i i-mail"></i> Send</button>` : ''}${k === 'req' ? '<button class="btn sec sm" data-send="form">Form</button>' : ''}</div>`; }).join('')}</div>
+      <label>Note</label><textarea id="wcn" rows="2" placeholder="e.g. courier details, who collected the card" ${w ? '' : 'disabled'}>${esc(S.note || '')}</textarea>
+      ${w ? '<div class="bar" style="margin-top:8px"><button class="btn sec sm" id="wcns">Save note</button></div>' : ''}`;
+    $$('[data-wk]', box).forEach(b => b.onclick = () => { const k = b.dataset.wk; if (S.steps[k]) { if (!confirm('Mark this step as not done?')) return; delete S.steps[k]; } else S.steps[k] = { on: today(), by: (ME || {}).name || '' }; save(S.steps[k] ? 'Status updated' : 'Step cleared'); });
+    $$('[data-wd]', box).forEach(e => e.onchange = () => { if (!e.value) return; S.steps[e.dataset.wd].on = e.value; save('Date updated'); });
+    if ($('#wcns', box)) $('#wcns', box).onclick = () => { S.note = $('#wcn', box).value.trim(); save('Note saved'); };
+    $$('[data-send]', box).forEach(b => b.onclick = () => { const k = b.dataset.send;
+      if (k === 'form') return $('#mfr', box).scrollIntoView({ behavior: 'smooth' });
+      const msg = `Dear ${c.name},\n\nPlease find attached the warranty card for your solar power plant installed by ${co.name || 'us'}. Kindly keep it safe for future warranty claims.${co.phone ? '\n\nFor service, call ' + co.phone + '.' : ''}\n\nRegards,\n${co.name || ''}`;
+      if (k === 'wa') { const ph = String(c.phone).replace(/\D/g, '').replace(/^0+/, ''); window.open(`https://wa.me/${ph.length === 10 ? '91' + ph : ph}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener'); }
+      else location.href = `mailto:${encodeURIComponent(c.email || '')}?subject=${encodeURIComponent('Warranty card — ' + (co.name || 'solar power plant'))}&body=${encodeURIComponent(msg)}`;
+      toast('Attach the warranty card file, send it, then tick the step');
+      if (F.length && k === 'wa') window.open(fileUrl(F[0], 1), '_blank', 'noopener'); }); };
+  const drawU = () => {
+    $('#wcu', box).innerHTML = `<div class="pfch"><i class="i i-file"></i><h3>Warranty card file</h3><span class="sp"></span><span class="pill g">Kept forever</span></div>
+      <p class="mut" style="font-size:12.5px;margin:0 0 10px">The manufacturer's warranty card. It is never deleted automatically (other documents expire after 200 days); only an admin can delete it.</p>
+      <div class="wcf">${F.map((f, i) => `<div class="wci"><button class="dcth" data-wv="${i}" title="View">${isImg(f) ? `<img loading="lazy" src="${fileUrl(f)}" alt="">` : `<span class="dcic"><i class="i i-file"></i><b>${esc((f.name.split('.').pop() || '').toUpperCase())}</b></span>`}</button>
+        <div class="wcm"><b title="${esc(f.name)}">${esc(f.name)}</b><small class="mut">Uploaded ${fdt(String(f.created).slice(0, 10))} · ${Math.round(f.size / 1024)} KB</small>
+        <div class="bar"><a class="btn sec sm" href="${fileUrl(f, 1)}"><i class="i i-download"></i> Download</a>${(ME && ME.role === 'admin') ? `<button class="ib" data-wx="${f.id}" title="Delete"><i class="i i-trash"></i></button>` : ''}</div></div></div>`).join('') || '<p class="mut" style="margin:4px 0 10px">No warranty card uploaded yet.</p>'}</div>
+      ${wf ? `<label class="btn wcup"><input type="file" accept="image/*,.pdf" hidden multiple><i class="i i-upload"></i> Upload warranty card</label>` : ''}`;
+    $$('[data-wv]', box).forEach(b => b.onclick = () => docViewer(F, +b.dataset.wv));
+    $$('[data-wx]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this warranty card? It goes to the Recycle bin for 72 hours.')) return; try { await api('files', 'delete', { id: +b.dataset.wx }); toast('Warranty card deleted'); renderWarranty(box, c, id); } catch (e) { } });
+    const inp = $('.wcup input', box); if (inp) inp.onchange = async () => { const files = [...inp.files]; inp.value = ''; if (!files.length) return; const lab = inp.parentElement; lab.classList.add('busy'); let n = 0;
+      for (const f0 of files) { const f = f0.size > 10 * 1024 * 1024 && /^image\//.test(f0.type) ? await shrinkImage(f0) : f0;
+        if (f.size > 10 * 1024 * 1024) { toast(`${f0.name} is larger than 10 MB`, true); continue; }
+        const fd = new FormData(); fd.append('file', f, f.name); fd.append('customer_id', id); fd.append('kind', 'warranty'); fd.append('item', 'Warranty card');
+        try { await api('files', 'upload', fd); n++; } catch (e) { } }
+      lab.classList.remove('busy');
+      if (n) { toast('Warranty card uploaded'); if (!S.steps.recv && w) { S.steps.recv = { on: today(), by: (ME || {}).name || '' }; await save(); } renderWarranty(box, c, id); } }; };
+  drawS(); drawU(); renderMfr($('#mfr', box), c, id);
 }
 
 // ---------------- Panel manufacturer warranty form (e.g. ReNew) ----------------

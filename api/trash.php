@@ -2,6 +2,7 @@
 // Recycle bin: every delete first snapshots the item (and everything deleted with it) here and moves its files to data/trash.
 // Restore re-inserts the rows with their original ids and moves files back. Items are purged for good after 72 hours.
 // Uploaded documents (files table) live 200 days, then go to the bin (and are purged 72 h later).
+// Exception: warranty cards (files.kind = 'warranty') are kept forever.
 
 const TRASH_HOURS = 72;
 const DOC_LIFE_DAYS = 200;
@@ -99,7 +100,7 @@ function housekeeping($force = false) {
   if (!$force && time() - $last < 3600) return;
   kv_set('hk_last', (string)time());
   $n = 0;
-  foreach (rows("SELECT * FROM files WHERE created < datetime('now', ?) LIMIT 200", ['-' . DOC_LIFE_DAYS . ' days']) as $f) {
+  foreach (rows("SELECT * FROM files WHERE COALESCE(kind,'') <> 'warranty' AND created < datetime('now', ?) LIMIT 200", ['-' . DOC_LIFE_DAYS . ' days']) as $f) {
     trash_file_row($f, 'older than ' . DOC_LIFE_DAYS . ' days');
     q('UPDATE stage_data SET file_id=NULL WHERE file_id=?', [$f['id']]); q('DELETE FROM files WHERE id=?', [$f['id']]); $n++;
   }

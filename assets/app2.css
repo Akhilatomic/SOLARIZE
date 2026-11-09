@@ -310,3 +310,18 @@ input[type=range]{box-shadow:none;padding:0;accent-color:#007aff}
 @media(max-width:600px){.tba{grid-template-columns:1fr 1fr}.tba .btn{grid-column:1/-1}.tbd{grid-template-columns:minmax(0,1fr)}.tbk b{font-size:13.5px}}
 
 .gdp .tbg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px 12px;margin-top:2px}
+
+/* warranty card handover */
+.wcg{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;align-items:start}
+.wcp{height:4px;border-radius:2px;background:#e5e5ea;margin:0 0 12px;overflow:hidden}.wcp span{display:block;height:100%;background:#34c759;transition:width .2s}
+.wcl{display:flex;flex-direction:column}.wcr{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid rgba(0,0,0,.06)}
+.wcb{width:28px;height:28px;flex:none;border-radius:50%;border:1.5px solid #c7c7cc;background:#fff;color:#86868b;font-size:12px;font-weight:600;display:grid;place-items:center;cursor:pointer;padding:0}
+.wcb:hover:not(:disabled){border-color:#007aff;color:#007aff}.wcr.on .wcb{background:#34c759;border-color:#34c759;color:#fff}.wcb .i{width:14px;height:14px;background:#fff}
+.wct{flex:1;min-width:0}.wct b{display:block;font-size:13.5px;font-weight:500}.wct small{color:#86868b;font-size:12px}.wcr:not(.on) .wct b{color:#3a3a3c}
+.wcr input[type=date]{width:140px;margin:0;padding:4px 6px;font-size:12.5px;flex:none}
+.wcf{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}.wci{display:grid;grid-template-columns:84px minmax(0,1fr);gap:10px;align-items:center;border:.5px solid rgba(0,0,0,.1);border-radius:10px;padding:6px}
+.wci .dcth{height:64px;width:84px;border-radius:7px}.wcm{min-width:0}.wcm b{display:block;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wcm .bar{margin-top:4px}
+.wcup{cursor:pointer}.wcup.busy{opacity:.6;pointer-events:none}
+@media(max-width:1180px){.wcg{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){.wcr{flex-wrap:wrap}.wcr input[type=date]{margin-left:38px}}
+@media(max-width:600px){.wct{flex:1 1 calc(100% - 40px)}.wct b{white-space:normal}.wcr input[type=date]{margin-left:38px}.wcr .btn{margin-left:auto}.wcr input[type=date]+.btn{margin-left:6px}}
