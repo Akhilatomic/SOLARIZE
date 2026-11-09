@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 18; // bump when tables/columns change
+const SCHEMA_VERSION = 19; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -23,8 +23,8 @@ const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manage
 const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
   'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','settings','recycle'], ['attendance','leaves','calendar','leads','customers','projects','checklist','files','folder','whatsapp','recycle']],
-  'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings','finance'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects']],
-  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings','finance'], ['projects','checklist','files','customers','folder','calendar']],
+  'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects']],
+  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings'], ['projects','checklist','files','customers','folder','calendar']],
   'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings','finance'], ['quotes','payments','ads','calendar']],
 ];
 function roles() {
@@ -107,6 +107,14 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS disc_reads(user_id INTEGER, discussion_id INTEGER, last_id INTEGER, PRIMARY KEY(user_id, discussion_id))");
   $db->exec("CREATE TABLE IF NOT EXISTS notifs(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, kind TEXT, discussion_id INTEGER, customer_id INTEGER, lead_id INTEGER, from_id INTEGER, text TEXT, seen INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE INDEX IF NOT EXISTS notif_user ON notifs(user_id, seen)");
+  // Nov 2026: money & bank details (Finance) only for admin, accounts and roles the admin grants — remove it from Sales and Engineer once
+  if (!(int)($db->query("SELECT COUNT(*) FROM settings WHERE k='fin_v19'")->fetchColumn())) {
+    $rp = $db->query("SELECT v FROM settings WHERE k='role_perms'")->fetchColumn();
+    if ($rp) { $p = json_decode($rp, true) ?: [];
+      foreach (['sales', 'engineer'] as $role) if (isset($p[$role]) && is_array($p[$role])) foreach (['read', 'write'] as $k) $p[$role][$k] = array_values(array_diff((array)($p[$role][$k] ?? []), ['finance']));
+      $st = $db->prepare("UPDATE settings SET v=? WHERE k='role_perms'"); $st->execute([json_encode($p)]); }
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('fin_v19','1')");
+  }
   $db->exec("CREATE TABLE IF NOT EXISTS login_guard(k TEXT PRIMARY KEY, fails INTEGER DEFAULT 0, first INTEGER DEFAULT 0, until INTEGER DEFAULT 0)");
   $ucols = array_column($db->query('PRAGMA table_info(users)')->fetchAll(), 'name');
   if (!in_array('sess_ver', $ucols)) { try { $db->exec('ALTER TABLE users ADD COLUMN sess_ver INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
