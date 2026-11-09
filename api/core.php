@@ -61,7 +61,7 @@ function handle_crud($t, $a) {
       if ($t === 'leads' && $v['status'] === '') $v['status'] = 'New';
       if (!empty($in['id'])) {
         $id = (int)$in['id'];
-        if ($t === 'leads') { unset($v['added_by']); $cols = array_values(array_diff($cols, ['added_by'])); }
+        if ($t === 'leads') { $keep = ['added_by','meta_id','meta_form','meta_ad','meta_campaign','notify']; foreach ($keep as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $keep)); }
         $set = implode(',', array_map(fn($c) => "$c=:$c", $cols));
         $v['id'] = $id;
         q("UPDATE $t SET $set, updated=CURRENT_TIMESTAMP WHERE id=:id", $v);

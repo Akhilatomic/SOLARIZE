@@ -32,7 +32,7 @@ async function boot() {
   const s = await api('auth', 'status');
   if (!s.auth) return loginView(s.setup, s.brand || {});
   ME = s.user; S = await api('settings', 'get');
-  shell(); route();
+  shell(); mountBell(); startMeta(); route();
 }
 function loginView(setup, brand) {
   const bg = brand.bg ? `url('${brand.bg}') center/cover no-repeat` : '';
@@ -163,6 +163,7 @@ async function pgDashboard() {
    <text x="110" y="100" text-anchor="middle" font-size="26" font-weight="700" fill="#1d1d1f">${d.lead_year}</text><text x="110" y="118" text-anchor="middle" font-size="11" fill="#6e6e73">leads this year</text></svg>`;
   $('#main').innerHTML = `<div style="margin-bottom:16px"><h2 style="margin:0;font-size:26px">Hello, ${esc(first)}!</h2><div class="mut">Here's how Jasper Solar is doing today.</div></div>
   <div class="dash"><div>
+   <div id="newleads" style="margin-bottom:14px"></div>
    <div class="grid stats4">${card('<i class="i i-target"></i>', 'Leads', d.leads_total, d.leads_today, vs(d.leads_vs), '#30a14e', '#/leads')}${card('<i class="i i-users"></i>', 'Customers', d.cust_total, d.cust_today, vs(d.cust_vs), '#0071e3', '#/customers')}${card('<i class="i i-project"></i>', 'Active Projects', d.proj_active, d.proj_today, vs(d.proj_vs), '#af52de', '#/projects')}${card('<i class="i i-alert"></i>', 'Overdue Follow-ups', d.overdue, d.due_today, d.due_today + ' due today', '#ff375f', '#/leads')}</div>
    <div class="grid stats" style="margin-top:14px">${[['Pipeline value', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="card stat" style="padding:12px 14px"><b style="font-size:19px">${v}</b><span>${l}</span></div>`).join('')}</div>
    <div class="card" style="margin-top:14px"><div class="bar" style="margin:0 0 8px"><h3 style="margin:0">Quick Actions</h3></div><div class="qa">${QA.map(q => `<button class="qb" data-qa="${q[3]}" data-go="${q[1]}"><span>${q[0]}</span>${q[1]}</button>`).join('')}</div></div>
@@ -199,7 +200,7 @@ async function pgDashboard() {
     $('#cp').onclick = () => { cm.setMonth(cm.getMonth() - 1); drawCal(); }; $('#cn').onclick = () => { cm.setMonth(cm.getMonth() + 1); drawCal(); };
     $$('.cd').forEach(b => b.onclick = () => { sel = b.dataset.d; drawCal(); });
   };
-  drawCal();
+  drawCal(); renderNewLeads();
 }
 function bars(data, order) {
   const m = Object.fromEntries(data), max = Math.max(1, ...data.map(d => d[1]));
@@ -247,7 +248,7 @@ async function pgLeads() {
     const rows = filtered(), show = LCOLS.filter(c => !LHIDE.includes(c[0]));
     $('#lcount').textContent = rows.length + ' records';
     const ed = (l, f, html) => `<td data-f="${f}" ${LF.edit && w ? 'style="cursor:text" title="Click to edit"' : ''}>${html}</td>`;
-    const cell = { date: l => `<td class="mut" style="white-space:nowrap">${dmy(l.created)}</td>`, name: l => ed(l, 'name', `<b>${esc(l.name)}</b>`), phone: l => ed(l, 'phone', esc(l.phone)), status: l => ed(l, 'status', pill(l.status, stageCls(l.status))), city: l => ed(l, 'city', esc(l.city)), location: l => ed(l, 'location', esc(l.location || l.address)),
+    const cell = { date: l => `<td class="mut" style="white-space:nowrap">${dmy(l.created)}</td>`, name: l => ed(l, 'name', `${l.notify ? '<span class="ndot" title="New lead — not contacted yet"></span>' : ''}<b>${esc(l.name)}</b>${l.source === 'Meta Ads' ? ' <span class="pill" style="font-size:11px">Meta</span>' : ''}`), phone: l => ed(l, 'phone', esc(l.phone)), status: l => ed(l, 'status', pill(l.status, stageCls(l.status))), city: l => ed(l, 'city', esc(l.city)), location: l => ed(l, 'location', esc(l.location || l.address)),
       added_by: l => `<td>${esc(l.added_by)}</td>`, remark: l => ed(l, 'remark', l.remark ? esc(l.remark) : '<span class="mut"><i>Add remark</i></span>'), appt: l => ed(l, 'appt', apptBadge(l)) };
     $('#ltb').innerHTML = `<thead><tr>${show.map(([k, l]) => `<th data-sort="${sk(k)}" style="cursor:pointer;white-space:nowrap">${l}${LF.sort === sk(k) ? (LF.dir > 0 ? ' ↑' : ' ↓') : ' ⇅'}</th>`).join('')}<th class="right">Action</th></tr></thead><tbody>${rows.map(l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}
       <td class="right" style="min-width:150px;max-width:190px">${l.phone ? `<button class="btn sm ok" title="WhatsApp" data-a="wa"><i class="i i-chat"></i></button> <a class="btn sm sec" title="Call" href="tel:${esc(l.phone)}"><i class="i i-phone"></i></a> ` : ''}${w ? '<button class="btn sm sec" title="Add remark" data-a="rm"><i class="i i-note"></i></button> ' : ''}<button class="btn sm sec" title="View" data-a="vw"><i class="i i-eye"></i></button>${w ? ' <button class="btn sm sec" title="Edit" data-a="ed"><i class="i i-pencil"></i></button>' : ''}

@@ -141,3 +141,16 @@ aside h1.brand{display:flex;align-items:center;gap:8px;margin:0 2px 16px}aside h
 .lg-card .err{text-align:left;padding-left:4px;margin-top:-4px}
 .lg-foot{margin:20px 0 0;font-size:12px;color:#8e8e93}
 @media(max-width:480px){.lg-card{padding:28px 20px 20px;border-radius:22px}}
+
+.i-bell{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'1.8'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M6%208a6%206%200%200%201%2012%200c0%207%203%209%203%209H3s3-2%203-9'%2F%3E%3Cpath%20d%3D'M10.3%2021a1.94%201.94%200%200%200%203.4%200'%2F%3E%3C%2Fsvg%3E")}
+/* meta lead notifications */
+#bell{position:relative;padding:6px 10px}#bell .bd{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;border-radius:9px;background:#8e8e93;color:#fff;font-size:11px;font-weight:600;display:grid;place-items:center;padding:0 5px}
+#bell.has .bd{background:var(--bad)}#bell.has .i{animation:ring 2.4s ease-in-out infinite;transform-origin:top center}
+@keyframes ring{0%,88%,100%{transform:rotate(0)}91%{transform:rotate(14deg)}94%{transform:rotate(-12deg)}97%{transform:rotate(8deg)}}
+#bellp{position:absolute;right:0;top:44px;width:380px;max-width:92vw;max-height:70vh;overflow:auto;z-index:50;box-shadow:0 18px 50px rgba(0,0,0,.2);padding:14px}
+.nl{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bd)}.nl:last-child{border-bottom:0}
+.nla{display:flex;gap:6px;flex-shrink:0}.nlc.hot{border-color:rgba(229,52,43,.35);box-shadow:0 0 0 3px rgba(229,52,43,.07),var(--shadow)}
+.ndot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--bad);margin-right:6px;vertical-align:1px}
+#toasts{position:fixed;right:16px;bottom:16px;z-index:60;display:flex;flex-direction:column;gap:8px}
+.toast{display:flex;gap:10px;align-items:center;background:#1d1d1f;color:#fff;padding:12px 16px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.28);font-size:14px;animation:lgin .3s ease;max-width:340px}.toast.bad{background:#b3261e}.toast .i{flex-shrink:0}
+@media(max-width:520px){.nl{flex-direction:column;align-items:stretch}.nla{justify-content:flex-start}}

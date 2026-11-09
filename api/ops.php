@@ -75,6 +75,7 @@ function handle_whatsapp($a) {
   need('whatsapp', $a === 'log');
   $in = body();
   if ($a === 'log') {
+    if (!empty($in['lead_id'])) q("UPDATE leads SET notify=0, status=CASE WHEN status='New' THEN 'Contacted' ELSE status END WHERE id=?", [(int)$in['lead_id']]);
     q('INSERT INTO messages(customer_id,lead_id,phone,text,user) VALUES(?,?,?,?,?)', [(int)($in['customer_id'] ?? 0) ?: null, (int)($in['lead_id'] ?? 0) ?: null, (string)($in['phone'] ?? ''), (string)($in['text'] ?? ''), $_SESSION['name']]);
     out(['ok' => true]);
   }

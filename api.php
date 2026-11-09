@@ -8,13 +8,15 @@ header('X-Content-Type-Options: nosniff');
 require __DIR__ . '/api/lib.php';
 require __DIR__ . '/api/core.php';
 require __DIR__ . '/api/ops.php';
+require __DIR__ . '/api/meta.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';
   if ($m === 'auth') handle_auth($a);
+  if ($m === 'meta' && $a === 'cron') handle_meta_cron();
   if (empty($_SESSION['uid'])) fail('Unauthorized', 401);
   // CSRF-light: state-changing calls must be POST
-  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
+  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
   if (isset($E[$m])) handle_crud($m, $a);
   switch ($m) {
     case 'dashboard': handle_dashboard();
@@ -25,6 +27,7 @@ try {
     case 'whatsapp': handle_whatsapp($a);
     case 'settings': handle_settings($a);
     case 'admin': handle_admin($a);
+    case 'meta': handle_meta($a);
   }
   fail('Unknown module', 404);
 } catch (Throwable $e) {
