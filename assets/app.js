@@ -54,6 +54,7 @@ function shell() {
    </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2><span class="mut" style="font-size:13px">${esc(ME.name)} · ${ME.role}</span>
    <button class="btn sec sm" id="pwb">Password</button><button class="btn sec sm" id="lo">Sign out</button></div><main id="main"></main></div></div>`;
   $('#bg').onclick = () => $('#side').classList.toggle('open');
+  new MutationObserver(fitSoon).observe($('#main'), { childList: true, subtree: true });
   $('#lo').onclick = async () => { await api('auth', 'logout', {}); location.hash = ''; location.reload(); };
   $('#pwb').onclick = async () => { const o = prompt('Current password'); if (!o) return; const n = prompt('New password (min 8 characters)'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
 }
@@ -69,6 +70,34 @@ async function route() {
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
   try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
+}
+
+// ---------- fit-to-window: no horizontal scrolling anywhere ----------
+// Tables keep their columns while they fit; when a table can't fit (or its container is narrower than data-min),
+// it switches to stacked rows (each row becomes a compact block of labelled fields). Scroll boxes (.fitbox) fill the window height.
+function autoFit() {
+  const main = $('#main'); if (!main) return;
+  $$('table', main).forEach(t => {
+    const box = t.parentElement; if (!box || !box.clientWidth) return;
+    const hs = [...t.querySelectorAll(':scope > thead th')].map(th => th.textContent.replace(/[⇅↑↓]/g, '').trim());
+    if (hs.length) t.querySelectorAll(':scope > tbody > tr').forEach(tr => [...tr.children].forEach((td, i) => { if (td.dataset.label === undefined && !td.hasAttribute('colspan')) td.dataset.label = hs[i] || ''; }));
+    const min = +t.dataset.min || 0;
+    t.classList.remove('stack');
+    if ((min && box.clientWidth < min) || t.scrollWidth > box.clientWidth + 1) t.classList.add('stack');
+  });
+  $$('.fitbox', main).forEach(b => { const top = b.getBoundingClientRect().top; b.style.maxHeight = Math.max(280, innerHeight - top - 18) + 'px'; });
+}
+let _fitRaf = 0; const fitSoon = () => { cancelAnimationFrame(_fitRaf); _fitRaf = requestAnimationFrame(autoFit); };
+addEventListener('resize', fitSoon);
+function popMenu(btn, items, pick) {
+  const old = $('#pmenu'); if (old) old.remove();
+  const m = document.createElement('div'); m.id = 'pmenu'; m.className = 'card menu';
+  m.innerHTML = items.filter(Boolean).map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('');
+  document.body.appendChild(m);
+  const r = btn.getBoundingClientRect(), mh = m.offsetHeight;
+  m.style.left = Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, r.right - m.offsetWidth)) + 'px'; m.style.top = (r.bottom + mh + 8 > innerHeight ? Math.max(8, r.top - mh - 6) : r.bottom + 6) + 'px';
+  $$('[data-m]', m).forEach(b => b.onclick = () => { m.remove(); pick(b.dataset.m); });
+  setTimeout(() => document.addEventListener('click', function h(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', h); } }), 0);
 }
 
 // ---------- UI helpers ----------
@@ -261,7 +290,7 @@ async function pgLeads() {
    <div style="position:relative"><button class="btn sec" id="lcol"><i class="i i-menu"></i> Columns</button><div id="lcm" class="card hide" style="position:absolute;z-index:9;top:42px;left:0;width:190px;padding:10px">${LCOLS.map(([k, l]) => `<label style="margin:4px 0;display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-col="${k}" ${LHIDE.includes(k) ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
    <span class="sp"></span><button class="btn sec" id="lex" title="Export CSV"><i class="i i-download"></i> Export</button>${w ? '<button class="btn sec" id="lim" title="Import CSV"><i class="i i-upload"></i> Import</button>' : ''}</div>
    ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px"><i class="i i-pencil"></i> ${LF.edit ? 'Click any cell to edit it inline.' : 'Click a Remark or Appt cell to edit it. Turn Edit ON to edit the other columns.'} Click the column headers to sort.</p>` : ''}
-   <div class="card tw" style="padding:0"><table id="ltb"></table></div>`;
+   <div class="card tw fitbox" style="padding:0"><table id="ltb" data-min="1000"></table></div>`;
 
   const filtered = () => {
     const t = LF.q.toLowerCase(), td = today();
@@ -390,28 +419,32 @@ async function pgCustomers() {
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
    <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity']].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
    <span class="sp"></span><button class="btn sec" id="cex">Export CSV</button>${w ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
-   <div class="card tw" style="padding:0"><table id="ctb"></table></div>`;
+   <div class="card tw fitbox" style="padding:0"><table id="ctb" data-min="960"></table></div>`;
   const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}"><i class="i i-${i}"></i></button>`;
   const draw = () => {
     const t = CUF.q.toLowerCase();
     const rows = cs.filter(c => (!CUF.st || c.status === CUF.st) && (!t || [c.name, c.phone, c.consumer_no, c.district, c.address, c.email].join(' ').toLowerCase().includes(t)))
       .sort((a, b) => CUF.sort === 'name' ? a.name.localeCompare(b.name) : CUF.sort === 'kw' ? (b.kw || 0) - (a.kw || 0) : CUF.sort === 'oldest' ? (a.created > b.created ? 1 : -1) : (a.created < b.created ? 1 : -1));
     $('#ccount').textContent = rows.length + ' records';
-    $('#ctb').innerHTML = `<thead><tr><th><i class="i i-user"></i> Name</th><th><i class="i i-project"></i> Status</th><th># Consumer no.</th><th><i class="i i-target"></i> District</th><th><i class="i i-phone"></i> Phone</th><th>Capacity</th><th>Added by</th><th><i class="i i-calendar"></i> Date</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(c => `<tr class="row" data-id="${c.id}">
-      <td><b>${esc(c.name)}</b></td><td><span class="pill ${STC[c.status] || ''}">${esc(c.status)}</span></td><td class="mono">${esc(c.consumer_no) || '<span class="mut">—</span>'}</td><td>${esc(c.district) || '<span class="mut">—</span>'}</td>
-      <td>${c.phone ? `<a href="tel:${esc(c.phone)}" class="tel"><i class="i i-phone"></i> ${esc(c.phone)}</a>` : '<span class="mut">—</span>'}</td><td>${c.kw ? c.kw + ' kWp' : '<span class="mut">—</span>'}</td><td>${esc(c.added_by) || '<span class="mut">—</span>'}</td><td class="mut">${dt(c.created)}</td>
-      <td class="cact">${w ? ic('ed', 'pencil', 'Edit customer') : ''}${c.phone ? ic('wa', 'chat', 'WhatsApp') : ''}${ic('pj', 'project', c.project_id ? 'Open project' : 'New project')}${canW('quotes') ? ic('qt', 'receipt', 'New quotation') : ''}${ic('pay', 'card', 'Payments')}${ic('kseb', 'folder', 'KSEB documents')}${ic('sub', 'coin', 'Subsidy')}${ic('op', 'eye', 'Open customer — history & files')}</td></tr>`).join('') || '<tr><td colspan="9" class="mut">No customers match</td></tr>'}</tbody>`;
+    $('#ctb').innerHTML = `<colgroup><col><col style="width:122px"><col style="width:140px"><col style="width:150px"><col style="width:136px"><col style="width:86px"><col style="width:120px"><col style="width:96px"><col style="width:132px"></colgroup><thead><tr><th><i class="i i-user"></i> Name</th><th><i class="i i-project"></i> Status</th><th># Consumer no.</th><th><i class="i i-target"></i> District</th><th><i class="i i-phone"></i> Phone</th><th>Capacity</th><th>Added by</th><th><i class="i i-calendar"></i> Date</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(c => `<tr class="row" data-id="${c.id}">
+      <td title="${esc(c.name)}"><b class="clip">${esc(c.name)}</b></td><td><span class="pill ${STC[c.status] || ''}">${esc(c.status)}</span></td><td class="mono">${esc(c.consumer_no) || '<span class="mut">—</span>'}</td><td title="${esc(c.district)}"><span class="clip">${esc(c.district) || '<span class="mut">—</span>'}</span></td>
+      <td>${c.phone ? `<a href="tel:${esc(c.phone)}" class="tel"><i class="i i-phone"></i> ${esc(c.phone)}</a>` : '<span class="mut">—</span>'}</td><td>${c.kw ? c.kw + ' kWp' : '<span class="mut">—</span>'}</td><td title="${esc(c.added_by)}"><span class="clip">${esc(c.added_by) || '<span class="mut">—</span>'}</span></td><td class="mut">${dt(c.created)}</td>
+      <td class="cact">${c.phone ? ic('wa', 'chat', 'WhatsApp') : ''}${ic('pj', 'project', c.project_id ? 'Open project' : 'New project')}${ic('op', 'eye', 'Open customer — history & files')}${ic('more', 'dots', 'More actions')}</td></tr>`).join('') || '<tr><td colspan="9" class="mut">No customers match</td></tr>'}</tbody>`;
     $$('#ctb tr.row').forEach(tr => {
       const c = cs.find(x => x.id == tr.dataset.id);
       tr.onclick = e => { if (!e.target.closest('a,button')) location.hash = '#/customers/' + c.id; };
-      $$('[data-a]', tr).forEach(b => b.onclick = () => {
-        const a = b.dataset.a, proj = tab => { if (!c.project_id) { toast('No project yet — create one first', true); return; } TAB.proj = tab; location.hash = '#/projects/' + c.project_id; };
+      const run = a => {
+        const proj = tab => { if (!c.project_id) { toast('No project yet — create one first', true); return; } TAB.proj = tab; location.hash = '#/projects/' + c.project_id; };
         if (a === 'ed') customerModal(c.id, c);
         if (a === 'wa') waOpen({ name: c.name, phone: c.phone, customer_id: c.id });
         if (a === 'pj') { if (c.project_id) { TAB.proj = 'overview'; location.hash = '#/projects/' + c.project_id; } else if (canW('projects')) projectModal(0, { customer_id: c.id, kw: '' }); else toast('No project yet', true); }
         if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ customer_id: c.id, name: c.name }); location.hash = '#/quotes/new'; }
         if (a === 'pay') proj('overview'); if (a === 'kseb') proj('kseb'); if (a === 'sub') proj('subsidy');
         if (a === 'op') location.hash = '#/customers/' + c.id;
+      };
+      $$('[data-a]', tr).forEach(b => b.onclick = e => { e.stopPropagation(); const a = b.dataset.a;
+        if (a !== 'more') return run(a);
+        popMenu(b, [w ? ['ed', 'pencil', 'Edit customer'] : null, canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ['pay', 'card', 'Payments'], ['kseb', 'folder', 'KSEB documents'], ['sub', 'coin', 'Subsidy']], run);
       });
     });
   };
