@@ -2,9 +2,9 @@
 const LS_OPTS = {
   roof_type: ['RCC flat', 'RCC sloped', 'Sheet / tin', 'Tile', 'Ground'], orientation: ['South facing', 'East–West', 'East facing', 'West facing', 'North facing', 'Flat (no tilt)'],
   shading: ['No shade', 'Partial — morning', 'Partial — evening', 'Partial — midday', 'Heavy shade'], phase: ['Single phase', 'Three phase'], earthing: ['Available', 'Needs new earthing', 'Not checked'],
-  access: ['Staircase', 'Ladder only', 'Difficult access'], water: ['Water point on roof', 'Water nearby', 'No water'], structure_suggest: ['GI elevated', 'Flush mount', 'Shed / sheet mount', 'Ground mount'],
+  access: ['Staircase', 'Ladder only', 'Difficult access'], water: ['Water point on roof', 'Water nearby', 'No water'], structure_suggest: ['Hot Dip Galvanized', 'GI elevated', 'Flush mount', 'Shed / sheet mount', 'Ground mount'],
   system_type: ['On-grid', 'Off-grid', 'Hybrid'], panel_type: ['Mono PERC', 'TOPCon', 'Bifacial', 'HJT', 'Polycrystalline'], inverter_type: ['Single phase', 'Three phase', 'Hybrid', 'Micro inverter', 'Optimizer (SolarEdge)'],
-  structure_type: ['GI elevated', 'Aluminium', 'Shed / sheet mount', 'Ground mount'],
+  structure_type: ['Hot Dip Galvanized', 'GI elevated', 'Aluminium', 'Shed / sheet mount', 'Ground mount'],
 };
 const LS_SITE = [
   ['Survey', [['visit_date', 'Site visit date', 'date'], ['surveyed_by', 'Surveyed by']]],
