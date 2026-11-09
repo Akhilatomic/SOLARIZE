@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 7; // bump when tables/columns change
+const SCHEMA_VERSION = 8; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -18,9 +18,9 @@ $E = [
 // role => [read modules, write modules]; '*' = everything
 const ROLES = [
   'admin' => ['*', '*'],
-  'sales' => [['folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings'], ['leads','customers','quotes','whatsapp','files','folder']],
-  'engineer' => [['folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings'], ['projects','checklist','files','customers','folder']],
-  'accounts' => [['folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings'], ['quotes','payments','ads']],
+  'sales' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings'], ['leads','customers','quotes','whatsapp','files','folder','calendar']],
+  'engineer' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings'], ['projects','checklist','files','customers','folder','calendar']],
+  'accounts' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings'], ['quotes','payments','ads','calendar']],
 ];
 
 function out($d, $code = 200) { http_response_code($code); echo json_encode($d, JSON_UNESCAPED_UNICODE); exit; }
@@ -80,6 +80,8 @@ function migrate($db) {
     try { $db->exec('ALTER TABLE users ADD COLUMN can_claim INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; }
     $db->exec("UPDATE users SET can_claim=1 WHERE role IN ('sales','admin')"); // keep existing sales staff working
   }
+  $db->exec("CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, type TEXT, start TEXT, end TEXT DEFAULT '', all_day INTEGER DEFAULT 0, lead_id INTEGER, customer_id INTEGER, project_id INTEGER, user_id INTEGER, location TEXT DEFAULT '', notes TEXT DEFAULT '', status TEXT DEFAULT 'Scheduled', remind INTEGER DEFAULT 10, created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE INDEX IF NOT EXISTS ev_start ON events(start)');
   migrateV1($db);
 }
 

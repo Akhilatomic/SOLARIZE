@@ -2,13 +2,13 @@
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inr = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const dt = s => (s || '').slice(0, 10);
 const app = $('#app');
 let ME = null, S = {}, CACHE = {}, TAB = {};
 const SUB_STATUS = ['Not applied', 'Applied', 'Under review', 'Approved', 'Released'];
 const MODS = [ // id, label, icon, perm
-  ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
+  ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['calendar', 'Calendar', '<i class="i i-calendar"></i>', 'calendar'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
   ['projects', 'Project pipeline', '<i class="i i-project"></i>', 'projects'], ['folder', 'Folder', '<i class="i i-file"></i>', 'folder'], ['quotes', 'Quotations', '<i class="i i-receipt"></i>', 'quotes'],
   ['subsidy', 'Subsidy (PM Surya Ghar)', '<i class="i i-coin"></i>', 'checklist'], ['kseb', 'KSEB documentation', '<i class="i i-folder"></i>', 'checklist'],
   ['whatsapp', 'WhatsApp', '<i class="i i-chat"></i>', 'whatsapp'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
@@ -32,7 +32,7 @@ async function boot() {
   const s = await api('auth', 'status');
   if (!s.auth) return loginView(s.setup, s.brand || {});
   ME = s.user; S = await api('settings', 'get');
-  shell(); mountBell(); startMeta(); route();
+  shell(); mountBell(); startMeta(); startCal(); route();
 }
 function loginView(setup, brand) {
   const bg = brand.bg ? `url('${brand.bg}') center/cover no-repeat` : '';
@@ -66,7 +66,7 @@ async function route() {
   const t = MODS.find(m => m[0] === mod);
   $('#title').textContent = t ? t[1] : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
-  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgProjects, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, subsidy: () => pgOverview('subsidy'), kseb: () => pgOverview('kseb'), whatsapp: pgWhatsapp, ads: pgAds, settings: pgSettings, admin: pgAdmin };
+  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgProjects, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, calendar: pgCalendar, subsidy: () => pgOverview('subsidy'), kseb: () => pgOverview('kseb'), whatsapp: pgWhatsapp, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
   try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
@@ -227,7 +227,7 @@ async function pgDashboard() {
     d.appts.forEach(a => (by[a.d] = by[a.d] || []).push(a));
     const cells = []; for (let i = 0; i < start; i++) cells.push(''); for (let i = 1; i <= dim; i++) cells.push(`${y}-${String(mo + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`);
     const ev = by[sel] || [];
-    $('#cal').innerHTML = `<div class="calw"><div><div class="ch"><h3>Calendar</h3><span class="sp"></span><button class="btn sec sm" id="cp">‹</button><b style="font-size:13px">${cm.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b><button class="btn sec sm" id="cn">›</button></div>
+    $('#cal').innerHTML = `<div class="calw"><div><div class="ch"><h3><a href="#/calendar" style="color:inherit">Calendar</a></h3><a class="btn sec sm" href="#/calendar">Open</a><span class="sp"></span><button class="btn sec sm" id="cp">‹</button><b style="font-size:13px">${cm.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b><button class="btn sec sm" id="cn">›</button></div>
      <div class="cg">${['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(x => `<i class="mut">${x}</i>`).join('')}${cells.map(c => c ? `<button class="cd ${c === today() ? 'tdy' : ''} ${c === sel ? 'sel' : ''}" data-d="${c}">${+c.slice(8)}${by[c] ? '<u></u>' : ''}</button>` : '<span></span>').join('')}</div></div>
      <div class="cev"><b>${new Date(sel + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}</b> <small class="mut">${ev.length} appointment${ev.length === 1 ? '' : 's'}</small>
       ${ev.map(e => `<div class="act"><a href="#/leads">${esc(e.name)}</a><br><small>${esc(e.status)}</small></div>`).join('') || '<p class="mut" style="font-size:13px">No appointments scheduled.</p>'}</div></div>`;
