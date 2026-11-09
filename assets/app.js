@@ -66,7 +66,7 @@ async function route() {
   const t = MODS.find(m => m[0] === mod);
   $('#title').textContent = t ? t[1] : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
-  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgProjects, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, calendar: pgCalendar, subsidy: () => pgOverview('subsidy'), kseb: () => pgOverview('kseb'), whatsapp: pgWhatsapp, ads: pgAds, settings: pgSettings, admin: pgAdmin };
+  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, calendar: pgCalendar, subsidy: () => pgOverview('subsidy'), kseb: () => pgOverview('kseb'), whatsapp: pgWhatsapp, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
   try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
@@ -412,6 +412,7 @@ async function leadModal(id) {
 let CUF = { q: '', st: '', sort: 'recent' };
 const STC = { New: 'b', Survey: 'y', Design: 'y', Quotation: 'p', Approval: 'p', Material: 'y', Installation: 'c', 'Net-meter': 'c', Commissioned: 'g', Subsidy: 'g', Closed: 'g' };
 async function pgCustomers() {
+  if (!PIPE && canR('projects')) { try { PIPE = (await api('pipeline', 'board')).stages; } catch (e) { } }
   const cs = await list('customers'); cs.forEach(c => c.status = c.stage || 'New');
   const w = canW('customers');
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Customers</h2><div class="mut" id="ccount"></div></div><span class="sp"></span>
@@ -428,7 +429,7 @@ async function pgCustomers() {
       .sort((a, b) => CUF.sort === 'name' ? a.name.localeCompare(b.name) : CUF.sort === 'kw' ? (b.kw || 0) - (a.kw || 0) : CUF.sort === 'oldest' ? (a.created > b.created ? 1 : -1) : (a.created < b.created ? 1 : -1));
     $('#ccount').textContent = rows.length + ' records';
     $('#ctb').innerHTML = `<colgroup><col><col style="width:122px"><col style="width:140px"><col style="width:150px"><col style="width:136px"><col style="width:86px"><col style="width:120px"><col style="width:96px"><col style="width:132px"></colgroup><thead><tr><th><i class="i i-user"></i> Name</th><th><i class="i i-project"></i> Status</th><th># Consumer no.</th><th><i class="i i-target"></i> District</th><th><i class="i i-phone"></i> Phone</th><th>Capacity</th><th>Added by</th><th><i class="i i-calendar"></i> Date</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(c => `<tr class="row" data-id="${c.id}">
-      <td title="${esc(c.name)}"><b class="clip">${esc(c.name)}</b></td><td><span class="pill ${STC[c.status] || ''}">${esc(c.status)}</span></td><td class="mono">${esc(c.consumer_no) || '<span class="mut">—</span>'}</td><td title="${esc(c.district)}"><span class="clip">${esc(c.district) || '<span class="mut">—</span>'}</span></td>
+      <td title="${esc(c.name)}"><b class="clip">${esc(c.name)}</b></td><td><span class="pill ${c.status === 'New' ? 'b' : (typeof stepCls === 'function' && PIPE ? stepCls(c.status) : STC[c.status]) || ''}">${esc(c.status)}</span></td><td class="mono">${esc(c.consumer_no) || '<span class="mut">—</span>'}</td><td title="${esc(c.district)}"><span class="clip">${esc(c.district) || '<span class="mut">—</span>'}</span></td>
       <td>${c.phone ? `<a href="tel:${esc(c.phone)}" class="tel"><i class="i i-phone"></i> ${esc(c.phone)}</a>` : '<span class="mut">—</span>'}</td><td>${c.kw ? c.kw + ' kWp' : '<span class="mut">—</span>'}</td><td title="${esc(c.added_by)}"><span class="clip">${esc(c.added_by) || '<span class="mut">—</span>'}</span></td><td class="mut">${dt(c.created)}</td>
       <td class="cact">${c.phone ? ic('wa', 'chat', 'WhatsApp') : ''}${ic('pj', 'project', c.project_id ? 'Open project' : 'New project')}${ic('op', 'eye', 'Open customer — history & files')}${ic('more', 'dots', 'More actions')}</td></tr>`).join('') || '<tr><td colspan="9" class="mut">No customers match</td></tr>'}</tbody>`;
     $$('#ctb tr.row').forEach(tr => {
@@ -503,7 +504,7 @@ async function pgProjects() {
 }
 async function projectModal(id, p = {}) {
   const cs = await list('customers');
-  const F = [{ k: 'customer_id', l: 'Customer', opts: opt(cs.map(c => [c.id, c.name]), '— select —'), full: 1 }, { k: 'title', l: 'Project title', d: p.title || '3 kW rooftop solar', full: 1 }, { k: 'kw', l: 'System size (kW)', t: 'number' }, { k: 'stage', l: 'Stage', opts: S.project_stages },
+  const F = [{ k: 'customer_id', l: 'Customer', opts: opt(cs.map(c => [c.id, c.name]), '— select —'), full: 1 }, { k: 'title', l: 'Project title', d: p.title || '3 kW rooftop solar', full: 1 }, { k: 'kw', l: 'System size (kW)', t: 'number' }, { k: 'loan', l: 'Loan taken?', opts: [['', 'Not decided'], 'Yes', 'No'] },
     { k: 'panel', l: 'Panels', d: 'ReNew 550 Wp M10 Bifacial' }, { k: 'inverter', l: 'Inverter' }, { k: 'cost', l: 'Project value (₹)', t: 'number' }, { k: 'engineer', l: 'Site engineer' }, { k: 'start', l: 'Start date', t: 'date' }, { k: 'end', l: 'Completion date', t: 'date' }];
   const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} project</h2><div class="two">${F.map(f => fld(f, p)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(p.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
@@ -515,7 +516,7 @@ async function pgProject(id) {
   const p = await api('projects', 'get', undefined, '&id=' + id);
   const w = canW('projects'), wc = canW('checklist');
   const paid = p.payments.reduce((a, x) => a + x.amount, 0);
-  const tabs = [['overview', 'Overview & payments'], ['subsidy', 'Subsidy'], ['kseb', 'KSEB documents'], ['files', 'Files']];
+  const tabs = [['overview', 'Overview & payments'], ['subsidy', 'Subsidy'], ['kseb', 'KSEB documents'], ['files', 'Files'], ['amc', 'AMC & service']];
   const draw = () => {
     const t = TAB.proj || 'overview';
     let body = '';
@@ -527,9 +528,10 @@ async function pgProject(id) {
       <div><label>Application no.</label><input id="sa" value="${esc(p.application_no)}" ${w ? '' : 'disabled'}></div><div><label>Status</label><select id="ss" ${w ? '' : 'disabled'}>${SUB_STATUS.map(s => `<option ${p.subsidy_status === s || (!p.subsidy_status && s === 'Not applied') ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
       <div><label>Subsidy amount (₹) — estimate for ${p.kw} kW: ${inr(subsidyCalc(p.kw))}</label><input id="sm" type="number" value="${p.subsidy_amount || ''}" ${w ? '' : 'disabled'}></div>${w ? '<div style="align-self:end"><button class="btn" id="ssv">Save subsidy details</button></div>' : ''}</div></div>
       <div class="card" style="margin-top:12px"><h3>Subsidy steps</h3>${checklistHtml('subsidy', p.checklist_subsidy, p.files, wc)}</div>`;
+    if (t === 'amc') body = '<div id="amcbox"></div>';
     if (t === 'kseb') body = `<div class="card"><h3>KSEB documentation</h3>${checklistHtml('kseb', p.checklist_kseb, p.files, wc)}</div>`;
     if (t === 'files') body = `<div class="card"><h3>All files ${canW('files') ? '<button class="btn sm" id="up" style="float:right">Upload</button>' : ''}</h3>${p.files.map(f => `<div class="act">${fileLink(f)}${f.item ? '<br><small>' + esc(f.kind) + ': ' + esc(f.item) + '</small>' : ''} ${canW('files') ? `<a href="#" data-df="${f.id}"><i class="i i-x"></i></a>` : ''}</div>`).join('') || '<p class="mut">No files</p>'}</div>`;
-    $('#pb').innerHTML = tabsBar('proj', tabs, 'overview') + body; bindTabs('proj', draw); bindPB();
+    $('#pb').innerHTML = tabsBar('proj', tabs, 'overview') + body; bindTabs('proj', draw); bindPB(); if ($('#amcbox')) amcTab(p, $('#amcbox'));
   };
   const bindPB = () => {
     if ($('#ap')) $('#ap').onclick = () => { const m = modal(`<h3 style="margin-top:0">Record payment</h3><div class="two">${[{ k: 'amount', l: 'Amount (₹)', t: 'number' }, { k: 'date', l: 'Date', t: 'date', d: today() }, { k: 'mode', l: 'Mode', opts: ['Bank transfer', 'UPI', 'Cash', 'Cheque'] }, { k: 'note', l: 'Note' }].map(f => fld(f)).join('')}</div><div class="bar" style="margin-top:12px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button></div>`); $('#cx', m).onclick = () => m.remove(); $('#sv', m).onclick = async () => { const o = { project_id: id, ...collect(m) }; if (!(+o.amount > 0)) return alert('Enter an amount'); await api('payments', 'save', o); m.remove(); route(); }; };
@@ -539,10 +541,10 @@ async function pgProject(id) {
     if ($('#ssv')) $('#ssv').onclick = async () => { await api('projects', 'save', { ...p, application_no: $('#sa').value, subsidy_status: $('#ss').value, subsidy_amount: $('#sm').value }); route(); };
     bindChecklist(id, p); bindNote('projects', id, route);
   };
-  $('#main').innerHTML = `<p><a href="#/projects">← Projects</a> · <a href="#/customers/${p.customer_id}">${esc(p.customer?.name || '')}</a></p>
+  $('#main').innerHTML = `<p><a href="#/projects">← Pipeline</a> · <a href="#/customers/${p.customer_id}">${esc(p.customer?.name || '')}</a></p>
    <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(p.title)} <span class="mut" style="font-size:14px">${p.kw} kW</span></h2>
-   ${w ? `<select id="stg" style="max-width:170px">${S.project_stages.map(s => `<option ${p.stage === s ? 'selected' : ''}>${s}</option>`).join('')}</select><button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>` : pill(p.stage)}</div></div><div id="pb" style="margin-top:12px"></div>`;
-  if ($('#stg')) $('#stg').onchange = async e => { await api('projects', 'save', { ...p, stage: e.target.value }); route(); };
+   ${w ? `<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>` : pill(p.stage)}</div></div><div id="pstp" style="margin-top:12px"></div><div id="pb" style="margin-top:12px"></div>`;
+  renderStepper(p, $('#pstp'));
   if ($('#ed')) $('#ed').onclick = () => projectModal(id, p);
   if ($('#dl')) $('#dl').onclick = async () => { if (confirm('Delete this project with its payments, checklists and files?')) { await api('projects', 'delete', { id }); location.hash = '#/projects'; } };
   draw();

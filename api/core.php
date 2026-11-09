@@ -60,10 +60,11 @@ function handle_crud($t, $a) {
       if (isset($v['name']) && $v['name'] === '') fail('Name required');
       if ($t === 'projects' && !$v['customer_id']) fail('Select a customer');
       if ($t === 'quotes') { $v = prep_quote($v, $in); }
-      if ($t === 'projects' && $v['stage'] === '') $v['stage'] = 'Survey';
+      if ($t === 'projects') $v['stage'] = 'Customer';
       if ($t === 'leads' && $v['status'] === '') $v['status'] = 'New';
       if (!empty($in['id'])) {
         $id = (int)$in['id'];
+        if ($t === 'projects') { foreach (['stage', 'amc_start', 'amc_end', 'amc_interval'] as $k) unset($v[$k]); $cols = array_values(array_diff($cols, ['stage', 'amc_start', 'amc_end', 'amc_interval'])); }
         if ($t === 'customers') { unset($v['added_by']); $cols = array_values(array_diff($cols, ['added_by'])); }
         if ($t === 'leads') { $keep = ['added_by','meta_id','meta_form','meta_ad','meta_campaign','notify','assigned_to','claimed_at']; foreach ($keep as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $keep)); }
         $set = implode(',', array_map(fn($c) => "$c=:$c", $cols));
@@ -77,6 +78,7 @@ function handle_crud($t, $a) {
           if (!is_admin()) { $v['assigned_to'] = uid(); $v['claimed_at'] = gmdate('Y-m-d H:i:s'); } else { $v['assigned_to'] = (int)($in['assigned_to'] ?? 0) ?: null; $v['claimed_at'] = $v['assigned_to'] ? gmdate('Y-m-d H:i:s') : ''; } }
         q("INSERT INTO $t(" . implode(',', $cols) . ') VALUES(' . implode(',', array_map(fn($c) => ":$c", $cols)) . ')', $v);
         $id = (int)db()->lastInsertId(); audit('create', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
+        if ($t === 'projects') step_log($id, 'Customer', 'Project created');
         if ($t === 'quotes' && $v['number'] === '') {
           $c = settings()['company'];
           q('UPDATE quotes SET number=? WHERE id=?', [($c['quote_prefix'] ?: 'Q') . '-' . date('y') . '-' . str_pad($id, 4, '0', STR_PAD_LEFT), $id]);
@@ -89,7 +91,7 @@ function handle_crud($t, $a) {
         foreach (rows('SELECT id FROM projects WHERE customer_id=?', [$id]) as $p) purge_project($p['id']);
         q('DELETE FROM quotes WHERE customer_id=?', [$id]); q('DELETE FROM messages WHERE customer_id=?', [$id]); q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$id]);
       }
-      if ($t === 'projects') purge_project($id);
+      if ($t === 'projects') { purge_project($id); q('DELETE FROM project_steps WHERE project_id=?', [$id]); q('DELETE FROM stage_data WHERE project_id=?', [$id]); q('DELETE FROM services WHERE project_id=?', [$id]); }
       if ($t === 'campaigns') { q('DELETE FROM ad_spend WHERE campaign_id=?', [$id]); q('UPDATE leads SET campaign_id=NULL WHERE campaign_id=?', [$id]); }
       q("DELETE FROM $t WHERE id=?", [$id]); q('DELETE FROM notes WHERE entity=? AND entity_id=?', [$t, $id]);
       audit('delete', $t, $id); out(['ok' => true]);
@@ -139,6 +141,9 @@ function detail($t, $r) {
     $r['notes_log'] = $notes();
     $r['customer'] = row('SELECT id,name,phone,address,consumer_no FROM customers WHERE id=?', [$r['customer_id']]);
     $r['payments'] = rows('SELECT * FROM payments WHERE project_id=? ORDER BY date DESC, id DESC', [$id]);
+    $r['steps'] = rows('SELECT * FROM project_steps WHERE project_id=? ORDER BY id', [$id]);
+    $r['stage_data'] = rows('SELECT d.*, f.name file_name FROM stage_data d LEFT JOIN files f ON f.id=d.file_id WHERE d.project_id=?', [$id]);
+    $r['services'] = rows('SELECT * FROM services WHERE project_id=? ORDER BY date DESC, id DESC', [$id]);
     $r['files'] = rows('SELECT id,name,kind,item,size,created FROM files WHERE project_id=? ORDER BY id DESC', [$id]);
     $saved = [];
     foreach (rows('SELECT * FROM checklist WHERE project_id=?', [$id]) as $c) $saved[$c['kind'] . '|' . $c['item']] = $c;

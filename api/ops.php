@@ -9,18 +9,18 @@ function handle_dashboard() {
   $wonM = $one("SELECT COUNT(*) v FROM leads WHERE status='Won' AND updated LIKE ?", ["$month%"]);
   $spendM = $one("SELECT COALESCE(SUM(spend),0) v FROM ad_spend WHERE date LIKE ?", ["$month%"]);
   $adLeadsM = $one("SELECT COUNT(*) v FROM leads WHERE campaign_id IS NOT NULL AND created LIKE ?", ["$month%"]);
-  $pipeline = $one("SELECT COALESCE(SUM(cost),0) v FROM projects WHERE stage NOT IN ('Closed','Commissioned','Subsidy')");
+  $pipeline = $one("SELECT COALESCE(SUM(cost),0) v FROM projects WHERE stage<>'Project completed'");
   $billed = $one("SELECT COALESCE(SUM(cost),0) v FROM projects");
   $paid = $one("SELECT COALESCE(SUM(amount),0) v FROM payments");
   $stages = rows('SELECT stage, COUNT(*) n FROM projects GROUP BY stage');
   $lstat = rows('SELECT status, COUNT(*) n FROM leads GROUP BY status');
   $follow = rows("SELECT id,name,phone,status,appt followup,'lead' type FROM leads WHERE appt<>'' AND appt<=? AND status NOT IN ('Won','Lost') ORDER BY appt LIMIT 15", [$today]);
-  $sub = rows("SELECT id,title,subsidy_status,subsidy_amount FROM projects WHERE stage NOT IN ('Closed') AND (subsidy_status IS NULL OR subsidy_status NOT IN ('Released')) AND application_no<>'' LIMIT 10");
+  $sub = rows("SELECT id,title,subsidy_status,subsidy_amount FROM projects WHERE stage<>'Project completed' AND (subsidy_status IS NULL OR subsidy_status NOT IN ('Released')) AND application_no<>'' LIMIT 10");
   $S = settings();
-  $ks = rows("SELECT p.id,p.title, (SELECT COUNT(*) FROM checklist c WHERE c.project_id=p.id AND c.kind='kseb' AND c.status IN ('Approved','NA')) done FROM projects p WHERE p.stage NOT IN ('Closed','Commissioned','Subsidy')");
+  $ks = rows("SELECT p.id,p.title, (SELECT COUNT(*) FROM checklist c WHERE c.project_id=p.id AND c.kind='kseb' AND c.status IN ('Approved','NA')) done FROM projects p WHERE p.stage<>'Project completed'");
   $ktotal = count($S['kseb_items']);
   $kpending = array_values(array_filter(array_map(fn($p) => $p + ['total' => $ktotal], $ks), fn($p) => $p['done'] < $ktotal));
-  $overdue = rows('SELECT p.id,p.title,c.name customer, p.cost - COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) due FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE p.stage NOT IN (\'Survey\',\'Design\',\'Quotation\') AND due > 1 ORDER BY due DESC LIMIT 10');
+  $overdue = rows('SELECT p.id,p.title,c.name customer, p.cost - COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) due FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE p.stage NOT IN (\'Customer\',\'KSEB feasibility check\',\'Loan registration\',\'KSEB feasibility payment\',\'PMSG portal registration\') AND due > 1 ORDER BY due DESC LIMIT 10');
   $td = date('Y-m-d'); $loc = "date(created,'+330 minutes')";
   $cnt = fn($sql, $a = []) => (int)(row($sql, $a)['v'] ?? 0);
   $pct = fn($n, $p) => $p ? (int)round(($n - $p) / $p * 100) : ($n ? 100 : 0);
@@ -30,7 +30,7 @@ function handle_dashboard() {
   $extra = [
     'leads_total' => $cnt("SELECT COUNT(*) v FROM leads WHERE status NOT IN ('Won','Lost')"), 'leads_today' => $tc('leads'), 'leads_vs' => $pct($mc('leads', $m0), $mc('leads', $m1)),
     'cust_total' => $cnt('SELECT COUNT(*) v FROM customers'), 'cust_today' => $tc('customers'), 'cust_vs' => $pct($mc('customers', $m0), $mc('customers', $m1)),
-    'proj_active' => $cnt("SELECT COUNT(*) v FROM projects WHERE stage NOT IN ('Closed','Commissioned','Subsidy')"), 'proj_today' => $tc('projects'), 'proj_vs' => $pct($mc('projects', $m0), $mc('projects', $m1)),
+    'proj_active' => $cnt("SELECT COUNT(*) v FROM projects WHERE stage<>'Project completed'"), 'proj_today' => $tc('projects'), 'proj_vs' => $pct($mc('projects', $m0), $mc('projects', $m1)),
     'overdue' => $cnt("SELECT COUNT(*) v FROM leads WHERE appt<>'' AND appt<? AND status NOT IN ('Won','Lost')", [$td]),
     'due_today' => $cnt("SELECT COUNT(*) v FROM leads WHERE appt=? AND status NOT IN ('Won','Lost')", [$td]),
     'trend' => rows("SELECT $loc d, COUNT(*) n, SUM(status='Won') won FROM leads WHERE $loc>=date('now','+330 minutes','-29 day') GROUP BY d"),

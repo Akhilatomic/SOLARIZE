@@ -1,14 +1,14 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 8; // bump when tables/columns change
+const SCHEMA_VERSION = 9; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
-const NUMS = ['notify','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
+const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
 // entity => [module, columns]
 $E = [
   'leads' => ['leads', ['name','phone','email','address','city','location','remark','appt','added_by','source','campaign_id','status','assigned_to','followup','kw','budget','customer_id','notes','meta_id','meta_form','meta_ad','meta_campaign','notify','claimed_at']],
   'customers' => ['customers', ['name','phone','email','address','district','consumer_no','kseb_section','sanctioned_load','roof_type','gst_no','notes','added_by']],
-  'projects' => ['projects', ['customer_id','title','kw','panel','inverter','stage','engineer','start','end','cost','application_no','subsidy_status','subsidy_amount','notes']],
+  'projects' => ['projects', ['customer_id','title','kw','panel','inverter','stage','engineer','start','end','cost','application_no','subsidy_status','subsidy_amount','notes','loan','amc_start','amc_end','amc_interval']],
   'quotes' => ['quotes', ['customer_id','lead_id','number','date','items','gst_rate','subsidy','terms','status','total']],
   'campaigns' => ['ads', ['name','platform','objective','start','end','budget','status']],
   'ad_spend' => ['ads', ['campaign_id','date','spend','impressions','clicks','leads']],
@@ -18,7 +18,7 @@ $E = [
 // role => [read modules, write modules]; '*' = everything
 const ROLES = [
   'admin' => ['*', '*'],
-  'sales' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings'], ['leads','customers','quotes','whatsapp','files','folder','calendar']],
+  'sales' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects']],
   'engineer' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings'], ['projects','checklist','files','customers','folder','calendar']],
   'accounts' => [['calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings'], ['quotes','payments','ads','calendar']],
 ];
@@ -82,6 +82,19 @@ function migrate($db) {
   }
   $db->exec("CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, type TEXT, start TEXT, end TEXT DEFAULT '', all_day INTEGER DEFAULT 0, lead_id INTEGER, customer_id INTEGER, project_id INTEGER, user_id INTEGER, location TEXT DEFAULT '', notes TEXT DEFAULT '', status TEXT DEFAULT 'Scheduled', remind INTEGER DEFAULT 10, created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec('CREATE INDEX IF NOT EXISTS ev_start ON events(start)');
+  $db->exec("CREATE TABLE IF NOT EXISTS project_steps(id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER, stage TEXT, note TEXT DEFAULT '', user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec("CREATE TABLE IF NOT EXISTS stage_data(project_id INTEGER, stage TEXT, amount REAL DEFAULT 0, ref TEXT DEFAULT '', date TEXT DEFAULT '', file_id INTEGER, note TEXT DEFAULT '', user TEXT, updated TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(project_id, stage))");
+  $db->exec("CREATE TABLE IF NOT EXISTS services(id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER, date TEXT, type TEXT, status TEXT DEFAULT 'Scheduled', technician TEXT DEFAULT '', cost REAL DEFAULT 0, notes TEXT DEFAULT '', user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
+  // old 10-stage pipeline → new stages (one-time)
+  if (!$db->query("SELECT 1 FROM settings WHERE k='pipe_v2'")->fetch()) {
+    $map = ['Survey' => 'KSEB feasibility check', 'Design' => 'KSEB feasibility check', 'Quotation' => 'Customer', 'Approval' => 'PMSG portal registration', 'Material' => 'Material delivery', 'Installation' => 'Structure installation',
+      'Net-meter' => 'DISCOM net-meter commissioning', 'Commissioned' => 'Subsidy process', 'Subsidy' => 'Subsidy process', 'Closed' => 'Project completed'];
+    foreach ($map as $o => $n) $db->prepare('UPDATE projects SET stage=? WHERE stage=?')->execute([$n, $o]);
+    $db->exec("UPDATE projects SET stage='Customer' WHERE stage IS NULL OR stage=''");
+    $db->exec("INSERT INTO project_steps(project_id,stage,note,user,created) SELECT id,stage,'Moved to the new pipeline','System',updated FROM projects");
+    $db->exec("DELETE FROM settings WHERE k='project_stages'");
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('pipe_v2','1')");
+  }
   migrateV1($db);
 }
 
@@ -112,7 +125,7 @@ function defaults() {
     'login' => ['bg' => '', 'tagline' => 'Max speed CRM', 'dim' => 35],
     'lead_sources' => ['Meta Ads','Referral','Walk-in','Website','Google','Existing customer','Other'],
     'lead_statuses' => ['New','Contacted','Site Visit','Quoted','Won','Lost'],
-    'project_stages' => ['Survey','Design','Quotation','Approval','Material','Installation','Net-meter','Commissioned','Subsidy','Closed'],
+    'project_stages' => ['Customer','KSEB feasibility check','Loan registration','KSEB feasibility payment','PMSG portal registration','KSEB registration fee payment','Material delivery','Structure installation','Electrical installation','KSEB documents submission','DISCOM inspection','DISCOM net-meter commissioning','Subsidy process','Tax bill generation','Warranty card delivery','Project completed'],
     'subsidy_steps' => ['Registered on PM Surya Ghar portal','Application submitted (consumer no. + bank)','KSEB feasibility approval','Vendor selected on portal','Installation completed','Net-meter installed','Commissioning report submitted','Bank account details verified','Portal inspection done','Subsidy released to customer'],
     'kseb_items' => ['Urjamithra / Ente Urja application','Feasibility approval letter','Agreement with KSEB','Electrical wiring & test report','Single line diagram','Inverter datasheet & warranty','Panel DCR certificate & warranty card','Net-meter application','Electrical inspectorate (CEI) approval','Meter installation / synchronisation','Customer ID proof & latest electricity bill','Roof ownership / NOC'],
     'subsidy_rates' => ['per_kw_first2' => 30000, 'third_kw' => 18000, 'cap' => 78000],
