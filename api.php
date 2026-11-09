@@ -18,6 +18,7 @@ require __DIR__ . '/api/wa.php';
 require __DIR__ . '/api/hr.php';
 require __DIR__ . '/api/disc.php';
 require __DIR__ . '/api/trash.php';
+require __DIR__ . '/api/profile.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';
@@ -28,7 +29,7 @@ try {
   if (empty($_SESSION['uid'])) fail('Unauthorized', 401);
   try { housekeeping(); } catch (Throwable $e) { } // hourly: expire 200-day documents, purge the 72-hour recycle bin
   // CSRF-light: state-changing calls must be POST
-  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status', 'me', 'today', 'month', 'range', 'pending', 'summary', 'notifs', 'leaves', 'balances', 'days']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
+  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status', 'me', 'today', 'month', 'range', 'pending', 'summary', 'notifs', 'timeline', 'leaves', 'balances', 'days']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
   if (isset($E[$m])) handle_crud($m, $a);
   switch ($m) {
     case 'dashboard': handle_dashboard();
@@ -48,6 +49,7 @@ try {
     case 'hr': handle_hr($a);
     case 'disc': handle_disc($a);
     case 'trash': handle_trash($a);
+    case 'profile': handle_profile($a);
   }
   fail('Unknown module', 404);
 } catch (Throwable $e) {

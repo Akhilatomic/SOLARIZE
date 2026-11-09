@@ -482,14 +482,17 @@ async function pgCustomers() {
   if ($('#cim')) $('#cim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; let n = 0; for (const r of csvObjs(await f.text())) { if (!r.name) continue; await api('customers', 'save', r); n++; } toast('Imported ' + n + ' customers'); route(); };
   draw(); DISC.redraw = draw;
 }
-const CF = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'consumer_no', l: 'KSEB consumer no.' }, { k: 'address', l: 'Address', full: 1 }, { k: 'district', l: 'District', d: 'Thiruvananthapuram' }, { k: 'kseb_section', l: 'KSEB section office' },
-  { k: 'sanctioned_load', l: 'Sanctioned load (kW)', t: 'number' }, { k: 'roof_type', l: 'Roof type', opts: ['', 'RCC flat', 'Sheet / tin', 'Tile', 'Other'] }, { k: 'gst_no', l: 'GST no. (if business)' }];
+const CF = [{ g: 'Basic details' }, { k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'alt_phone', l: 'Alternate phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'address', l: 'Address', full: 1 }, { k: 'district', l: 'District', d: 'Thiruvananthapuram' }, { k: 'pincode', l: 'PIN code' },
+  { k: 'roof_type', l: 'Roof type', opts: ['', 'RCC flat', 'Sheet / tin', 'Tile', 'Other'] }, { k: 'gst_no', l: 'GST no. (if business)' },
+  { g: 'KSEB details' }, { k: 'consumer_no', l: 'KSEB consumer no.' }, { k: 'kseb_section', l: 'KSEB section office' }, { k: 'sanctioned_load', l: 'Sanctioned load (kW)', t: 'number' }, { k: 'phase', l: 'Connection', opts: ['', 'Single phase', 'Three phase'] }, { k: 'tariff', l: 'Tariff', opts: ['', 'LT-1A Domestic', 'LT-6 Non-domestic', 'LT-7 Commercial', 'LT-4 Industrial', 'Other'] }, { k: 'meter_no', l: 'Meter no.' },
+  { g: 'Bank details (for subsidy)' }, { k: 'bank_holder', l: 'Account holder name' }, { k: 'bank_name', l: 'Bank name' }, { k: 'bank_branch', l: 'Branch' }, { k: 'bank_account', l: 'Account number' }, { k: 'bank_ifsc', l: 'IFSC code' },
+  { g: 'Location' }, { k: 'landmark', l: 'Landmark', full: 1 }];
 function customerModal(id, c = {}) {
-  const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} customer</h2><div class="two">${CF.map(f => fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
+  const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} customer</h2><div class="two">${CF.map(f => f.g ? `<div class="full cfg">${f.g}</div>` : fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button>${id && canW('leads') ? '<span class="sp"></span><button class="btn sec" id="rvl" title="Move this customer back to Leads"><i class="i i-refresh"></i> Revert to lead</button>' : ''}</div>`);
   $('#cx', m).onclick = () => m.remove();
   if ($('#rvl', m)) $('#rvl', m).onclick = () => revertToLead(id, c.name, m);
-  $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; if (!o.name) return alert('Name required'); const r = await api('customers', 'save', o); m.remove(); if (id) route(); else location.hash = '#/customers/' + r.id; };
+  $('#sv', m).onclick = async () => { const o = { ...c, id, ...collect(m) }; if (!o.name) return alert('Name required'); const r = await api('customers', 'save', o); m.remove(); if (id) route(); else location.hash = '#/customers/' + r.id; };
 }
 // Customer → back to Leads. If a project or documents exist, list what will be deleted and ask to type REVERT.
 async function revertToLead(id, name, parent) {
@@ -513,28 +516,7 @@ async function revertToLead(id, name, parent) {
   $('#rvgo', m).onclick = async () => { const b = $('#rvgo', m); b.disabled = true; b.textContent = 'Reverting…';
     try { const r2 = await api('customers', 'revert', { id, reason: why, confirm: 1 }); m.remove(); done(r2); } catch (e) { b.disabled = false; b.textContent = 'Delete & revert to lead'; } };
 }
-async function pgCustomer(id) {
-  const c = await api('customers', 'get', undefined, '&id=' + id);
-  const w = canW('customers');
-  $('#main').innerHTML = `<p><a href="#/customers">← Customers</a></p>
-   <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(c.name)}</h2><button class="btn sec" id="dsc"><i class="i i-chat"></i> Discussion</button>${c.phone ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(c.phone) + '">Call</a>' : ''}${w ? '<button class="btn sec" id="ed">Edit</button>' + (canW('leads') ? '<button class="btn sec" id="rvp"><i class="i i-refresh"></i> Revert to lead</button>' : '') + '<button class="btn bad" id="dl">Delete</button>' : ''}</div>
-   <p class="mut" style="margin:6px 0 0">${esc(c.phone)} ${c.email ? '· ' + esc(c.email) : ''}<br>${esc(c.address)}${c.district ? ' · ' + esc(c.district) : ''}<br>${c.consumer_no ? 'Consumer no. <b>' + esc(c.consumer_no) + '</b>' : ''} ${c.kseb_section ? '· Section: ' + esc(c.kseb_section) : ''} ${c.sanctioned_load ? '· Load ' + c.sanctioned_load + ' kW' : ''} ${c.roof_type ? '· ' + esc(c.roof_type) + ' roof' : ''} ${c.gst_no ? '· GST ' + esc(c.gst_no) : ''}</p></div>
-   <div class="grid cols2" style="margin-top:12px"><div class="card"><h3>Projects ${canW('projects') ? '<button class="btn sm" id="np" style="float:right">+ New project</button>' : ''}</h3>
-    ${c.projects.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.stage, stageCls(p.stage))}<br><small>${p.kw} kW${FIN() ? ' · ' + inr(p.cost) + ' · paid ' + inr(p.paid) : ''}</small></div>`).join('') || '<p class="mut">No projects yet</p>'}</div>
-   <div class="card"><h3>Quotations ${canW('quotes') ? '<button class="btn sm" id="nq" style="float:right">+ New quote</button>' : ''}</h3>${c.quotes.map(q => `<div class="act"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${inr(q.total)}<br><small>${q.date}</small></div>`).join('') || '<p class="mut">No quotations</p>'}</div>
-   <div class="card"><h3>Documents ${canW('files') ? '<button class="btn sm" id="up" style="float:right">Upload</button>' : ''}</h3>${c.files.map(f => `<div class="act">${fileLink(f)}${f.item ? '<br><small>' + esc(f.item) + '</small>' : ''}</div>`).join('') || '<p class="mut">No documents</p>'}</div>
-   <div class="card"><h3>WhatsApp messages</h3>${c.messages.map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None sent</p>'}</div></div>
-   <div style="margin-top:12px">${noteBox('customers', id, c.notes_log)}</div>`;
-  if ($('#wa')) $('#wa').onclick = () => waOpen({ name: c.name, phone: c.phone, customer_id: id });
-  if ($('#dsc')) $('#dsc').onclick = () => discOpen(id);
-  if ($('#rvp')) $('#rvp').onclick = () => revertToLead(id, c.name);
-  if ($('#ed')) $('#ed').onclick = () => customerModal(id, c);
-  if ($('#dl')) $('#dl').onclick = async () => { if (confirm('Delete this customer and ALL their projects, quotes and files? This cannot be undone.')) { await api('customers', 'delete', { id }); location.hash = '#/customers'; } };
-  if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
-  if ($('#nq')) $('#nq').onclick = () => { sessionStorage.lead2quote = JSON.stringify({ customer_id: id, name: c.name }); location.hash = '#/quotes/new'; };
-  if ($('#up')) $('#up').onclick = async () => { if (await upload({ customer_id: id })) route(); };
-  bindNote('customers', id, route);
-}
+// pgCustomer (profile page) lives in app11.js
 
 // ---------- Projects ----------
 let PV = 'board';
