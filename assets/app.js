@@ -8,10 +8,10 @@ const app = $('#app');
 let ME = null, S = {}, CACHE = {}, TAB = {};
 const SUB_STATUS = ['Not applied', 'Applied', 'Under review', 'Approved', 'Released'];
 const MODS = [ // id, label, icon, perm
-  ['dashboard', 'Dashboard', '📊', 'dashboard'], ['leads', 'Leads', '🎯', 'leads'], ['customers', 'Customers', '👥', 'customers'],
-  ['projects', 'Project pipeline', '🏗️', 'projects'], ['quotes', 'Quotations', '🧾', 'quotes'],
-  ['subsidy', 'Subsidy (PM Surya Ghar)', '💰', 'checklist'], ['kseb', 'KSEB documentation', '📁', 'checklist'],
-  ['whatsapp', 'WhatsApp', '💬', 'whatsapp'], ['ads', 'Meta Ads', '📣', 'ads'], ['settings', 'Settings', '⚙️', 'settings'], ['admin', 'Admin panel', '🛡️', 'admin']];
+  ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
+  ['projects', 'Project pipeline', '<i class="i i-project"></i>', 'projects'], ['quotes', 'Quotations', '<i class="i i-receipt"></i>', 'quotes'],
+  ['subsidy', 'Subsidy (PM Surya Ghar)', '<i class="i i-coin"></i>', 'checklist'], ['kseb', 'KSEB documentation', '<i class="i i-folder"></i>', 'checklist'],
+  ['whatsapp', 'WhatsApp', '<i class="i i-chat"></i>', 'whatsapp'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
 const canW = m => ME && (ME.write === '*' || ME.write.includes(m));
 const canR = m => ME && (ME.read === '*' || ME.read.includes(m));
 
@@ -35,7 +35,7 @@ async function boot() {
   shell(); route();
 }
 function loginView(setup) {
-  app.innerHTML = `<div class="card login"><h2 style="margin-top:0">☀️ Solarize <span style="color:var(--pri)">CRM</span></h2>
+  app.innerHTML = `<div class="card login"><h2 style="margin-top:0"><i class="i i-sun"></i> Solarize <span style="color:var(--pri)">CRM</span></h2>
   <p class="mut">${setup ? 'First run: create the administrator account.' : 'Sign in to continue.'}</p>
   ${setup ? '<label>Your name</label><input id="nm">' : ''}<label>Username</label><input id="un" autocomplete="username"><label>Password${setup ? ' (min 8)' : ''}</label><input id="pw" type="password" autocomplete="current-password">
   <div class="err" id="e"></div><button class="btn" style="width:100%" id="go">${setup ? 'Create admin' : 'Sign in'}</button></div>`;
@@ -44,9 +44,9 @@ function loginView(setup) {
 }
 function shell() {
   const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : canR(m[3]));
-  app.innerHTML = `<div id="shell"><aside id="side"><h1>☀️ Solarize <span>CRM</span></h1>
+  app.innerHTML = `<div id="shell"><aside id="side"><h1><i class="i i-sun"></i> Solarize <span>CRM</span></h1>
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}<a href="#/${m[0]}" data-m="${m[0]}">${m[2]} ${m[1]}</a>`).join('')}
-   </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg">☰</button><h2 id="title"></h2><span class="mut" style="font-size:13px">${esc(ME.name)} · ${ME.role}</span>
+   </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2><span class="mut" style="font-size:13px">${esc(ME.name)} · ${ME.role}</span>
    <button class="btn sec sm" id="pwb">Password</button><button class="btn sec sm" id="lo">Sign out</button></div><main id="main"></main></div></div>`;
   $('#bg').onclick = () => $('#side').classList.toggle('open');
   $('#lo').onclick = async () => { await api('auth', 'logout', {}); location.hash = ''; location.reload(); };
@@ -135,8 +135,8 @@ async function pgDashboard() {
   const hr = new Date().getHours(), gm = hr < 12 ? 'Morning' : hr < 17 ? 'Afternoon' : 'Evening';
   const vs = n => `${n >= 0 ? '+' : '-'}${Math.abs(n)}% vs last month`;
   const card = (ic, label, val, tdy, v, col, go) => `<a class="card sc" href="${go}" style="--c:${col}"><div class="sch"><span class="ic">${ic}</span>${label}</div><b>${val}</b><small>${tdy} today</small><div class="line"></div><small class="mut">${v}</small></a>`;
-  const QA = [['➕', 'Add Lead', 'leads', 'new'], ['🎯', 'View Leads', 'leads', '#/leads'], ['👥', 'Customers', 'customers', '#/customers'], ['🏗️', 'Projects', 'projects', '#/projects'], ['🧾', 'Quotations', 'quotes', '#/quotes'], ['📝', 'New Quote', 'quotes', 'quote'],
-    ['💰', 'Subsidy', 'checklist', '#/subsidy'], ['📁', 'KSEB Docs', 'checklist', '#/kseb'], ['💬', 'WhatsApp', 'whatsapp', '#/whatsapp'], ['📣', 'Meta Ads', 'ads', '#/ads'], ['⚙️', 'Settings', 'settings', '#/settings'], ['🛡️', 'Admin', 'admin', '#/admin']]
+  const QA = [['<i class="i i-plus"></i>', 'Add Lead', 'leads', 'new'], ['<i class="i i-target"></i>', 'View Leads', 'leads', '#/leads'], ['<i class="i i-users"></i>', 'Customers', 'customers', '#/customers'], ['<i class="i i-project"></i>', 'Projects', 'projects', '#/projects'], ['<i class="i i-receipt"></i>', 'Quotations', 'quotes', '#/quotes'], ['<i class="i i-note"></i>', 'New Quote', 'quotes', 'quote'],
+    ['<i class="i i-coin"></i>', 'Subsidy', 'checklist', '#/subsidy'], ['<i class="i i-folder"></i>', 'KSEB Docs', 'checklist', '#/kseb'], ['<i class="i i-chat"></i>', 'WhatsApp', 'whatsapp', '#/whatsapp'], ['<i class="i i-megaphone"></i>', 'Meta Ads', 'ads', '#/ads'], ['<i class="i i-gear"></i>', 'Settings', 'settings', '#/settings'], ['<i class="i i-shield"></i>', 'Admin', 'admin', '#/admin']]
     .filter(q => q[2] === 'admin' ? ME.role === 'admin' : canR(q[2]) && (q[3] !== 'new' || canW('leads')) && (q[3] !== 'quote' || canW('quotes')));
   // lead trend (30 days)
   const days = [...Array(30)].map((_, i) => { const x = new Date(); x.setDate(x.getDate() - 29 + i); return x.toISOString().slice(0, 10); });
@@ -158,7 +158,7 @@ async function pgDashboard() {
    <text x="110" y="100" text-anchor="middle" font-size="26" font-weight="700" fill="#1d1d1f">${d.lead_year}</text><text x="110" y="118" text-anchor="middle" font-size="11" fill="#6e6e73">leads this year</text></svg>`;
   $('#main').innerHTML = `<div style="margin-bottom:16px"><h2 style="margin:0;font-size:26px">Hello, ${esc(first)}!</h2><div class="mut">Here's how Jasper Solar is doing today.</div></div>
   <div class="dash"><div>
-   <div class="grid stats4">${card('🎯', 'Leads', d.leads_total, d.leads_today, vs(d.leads_vs), '#30a14e', '#/leads')}${card('👥', 'Customers', d.cust_total, d.cust_today, vs(d.cust_vs), '#0071e3', '#/customers')}${card('🏗️', 'Active Projects', d.proj_active, d.proj_today, vs(d.proj_vs), '#af52de', '#/projects')}${card('⚠️', 'Overdue Follow-ups', d.overdue, d.due_today, d.due_today + ' due today', '#ff375f', '#/leads')}</div>
+   <div class="grid stats4">${card('<i class="i i-target"></i>', 'Leads', d.leads_total, d.leads_today, vs(d.leads_vs), '#30a14e', '#/leads')}${card('<i class="i i-users"></i>', 'Customers', d.cust_total, d.cust_today, vs(d.cust_vs), '#0071e3', '#/customers')}${card('<i class="i i-project"></i>', 'Active Projects', d.proj_active, d.proj_today, vs(d.proj_vs), '#af52de', '#/projects')}${card('<i class="i i-alert"></i>', 'Overdue Follow-ups', d.overdue, d.due_today, d.due_today + ' due today', '#ff375f', '#/leads')}</div>
    <div class="grid stats" style="margin-top:14px">${[['Pipeline value', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="card stat" style="padding:12px 14px"><b style="font-size:19px">${v}</b><span>${l}</span></div>`).join('')}</div>
    <div class="card" style="margin-top:14px"><div class="bar" style="margin:0 0 8px"><h3 style="margin:0">Quick Actions</h3></div><div class="qa">${QA.map(q => `<button class="qb" data-qa="${q[3]}" data-go="${q[1]}"><span>${q[0]}</span>${q[1]}</button>`).join('')}</div></div>
    <div class="grid cols2" style="margin-top:14px"><div class="card"><div class="bar" style="margin:0"><h3 style="margin:0">Lead Trend · 30 days</h3><span class="sp"></span><small><span style="color:#0071e3">●</span> Leads &nbsp;<span style="color:#30a14e">●</span> Won</small></div>${trend}</div>
@@ -171,10 +171,10 @@ async function pgDashboard() {
    <div class="card"><h3>Subsidy in progress (${d.subsidy_open.length})</h3>${d.subsidy_open.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status || 'Not applied', stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`).join('') || '<p class="mut">None</p>'}</div></div>
   </div>
   <div>
-   <div class="card"><div style="display:flex;gap:12px;align-items:center"><div class="avatar">☀️</div><div><b style="font-size:16px">Solarize Assistant</b><div class="mut" style="font-size:12px">Your daily summary</div></div></div>
-    <p style="margin:14px 0 2px"><b>Good ${gm}, ${esc(first)} 👋</b></p><div class="mut" style="font-size:13px;margin-bottom:12px">Here's what's happening today.</div>
-    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">${[['📅', d.due_today, 'Follow-ups today'], ['⚠️', d.overdue, 'Overdue'], ['💳', d.dues.length, 'Payments due'], ['📁', d.kseb_pending.length, 'Docs pending']].map(([i, n, l]) => `<div class="tile"><span>${i}</span><div><b>${n}</b><small>${l}</small></div></div>`).join('')}</div>
-    <div class="warn"><span>${d.overdue ? '⏰ ' + d.overdue + ' follow-up' + (d.overdue > 1 ? 's are' : ' is') + ' overdue' : '✅ No overdue follow-ups'}</span>${d.overdue ? '<button class="btn sm" id="vod">View Overdue</button>' : ''}</div></div>
+   <div class="card"><div style="display:flex;gap:12px;align-items:center"><div class="avatar"><i class="i i-sun"></i></div><div><b style="font-size:16px">Solarize Assistant</b><div class="mut" style="font-size:12px">Your daily summary</div></div></div>
+    <p style="margin:14px 0 2px"><b>Good ${gm}, ${esc(first)} </b></p><div class="mut" style="font-size:13px;margin-bottom:12px">Here's what's happening today.</div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">${[['<i class="i i-calendar"></i>', d.due_today, 'Follow-ups today'], ['<i class="i i-alert"></i>', d.overdue, 'Overdue'], ['<i class="i i-card"></i>', d.dues.length, 'Payments due'], ['<i class="i i-folder"></i>', d.kseb_pending.length, 'Docs pending']].map(([i, n, l]) => `<div class="tile"><span>${i}</span><div><b>${n}</b><small>${l}</small></div></div>`).join('')}</div>
+    <div class="warn"><span>${d.overdue ? '' + d.overdue + ' follow-up' + (d.overdue > 1 ? 's are' : ' is') + ' overdue' : '<i class="i i-check"></i> No overdue follow-ups'}</span>${d.overdue ? '<button class="btn sm" id="vod">View Overdue</button>' : ''}</div></div>
    <div class="card" style="margin-top:14px" id="cal"></div>
    <div class="card" style="margin-top:14px"><div class="bar" style="margin:0 0 6px"><h3 style="margin:0">Recent Activity</h3></div>${d.recent.map(r => `<div class="act"><b>${esc(r.user)}</b> ${esc(r.action)} ${esc(r.entity)} <span class="mut">${esc(r.detail || '')}</span><br><small>${r.created}</small></div>`).join('') || '<p class="mut" style="text-align:center;padding:14px 0">No recent activities</p>'}</div>
   </div></div>`;
@@ -211,22 +211,22 @@ const isActiveLead = l => !['Won', 'Lost'].includes(l.status);
 function apptBadge(l) {
   if (!l.appt) return '<span class="pill" style="color:var(--mut)">● Not Scheduled</span>';
   const od = l.appt < today() && isActiveLead(l), days = Math.round((new Date(today()) - new Date(l.appt)) / 864e5);
-  return `<span class="pill g">● ${dmy(l.appt)}</span>${od ? `<br><span class="pill r" style="margin-top:3px">⚠ OVERDUE · ${days}d</span>` : ''}`;
+  return `<span class="pill g">● ${dmy(l.appt)}</span>${od ? `<br><span class="pill r" style="margin-top:3px"><i class="i i-alert"></i> OVERDUE · ${days}d</span>` : ''}`;
 }
 async function pgLeads() {
   const [leads, camps] = await Promise.all([list('leads'), canR('ads') ? list('campaigns') : []]);
   CACHE.leads = leads; CACHE.camps = camps; const w = canW('leads');
   const cities = [...new Set(leads.map(l => l.city).filter(Boolean))].sort();
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Leads</h2><div class="mut" id="lcount"></div></div><span class="sp"></span>
-   <button class="btn sec" id="lref">⟳ Refresh</button>${w ? `<button class="btn sec" id="ledit">✎ Edit ${LF.edit ? 'ON' : 'OFF'}</button><button class="btn" id="lnew">+ Add Lead</button>` : ''}</div>
-   <div class="bar" style="margin-top:12px"><input id="lq" placeholder="🔍 Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">
+   <button class="btn sec" id="lref"><i class="i i-refresh"></i> Refresh</button>${w ? `<button class="btn sec" id="ledit"><i class="i i-pencil"></i> Edit ${LF.edit ? 'ON' : 'OFF'}</button><button class="btn" id="lnew"><i class="i i-plus"></i> Add Lead</button>` : ''}</div>
+   <div class="bar" style="margin-top:12px"><input id="lq" placeholder="Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">
    <select id="ls"><option value="">All Statuses</option>${S.lead_statuses.map(s => `<option ${LF.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
    <select id="la">${[['active', 'Active Leads'], ['all', 'All Leads'], ['won', 'Won'], ['lost', 'Lost']].map(([v, l]) => `<option value="${v}" ${LF.active === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
    <select id="lc"><option value="">All Cities</option>${cities.map(c => `<option ${LF.city === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
    <select id="lap">${[['', 'All Appointments'], ['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['none', 'Not Scheduled']].map(([v, l]) => `<option value="${v}" ${LF.appt === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-   <div style="position:relative"><button class="btn sec" id="lcol">☰ Columns</button><div id="lcm" class="card hide" style="position:absolute;z-index:9;top:42px;left:0;width:190px;padding:10px">${LCOLS.map(([k, l]) => `<label style="margin:4px 0;display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-col="${k}" ${LHIDE.includes(k) ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
+   <div style="position:relative"><button class="btn sec" id="lcol"><i class="i i-menu"></i> Columns</button><div id="lcm" class="card hide" style="position:absolute;z-index:9;top:42px;left:0;width:190px;padding:10px">${LCOLS.map(([k, l]) => `<label style="margin:4px 0;display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-col="${k}" ${LHIDE.includes(k) ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
    <span class="sp"></span><button class="btn sec" id="lex">Export CSV</button>${w ? '<button class="btn sec" id="lim">Import CSV</button>' : ''}</div>
-   ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px">✎ ${LF.edit ? 'Click any cell to edit it inline.' : 'Turn Edit ON to edit cells inline.'} Click the column headers to sort.</p>` : ''}
+   ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px"><i class="i i-pencil"></i> ${LF.edit ? 'Click any cell to edit it inline.' : 'Turn Edit ON to edit cells inline.'} Click the column headers to sort.</p>` : ''}
    <div class="card tw" style="padding:0"><table id="ltb"></table></div>`;
 
   const filtered = () => {
@@ -245,8 +245,8 @@ async function pgLeads() {
     const cell = { date: l => `<td class="mut" style="white-space:nowrap">${dmy(l.created)}</td>`, name: l => ed(l, 'name', `<b>${esc(l.name)}</b>`), phone: l => ed(l, 'phone', esc(l.phone)), status: l => ed(l, 'status', pill(l.status, stageCls(l.status))), city: l => ed(l, 'city', esc(l.city)), location: l => ed(l, 'location', esc(l.location || l.address)),
       added_by: l => `<td>${esc(l.added_by)}</td>`, remark: l => ed(l, 'remark', l.remark ? esc(l.remark) : '<span class="mut"><i>Add remark</i></span>'), appt: l => ed(l, 'appt', apptBadge(l)) };
     $('#ltb').innerHTML = `<thead><tr>${show.map(([k, l]) => `<th data-sort="${sk(k)}" style="cursor:pointer;white-space:nowrap">${l}${LF.sort === sk(k) ? (LF.dir > 0 ? ' ↑' : ' ↓') : ' ⇅'}</th>`).join('')}<th class="right">Action</th></tr></thead><tbody>${rows.map(l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}
-      <td class="right" style="min-width:150px;max-width:190px">${l.phone ? `<button class="btn sm ok" title="WhatsApp" data-a="wa">💬</button> <a class="btn sm sec" title="Call" href="tel:${esc(l.phone)}">📞</a> ` : ''}${w ? '<button class="btn sm sec" title="Add remark" data-a="rm">📝</button> ' : ''}<button class="btn sm sec" title="View" data-a="vw">👁</button>${w ? ' <button class="btn sm sec" title="Edit" data-a="ed">✏️</button>' : ''}
-      ${l.customer_id ? ` <a class="btn sm sec" title="Open customer" href="#/customers/${l.customer_id}">👤</a>` : w ? ' <button class="btn sm sec" title="Convert to customer" data-a="cv">👤＋</button>' : ''}${canW('quotes') ? ' <button class="btn sm sec" title="Create quotation" data-a="qt">🧾</button>' : ''}</td></tr>`).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
+      <td class="right" style="min-width:150px;max-width:190px">${l.phone ? `<button class="btn sm ok" title="WhatsApp" data-a="wa"><i class="i i-chat"></i></button> <a class="btn sm sec" title="Call" href="tel:${esc(l.phone)}"><i class="i i-phone"></i></a> ` : ''}${w ? '<button class="btn sm sec" title="Add remark" data-a="rm"><i class="i i-note"></i></button> ' : ''}<button class="btn sm sec" title="View" data-a="vw"><i class="i i-eye"></i></button>${w ? ' <button class="btn sm sec" title="Edit" data-a="ed"><i class="i i-pencil"></i></button>' : ''}
+      ${l.customer_id ? ` <a class="btn sm sec" title="Open customer" href="#/customers/${l.customer_id}"><i class="i i-user"></i></a>` : w ? ' <button class="btn sm sec" title="Convert to customer" data-a="cv"><i class="i i-userplus"></i></button>' : ''}${canW('quotes') ? ' <button class="btn sm sec" title="Create quotation" data-a="qt"><i class="i i-receipt"></i></button>' : ''}</td></tr>`).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
     $$('#ltb th[data-sort]').forEach(h => h.onclick = () => { const k = h.dataset.sort; LF.dir = LF.sort === k ? -LF.dir : (k === 'created' ? -1 : 1); LF.sort = k; draw(); });
     $$('#ltb tbody tr[data-id]').forEach(tr => {
       const l = leads.find(x => x.id == tr.dataset.id);
@@ -379,14 +379,14 @@ async function pgProject(id) {
     let body = '';
     if (t === 'overview') body = `<div class="grid cols2"><div class="card"><h3>Details</h3><p class="mut" style="margin:0">Panels: ${esc(p.panel)}<br>Inverter: ${esc(p.inverter)}<br>Engineer: ${esc(p.engineer) || '—'}<br>Start: ${esc(p.start) || '—'} · Completion: ${esc(p.end) || '—'}<br>${esc(p.notes)}</p></div>
       <div class="card"><h3>Payments ${canW('payments') ? '<button class="btn sm" id="ap" style="float:right">+ Payment</button>' : ''}</h3><p>Value <b>${inr(p.cost)}</b> · Received <b>${inr(paid)}</b> · Balance <b class="${p.cost - paid > 0 ? 'over' : ''}">${inr(p.cost - paid)}</b></p>
-      ${p.payments.map(x => `<div class="act">${inr(x.amount)} ${x.mode ? '· ' + esc(x.mode) : ''} <small>${x.date}${x.note ? ' · ' + esc(x.note) : ''}</small> ${canW('payments') ? `<a href="#" data-dp="${x.id}">✕</a>` : ''}</div>`).join('') || '<p class="mut">No payments recorded</p>'}</div></div>
+      ${p.payments.map(x => `<div class="act">${inr(x.amount)} ${x.mode ? '· ' + esc(x.mode) : ''} <small>${x.date}${x.note ? ' · ' + esc(x.note) : ''}</small> ${canW('payments') ? `<a href="#" data-dp="${x.id}"><i class="i i-x"></i></a>` : ''}</div>`).join('') || '<p class="mut">No payments recorded</p>'}</div></div>
       <div style="margin-top:12px">${noteBox('projects', id, p.notes_log)}</div>`;
     if (t === 'subsidy') body = `<div class="card"><h3>PM Surya Ghar subsidy</h3><div class="two">
       <div><label>Application no.</label><input id="sa" value="${esc(p.application_no)}" ${w ? '' : 'disabled'}></div><div><label>Status</label><select id="ss" ${w ? '' : 'disabled'}>${SUB_STATUS.map(s => `<option ${p.subsidy_status === s || (!p.subsidy_status && s === 'Not applied') ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
       <div><label>Subsidy amount (₹) — estimate for ${p.kw} kW: ${inr(subsidyCalc(p.kw))}</label><input id="sm" type="number" value="${p.subsidy_amount || ''}" ${w ? '' : 'disabled'}></div>${w ? '<div style="align-self:end"><button class="btn" id="ssv">Save subsidy details</button></div>' : ''}</div></div>
       <div class="card" style="margin-top:12px"><h3>Subsidy steps</h3>${checklistHtml('subsidy', p.checklist_subsidy, p.files, wc)}</div>`;
     if (t === 'kseb') body = `<div class="card"><h3>KSEB documentation</h3>${checklistHtml('kseb', p.checklist_kseb, p.files, wc)}</div>`;
-    if (t === 'files') body = `<div class="card"><h3>All files ${canW('files') ? '<button class="btn sm" id="up" style="float:right">Upload</button>' : ''}</h3>${p.files.map(f => `<div class="act">${fileLink(f)}${f.item ? '<br><small>' + esc(f.kind) + ': ' + esc(f.item) + '</small>' : ''} ${canW('files') ? `<a href="#" data-df="${f.id}">✕</a>` : ''}</div>`).join('') || '<p class="mut">No files</p>'}</div>`;
+    if (t === 'files') body = `<div class="card"><h3>All files ${canW('files') ? '<button class="btn sm" id="up" style="float:right">Upload</button>' : ''}</h3>${p.files.map(f => `<div class="act">${fileLink(f)}${f.item ? '<br><small>' + esc(f.kind) + ': ' + esc(f.item) + '</small>' : ''} ${canW('files') ? `<a href="#" data-df="${f.id}"><i class="i i-x"></i></a>` : ''}</div>`).join('') || '<p class="mut">No files</p>'}</div>`;
     $('#pb').innerHTML = tabsBar('proj', tabs, 'overview') + body; bindTabs('proj', draw); bindPB();
   };
   const bindPB = () => {
@@ -412,7 +412,7 @@ function checklistHtml(kind, items, files, wc) {
     return `<div class="chk" data-kind="${kind}" data-n="${n}"><div>${esc(i.item)}${fs.map(f => '<br>' + fileLink(f)).join('')}</div>
      <select data-f="status" ${wc ? '' : 'disabled'}>${['Pending', 'Submitted', 'Approved', 'NA'].map(s => `<option ${i.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
      <input type="date" data-f="date" value="${esc(i.date)}" ${wc ? '' : 'disabled'}><input data-f="notes" placeholder="Notes" value="${esc(i.notes)}" ${wc ? '' : 'disabled'}>
-     ${canW('files') ? `<button class="btn sec sm" data-up="${kind}|${n}">📎 Upload</button>` : '<span></span>'}</div>`;
+     ${canW('files') ? `<button class="btn sec sm" data-up="${kind}|${n}"><i class="i i-clip"></i> Upload</button>` : '<span></span>'}</div>`;
   }).join('');
 }
 function bindChecklist(pid, p) {

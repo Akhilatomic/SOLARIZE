@@ -32,7 +32,7 @@ async function pgQuote(id) {
   const calc = () => { const sub = items.reduce((a, i) => a + (+i.qty || 0) * (+i.rate || 0), 0), g = sub * (+$('#qg').value || 0) / 100, tot = sub + g, s = +$('#qsub').value || 0; return { sub, g, tot, s, eff: tot - s }; };
   const drawTotals = () => { const c = calc(); $('#qt').innerHTML = `Subtotal ${inr(c.sub)}<br>GST ${inr(c.g)}<br><b style="font-size:18px">Total ${inr(c.tot)}</b><br><span class="mut">Less subsidy (credited to your bank by govt.) ${inr(c.s)}</span><br><b>Effective cost ${inr(c.eff)}</b>`; };
   const drawItems = () => {
-    $('#qi').innerHTML = items.map((i, n) => `<tr><td><input data-n="${n}" data-f="desc" value="${esc(i.desc)}"></td><td><input data-n="${n}" data-f="qty" type="number" step="any" value="${i.qty}"></td><td><input data-n="${n}" data-f="rate" type="number" step="any" value="${i.rate}"></td><td class="right">${inr(i.qty * i.rate)}</td><td><a href="#" data-x="${n}">✕</a></td></tr>`).join('');
+    $('#qi').innerHTML = items.map((i, n) => `<tr><td><input data-n="${n}" data-f="desc" value="${esc(i.desc)}"></td><td><input data-n="${n}" data-f="qty" type="number" step="any" value="${i.qty}"></td><td><input data-n="${n}" data-f="rate" type="number" step="any" value="${i.rate}"></td><td class="right">${inr(i.qty * i.rate)}</td><td><a href="#" data-x="${n}"><i class="i i-x"></i></a></td></tr>`).join('');
     $$('#qi input').forEach(e => e.oninput = () => { items[e.dataset.n][e.dataset.f] = e.dataset.f === 'desc' ? e.value : +e.value; e.closest('tr').children[3].textContent = inr(items[e.dataset.n].qty * items[e.dataset.n].rate); drawTotals(); });
     $$('#qi [data-x]').forEach(a => a.onclick = e => { e.preventDefault(); items.splice(+a.dataset.x, 1); drawItems(); });
     drawTotals();
