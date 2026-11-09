@@ -121,3 +121,5 @@ aside a .i{width:17px;height:17px;opacity:.85}aside a.on .i{opacity:1}
 .btn .i{width:1em;height:1em;vertical-align:-.15em}
 .btn.ok{background:#1d1d1f}.btn.ok:hover{background:#3a3a3c}
 .btn.sec{color:var(--tx)}.btn.bad .i{color:inherit}
+
+aside h1.brand{display:flex;align-items:center;gap:10px;margin:2px 6px 18px}aside h1.brand img{width:38px;height:38px;border-radius:10px;flex-shrink:0}aside h1.brand .bt{font-size:17px;line-height:1.15}

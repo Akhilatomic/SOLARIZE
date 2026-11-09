@@ -35,7 +35,7 @@ async function boot() {
   shell(); route();
 }
 function loginView(setup) {
-  app.innerHTML = `<div class="card login"><h2 style="margin-top:0"><i class="i i-sun"></i> Solarize <span style="color:var(--pri)">CRM</span></h2>
+  app.innerHTML = `<div class="card login"><img src="assets/logo.png" alt="Jasper" style="width:72px;height:72px;border-radius:16px;display:block;margin:0 0 12px"><h2 style="margin:0 0 4px">Solarize <span style="color:var(--pri)">CRM</span></h2>
   <p class="mut">${setup ? 'First run: create the administrator account.' : 'Sign in to continue.'}</p>
   ${setup ? '<label>Your name</label><input id="nm">' : ''}<label>Username</label><input id="un" autocomplete="username"><label>Password${setup ? ' (min 8)' : ''}</label><input id="pw" type="password" autocomplete="current-password">
   <div class="err" id="e"></div><button class="btn" style="width:100%" id="go">${setup ? 'Create admin' : 'Sign in'}</button></div>`;
@@ -44,7 +44,7 @@ function loginView(setup) {
 }
 function shell() {
   const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : canR(m[3]));
-  app.innerHTML = `<div id="shell"><aside id="side"><h1><i class="i i-sun"></i> Solarize <span>CRM</span></h1>
+  app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span></h1>
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}<a href="#/${m[0]}" data-m="${m[0]}">${m[2]} ${m[1]}</a>`).join('')}
    </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2><span class="mut" style="font-size:13px">${esc(ME.name)} · ${ME.role}</span>
    <button class="btn sec sm" id="pwb">Password</button><button class="btn sec sm" id="lo">Sign out</button></div><main id="main"></main></div></div>`;
