@@ -58,6 +58,7 @@ function handle_folder($a) {
       audit('availability', 'datasheet', $id, $on ? 'available' : 'unavailable'); out(['ok' => true]);
     case 'delete':
       $r = row('SELECT * FROM datasheets WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$r) fail('Not found', 404);
+      trash_put('Datasheet', $r['title'] . ($r['category'] ? ' · ' . $r['category'] : ''), [['datasheets', 'id=?', [$r['id']]]]);
       @unlink(ds_dir() . '/' . basename($r['path'])); q('DELETE FROM datasheets WHERE id=?', [$r['id']]); audit('delete', 'datasheet', $r['id'], $r['title']); out(['ok' => true]);
   }
   fail('Unknown action', 404);

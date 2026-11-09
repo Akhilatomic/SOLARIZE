@@ -88,6 +88,7 @@ function handle_crud($t, $a) {
       out(['id' => $id]);
     case 'delete':
       $id = (int)($in['id'] ?? 0);
+      trash_crud($t, $id); // snapshot into the Recycle bin first (restorable for 72 hours)
       if ($t === 'customers') {
         foreach (rows('SELECT id FROM projects WHERE customer_id=?', [$id]) as $p) purge_project($p['id']);
         q('DELETE FROM quotes WHERE customer_id=?', [$id]); q('DELETE FROM messages WHERE customer_id=?', [$id]); q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$id]);
@@ -114,6 +115,8 @@ function handle_crud($t, $a) {
         out($o);
       }
       if ((int)$pay['n'] && !is_admin()) fail('This customer has recorded payments. Only an admin can revert it to a lead.', 403);
+      $linked = array_column(rows('SELECT id FROM leads WHERE customer_id=?', [$cu['id']]), 'id');
+      trash_put('Customer (reverted to lead)', $cu['name'] . ($projs ? ' · ' . count($projs) . ' project(s)' : '') . ($nf ? " · $nf document(s)" : ''), trash_spec_customer($cu['id'], false), [], [['leads', 'customer_id', $cu['id'], $linked]]);
       foreach ($pids as $pid) { purge_project($pid); q('DELETE FROM project_steps WHERE project_id=?', [$pid]); q('DELETE FROM stage_data WHERE project_id=?', [$pid]); q('DELETE FROM services WHERE project_id=?', [$pid]); q('DELETE FROM projects WHERE id=?', [$pid]); }
       foreach (rows('SELECT path FROM files WHERE customer_id=?', [$cu['id']]) as $f) @unlink(dirname(__DIR__) . '/data/uploads/' . basename($f['path']));
       q('DELETE FROM files WHERE customer_id=?', [$cu['id']]);
@@ -153,7 +156,7 @@ function handle_crud($t, $a) {
   fail('Unknown action', 404);
 }
 
-function purge_project($id) {
+function purge_project($id) { // files were already moved to the Recycle bin by trash_put
   foreach (rows('SELECT path FROM files WHERE project_id=?', [$id]) as $f) @unlink(dirname(__DIR__) . '/data/uploads/' . basename($f['path']));
   q('DELETE FROM files WHERE project_id=?', [$id]); q('DELETE FROM checklist WHERE project_id=?', [$id]);
   q('DELETE FROM payments WHERE project_id=?', [$id]); q('DELETE FROM notes WHERE entity=? AND entity_id=?', ['projects', $id]);
@@ -254,7 +257,7 @@ function handle_files($a) {
   }
   if ($a === 'delete') {
     $f = row('SELECT * FROM files WHERE id=?', [(int)(body()['id'] ?? 0)]); if (!$f) fail('Not found', 404);
-    @unlink("$dir/" . basename($f['path'])); q('DELETE FROM files WHERE id=?', [$f['id']]); audit('delete', 'files', $f['id'], $f['name']); out(['ok' => true]);
+    trash_file_row($f); @unlink("$dir/" . basename($f['path'])); q('UPDATE stage_data SET file_id=NULL WHERE file_id=?', [$f['id']]); q('DELETE FROM files WHERE id=?', [$f['id']]); audit('delete', 'files', $f['id'], $f['name']); out(['ok' => true]);
   }
   fail('Unknown action', 404);
 }

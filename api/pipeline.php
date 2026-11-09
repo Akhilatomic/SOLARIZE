@@ -80,7 +80,7 @@ function handle_pipeline($a) {
       $name = 'rc-' . bin2hex(random_bytes(10)) . '.' . ($ext === 'jpeg' ? 'jpg' : $ext);
       if (!move_uploaded_file($fl['tmp_name'], "$dir/$name")) fail('Could not save file', 500);
       $old = row('SELECT file_id FROM stage_data WHERE project_id=? AND stage=?', [$pid, $key]);
-      if ($old && $old['file_id']) { $of = row('SELECT path FROM files WHERE id=?', [$old['file_id']]); if ($of) @unlink("$dir/" . basename($of['path'])); q('DELETE FROM files WHERE id=?', [$old['file_id']]); }
+      if ($old && $old['file_id']) { $of = row('SELECT path FROM files WHERE id=?', [$old['file_id']]); if ($of) { trash_put('Receipt (replaced)', $st[1] . ' · ' . ($p['title'] ?? 'project'), [['files', 'id=?', [$old['file_id']]]], [['projects', $pid, 'the project']]); @unlink("$dir/" . basename($of['path'])); } q('DELETE FROM files WHERE id=?', [$old['file_id']]); }
       q('INSERT INTO files(customer_id,project_id,kind,item,name,path,size,user) VALUES(?,?,?,?,?,?,?,?)', [$p['customer_id'], $pid, 'receipt', $st[1], basename($fl['name']), $name, $fl['size'], $_SESSION['username'] ?? '']);
       $fid = (int)db()->lastInsertId();
       q('INSERT INTO stage_data(project_id,stage,amount,ref,date,file_id,note,user) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(project_id,stage) DO UPDATE SET amount=excluded.amount,ref=excluded.ref,date=excluded.date,file_id=excluded.file_id,note=excluded.note,user=excluded.user,updated=CURRENT_TIMESTAMP',
@@ -105,6 +105,8 @@ function handle_pipeline($a) {
       audit('service', 'projects', $pid, $v[1] . ' ' . $v[2] . ' ' . $date); out(['id' => $sid]);
     case 'service_delete':
       need('projects', true);
+      $sv = row('SELECT * FROM services WHERE id=?', [(int)($in['id'] ?? 0)]);
+      if ($sv) trash_put('Service visit', $sv['type'] . ' · ' . $sv['date'] . ' · ' . (row('SELECT title FROM projects WHERE id=?', [$sv['project_id']])['title'] ?? ''), [['services', 'id=?', [$sv['id']]]], [['projects', $sv['project_id'], 'the project']]);
       q('DELETE FROM services WHERE id=?', [(int)($in['id'] ?? 0)]); out(['ok' => true]);
   }
   fail('Unknown action', 404);

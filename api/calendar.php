@@ -66,6 +66,7 @@ function handle_calendar($a) {
       q('UPDATE events SET start=?,end=?,updated=CURRENT_TIMESTAMP WHERE id=?', [$start, $end, $e['id']]); audit('reschedule', 'events', $e['id'], $start); out(['ok' => true]);
     case 'delete':
       $e = ev_get($in['id'] ?? 0); if (!ev_can_edit($e)) fail('Not allowed', 403);
+      trash_put('Calendar event', $e['title'] . ' · ' . substr($e['start'], 0, 16), [['events', 'id=?', [$e['id']]]]);
       q('DELETE FROM events WHERE id=?', [$e['id']]); audit('delete', 'events', $e['id'], $e['title']); out(['ok' => true]);
     case 'upcoming': // for reminders: my events in the next 24h
       $now = date('Y-m-d\TH:i'); $till = date('Y-m-d\TH:i', time() + 86400);

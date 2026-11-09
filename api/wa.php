@@ -224,7 +224,7 @@ function handle_wa($a) {
       header('Content-Disposition: ' . (preg_match('#^(image|audio|video)/|pdf#', (string)$m['mime']) ? 'inline' : 'attachment') . '; filename="' . str_replace('"', '', $m['filename'] ?: basename($p)) . '"');
       readfile($p); exit;
     case 'delete_chat':
-      $c = wa_chat_get($in['chat_id'] ?? 0); q('DELETE FROM wa_msgs WHERE chat_id=?', [$c['id']]); q('DELETE FROM wa_chats WHERE id=?', [$c['id']]); audit('wa_delete', 'wa_chats', $c['id'], $c['wa_id']); out(['ok' => true]);
+      $c = wa_chat_get($in['chat_id'] ?? 0); trash_put('WhatsApp chat', ($c['name'] ?: '') . ' +' . $c['wa_id'], [['wa_chats', 'id=?', [$c['id']]], ['wa_msgs', 'chat_id=?', [$c['id']]]]); q('DELETE FROM wa_msgs WHERE chat_id=?', [$c['id']]); q('DELETE FROM wa_chats WHERE id=?', [$c['id']]); audit('wa_delete', 'wa_chats', $c['id'], $c['wa_id']); out(['ok' => true]);
     case 'assign':
       $c = wa_chat_get($in['chat_id'] ?? 0); $to = (int)($in['user_id'] ?? 0);
       if (!is_admin() && $to !== uid() && $to !== 0) fail('Only the admin can assign chats to others', 403);

@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 14; // bump when tables/columns change
+const SCHEMA_VERSION = 15; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -17,12 +17,12 @@ $E = [
 
 // role => [read modules, write modules]; '*' = everything
 // Permission modules. 'finance' = every money figure (project values, payments, balances, ad spend, dashboard money cards).
-const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','files','folder','whatsapp','quotes','payments','ads','finance','settings'];
+const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle'];
 const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts'];
 // role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
 const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
-  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','settings'], ['attendance','leaves','calendar','leads','customers','projects','checklist','files','folder','whatsapp']],
+  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','settings','recycle'], ['attendance','leaves','calendar','leads','customers','projects','checklist','files','folder','whatsapp','recycle']],
   'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings','finance'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects']],
   'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings','finance'], ['projects','checklist','files','customers','folder','calendar']],
   'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings','finance'], ['quotes','payments','ads','calendar']],
@@ -107,6 +107,7 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS disc_reads(user_id INTEGER, discussion_id INTEGER, last_id INTEGER, PRIMARY KEY(user_id, discussion_id))");
   $db->exec("CREATE TABLE IF NOT EXISTS notifs(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, kind TEXT, discussion_id INTEGER, customer_id INTEGER, lead_id INTEGER, from_id INTEGER, text TEXT, seen INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE INDEX IF NOT EXISTS notif_user ON notifs(user_id, seen)");
+  $db->exec("CREATE TABLE IF NOT EXISTS trash(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, label TEXT, data TEXT, deleted_by TEXT, deleted_at TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE TABLE IF NOT EXISTS geo_cache(k TEXT PRIMARY KEY, name TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $ac = array_column($db->query('PRAGMA table_info(attendance)')->fetchAll(), 'name');
   foreach (['in_place', 'out_place'] as $c) if ($ac && !in_array($c, $ac)) { try { $db->exec("ALTER TABLE attendance ADD COLUMN $c TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
