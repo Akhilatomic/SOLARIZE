@@ -79,7 +79,7 @@ class MailImap {
   function fetch($set, $items) { [$u] = $this->cmd("UID FETCH $set ($items)"); $o = [];
     foreach ($u as $r) { if (!preg_match('/^\* \d+ FETCH /i', $r['t'])) continue; if (!preg_match('/\bUID (\d+)/i', $r['t'], $m)) continue;
       preg_match('/\bFLAGS \(([^)]*)\)/i', $r['t'], $fl); preg_match('/\bRFC822\.SIZE (\d+)/i', $r['t'], $sz); preg_match('/\bINTERNALDATE "([^"]+)"/i', $r['t'], $dt);
-      $o[(int)$m[1]] = ['uid' => (int)$m[1], 'flags' => $fl[1] ?? '', 'size' => (int)($sz[1] ?? 0), 'idate' => $dt[1] ?? '', 'lit' => $r['l'][0] ?? '']; }
+      $o[(int)$m[1]] = ['uid' => (int)$m[1], 'flags' => $fl[1] ?? '', 'size' => (int)($sz[1] ?? 0), 'idate' => $dt[1] ?? '', 'lit' => $r['l'][0] ?? '', 'meta' => $r['t']]; }
     return $o; }
   function status($box) { [$u] = $this->cmd(['STATUS ', self::astr($box), ' (UNSEEN MESSAGES)']); $o = ['unseen' => 0, 'messages' => 0];
     foreach ($u as $r) { if (preg_match('/UNSEEN (\d+)/i', $r['t'], $m)) $o['unseen'] = (int)$m[1]; if (preg_match('/MESSAGES (\d+)/i', $r['t'], $m)) $o['messages'] = (int)$m[1]; } return $o; }
@@ -265,12 +265,12 @@ function handle_mail($a) {
       $ids = $im->search($crit); rsort($ids); $n = count($ids); $pages = max(1, (int)ceil($n / MAIL_PAGE)); $page = min($page, $pages);
       $slice = array_slice($ids, ($page - 1) * MAIL_PAGE, MAIL_PAGE);
       $items = []; $emails = [];
-      if ($slice) foreach ($im->fetch(implode(',', $slice), 'UID FLAGS RFC822.SIZE INTERNALDATE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE CONTENT-TYPE)]') as $u => $m) {
+      if ($slice) foreach ($im->fetch(implode(',', $slice), 'UID FLAGS RFC822.SIZE INTERNALDATE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE CONTENT-TYPE)]') as $u => $m) {
         $h = mime_heads($m['lit']); $fr = mail_addrs($h['from'] ?? ''); $to = mail_addrs($h['to'] ?? '');
         $ts = strtotime($h['date'] ?? '') ?: strtotime($m['idate']) ?: 0;
         $items[] = ['uid' => $u, 'from' => $fr[0] ?? ['name' => '', 'email' => ''], 'to' => $to, 'subject' => mb_substr(mime_hdec($h['subject'] ?? ''), 0, 300), 'date' => $ts ? gmdate('c', $ts) : '',
           'seen' => stripos($m['flags'], '\\Seen') !== false, 'flagged' => stripos($m['flags'], '\\Flagged') !== false, 'answered' => stripos($m['flags'], '\\Answered') !== false,
-          'att' => stripos($h['content-type'] ?? '', 'multipart/mixed') !== false, 'size' => $m['size']];
+          'att' => (bool)preg_match('/"(attachment|filename)"/i', $m['meta']), 'size' => $m['size']]; // att: a real file part (from BODYSTRUCTURE)
         foreach (array_merge($fr, $to) as $x) $emails[] = $x['email'];
       }
       usort($items, fn($x, $y) => $y['uid'] <=> $x['uid']);
