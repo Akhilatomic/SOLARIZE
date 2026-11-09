@@ -228,3 +228,40 @@ main.pg-customers .bar select{max-width:180px}
 .ib{background:none;border:0;padding:5px;border-radius:7px;cursor:pointer;color:var(--mut);line-height:0}.ib:hover{background:var(--fill);color:var(--tx)}.ib .i{width:16px;height:16px}
 .pill.p{background:#f1e9ff;color:#6b2bbf}.pill.c{background:#e3f6f8;color:#0b6f7c}
 @media(max-width:1100px){#ctb td.cact{white-space:normal;min-width:150px}main.pg-customers{padding-left:14px;padding-right:14px}}
+
+.i-dots{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'black'%3E%3Ccircle%20cx%3D'5'%20cy%3D'12'%20r%3D'1.8'%2F%3E%3Ccircle%20cx%3D'12'%20cy%3D'12'%20r%3D'1.8'%2F%3E%3Ccircle%20cx%3D'19'%20cy%3D'12'%20r%3D'1.8'%2F%3E%3C%2Fsvg%3E")}
+/* leads table: fits the window — fixed layout, merged columns, clipped text, sticky header */
+main.pg-leads .tw{overflow:auto}
+#ltb{table-layout:fixed;width:100%}
+#ltb th{position:sticky;top:0;z-index:2;background:var(--card);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:inset 0 -1px 0 var(--bd)}
+#ltb th .so{margin-left:4px;opacity:.45;font-size:11px}
+#ltb td{overflow:hidden;text-overflow:ellipsis;vertical-align:middle;padding:9px 8px}
+#ltb td.dt{white-space:nowrap;color:var(--mut);font-size:13px;line-height:1.25}#ltb td.dt small{display:block;font-size:11px;overflow:hidden;text-overflow:ellipsis}
+#ltb .nm{display:flex;align-items:center;gap:6px;min-width:0}#ltb .nm b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#ltb .nm .ndot{flex-shrink:0;margin:0}
+#ltb .pill.mt{font-size:10px;padding:1px 6px;flex-shrink:0}
+#ltb .ph{font-variant-numeric:tabular-nums;white-space:nowrap}
+#ltb .clip{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ltb .clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;line-height:1.3}
+#ltb td[data-f=remark],#ltb td[data-f=name]{min-width:0}
+#ltb td .pill{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}#ltb td .pill .i{width:11px;height:11px;vertical-align:-1px}
+#ltb td.ownc{white-space:nowrap}#ltb td.ownc .own{max-width:100%;overflow:hidden;text-overflow:ellipsis}#ltb td.ownc .btn.claim{padding:4px 10px}
+#ltb td.lact{white-space:nowrap;text-align:right;width:auto}
+#ltb .ib{padding:6px}#ltb .ib.wa{background:var(--tx);color:#fff;border-radius:8px}#ltb .ib.wa:hover{background:#3a3a3c}
+#ltb td input,#ltb td select{width:100%;min-width:0;padding:6px 8px;font-size:14px}
+.menu{position:fixed;z-index:70;padding:6px;min-width:210px;box-shadow:0 14px 40px rgba(0,0,0,.18)}
+.menu button{display:flex;gap:10px;align-items:center;width:100%;background:none;border:0;padding:9px 10px;border-radius:8px;font:inherit;font-size:14px;color:var(--tx);cursor:pointer;text-align:left}.menu button:hover{background:var(--fill)}.menu .i{width:16px;height:16px;color:var(--mut)}
+/* narrower desktops: icon-only sidebar to give tables the room */
+@media(min-width:821px) and (max-width:1440px){
+  aside{width:68px;padding:16px 10px}aside h1.brand{justify-content:center;margin:0 0 14px}aside h1.brand .bt,aside .lbl{display:none}aside h1.brand img{width:42px;height:42px}
+  aside a{justify-content:center;padding:10px 0}aside a .i{width:19px;height:19px}aside .sep{height:1px;background:var(--bd);margin:10px 8px;font-size:0}
+}
+@media(max-width:1100px){#ltb td.lact{min-width:0}}
+#ltb td[data-f=city],#ltb td[data-f=location]{min-width:0}
+/* leads toolbar: always one line — filters share the space */
+main.pg-leads .lbar{flex-wrap:nowrap;gap:8px}
+main.pg-leads .lbar #lq{flex:2 1 180px;max-width:300px!important;min-width:140px}
+main.pg-leads .lbar select{flex:1 1 110px;min-width:96px;max-width:180px}
+main.pg-leads .lbar .btn{flex-shrink:0;white-space:nowrap;padding:8px 12px}
+main.pg-leads .lbar .sp{flex:0 1 auto}
+@media(max-width:900px){main.pg-leads .lbar{flex-wrap:wrap}}
+main.pg-leads .lbar select{font-size:14px;padding-right:6px}main.pg-leads .lbar #lq{font-size:14px}

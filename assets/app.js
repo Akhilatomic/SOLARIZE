@@ -50,7 +50,7 @@ function loginView(setup, brand) {
 function shell() {
   const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : canR(m[3]));
   app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span></h1>
-   ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}<a href="#/${m[0]}" data-m="${m[0]}">${m[2]} ${m[1]}</a>`).join('')}
+   ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}">${m[2]} <span class="lbl">${m[1]}</span></a>`).join('')}
    </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2><span class="mut" style="font-size:13px">${esc(ME.name)} · ${ME.role}</span>
    <button class="btn sec sm" id="pwb">Password</button><button class="btn sec sm" id="lo">Sign out</button></div><main id="main"></main></div></div>`;
   $('#bg').onclick = () => $('#side').classList.toggle('open');
@@ -214,12 +214,19 @@ function bars(data, order) {
 }
 
 // ---------- Leads ----------
-const LCOLS = [['date', 'Added date'], ['name', 'Name'], ['phone', 'Phone'], ['status', 'Status'], ['city', 'City'], ['location', 'Location'], ['added_by', 'Added by'], ['owner', 'Claimed by'], ['remark', 'Remark'], ['appt', 'Appt']];
+const LCOLS = [['date', 'Added'], ['name', 'Name'], ['phone', 'Phone'], ['status', 'Status'], ['city', 'Location'], ['owner', 'Claimed by'], ['remark', 'Remark'], ['appt', 'Appt']];
+const LW = { date: 92, phone: 112, status: 96, owner: 124, appt: 128 }; // fixed px; name/location/remark share the rest
 let LF = { q: '', status: '', active: 'active', city: '', appt: '', own: '', sort: 'created', dir: -1, edit: false };
 let LHIDE = []; try { LHIDE = JSON.parse(localStorage.lcols || '[]'); } catch (e) { }
 const dmy = s => s ? new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 const isActiveLead = l => !['Won', 'Lost'].includes(l.status);
+const dshort = s => { if (!s) return ''; const d = new Date(s.slice(0, 10) + 'T00:00:00'); return d.toLocaleDateString('en-GB', d.getFullYear() === new Date().getFullYear() ? { day: '2-digit', month: 'short' } : { day: '2-digit', month: 'short', year: '2-digit' }); };
 function apptBadge(l) {
+  if (!l.appt) return '<span class="pill" style="color:var(--mut)">Not scheduled</span>';
+  const od = l.appt < today() && isActiveLead(l), days = Math.round((new Date(today()) - new Date(l.appt)) / 864e5);
+  return `<span class="pill ${od ? 'r' : 'g'}" title="${dmy(l.appt)}${od ? ' — overdue by ' + days + ' day' + (days > 1 ? 's' : '') : ''}">${od ? '<i class="i i-alert"></i> ' : '● '}${dshort(l.appt)}${od ? ' · ' + days + 'd' : ''}</span>`;
+}
+function apptBadgeOld(l) {
   if (!l.appt) return '<span class="pill" style="color:var(--mut)">● Not Scheduled</span>';
   const od = l.appt < today() && isActiveLead(l), days = Math.round((new Date(today()) - new Date(l.appt)) / 864e5);
   return `<span class="pill g">● ${dmy(l.appt)}</span>${od ? `<br><span class="pill r" style="margin-top:3px"><i class="i i-alert"></i> OVERDUE · ${days}d</span>` : ''}`;
@@ -245,14 +252,14 @@ async function pgLeads() {
   const cities = [...new Set(leads.map(l => l.city).filter(Boolean))].sort();
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Leads</h2><div class="mut" id="lcount"></div></div><span class="sp"></span>
    <button class="btn sec" id="lref"><i class="i i-refresh"></i> Refresh</button>${w ? `<button class="btn sec" id="ledit"><i class="i i-pencil"></i> Edit ${LF.edit ? 'ON' : 'OFF'}</button><button class="btn" id="lnew"><i class="i i-plus"></i> Add Lead</button>` : ''}</div>
-   <div class="bar" style="margin-top:12px"><input id="lq" placeholder="Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">
-   <select id="ls"><option value="">All Statuses</option>${S.lead_statuses.map(s => `<option ${LF.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
-   <select id="la">${[['active', 'Active Leads'], ['all', 'All Leads'], ['won', 'Won'], ['lost', 'Lost']].map(([v, l]) => `<option value="${v}" ${LF.active === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-   <select id="lc"><option value="">All Cities</option>${cities.map(c => `<option ${LF.city === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
-   <select id="lap">${[['', 'All Appointments'], ['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['none', 'Not Scheduled']].map(([v, l]) => `<option value="${v}" ${LF.appt === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-   <select id="lown"><option value="">All owners</option><option value="me" ${LF.own === 'me' ? 'selected' : ''}>My leads</option><option value="none" ${LF.own === 'none' ? 'selected' : ''}>Unclaimed</option>${isAdm() ? [...new Map(leads.filter(l => l.assigned_to).map(l => [l.assigned_to, l.owner_name])).entries()].map(([id, n]) => `<option value="${id}" ${LF.own == id ? 'selected' : ''}>Claimed by ${esc(n)}</option>`).join('') : ''}</select>
+   <div class="bar lbar" style="margin-top:12px"><input id="lq" placeholder="Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">
+   <select id="ls" title="Status"><option value="">All status</option>${S.lead_statuses.map(s => `<option ${LF.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+   <select id="la">${[['active', 'Active'], ['all', 'All leads'], ['won', 'Won'], ['lost', 'Lost']].map(([v, l]) => `<option value="${v}" ${LF.active === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+   <select id="lc" title="City"><option value="">All cities</option>${cities.map(c => `<option ${LF.city === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+   <select id="lap">${[['', 'All appts'], ['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['none', 'Not scheduled']].map(([v, l]) => `<option value="${v}" ${LF.appt === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+   <select id="lown" title="Claimed by"><option value="">All owners</option><option value="me" ${LF.own === 'me' ? 'selected' : ''}>My leads</option><option value="none" ${LF.own === 'none' ? 'selected' : ''}>Unclaimed</option>${isAdm() ? [...new Map(leads.filter(l => l.assigned_to).map(l => [l.assigned_to, l.owner_name])).entries()].map(([id, n]) => `<option value="${id}" ${LF.own == id ? 'selected' : ''}>Claimed by ${esc(n)}</option>`).join('') : ''}</select>
    <div style="position:relative"><button class="btn sec" id="lcol"><i class="i i-menu"></i> Columns</button><div id="lcm" class="card hide" style="position:absolute;z-index:9;top:42px;left:0;width:190px;padding:10px">${LCOLS.map(([k, l]) => `<label style="margin:4px 0;display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-col="${k}" ${LHIDE.includes(k) ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
-   <span class="sp"></span><button class="btn sec" id="lex">Export CSV</button>${w ? '<button class="btn sec" id="lim">Import CSV</button>' : ''}</div>
+   <span class="sp"></span><button class="btn sec" id="lex" title="Export CSV"><i class="i i-download"></i> Export</button>${w ? '<button class="btn sec" id="lim" title="Import CSV"><i class="i i-upload"></i> Import</button>' : ''}</div>
    ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px"><i class="i i-pencil"></i> ${LF.edit ? 'Click any cell to edit it inline.' : 'Click a Remark or Appt cell to edit it. Turn Edit ON to edit the other columns.'} Click the column headers to sort.</p>` : ''}
    <div class="card tw" style="padding:0"><table id="ltb"></table></div>`;
 
@@ -270,29 +277,60 @@ async function pgLeads() {
     const rows = filtered(), show = LCOLS.filter(c => !LHIDE.includes(c[0]));
     $('#lcount').textContent = rows.length + ' records';
     const QE = ['remark', 'appt']; // always editable inline
-    const ed = (l, f, html) => `<td data-f="${f}" ${w && l.can_edit && (LF.edit || QE.includes(f)) ? 'class="qe" title="Click to edit"' : ''}>${html}</td>`;
-    const cell = { date: l => `<td class="mut" style="white-space:nowrap">${dmy(l.created)}</td>`, name: l => ed(l, 'name', `${l.notify ? '<span class="ndot" title="New lead — not contacted yet"></span>' : ''}<b>${esc(l.name)}</b>${l.source === 'Meta Ads' ? ' <span class="pill" style="font-size:11px">Meta</span>' : ''}`), phone: l => ed(l, 'phone', esc(l.phone)), status: l => ed(l, 'status', pill(l.status, stageCls(l.status))), city: l => ed(l, 'city', esc(l.city)), location: l => ed(l, 'location', esc(l.location || l.address)),
-      added_by: l => `<td>${esc(l.added_by)}</td>`, owner: l => `<td class="ownc">${ownerCell(l)}${isAdm() && l.assigned_to ? ` <button class="btn sm sec" data-a="unlock" title="Unlock (admin)">Unlock</button>` : ''}${isAdm() ? ` <button class="btn sm sec" data-a="assign" title="Assign to a user (admin)"><i class="i i-users"></i></button>` : ''}</td>`, remark: l => ed(l, 'remark', l.remark ? esc(l.remark) : (l.can_edit ? '<span class="mut"><i>Add remark</i></span>' : '')), appt: l => ed(l, 'appt', apptBadge(l)) };
-    $('#ltb').innerHTML = `<thead><tr>${show.map(([k, l]) => `<th data-sort="${sk(k)}" style="cursor:pointer;white-space:nowrap">${l}${LF.sort === sk(k) ? (LF.dir > 0 ? ' ↑' : ' ↓') : ' ⇅'}</th>`).join('')}<th class="right">Action</th></tr></thead><tbody>${rows.map(l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}
-      <td class="lact">${!l.can_edit ? `${ME.can_claim && w ? '<button class="btn sm claim" data-a="claim"><i class="i i-userplus"></i> Claim</button> ' : ''}<button class="btn sm sec" title="View" data-a="vw"><i class="i i-eye"></i></button>` : `${l.phone ? `<button class="btn sm ok" title="WhatsApp" data-a="wa"><i class="i i-chat"></i></button> <a class="btn sm sec" title="Call" href="tel:${esc(l.phone)}"><i class="i i-phone"></i></a> ` : ''}${w ? '<button class="btn sm sec" title="Add remark" data-a="rm"><i class="i i-note"></i></button> ' : ''}<button class="btn sm sec" title="View" data-a="vw"><i class="i i-eye"></i></button>${w ? ' <button class="btn sm sec" title="Edit" data-a="ed"><i class="i i-pencil"></i></button>' : ''}
-      ${l.customer_id ? ` <a class="btn sm sec" title="Open customer" href="#/customers/${l.customer_id}"><i class="i i-user"></i></a>` : w ? ' <button class="btn sm sec" title="Convert to customer" data-a="cv"><i class="i i-userplus"></i></button>' : ''}${canW('quotes') ? ' <button class="btn sm sec" title="Create quotation" data-a="qt"><i class="i i-receipt"></i></button>' : ''}`}</td></tr>`).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
+    const ed = (l, f, html, title) => `<td data-f="${f}" class="${w && l.can_edit && (LF.edit || QE.includes(f)) ? 'qe' : ''}" title="${esc(title || '')}">${html}</td>`;
+    const loc = l => { const c = l.city || '', o = l.location || l.address || ''; return o && o.toLowerCase() !== c.toLowerCase() ? (c ? c + ' · ' + o : o) : c; };
+    const cell = {
+      date: l => `<td class="dt" title="${esc(dmy(l.created) + (l.added_by ? ' · added by ' + l.added_by : ''))}">${dshort(l.created)}<small>${esc(l.added_by || '')}</small></td>`,
+      name: l => ed(l, 'name', `<div class="nm">${l.notify ? '<span class="ndot" title="New lead — not contacted yet"></span>' : ''}<b>${esc(l.name)}</b>${l.source === 'Meta Ads' ? '<span class="pill mt">Meta</span>' : ''}</div>`, l.name),
+      phone: l => ed(l, 'phone', `<span class="ph">${esc(l.phone)}</span>`),
+      status: l => ed(l, 'status', pill(l.status, stageCls(l.status))),
+      city: l => ed(l, 'city', `<span class="clip">${esc(loc(l))}</span>`, loc(l)),
+      owner: l => `<td class="ownc">${ownerCell(l)}</td>`,
+      remark: l => ed(l, 'remark', l.remark ? `<span class="clamp">${esc(l.remark)}</span>` : (l.can_edit ? '<span class="mut"><i>Add remark</i></span>' : ''), l.remark),
+      appt: l => ed(l, 'appt', apptBadge(l)) };
+    const acts = l => !l.can_edit ? `<button class="ib" title="View" data-a="vw"><i class="i i-eye"></i></button>`
+      : `${l.phone ? '<button class="ib wa" title="WhatsApp" data-a="wa"><i class="i i-chat"></i></button><a class="ib" title="Call" href="tel:' + esc(l.phone) + '"><i class="i i-phone"></i></a>' : ''}<button class="ib" title="View / edit" data-a="vw"><i class="i i-eye"></i></button><button class="ib" title="More actions" data-a="more"><i class="i i-dots"></i></button>`;
+    $('#ltb').innerHTML = `<colgroup>${show.map(([k]) => `<col${LW[k] ? ` style="width:${LW[k]}px"` : ''}>`).join('')}<col style="width:${isAdm() ? 136 : 128}px"></colgroup>
+      <thead><tr>${show.map(([k, t]) => `<th data-sort="${sk(k)}">${t}<span class="so">${LF.sort === sk(k) ? (LF.dir > 0 ? '↑' : '↓') : '⇅'}</span></th>`).join('')}<th class="right">Actions</th></tr></thead>
+      <tbody>${rows.map(l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}<td class="lact">${acts(l)}</td></tr>`).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
     $$('#ltb th[data-sort]').forEach(h => h.onclick = () => { const k = h.dataset.sort; LF.dir = LF.sort === k ? -LF.dir : (k === 'created' ? -1 : 1); LF.sort = k; draw(); });
     $$('#ltb tbody tr[data-id]').forEach(tr => {
       const l = leads.find(x => x.id == tr.dataset.id);
       if (w && l.can_edit) $$('td[data-f]', tr).forEach(td => { if (LF.edit || QE.includes(td.dataset.f)) td.onclick = () => startEdit(td, l); });
-      $$('[data-a]', tr).forEach(b => b.onclick = async () => {
-        const a = b.dataset.a;
-        if (a === 'claim') { if (await claimLead(l.id, l.name)) route(); return; }
-        if (a === 'unlock') { if (await unlockLead(l.id)) route(); return; }
-        if (a === 'assign') { if (await assignLead(l.id)) route(); return; }
-        if (a === 'wa') waOpen({ name: l.name, phone: l.phone, lead_id: l.id });
-        if (a === 'vw' || a === 'ed') leadModal(l.id);
-        if (a === 'rm') { const r = prompt('Remark for ' + l.name, l.remark || ''); if (r !== null) { l.remark = r; await api('leads', 'save', { ...l }); draw(); } }
-        if (a === 'cv') { if (confirm('Convert ' + l.name + ' to a customer?')) { const r = await api('leads', 'convert', { id: l.id }); location.hash = '#/customers/' + r.customer_id; } }
-        if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ lead_id: l.id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; }
-      });
+      $$('[data-a]', tr).forEach(b => b.onclick = e => { e.stopPropagation(); act(b.dataset.a, l, b); });
     });
+    fitTable();
   };
+  // one handler for row buttons and the "more" menu
+  const act = async (a, l, btn) => {
+    if (a === 'more') return moreMenu(l, btn);
+    closeMenu();
+    if (a === 'claim') { if (await claimLead(l.id, l.name)) route(); return; }
+    if (a === 'unlock') { if (await unlockLead(l.id)) route(); return; }
+    if (a === 'assign') { if (await assignLead(l.id)) route(); return; }
+    if (a === 'wa') waOpen({ name: l.name, phone: l.phone, lead_id: l.id });
+    if (a === 'vw' || a === 'ed') leadModal(l.id);
+    if (a === 'rm') { const r = prompt('Remark for ' + l.name, l.remark || ''); if (r !== null) { l.remark = r; await api('leads', 'save', { ...l }); draw(); } }
+    if (a === 'cv') { if (confirm('Convert ' + l.name + ' to a customer?')) { const r = await api('leads', 'convert', { id: l.id }); location.hash = '#/customers/' + r.customer_id; } }
+    if (a === 'oc') location.hash = '#/customers/' + l.customer_id;
+    if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ lead_id: l.id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; }
+  };
+  const closeMenu = () => { const m = $('#lmenu'); if (m) m.remove(); };
+  const moreMenu = (l, btn) => {
+    closeMenu();
+    const items = [['rm', 'note', 'Add remark'], ['ed', 'pencil', 'Edit lead'], l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
+      isAdm() && l.assigned_to ? ['unlock', 'lock', 'Unlock (admin)'] : null, isAdm() ? ['assign', 'users', 'Assign to user (admin)'] : null].filter(Boolean);
+    const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu';
+    m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('');
+    document.body.appendChild(m);
+    const r = btn.getBoundingClientRect(), mh = m.offsetHeight;
+    m.style.left = Math.max(8, r.right - m.offsetWidth) + 'px'; m.style.top = (r.bottom + mh + 8 > innerHeight ? r.top - mh - 6 : r.bottom + 6) + 'px';
+    $$('[data-m]', m).forEach(b => b.onclick = () => act(b.dataset.m, l));
+    setTimeout(() => document.addEventListener('click', function h(e) { if (!m.contains(e.target)) { closeMenu(); document.removeEventListener('click', h); } }), 0);
+  };
+  // table fills the rest of the window; header stays visible while rows scroll
+  const fitTable = () => { const box = $('#ltb')?.parentElement; if (!box) return; const top = box.getBoundingClientRect().top; box.style.maxHeight = Math.max(260, innerHeight - top - 18) + 'px'; };
+  if (!window._lfit) { window._lfit = true; addEventListener('resize', () => { if (location.hash.startsWith('#/leads')) { const b = $('#ltb')?.parentElement; if (b) { const t = b.getBoundingClientRect().top; b.style.maxHeight = Math.max(260, innerHeight - t - 18) + 'px'; } } }); }
   const startEdit = (td, l) => {
     const f = td.dataset.f; if (td.querySelector('input,select')) return; let el;
     if (f === 'status') { el = document.createElement('select'); el.innerHTML = S.lead_statuses.map(s => `<option ${s === l.status ? 'selected' : ''}>${s}</option>`).join(''); }
