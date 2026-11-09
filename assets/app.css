@@ -448,3 +448,6 @@ button.ac:not([disabled]){cursor:pointer}button.ac:not([disabled]):hover{outline
 
 .attfull{grid-template-columns:1fr!important}.attfull .punchcard{display:none}
 .regt{table-layout:fixed}.regt th.rn,.regt td.rn{width:130px}.regt th:nth-last-child(-n+5),.regt td:nth-last-child(-n+5){width:34px}.regt .ac{min-width:0;width:100%;max-width:30px;padding:0}
+
+.wkt td{vertical-align:top;padding:6px 2px}.wkt .ac{max-width:40px;height:26px;font-size:12px}.wkt .ac sup{font-size:8px;margin-left:1px}.wkh{display:block;font-size:10px;color:var(--mut);margin-top:2px;white-space:nowrap}
+.wkt th.pay,.wkt td.pay{background:#f2f7ff;width:110px}.wkt th:nth-last-child(-n+6),.wkt td:nth-last-child(-n+6){width:70px}.wkt th.pay,.wkt td.pay{width:110px}

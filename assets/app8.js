@@ -15,7 +15,7 @@ function getLoc() {
 async function punch(kind, btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'Getting location…'; }
   const loc = await getLoc();
-  try { const r = await api('hr', 'punch', { kind, ...loc }); toast(kind === 'in' ? `Checked in at ${r.time}${r.late ? ' (late)' : ''}${loc.lat ? '' : ' · location not shared'}` : `Checked out at ${r.time} · ${fmtH(r.hours)}`); }
+  try { const r = await api('hr', 'punch', { kind, ...loc }); toast(kind === 'in' ? `Checked in at ${r.time}${r.status === 'Half day' ? ' (half day)' : r.late ? ' (late)' : ''}${loc.lat ? '' : ' · location not shared'}` : `Checked out at ${r.time} · ${fmtH(r.hours)}${r.status === 'Half day' ? ' · half day' : r.early ? ' · left early' : ''}`); }
   finally { await hrMe(); if (location.hash.startsWith('#/attendance')) route(); }
 }
 // top-bar check-in / check-out button
@@ -40,9 +40,9 @@ async function pgAttendance() {
   const me = await hrMe(); if (!me) return;
   const mgr = !!me.manage_att; if (!HR.attTab) HR.attTab = mgr ? 'today' : 'mine'; if (!HR.month) HR.month = today().slice(0, 7);
   const t = me.today, worked = t && t.check_in ? hrsBetween(t.check_in, t.check_out || new Date().toTimeString().slice(0, 5)) : 0;
-  $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:10px"><div><h2 style="margin:0;font-size:26px">Attendance</h2><div class="mut">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · Office time ${esc(me.cfg.start)} (grace ${me.cfg.grace} min)</div></div><span class="sp"></span>
-    ${mgr ? `<div class="tabs" style="margin:0">${[['today', 'Today'], ['register', 'Monthly register'], ['mine', 'My attendance']].map(([k, l]) => `<button data-at="${k}" class="${HR.attTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}</div>
-   <div class="grid cols2 ${HR.attTab === 'register' && mgr ? 'attfull' : ''}" style="grid-template-columns:minmax(280px,360px) minmax(0,1fr);align-items:start">
+  $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:10px"><div><h2 style="margin:0;font-size:26px">Attendance</h2><div class="mut">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · Office ${esc(me.cfg.start)}–${esc(me.cfg.end || '18:00')} · late after ${me.cfg.grace} min · half day if in after / out before ${esc(me.cfg.half_after || '14:00')}</div></div><span class="sp"></span>
+    ${mgr ? `<div class="tabs" style="margin:0">${[['today', 'Today'], ['week', 'Weekly (salary)'], ['register', 'Monthly register'], ['mine', 'My attendance']].map(([k, l]) => `<button data-at="${k}" class="${HR.attTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}</div>
+   <div class="grid cols2 ${(HR.attTab === 'register' || HR.attTab === 'week') && mgr ? 'attfull' : ''}" style="grid-template-columns:minmax(280px,360px) minmax(0,1fr);align-items:start">
     <div class="card punchcard"><div class="pclock" id="pclock">${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
      ${me.on_leave && !t ? `<p class="mut">You are on approved leave today (${esc(me.on_leave.type)}).</p>` : ''}
      <div class="pstat">${t && t.check_in ? pill(t.status, ATT[t.status]) : pill('Not checked in')}</div>
@@ -54,6 +54,7 @@ async function pgAttendance() {
   if ($('#pin')) $('#pin').onclick = e => punch('in', e.currentTarget); if ($('#pout')) $('#pout').onclick = e => punch('out', e.currentTarget);
   $$('[data-at]').forEach(b => b.onclick = () => { HR.attTab = b.dataset.at; pgAttendance(); });
   if (HR.attTab === 'today' && mgr) return attToday();
+  if (HR.attTab === 'week' && mgr) return attWeek(false);
   return attRegister(HR.attTab === 'mine' || !mgr);
 }
 async function attToday() {
@@ -62,7 +63,7 @@ async function attToday() {
   box.innerHTML = `<div class="grid stats" style="margin-bottom:12px">${[['Present', d.rows.filter(r => r.check_in).length, 'g'], ['Late', cnt('Late'), 'y'], ['On leave', cnt('leave'), 'b'], ['Not in yet', cnt('absent'), 'r']].map(([l, v]) => `<div class="card stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
    <div class="card tw" style="padding:0"><table id="att"><thead><tr><th>Staff</th><th>Status</th><th>In</th><th>Out</th><th>Hours</th><th>Location</th><th class="right">Edit</th></tr></thead><tbody>
    ${d.rows.map(r => `<tr><td><b>${esc(r.name)}</b><br><small class="mut">${esc((S.role_names || {})[r.role] || r.role)}</small></td><td>${r.leave ? pill('Leave · ' + r.leave, 'b') : r.status ? pill(r.status, ATT[r.status]) : pill('Not in', 'r')}${r.notes ? `<br><small class="mut">${esc(r.notes)}</small>` : ''}</td>
-     <td>${hmAgo(r.check_in)}</td><td>${hmAgo(r.check_out)}</td><td>${fmtH(hrsBetween(r.check_in, r.check_out))}</td><td>${mapLink(r.in_lat, r.in_lng)} ${mapLink(r.out_lat, r.out_lng)}</td>
+     <td>${hmAgo(r.check_in)}</td><td>${hmAgo(r.check_out)}${r.check_out && r.check_out < (HR.me.cfg.end || '18:00') ? ' <span class="pill y" title="Left before office end">early</span>' : ''}</td><td>${fmtH(hrsBetween(r.check_in, r.check_out))}</td><td>${mapLink(r.in_lat, r.in_lng)} ${mapLink(r.out_lat, r.out_lng)}</td>
      <td class="right"><button class="ib" data-ed="${r.user_id}" title="Correct attendance"><i class="i i-pencil"></i></button></td></tr>`).join('')}</tbody></table></div>`;
   $$('[data-ed]', box).forEach(b => b.onclick = () => { const r = d.rows.find(x => x.user_id == b.dataset.ed); attEdit({ user_id: r.user_id, name: r.name, date: d.date, ...r }, attToday); });
 }
@@ -154,16 +155,60 @@ async function drawHrSettings() {
   const box = $('#hrset'); if (!box) return;
   const c = (await api('hr', 'me')).cfg;
   box.innerHTML = `<div class="ch"><h3>Attendance & leave</h3></div><div class="two">
-    <div><label>Office start time</label><input type="time" id="hs1" value="${esc(c.start)}"></div><div><label>Grace (minutes before “Late”)</label><input type="number" id="hs2" value="${c.grace}"></div>
-    <div><label>Half day if worked less than (hours)</label><input type="number" step="0.5" id="hs3" value="${c.half_hours}"></div><div><label>Full day hours</label><input type="number" step="0.5" id="hs4" value="${c.full_hours}"></div>
+    <div><label>Office start time</label><input type="time" id="hs1" value="${esc(c.start)}"></div><div><label>Office end time</label><input type="time" id="hs7" value="${esc(c.end || '18:00')}"></div>
+    <div><label>Grace (minutes before “Late”)</label><input type="number" id="hs2" value="${c.grace}"></div><div><label>Half day if check-in after / check-out before</label><input type="time" id="hs8" value="${esc(c.half_after || '14:00')}"></div>
+    <div><label>Also half day if worked less than (hours, 0 = off)</label><input type="number" step="0.5" id="hs3" value="${c.half_hours}"></div><div><label>Full day hours</label><input type="number" step="0.5" id="hs4" value="${c.full_hours}"></div>
+    <div class="full"><label>Salary day (weekly attendance ends on)</label><select id="hs9">${WD.map((w, i) => `<option value="${i}" ${(c.pay_day ?? 6) == i ? 'selected' : ''}>${w}</option>`).join('')}</select></div>
     <div class="full"><label>Weekly off</label><div class="wkd">${WD.map((w, i) => `<label class="ck"><input type="checkbox" data-wo="${i}" ${c.week_off.includes(i) ? 'checked' : ''}> ${w}</label>`).join('')}</div></div>
     <div class="full"><label>Holidays (one per line: YYYY-MM-DD | name)</label><textarea id="hs5" rows="5" placeholder="2026-12-25 | Christmas">${esc(c.holidays.map(h => h.date + ' | ' + h.name).join('\n'))}</textarea></div>
     <div class="full"><label>Leave types (one per line: CODE | name | days per year, 0 = unlimited/unpaid)</label><textarea id="hs6" rows="5">${esc(c.leave_types.map(t => t.code + ' | ' + t.name + ' | ' + t.quota).join('\n'))}</textarea></div></div>
     <button class="btn" id="hssv" style="margin-top:10px">Save attendance & leave settings</button>`;
   $('#hssv').onclick = async () => {
     const lines = id => $(id).value.split('\n').map(x => x.split('|').map(s => s.trim())).filter(x => x[0]);
-    await api('hr', 'cfg_save', { value: { start: $('#hs1').value, grace: $('#hs2').value, half_hours: $('#hs3').value, full_hours: $('#hs4').value, week_off: $$('[data-wo]').filter(x => x.checked).map(x => +x.dataset.wo),
+    await api('hr', 'cfg_save', { value: { start: $('#hs1').value, end: $('#hs7').value, half_after: $('#hs8').value, pay_day: +$('#hs9').value, grace: $('#hs2').value, half_hours: $('#hs3').value, full_hours: $('#hs4').value, week_off: $$('[data-wo]').filter(x => x.checked).map(x => +x.dataset.wo),
       holidays: lines('#hs5').map(([date, name]) => ({ date, name: name || 'Holiday' })), leave_types: lines('#hs6').map(([code, name, quota]) => ({ code, name, quota: +quota || 0 })) } });
     toast('Attendance & leave settings saved'); hrMe(); drawHrSettings();
   };
+}
+
+// ---------- Weekly attendance (salary week ends on the pay day, default Saturday) ----------
+const payDay = () => (HR.me && HR.me.cfg.pay_day != null) ? +HR.me.cfg.pay_day : 6;
+function weekEnd(dt) { const d = new Date(dt); const diff = (payDay() - d.getDay() + 7) % 7; d.setDate(d.getDate() + diff); return d; }
+const ymd2 = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+async function attWeek(mine) {
+  if (!HR.wkEnd) HR.wkEnd = ymd2(weekEnd(new Date()));
+  const end = new Date(HR.wkEnd + 'T00:00:00'), start = new Date(end); start.setDate(end.getDate() - 6);
+  const from = ymd2(start), to = HR.wkEnd;
+  const d = await api('hr', 'range', undefined, `&from=${from}&to=${to}${mine ? '&mine=1' : ''}`), box = $('#atb'); if (!box) return;
+  const days = Array.from({ length: 7 }, (_, i) => { const x = new Date(start); x.setDate(start.getDate() + i); return ymd2(x); });
+  const hol = Object.fromEntries(d.cfg.holidays.map(h => [h.date, h.name])), paid = Object.fromEntries(d.cfg.leave_types.map(t => [t.code, +t.quota > 0]));
+  const rec = {}; d.records.forEach(r => rec[r.user_id + '|' + r.date] = r);
+  const lvOn = (u, ds) => d.leaves.find(l => l.user_id == u && ds >= l.from_date && ds <= l.to_date);
+  const day = (u, ds) => { const r = rec[u + '|' + ds], l = lvOn(u, ds), wd = new Date(ds + 'T00:00:00').getDay();
+    if (r && r.status === 'Absent') return { k: 'A', c: 'ab', pay: 0, work: 1, tip: 'Absent' + (r.notes ? ' · ' + r.notes : '') };
+    if (r && (r.check_in || r.status)) { const hd = r.status === 'Half day', h = hrsBetween(r.check_in, r.check_out);
+      return { k: { Present: 'P', Late: 'L', 'Half day': 'HD', 'On duty': 'OD' }[r.status] || 'P', c: { Present: 'pr', Late: 'lt', 'Half day': 'hd', 'On duty': 'od' }[r.status] || 'pr', pay: hd ? .5 : 1, work: d.cfg.week_off.includes(wd) || hol[ds] ? 0 : 1, hrs: h, late: r.status === 'Late', hd, early: r.check_out && r.check_out < (d.cfg.end || '18:00') && !hd,
+        tip: `${r.status} ${r.check_in || ''}${r.check_out ? '–' + r.check_out : ' (no check-out)'}${r.notes ? ' · ' + r.notes : ''}` }; }
+    if (hol[ds]) return { k: 'H', c: 'ho', pay: 1, work: 0, tip: 'Holiday · ' + hol[ds] };
+    if (d.cfg.week_off.includes(wd)) return { k: 'WO', c: 'wo', pay: 0, work: 0, tip: 'Weekly off' };
+    if (l) { const p = paid[l.type] ? (l.half ? .5 : 1) : 0; return { k: l.half ? 'HL' : 'LV', c: 'lv', pay: p, work: 1, lv: l.half ? .5 : 1, lop: paid[l.type] ? 0 : (l.half ? .5 : 1), tip: 'Leave · ' + l.type + (paid[l.type] ? ' (paid)' : ' (unpaid)') }; }
+    if (ds > d.today) return { k: '', c: '', pay: 0, work: 1, future: 1, tip: 'Upcoming' };
+    return { k: 'A', c: 'ab', pay: 0, work: 1, tip: 'Absent (no check-in)' };
+  };
+  const sum = u => { const s = { work: 0, pay: 0, P: 0, L: 0, HD: 0, A: 0, LV: 0, LOP: 0, hrs: 0, early: 0 }; days.forEach(ds => { const x = day(u, ds); s.work += x.work; s.pay += x.pay; s.hrs += x.hrs || 0; if (x.k === 'P' || x.k === 'OD') s.P++; if (x.k === 'L') { s.L++; } if (x.hd) s.HD++; if (x.k === 'A') s.A++; if (x.lv) s.LV += x.lv; if (x.lop) s.LOP += x.lop; if (x.early) s.early++; }); return s; };
+  const lbl = `${start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  const isCur = HR.wkEnd === ymd2(weekEnd(new Date()));
+  const html = `<div class="card"><div class="ch"><h3>${mine ? 'My week' : 'Weekly attendance'} <span class="mut" style="font-weight:400">· salary on ${WD[payDay()]} ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></h3><span class="sp"></span>
+     <button class="btn sec sm" id="wkp" title="Previous week">‹</button><b style="font-size:14px;white-space:nowrap">${lbl}</b><button class="btn sec sm" id="wkn" title="Next week" ${isCur ? 'disabled' : ''}>›</button>${isCur ? '' : '<button class="btn sec sm" id="wkt">This week</button>'}${mine ? '' : '<button class="btn sec sm" id="wkcsv"><i class="i i-download"></i> CSV</button>'}</div>
+    <div class="tw areg"><table class="regt wkt" data-nofit="1"><thead><tr><th class="rn">Staff</th>${days.map(ds => { const dt = new Date(ds + 'T00:00:00'); return `<th class="${ds === d.today ? 'tdy' : ''}"><small>${WD[dt.getDay()]}</small>${dt.getDate()}</th>`; }).join('')}<th>Hours</th><th>Late</th><th>Half</th><th>Leave</th><th>Absent</th><th class="pay">Payable days</th></tr></thead><tbody>
+    ${d.users.map(u => { const s = sum(u.id); return `<tr><td class="rn"><b>${esc(u.name)}</b></td>${days.map(ds => { const x = day(u.id, ds); return `<td><button class="ac ${x.c}" data-u="${u.id}" data-d="${ds}" title="${esc(ds + ' · ' + x.tip)}" ${!mine && !x.c.match(/lv|ho|wo/) && ds <= d.today ? '' : 'disabled'}>${x.k}${x.early ? '<sup>e</sup>' : ''}</button>${x.hrs ? `<small class="wkh">${fmtH(x.hrs)}</small>` : ''}</td>`; }).join('')}
+      <td>${fmtH(s.hrs)}</td><td>${s.L || ''}</td><td>${s.HD || ''}</td><td>${s.LV ? s.LV + (s.LOP ? ` <small class="over">(${s.LOP} unpaid)</small>` : '') : ''}</td><td class="${s.A ? 'over' : ''}">${s.A || ''}</td><td class="pay"><b>${s.pay}</b> <small class="mut">/ ${s.work}</small></td></tr>`; }).join('')}</tbody></table></div>
+    <p class="mut" style="font-size:12px;margin:8px 0 0"><b>Payable days</b> = full days (late counts as a full day) + ½ for half days + paid leave + holidays, out of the week's working days. Unpaid leave (LOP) and absences are not paid. <sup>e</sup> = left before ${esc(d.cfg.end || '18:00')}.${mine ? '' : ' Click a day to correct it.'}</p></div>`;
+  box.innerHTML = html;
+  $('#wkp').onclick = () => { const x = new Date(HR.wkEnd + 'T00:00:00'); x.setDate(x.getDate() - 7); HR.wkEnd = ymd2(x); attWeek(mine); };
+  $('#wkn').onclick = () => { const x = new Date(HR.wkEnd + 'T00:00:00'); x.setDate(x.getDate() + 7); HR.wkEnd = ymd2(x); attWeek(mine); };
+  if ($('#wkt')) $('#wkt').onclick = () => { HR.wkEnd = ymd2(weekEnd(new Date())); attWeek(mine); };
+  if (!mine) $$('.wkt button.ac:not([disabled])', box).forEach(b => b.onclick = () => { const u = d.users.find(x => x.id == b.dataset.u), r = rec[b.dataset.u + '|' + b.dataset.d] || {}; attEdit({ ...r, user_id: u.id, name: u.name, date: b.dataset.d }, () => attWeek(false)); });
+  if ($('#wkcsv')) $('#wkcsv').onclick = () => csvDownload(`attendance-week-${from}-to-${to}.csv`, ['name', ...days.map(x => WD[new Date(x + 'T00:00:00').getDay()] + ' ' + x.slice(8)), 'hours', 'late', 'half_days', 'leave', 'unpaid_leave', 'absent', 'payable_days', 'working_days'],
+    d.users.map(u => { const s = sum(u.id), o = { name: u.name, hours: s.hrs.toFixed(2), late: s.L, half_days: s.HD, leave: s.LV, unpaid_leave: s.LOP, absent: s.A, payable_days: s.pay, working_days: s.work }; days.forEach(ds => o[WD[new Date(ds + 'T00:00:00').getDay()] + ' ' + ds.slice(8)] = day(u.id, ds).k); return o; }));
 }
