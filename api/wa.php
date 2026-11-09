@@ -192,9 +192,10 @@ function handle_wa($a) {
     case 'send_media':
       $c = wa_chat_get($_POST['chat_id'] ?? 0); $fl = $_FILES['file'] ?? null;
       if (!$fl || $fl['error'] !== UPLOAD_ERR_OK) fail('Choose a file (the server upload limit may be too small)');
-      $mime = mime_content_type($fl['tmp_name']) ?: 'application/octet-stream';
+      $ext = sec_upload($fl, ['image', 'pdf', 'office'], 16); // documents & images only
+      $mime = ['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'pdf' => 'application/pdf', 'doc' => 'application/msword', 'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'xls' => 'application/vnd.ms-excel', 'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'][$ext];
       $okm = ['image/jpeg', 'image/png', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'video/mp4', 'audio/mpeg', 'audio/ogg', 'text/plain'];
-      if (!in_array($mime, $okm)) fail('This file type cannot be sent on WhatsApp');
+      if ($ext === 'webp') fail('WhatsApp cannot send WebP images — use JPG or PNG');
       if ($fl['size'] > ((strpos($mime, 'image/') === 0) ? 5 : 16) * 1024 * 1024) fail('File too large for WhatsApp (images 5 MB, others 16 MB)');
       out(['id' => wa_send_file($c, $fl['tmp_name'], $mime, basename($fl['name']), trim((string)($_POST['caption'] ?? '')))]);
     case 'send_datasheet':

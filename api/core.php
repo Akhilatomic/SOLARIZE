@@ -10,27 +10,33 @@ function handle_auth($a) {
   if ($a === 'setup') {
     if ($count) fail('Already set up', 403);
     $u = trim($in['username'] ?? ''); $pw = $in['password'] ?? ''; $n = trim($in['name'] ?? '') ?: $u;
-    if ($u === '' || strlen($pw) < 8) fail('Username and a password of at least 8 characters are required');
+    if ($u === '') fail('Username is required'); sec_password_ok($pw, $u);
     q('INSERT INTO users(name,username,hash,role) VALUES(?,?,?,?)', [$n, $u, password_hash($pw, PASSWORD_DEFAULT), 'admin']);
     login_as(row('SELECT * FROM users WHERE username=?', [$u])); audit('setup', 'users'); out(['ok' => true]);
   }
   if ($a === 'login') {
+    $un = mb_substr(trim((string)($in['username'] ?? '')), 0, 60);
+    login_guard_check($un);
     usleep(400000);
-    $u = row('SELECT * FROM users WHERE username=? AND active=1', [trim($in['username'] ?? '')]);
-    if ($u && password_verify($in['password'] ?? '', $u['hash'])) { login_as($u); audit('login', 'users', $u['id']); out(['ok' => true]); }
+    $u = row('SELECT * FROM users WHERE username=? AND active=1', [$un]);
+    if ($u && password_verify((string)($in['password'] ?? ''), $u['hash'])) {
+      if (password_needs_rehash($u['hash'], PASSWORD_DEFAULT)) q('UPDATE users SET hash=? WHERE id=?', [password_hash($in['password'], PASSWORD_DEFAULT), $u['id']]);
+      login_guard_ok($un); login_as($u); audit('login', 'users', $u['id'], 'from ' . client_ip()); out(['ok' => true]); }
+    login_guard_fail($un);
     fail('Wrong username or password', 401);
   }
-  if ($a === 'logout') { session_destroy(); out(['ok' => true]); }
+  if ($a === 'logout') { session_unset(); session_destroy(); setcookie(session_name(), '', ['expires' => 1, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => !empty($_SERVER['HTTPS'])]); out(['ok' => true]); }
   if (empty($_SESSION['uid'])) fail('Unauthorized', 401);
   if ($a === 'password') {
     $u = row('SELECT * FROM users WHERE id=?', [$_SESSION['uid']]);
     if (!password_verify($in['old'] ?? '', $u['hash'])) fail('Wrong current password', 401);
-    if (strlen($in['new'] ?? '') < 8) fail('Minimum 8 characters');
-    q('UPDATE users SET hash=? WHERE id=?', [password_hash($in['new'], PASSWORD_DEFAULT), $u['id']]); audit('password', 'users', $u['id']); out(['ok' => true]);
+    sec_password_ok((string)($in['new'] ?? ''), $u['username']);
+    q('UPDATE users SET hash=?, sess_ver=sess_ver+1 WHERE id=?', [password_hash($in['new'], PASSWORD_DEFAULT), $u['id']]); // signs out every other device
+    $_SESSION['sv'] = (int)row('SELECT sess_ver FROM users WHERE id=?', [$u['id']])['sess_ver']; audit('password', 'users', $u['id']); out(['ok' => true]);
   }
   fail('Unknown action', 404);
 }
-function login_as($u) { session_regenerate_id(true); $_SESSION['uid'] = (int)$u['id']; $_SESSION['role'] = $u['role']; $_SESSION['username'] = $u['username']; $_SESSION['name'] = $u['name']; }
+function login_as($u) { session_regenerate_id(true); $_SESSION['sv'] = (int)($u['sess_ver'] ?? 0); $_SESSION['seen'] = time(); $_SESSION['uid'] = (int)$u['id']; $_SESSION['role'] = $u['role']; $_SESSION['username'] = $u['username']; $_SESSION['name'] = $u['name']; }
 function me() {
   if (empty($_SESSION['uid'])) return null;
   $r = roles()[$_SESSION['role']] ?? [[], []]; $cc = can_claim();
@@ -45,7 +51,7 @@ function handle_crud($t, $a) {
   if ($t === 'leads') lead_guard($a, $in);
   switch ($a) {
     case 'list':
-      if ($t === 'customers') out(array_map('strip_fin', rows("SELECT c.*, lp.id project_id, lp.stage, lp.kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects
+      if ($t === 'customers') out(array_map(fn($r) => mask_customer(strip_fin($r)), rows("SELECT c.*, lp.id project_id, lp.stage, lp.kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects
         FROM customers c LEFT JOIN projects lp ON lp.id=(SELECT id FROM projects WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) ORDER BY c.created DESC, c.id DESC")));
       if ($t === 'projects') out(array_map('strip_fin', rows('SELECT p.*, c.name customer, c.phone, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p LEFT JOIN customers c ON c.id=p.customer_id ORDER BY p.updated DESC')));
       $w = []; $args = [];
@@ -54,7 +60,8 @@ function handle_crud($t, $a) {
       out(rows("SELECT * FROM $t" . ($w ? ' WHERE ' . implode(' AND ', $w) : '') . ' ORDER BY updated DESC, id DESC', $args));
     case 'get':
       $r = row("SELECT * FROM $t WHERE id=?", [(int)($_GET['id'] ?? 0)]); if (!$r) fail('Not found', 404);
-      out(in_array($t, ['projects', 'customers', 'leads']) ? strip_fin(detail($t, $r)) : detail($t, $r));
+      $r = in_array($t, ['projects', 'customers', 'leads']) ? strip_fin(detail($t, $r)) : detail($t, $r);
+      out($t === 'customers' ? mask_customer($r) : $r);
     case 'save':
       $v = pick($in, $cols);
       if (isset($v['name']) && $v['name'] === '') fail('Name required');
@@ -66,7 +73,7 @@ function handle_crud($t, $a) {
         $id = (int)$in['id'];
         if ($t === 'projects') { $prot = ['stage', 'amc_start', 'amc_end', 'amc_interval']; if (!can('finance')) array_push($prot, 'cost', 'subsidy_amount'); foreach ($prot as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $prot)); }
         if ($t === 'leads' && !can('finance')) { unset($v['budget']); $cols = array_values(array_diff($cols, ['budget'])); }
-        if ($t === 'customers') { unset($v['added_by']); $cols = array_values(array_diff($cols, ['added_by'])); }
+        if ($t === 'customers') { unset($v['added_by']); $cols = array_values(array_diff($cols, ['added_by'])); if (strpos((string)($v['bank_account'] ?? ''), '•') !== false) { unset($v['bank_account']); $cols = array_values(array_diff($cols, ['bank_account'])); } }
         if ($t === 'leads') { $keep = ['added_by','meta_id','meta_form','meta_ad','meta_campaign','notify','assigned_to','claimed_at']; foreach ($keep as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $keep)); }
         $set = implode(',', array_map(fn($c) => "$c=:$c", $cols));
         $v['id'] = $id;
@@ -233,11 +240,12 @@ function handle_checklist($a) {
 function handle_files($a) {
   $dir = dirname(__DIR__) . '/data/uploads';
   if ($a === 'get') {
-    need('files'); $f = row('SELECT * FROM files WHERE id=?', [(int)($_GET['id'] ?? 0)]); if (!$f) fail('Not found', 404);
+    need('files'); need('customers'); $f = row('SELECT * FROM files WHERE id=?', [(int)($_GET['id'] ?? 0)]); if (!$f) fail('Not found', 404);
+    if (!empty($_GET['dl']) || !empty($_GET['v'])) audit(!empty($_GET['dl']) ? 'doc_download' : 'doc_view', 'files', $f['id'], $f['name'] . ($f['item'] ? ' · ' . $f['item'] : '') . ' · customer ' . (int)$f['customer_id']);
     $p = "$dir/" . basename($f['path']); if (!is_file($p)) fail('File missing', 404);
     header_remove('Content-Type');
     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-    $mime = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'][$ext] ?? 'application/octet-stream'; header('Cache-Control: private, max-age=86400');
+    $mime = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'][$ext] ?? 'application/octet-stream'; header('Cache-Control: private, no-store'); header($mime === 'application/pdf' ? "Content-Security-Policy: default-src 'none'; object-src 'self'; frame-ancestors 'self'" : "Content-Security-Policy: sandbox; default-src 'none'; img-src 'self'; frame-ancestors 'self'");
     header('Content-Type: ' . $mime); header('X-Content-Type-Options: nosniff');
     header('Content-Disposition: ' . ($mime === 'application/octet-stream' || !empty($_GET['dl']) ? 'attachment' : 'inline') . '; filename="' . str_replace('"', '', $f['name']) . '"');
     readfile($p); exit;
@@ -246,10 +254,7 @@ function handle_files($a) {
   need('files', true);
   if ($a === 'upload') {
     $fl = $_FILES['file'] ?? null;
-    if (!$fl || $fl['error'] !== UPLOAD_ERR_OK) fail('Upload failed (max size is set by the server)');
-    if ($fl['size'] > 10 * 1024 * 1024) fail('File too large (max 10 MB)');
-    $ext = strtolower(pathinfo($fl['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx', 'xls', 'xlsx', 'txt'])) fail('Allowed: pdf, jpg, png, webp, doc, docx, xls, xlsx, txt');
+    $ext = sec_upload($fl, ['image', 'pdf', 'office'], 10); // documents & images only, checked by content
     $name = bin2hex(random_bytes(12)) . '.' . $ext;
     if (!move_uploaded_file($fl['tmp_name'], "$dir/$name")) fail('Could not save file', 500);
     $pid = (int)($_POST['project_id'] ?? 0) ?: null; $cid = (int)($_POST['customer_id'] ?? 0) ?: null;

@@ -92,17 +92,12 @@ function handle_settings($a) {
     if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
     $dir = dirname(__DIR__) . '/uploads';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
-    file_put_contents("$dir/.htaccess", "Options -Indexes\n<FilesMatch \"\\.(php|phtml|phar|html?|js)$\">\n  Require all denied\n</FilesMatch>\n");
+    file_put_contents("$dir/.htaccess", "Options -Indexes\n<FilesMatch \"\\.(?!(jpe?g|png|webp)$)[^.]+$\">\n  Require all denied\n</FilesMatch>\n");
     $cur = settings()['login'];
     $olds = glob("$dir/login-bg-*") ?: [];
     if ($a === 'remove_bg') { $cur['bg'] = ''; }
     else {
-      $fl = $_FILES['file'] ?? null;
-      if (!$fl || $fl['error'] !== UPLOAD_ERR_OK) fail('Upload failed (file too large for the server?)');
-      if ($fl['size'] > 6 * 1024 * 1024) fail('Image too large (max 6 MB)');
-      $info = @getimagesize($fl['tmp_name']);
-      $ext = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'][$info[2] ?? 0] ?? null;
-      if (!$ext) fail('Please upload a JPG, PNG or WebP image');
+      $ext = sec_upload($_FILES['file'] ?? null, ['image'], 6);
       $name = 'login-bg-' . bin2hex(random_bytes(5)) . '.' . $ext;
       if (!move_uploaded_file($fl['tmp_name'], "$dir/$name")) fail('Could not save image', 500);
       $cur['bg'] = $name; $olds = array_diff($olds, ["$dir/$name"]);
@@ -134,10 +129,13 @@ function handle_admin($a) {
       if (!empty($in['id'])) {
         $id = (int)$in['id'];
         if ($id === (int)$_SESSION['uid'] && ($role !== 'admin' || empty($in['active']))) fail('You cannot demote or disable yourself');
+        if (!empty($in['password'])) sec_password_ok((string)$in['password'], $u);
+        $was = row('SELECT role, active FROM users WHERE id=?', [$id]);
         q('UPDATE users SET name=?,username=?,role=?,active=?,can_claim=? WHERE id=?', [$name, $u, $role, empty($in['active']) ? 0 : 1, empty($in['can_claim']) ? 0 : 1, $id]);
-        if (!empty($in['password'])) { if (strlen($in['password']) < 8) fail('Password min 8 characters'); q('UPDATE users SET hash=? WHERE id=?', [password_hash($in['password'], PASSWORD_DEFAULT), $id]); }
+        if (!empty($in['password'])) q('UPDATE users SET hash=?, sess_ver=sess_ver+1 WHERE id=?', [password_hash($in['password'], PASSWORD_DEFAULT), $id]); // new password signs them out everywhere
+        elseif ($was && ($was['role'] !== $role || ((int)$was['active'] && empty($in['active'])))) q('UPDATE users SET sess_ver=sess_ver+1 WHERE id=?', [$id]);
       } else {
-        if (strlen($in['password'] ?? '') < 8) fail('Password min 8 characters');
+        sec_password_ok((string)($in['password'] ?? ''), $u);
         if (row('SELECT 1 FROM users WHERE username=?', [$u])) fail('Username already exists');
         q('INSERT INTO users(name,username,hash,role,can_claim) VALUES(?,?,?,?,?)', [$name, $u, password_hash($in['password'], PASSWORD_DEFAULT), $role, empty($in['can_claim']) ? 0 : 1]); $id = db()->lastInsertId();
       }

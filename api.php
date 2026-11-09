@@ -1,10 +1,11 @@
 <?php
 // Router: api.php?m=<module>&a=<action>
-session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax', 'secure' => !empty($_SERVER['HTTPS'])]);
-session_start();
+ini_set('display_errors', '0'); error_reporting(E_ALL);
+require __DIR__ . '/api/security.php';
+sec_session_start();
 date_default_timezone_set('Asia/Kolkata');
 header('Content-Type: application/json; charset=utf-8');
-header('X-Content-Type-Options: nosniff');
+sec_headers();
 require __DIR__ . '/api/lib.php';
 require __DIR__ . '/api/core.php';
 require __DIR__ . '/api/ops.php';
@@ -23,10 +24,12 @@ require __DIR__ . '/api/plant.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';
-  if ($m === 'auth') handle_auth($a);
   if ($m === 'meta' && $a === 'cron') handle_meta_cron();
-  if ($m === 'share') handle_share();
-  if ($m === 'wa' && $a === 'hook') handle_wa_hook();   // WhatsApp webhook (public, signature-checked)   // public datasheet link (token-protected)
+  if ($m === 'share') handle_share();                    // public datasheet link (token-protected)
+  if ($m === 'wa' && $a === 'hook') handle_wa_hook();   // WhatsApp webhook (public, signature-checked)
+  sec_csrf();                                           // every other POST must come from this app
+  if (!empty($_SESSION['uid'])) sec_session_check($m === 'auth'); // still active, same password, not idle
+  if ($m === 'auth') handle_auth($a);
   if (empty($_SESSION['uid'])) fail('Unauthorized', 401);
   try { housekeeping(); } catch (Throwable $e) { } // hourly: expire 200-day documents, purge the 72-hour recycle bin
   // CSRF-light: state-changing calls must be POST
@@ -52,8 +55,9 @@ try {
     case 'trash': handle_trash($a);
     case 'profile': handle_profile($a);
     case 'plant': handle_plant($a);
+    case 'sec': handle_sec($a);
   }
   fail('Unknown module', 404);
 } catch (Throwable $e) {
-  fail('Server error: ' . $e->getMessage(), 500);
+  sec_fail_server($e);
 }

@@ -1,7 +1,7 @@
 <?php
 // Datasheet folder: categorised product files, public share links, admin-controlled availability.
 
-const DS_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx', 'zip'];
+const DS_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx', 'xls', 'xlsx'];
 const DS_MIME = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png'];
 
 function ds_cats() { return settings()['ds_categories']; }
@@ -38,8 +38,7 @@ function handle_folder($a) {
     case 'upload':
       $cat = trim((string)($_POST['category'] ?? '')); if (!in_array($cat, ds_cats())) fail('Choose a category');
       $fl = $_FILES['file'] ?? null; if (!$fl || $fl['error'] !== UPLOAD_ERR_OK) fail(ds_upload_err($fl['error'] ?? UPLOAD_ERR_NO_FILE));
-      if ($fl['size'] > 25 * 1024 * 1024) fail('File too large (max 25 MB)');
-      $ext = strtolower(pathinfo($fl['name'], PATHINFO_EXTENSION)); if (!in_array($ext, DS_EXT)) fail('Allowed types: ' . implode(', ', DS_EXT));
+      $ext = sec_upload($fl, ['image', 'pdf', 'office'], 25);
       $name = 'ds-' . bin2hex(random_bytes(10)) . '.' . $ext;
       if (!move_uploaded_file($fl['tmp_name'], ds_dir() . "/$name")) fail('Could not save file', 500);
       $title = trim((string)($_POST['title'] ?? '')) ?: pathinfo($fl['name'], PATHINFO_FILENAME);

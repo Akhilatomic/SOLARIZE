@@ -1,4 +1,7 @@
 // Solarize CRM - core, dashboard, leads, customers, projects
+// security: every state-changing call to the API carries the app header (blocks cross-site request forgery)
+(() => { const f = window.fetch.bind(window); window.fetch = (u, o = {}) => { if (typeof u === 'string' && /^api\.php/.test(u) && o && String(o.method || 'GET').toUpperCase() === 'POST') { o = { ...o, headers: new Headers(o.headers || {}) }; o.headers.set('X-Solarize', '1'); } return f(u, o); }; })();
+const canExport = () => ['admin', 'assistant_manager'].includes(ME && ME.role); // bulk exports: managers only
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inr = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
@@ -61,7 +64,7 @@ function shell() {
   document.addEventListener('click', e => { const m = $('#acm'); if (m && !m.contains(e.target)) m.classList.add('hide'); });
   new MutationObserver(fitSoon).observe($('#main'), { childList: true, subtree: true });
   $('#lo').onclick = async () => { await api('auth', 'logout', {}); location.hash = ''; location.reload(); };
-  $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (min 8 characters)'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
+  $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
 }
 window.onhashchange = () => ME && route();
 async function route() {
@@ -135,13 +138,14 @@ function bindTabs(key, redraw) { $$('[data-tab]').forEach(b => b.onclick = () =>
 function csvParse(t) { const rows = []; let r = [], f = '', q = false; for (let i = 0; i < t.length; i++) { const c = t[i]; if (q) { if (c == '"') { if (t[i + 1] == '"') { f += '"'; i++; } else q = false; } else f += c; } else if (c == '"') q = true; else if (c == ',') r.push(f), f = ''; else if (c == '\n') { r.push(f.replace(/\r$/, '')); rows.push(r); r = []; f = ''; } else f += c; } if (f || r.length) { r.push(f); rows.push(r); } return rows; }
 function csvObjs(t) { const rows = csvParse(t.replace(/^﻿/, '')); const h = rows.shift().map(x => x.trim().toLowerCase()); return rows.filter(r => r.some(x => x)).map(r => Object.fromEntries(h.map((k, i) => [k, r[i]]))); }
 function csvDownload(name, cols, data) {
+  try { api('sec', 'log_export', { name, rows: (data || []).length }).catch(() => { }); } catch (e) { }
   const csv = [cols.join(',')].concat(data.map(c => cols.map(k => '"' + String(c[k] ?? '').replace(/"/g, '""') + '"').join(','))).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })); a.download = name; a.click();
 }
 function pickFile(accept = '') { return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => res(i.files[0]); i.click(); }); }
 async function upload(extra) { const f = await pickFile('.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt'); if (!f) return false; const fd = new FormData(); fd.append('file', f); Object.entries(extra).forEach(([k, v]) => fd.append(k, v ?? '')); await api('files', 'upload', fd); return true; }
 const docLeft = c => Math.ceil((new Date(String(c).replace(' ', 'T') + 'Z').getTime() + 200 * 864e5 - Date.now()) / 864e5);
-const fileLink = f => { const d = docLeft(f.created); return `<a href="api.php?m=files&a=get&id=${f.id}" target="_blank">${esc(f.name)}</a> <small class="mut">${dt(f.created)} · ${Math.round(f.size / 1024)} KB</small> <small class="${d <= 30 ? 'dexp' : 'mut'}" title="Uploaded documents are kept for 200 days, then moved to the Recycle bin">· ${d > 0 ? d + ' day' + (d === 1 ? '' : 's') + ' left' : 'expiring'}</small>`; };
+const fileLink = f => { const d = docLeft(f.created); return `<a href="api.php?m=files&a=get&id=${f.id}&v=1" target="_blank" rel="noopener">${esc(f.name)}</a> <small class="mut">${dt(f.created)} · ${Math.round(f.size / 1024)} KB</small> <small class="${d <= 30 ? 'dexp' : 'mut'}" title="Uploaded documents are kept for 200 days, then moved to the Recycle bin">· ${d > 0 ? d + ' day' + (d === 1 ? '' : 's') + ' left' : 'expiring'}</small>`; };
 function noteBox(entity, id, notes, redo) {
   return `<div class="card"><h3>Notes & activity</h3>${canW(entity) ? `<div class="bar"><input id="nt" placeholder="Add a note or call log…" style="max-width:none;flex:1"><button class="btn" id="an">Add</button></div>` : ''}
   ${(notes || []).map(n => `<div class="act">${esc(n.text)}<br><small>${esc(n.user)} · ${n.created}</small></div>`).join('') || '<p class="mut">No notes yet</p>'}</div>`;
@@ -298,7 +302,7 @@ async function pgLeads() {
    <select id="lap">${[['', 'All appts'], ['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['none', 'Not scheduled']].map(([v, l]) => `<option value="${v}" ${LF.appt === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
    <select id="lown" title="Claimed by"><option value="">All owners</option><option value="me" ${LF.own === 'me' ? 'selected' : ''}>My leads</option><option value="none" ${LF.own === 'none' ? 'selected' : ''}>Unclaimed</option>${isAdm() ? [...new Map(leads.filter(l => l.assigned_to).map(l => [l.assigned_to, l.owner_name])).entries()].map(([id, n]) => `<option value="${id}" ${LF.own == id ? 'selected' : ''}>Claimed by ${esc(n)}</option>`).join('') : ''}</select>
    <div style="position:relative"><button class="btn sec" id="lcol"><i class="i i-menu"></i> Columns</button><div id="lcm" class="card hide" style="position:absolute;z-index:9;top:42px;left:0;width:190px;padding:10px">${LCOLS.map(([k, l]) => `<label style="margin:4px 0;display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-col="${k}" ${LHIDE.includes(k) ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
-   <span class="sp"></span><button class="btn sec" id="lex" title="Export CSV"><i class="i i-download"></i> Export</button>${w ? '<button class="btn sec" id="lim" title="Import CSV"><i class="i i-upload"></i> Import</button>' : ''}</div>
+   <span class="sp"></span>${canExport() ? '<button class="btn sec" id="lex" title="Export CSV"><i class="i i-download"></i> Export</button>' : ''}${w ? '<button class="btn sec" id="lim" title="Import CSV"><i class="i i-upload"></i> Import</button>' : ''}</div>
    ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px"><i class="i i-pencil"></i> ${LF.edit ? 'Click any cell to edit it inline.' : 'Click a Remark or Appt cell to edit it. Turn Edit ON to edit the other columns.'} Click the column headers to sort.</p>` : ''}
    <div class="card tw fitbox" style="padding:0"><table id="ltb" data-min="1000"></table></div>`;
 
@@ -386,7 +390,7 @@ async function pgLeads() {
   if ($('#lnew')) $('#lnew').onclick = () => leadModal(0);
   $('#lcol').onclick = () => $('#lcm').classList.toggle('hide');
   $$('[data-col]').forEach(c => c.onchange = () => { LHIDE = $$('[data-col]').filter(x => !x.checked).map(x => x.dataset.col); try { localStorage.lcols = JSON.stringify(LHIDE); } catch (e) { } draw(); });
-  $('#lex').onclick = () => csvDownload('leads-' + today() + '.csv', ['name', 'phone', 'email', 'city', 'location', 'source', 'status', 'appt', 'remark', 'kw', 'budget', 'added_by', 'created', 'notes'], leads);
+  if ($('#lex')) $('#lex').onclick = () => csvDownload('leads-' + today() + '.csv', ['name', 'phone', 'email', 'city', 'location', 'source', 'status', 'appt', 'remark', 'kw', 'budget', 'added_by', 'created', 'notes'], leads);
   if ($('#lim')) $('#lim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; const rows = csvObjs(await f.text()); let n = 0; for (const r of rows) { if (!r.name) continue; await api('leads', 'save', { ...r, status: r.status || 'New' }); n++; } alert('Imported ' + n + ' leads'); route(); };
   draw(); DISC.lredraw = draw;
 }
@@ -444,7 +448,7 @@ async function pgCustomers() {
    <div class="bar" style="margin-top:12px"><input id="cq" placeholder="Search by name, consumer no, phone, district…" style="max-width:340px" value="${esc(CUF.q)}">
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
    <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity']].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
-   <span class="sp"></span><button class="btn sec" id="cex">Export CSV</button>${w ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
+   <span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex">Export CSV</button>' : ''}${w ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
    <div class="card tw fitbox" style="padding:0"><table id="ctb" data-min="960"></table></div>`;
   const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}"><i class="i i-${i}"></i></button>`;
   const draw = () => {
@@ -481,7 +485,7 @@ async function pgCustomers() {
   $('#cst').onchange = e => { CUF.st = e.target.value; draw(); }; $('#csort').onchange = e => { CUF.sort = e.target.value; draw(); };
   $('#cref').onclick = () => route();
   if ($('#cconv')) $('#cconv').onclick = convertLeadModal;
-  $('#cex').onclick = () => csvDownload('customers-' + today() + '.csv', ['name', 'phone', 'email', 'address', 'district', 'consumer_no', 'kseb_section', 'sanctioned_load', 'roof_type', 'gst_no', 'status', 'kw', 'added_by', 'created', 'notes'], cs);
+  if ($('#cex')) $('#cex').onclick = () => csvDownload('customers-' + today() + '.csv', ['name', 'phone', 'email', 'address', 'district', 'consumer_no', 'kseb_section', 'sanctioned_load', 'roof_type', 'gst_no', 'status', 'kw', 'added_by', 'created', 'notes'], cs);
   if ($('#cnew')) $('#cnew').onclick = () => customerModal(0);
   if ($('#cim')) $('#cim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; let n = 0; for (const r of csvObjs(await f.text())) { if (!r.name) continue; await api('customers', 'save', r); n++; } toast('Imported ' + n + ' customers'); route(); };
   draw(); DISC.redraw = draw;

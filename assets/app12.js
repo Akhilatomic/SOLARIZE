@@ -80,7 +80,7 @@ function plantForm(box, c, id, d, r) {
 
 // ---------------- Documents ----------------
 const isImg = f => /\.(jpe?g|png|webp|gif)$/i.test(f.name), isPdf = f => /\.pdf$/i.test(f.name);
-const fileUrl = (f, dl) => `api.php?m=files&a=get&id=${f.id}${dl ? '&dl=1' : ''}`;
+const fileUrl = (f, dl) => `api.php?m=files&a=get&id=${f.id}${dl === 1 ? '&dl=1' : dl === 'v' ? '&v=1' : ''}`; // thumbnails: no flag; view / download: audited
 function renderDocs(box, c, id) {
   const F = c.files, w = canW('files'), have = new Set(F.map(f => f.item).filter(Boolean));
   box.innerHTML = `<div class="card pfc"><div class="pfch"><i class="i i-file"></i><h3>Documents</h3><small class="mut">${F.length} file${F.length === 1 ? '' : 's'} · kept 200 days</small><span class="sp"></span>
@@ -114,7 +114,7 @@ function docViewer(F, i) {
   const m = modal('<div class="dvw"></div>', 1); m.classList.add('dvmod');
   const show = () => { const f = F[i];
     $('.dvw', m).innerHTML = `<div class="dvh"><b>${esc(f.item || f.name)}</b><span class="mut">${i + 1} / ${F.length} · ${esc(f.name)}</span><span class="sp"></span><a class="btn sec sm" href="${fileUrl(f, 1)}" download="${esc(f.name)}"><i class="i i-download"></i></a><button class="btn sec sm" id="dvs"><i class="i i-link"></i></button><button class="lvx" id="dvx"><i class="i i-x"></i></button></div>
-      <div class="dvb">${isImg(f) ? `<img src="${fileUrl(f)}" alt="">` : isPdf(f) ? `<iframe src="${fileUrl(f)}" title="PDF"></iframe>` : `<p class="mut">No preview for this file type. <a href="${fileUrl(f, 1)}">Download</a></p>`}
+      <div class="dvb">${isImg(f) ? `<img src="${fileUrl(f, 'v')}" alt="">` : isPdf(f) ? `<iframe src="${fileUrl(f, 'v')}" title="PDF"></iframe>` : `<p class="mut">No preview for this file type. <a href="${fileUrl(f, 1)}">Download</a></p>`}
        ${F.length > 1 ? '<button class="dvn p" id="dvp">‹</button><button class="dvn n" id="dvn">›</button>' : ''}</div>`;
     $('#dvx', m).onclick = () => { m.remove(); document.removeEventListener('keydown', key); };
     $('#dvs', m).onclick = () => docShare(f, { name: '' });

@@ -1,7 +1,29 @@
 Options -Indexes
-<FilesMatch "\.(sqlite|db)$">
+ServerSignature Off
+# never serve databases, logs, backups, archives, config or hidden files
+<FilesMatch "\.(sqlite|sqlite3|db|log|sql|bak|old|orig|swp|zip|tar|gz|7z|rar|sh|ini|env|lock|md|yml|yaml|dist)$">
   Require all denied
 </FilesMatch>
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# Security headers (HTTPS only, no framing by other sites, no MIME sniffing, limited browser features)
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set Referrer-Policy "same-origin"
+  Header always set Permissions-Policy "geolocation=(self), camera=(self), microphone=(), payment=(), usb=(), bluetooth=(), interest-cohort=()"
+  Header always set X-Permitted-Cross-Domain-Policies "none"
+  Header always unset X-Powered-By
+  Header unset X-Powered-By
+</IfModule>
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK|PUT|DELETE|PATCH)$ [NC]
+  RewriteRule .* - [F,L]
+</IfModule>
 RewriteEngine On
 RewriteCond %{HTTPS} off
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]

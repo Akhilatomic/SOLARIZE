@@ -69,9 +69,8 @@ function handle_pipeline($a) {
       $pid = (int)($_POST['project_id'] ?? 0); $key = (string)($_POST['stage'] ?? '');
       $p = row('SELECT * FROM projects WHERE id=?', [$pid]); if (!$p) fail('Project not found', 404);
       $st = array_values(array_filter(PIPE, fn($s) => $s[0] === $key && $s[3] === 'receipt'))[0] ?? null; if (!$st) fail('This stage does not take a receipt');
-      $fl = $_FILES['file'] ?? null; if (!$fl || $fl['error'] !== UPLOAD_ERR_OK) fail($fl && $fl['error'] === UPLOAD_ERR_INI_SIZE ? 'File too large (max 2 MB)' : 'Choose the receipt file');
-      if ($fl['size'] > 2 * 1024 * 1024) fail('Receipt must be 2 MB or smaller');
-      $ext = strtolower(pathinfo($fl['name'], PATHINFO_EXTENSION)); if (!in_array($ext, ['jpg', 'jpeg', 'pdf'])) fail('Receipt must be a JPG or PDF file');
+      $fl = $_FILES['file'] ?? null;
+      $ext = sec_upload($fl, ['image', 'pdf'], 2); if (!in_array($ext, ['jpg', 'pdf'])) fail('Receipt must be a JPG or PDF file');
       $head = file_get_contents($fl['tmp_name'], false, null, 0, 5);
       $ok = $ext === 'pdf' ? $head === '%PDF-' : (($i = @getimagesize($fl['tmp_name'])) && $i[2] === IMAGETYPE_JPEG);
       if (!$ok) fail('That file is not a valid ' . strtoupper($ext === 'pdf' ? 'PDF' : 'JPG'));
