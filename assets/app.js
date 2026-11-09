@@ -35,7 +35,7 @@ async function boot() {
   shell(); route();
 }
 function loginView(setup) {
-  app.innerHTML = `<div class="card login"><img src="assets/logo.png" alt="Jasper" style="width:72px;height:72px;border-radius:16px;display:block;margin:0 0 12px"><h2 style="margin:0 0 4px">Solarize <span style="color:var(--pri)">CRM</span></h2>
+  app.innerHTML = `<div class="card login"><img src="assets/logo.png" alt="Jasper" style="width:96px;height:96px;object-fit:contain;display:block;margin:0 0 12px"><h2 style="margin:0 0 4px">Solarize <span style="color:var(--pri)">CRM</span></h2>
   <p class="mut">${setup ? 'First run: create the administrator account.' : 'Sign in to continue.'}</p>
   ${setup ? '<label>Your name</label><input id="nm">' : ''}<label>Username</label><input id="un" autocomplete="username"><label>Password${setup ? ' (min 8)' : ''}</label><input id="pw" type="password" autocomplete="current-password">
   <div class="err" id="e"></div><button class="btn" style="width:100%" id="go">${setup ? 'Create admin' : 'Sign in'}</button></div>`;
