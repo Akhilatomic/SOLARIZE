@@ -38,6 +38,15 @@ function graph_all($cfg, $path, $params, $maxPages = 10) {
   return $out;
 }
 
+// Lead forms and leads must be read with a Page access token. If the saved token is a user or
+// system-user token, ask Meta for the page's own token (works when the page is assigned to that user).
+function meta_page_cfg($cfg) {
+  [$code, $j] = graph($cfg, $cfg['page_id'], ['fields' => 'access_token,name']);
+  if (!empty($j['access_token'])) $cfg['token'] = $j['access_token'];
+  $cfg['page_name'] = $j['name'] ?? '';
+  return $cfg;
+}
+
 function norm_phone($p) {
   $d = preg_replace('/\D/', '', (string)$p);
   if (strlen($d) === 12 && strpos($d, '91') === 0) $d = substr($d, 2);
@@ -53,6 +62,7 @@ function meta_sync($minGap) {
   $st['running'] = $now; $st['last_try'] = $now; kv_set('meta_state', $st);
   $new = 0; $err = '';
   try {
+    $cfg = meta_page_cfg($cfg);
     $forms = [];
     foreach (preg_split('/[\s,]+/', trim($cfg['form_ids']), -1, PREG_SPLIT_NO_EMPTY) as $f) $forms[] = ['id' => $f, 'name' => ''];
     if (!$forms) $forms = graph_all($cfg, $cfg['page_id'] . '/leadgen_forms', ['fields' => 'id,name,status', 'limit' => 100], 3);
@@ -136,6 +146,7 @@ function handle_meta($a) {
     $c = meta_cfg(); if ($c['token'] === '' || $c['page_id'] === '') fail('Save the Page ID and access token first');
     [$code, $j] = graph($c, $c['page_id'], ['fields' => 'name']);
     if (isset($j['error'])) out(['ok' => false, 'error' => $j['error']['message'] ?? 'Meta API error']);
+    $c = meta_page_cfg($c);
     try { $forms = graph_all($c, $c['page_id'] . '/leadgen_forms', ['fields' => 'id,name,status', 'limit' => 50], 2); }
     catch (Throwable $e) { out(['ok' => false, 'error' => 'Connected to the page, but could not read lead forms: ' . $e->getMessage() . ' (the token needs leads_retrieval and pages_manage_ads permissions)']); }
     out(['ok' => true, 'page' => $j['name'] ?? $c['page_id'], 'forms' => array_map(fn($f) => ['id' => $f['id'], 'name' => $f['name'] ?? ''], $forms)]);
