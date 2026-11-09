@@ -47,7 +47,7 @@ function leadExtra(m) {
 }
 function bindLeadTabs(m, l, w) {
   $$('[data-lt]', m).forEach(b => b.onclick = () => { $$('[data-lt]', m).forEach(x => x.classList.toggle('on', x === b));
-    $$('[data-lp]', m).forEach(p => p.hidden = p.dataset.lp !== b.dataset.lt); $$('.ltp-d', m).forEach(p => p.hidden = b.dataset.lt !== 'd'); });
+    $$('[data-lp]', m).forEach(p => p.hidden = p.dataset.lp !== b.dataset.lt); $$('.ltp-d', m).forEach(p => p.hidden = b.dataset.lt !== 'd'); const sc = $('.lmb', m); if (sc) sc.scrollTop = 0; });
   if (!w) $$('[data-ls],[data-lpk]', m).forEach(e => e.disabled = true);
   const g = k => { const e = $(`[data-ls="${k}"]`, m) || $(`[data-lpk="${k}"]`, m); return e ? +e.value || 0 : 0; };
   const setp = (k, v) => { const e = $(`[data-lpk="${k}"]`, m); if (e && w) { e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); } };
