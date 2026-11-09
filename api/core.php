@@ -103,10 +103,21 @@ function handle_crud($t, $a) {
       if ($t !== 'customers') fail('Unknown action', 404);
       need('leads', true);
       $cu = row('SELECT * FROM customers WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$cu) fail('Customer not found', 404);
-      $p = row('SELECT title, stage FROM projects WHERE customer_id=? LIMIT 1', [$cu['id']]);
-      if ($p) fail("This customer has a project (" . ($p['title'] ?: 'project') . " · {$p['stage']}). Delete the project first, then revert to lead.");
-      $nf = (int)row("SELECT COUNT(*) c FROM files WHERE customer_id=? AND (project_id IS NULL OR project_id=0)", [$cu['id']])['c'];
-      if ($nf) fail("This customer has $nf uploaded document" . ($nf === 1 ? '' : 's') . ". Download and delete them first, then revert to lead.");
+      // what a revert would delete: projects (status, steps, checklist, payments) and every uploaded document
+      $projs = rows('SELECT id, title, stage, kw FROM projects WHERE customer_id=?', [$cu['id']]);
+      $pids = array_map(fn($p) => (int)$p['id'], $projs); $pin = $pids ? implode(',', $pids) : '0';
+      $nf = (int)row("SELECT COUNT(*) c FROM files WHERE customer_id=? OR project_id IN ($pin)", [$cu['id']])['c'];
+      $pay = row("SELECT COUNT(*) n, COALESCE(SUM(amount),0) s FROM payments WHERE project_id IN ($pin)");
+      if (($projs || $nf) && empty($in['confirm'])) {
+        $o = ['confirm' => 1, 'name' => $cu['name'], 'projects' => array_map(fn($p) => ['title' => $p['title'], 'stage' => $p['stage'], 'kw' => $p['kw']], $projs), 'docs' => $nf, 'payments' => (int)$pay['n']];
+        if (can('finance')) $o['paid'] = (float)$pay['s'];
+        out($o);
+      }
+      if ((int)$pay['n'] && !is_admin()) fail('This customer has recorded payments. Only an admin can revert it to a lead.', 403);
+      foreach ($pids as $pid) { purge_project($pid); q('DELETE FROM project_steps WHERE project_id=?', [$pid]); q('DELETE FROM stage_data WHERE project_id=?', [$pid]); q('DELETE FROM services WHERE project_id=?', [$pid]); q('DELETE FROM projects WHERE id=?', [$pid]); }
+      foreach (rows('SELECT path FROM files WHERE customer_id=?', [$cu['id']]) as $f) @unlink(dirname(__DIR__) . '/data/uploads/' . basename($f['path']));
+      q('DELETE FROM files WHERE customer_id=?', [$cu['id']]);
+      $gone = ($projs ? count($projs) . ' project(s) incl. status & ' . (int)$pay['n'] . ' payment(s), ' : '') . ($nf ? "$nf document(s)" : '');
       $why = mb_substr(trim((string)($in['reason'] ?? '')), 0, 300);
       $stamp = date('d M Y') . ' · reverted from customer by ' . ($_SESSION['name'] ?? '') . ($why ? ": $why" : '');
       $hasQuote = (int)row('SELECT COUNT(*) c FROM quotes WHERE customer_id=?', [$cu['id']])['c'] > 0;
@@ -126,7 +137,7 @@ function handle_crud($t, $a) {
       q('UPDATE discussions SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); q('UPDATE notifs SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // discussions follow it back
       q('UPDATE messages SET lead_id=COALESCE(lead_id, ?), customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // WhatsApp log stays with the lead
       q('DELETE FROM customers WHERE id=?', [$cu['id']]);
-      audit('revert', 'customers', $cu['id'], "{$cu['name']} → lead $lid" . ($why ? " · $why" : ''));
+      audit('revert', 'customers', $cu['id'], "{$cu['name']} → lead $lid" . ($why ? " · $why" : '') . ($gone ? " · deleted $gone" : ''));
       out(['lead_id' => $lid, 'reopened' => $l ? 1 : 0]);
     case 'convert':
       if ($t !== 'leads') fail('Unknown action', 404);

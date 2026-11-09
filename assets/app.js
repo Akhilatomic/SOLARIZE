@@ -487,19 +487,36 @@ function customerModal(id, c = {}) {
   const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} customer</h2><div class="two">${CF.map(f => fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button>${id && canW('leads') ? '<span class="sp"></span><button class="btn sec" id="rvl" title="Move this customer back to Leads"><i class="i i-refresh"></i> Revert to lead</button>' : ''}</div>`);
   $('#cx', m).onclick = () => m.remove();
-  if ($('#rvl', m)) $('#rvl', m).onclick = async () => {
-    const why = prompt(`Revert "${c.name || 'this customer'}" back to Leads?\n\nThe customer record is removed and the lead is reopened (or created). Quotes and notes move to the lead; team discussions on this customer are deleted.\n\nReason (optional):`, '');
-    if (why === null) return;
-    const r = await api('customers', 'revert', { id, reason: why }); m.remove();
-    toast(r.reopened ? 'Reverted — the original lead is reopened' : 'Reverted — a new lead was created'); location.hash = '#/leads';
-  };
+  if ($('#rvl', m)) $('#rvl', m).onclick = () => revertToLead(id, c.name, m);
   $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; if (!o.name) return alert('Name required'); const r = await api('customers', 'save', o); m.remove(); if (id) route(); else location.hash = '#/customers/' + r.id; };
+}
+// Customer → back to Leads. If a project or documents exist, list what will be deleted and ask to type REVERT.
+async function revertToLead(id, name, parent) {
+  const why = prompt(`Revert "${name || 'this customer'}" back to Leads?\n\nThe lead is reopened (or created). Quotes, notes, WhatsApp log and team discussions move to the lead.\n\nReason (optional):`, '');
+  if (why === null) return;
+  const done = r => { if (parent) parent.remove(); toast(r.reopened ? 'Reverted — the original lead is reopened' : 'Reverted — a new lead was created'); location.hash = '#/leads'; };
+  const r = await api('customers', 'revert', { id, reason: why });
+  if (!r.confirm) return done(r);
+  const list = [...r.projects.map(p => `<li><b>Project</b> ${esc(p.title || 'Solar project')}${p.kw ? ' · ' + p.kw + ' kW' : ''} — status <b>${esc(p.stage || '')}</b>, all steps, checklist and receipts</li>`),
+    r.payments ? `<li><b>${r.payments} payment record${r.payments === 1 ? '' : 's'}</b>${r.paid != null ? ' (' + inr(r.paid) + ')' : ''}</li>` : '',
+    r.docs ? `<li><b>${r.docs} uploaded document${r.docs === 1 ? '' : 's'}</b> (KSEB papers, receipts, photos…)</li>` : ''].join('');
+  const m = modal(`<div class="rvw"><div class="rvh"><span class="rvi"><i class="i i-alert"></i></span><div><h2>Delete and revert to lead?</h2><small>${esc(r.name)}</small></div></div>
+    <p>Reverting will <b>permanently delete</b>:</p><ul class="rvl">${list}</ul>
+    <p class="mut" style="font-size:13px">This cannot be undone. Download anything you need first. Quotes, notes, WhatsApp log and discussions are kept on the lead.${r.payments && ME.role !== 'admin' ? '<br><b style="color:#c4271f">Only an admin can revert a customer with payments.</b>' : ''}</p>
+    <label>Type <b>REVERT</b> to confirm</label><input id="rvc" autocomplete="off" placeholder="REVERT">
+    <div class="bar" style="margin-top:14px"><button class="btn sec" id="rvx">Cancel</button><span class="sp"></span><button class="btn bad" id="rvgo" disabled>Delete & revert to lead</button></div></div>`);
+  m.classList.add('rvmod');
+  $('#rvx', m).onclick = () => m.remove();
+  $('#rvc', m).oninput = e => $('#rvgo', m).disabled = e.target.value.trim().toUpperCase() !== 'REVERT';
+  $('#rvc', m).focus();
+  $('#rvgo', m).onclick = async () => { const b = $('#rvgo', m); b.disabled = true; b.textContent = 'Reverting…';
+    try { const r2 = await api('customers', 'revert', { id, reason: why, confirm: 1 }); m.remove(); done(r2); } catch (e) { b.disabled = false; b.textContent = 'Delete & revert to lead'; } };
 }
 async function pgCustomer(id) {
   const c = await api('customers', 'get', undefined, '&id=' + id);
   const w = canW('customers');
   $('#main').innerHTML = `<p><a href="#/customers">← Customers</a></p>
-   <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(c.name)}</h2><button class="btn sec" id="dsc"><i class="i i-chat"></i> Discussion</button>${c.phone ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(c.phone) + '">Call</a>' : ''}${w ? '<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>' : ''}</div>
+   <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(c.name)}</h2><button class="btn sec" id="dsc"><i class="i i-chat"></i> Discussion</button>${c.phone ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(c.phone) + '">Call</a>' : ''}${w ? '<button class="btn sec" id="ed">Edit</button>' + (canW('leads') ? '<button class="btn sec" id="rvp"><i class="i i-refresh"></i> Revert to lead</button>' : '') + '<button class="btn bad" id="dl">Delete</button>' : ''}</div>
    <p class="mut" style="margin:6px 0 0">${esc(c.phone)} ${c.email ? '· ' + esc(c.email) : ''}<br>${esc(c.address)}${c.district ? ' · ' + esc(c.district) : ''}<br>${c.consumer_no ? 'Consumer no. <b>' + esc(c.consumer_no) + '</b>' : ''} ${c.kseb_section ? '· Section: ' + esc(c.kseb_section) : ''} ${c.sanctioned_load ? '· Load ' + c.sanctioned_load + ' kW' : ''} ${c.roof_type ? '· ' + esc(c.roof_type) + ' roof' : ''} ${c.gst_no ? '· GST ' + esc(c.gst_no) : ''}</p></div>
    <div class="grid cols2" style="margin-top:12px"><div class="card"><h3>Projects ${canW('projects') ? '<button class="btn sm" id="np" style="float:right">+ New project</button>' : ''}</h3>
     ${c.projects.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.stage, stageCls(p.stage))}<br><small>${p.kw} kW${FIN() ? ' · ' + inr(p.cost) + ' · paid ' + inr(p.paid) : ''}</small></div>`).join('') || '<p class="mut">No projects yet</p>'}</div>
@@ -509,6 +526,7 @@ async function pgCustomer(id) {
    <div style="margin-top:12px">${noteBox('customers', id, c.notes_log)}</div>`;
   if ($('#wa')) $('#wa').onclick = () => waOpen({ name: c.name, phone: c.phone, customer_id: id });
   if ($('#dsc')) $('#dsc').onclick = () => discOpen(id);
+  if ($('#rvp')) $('#rvp').onclick = () => revertToLead(id, c.name);
   if ($('#ed')) $('#ed').onclick = () => customerModal(id, c);
   if ($('#dl')) $('#dl').onclick = async () => { if (confirm('Delete this customer and ALL their projects, quotes and files? This cannot be undone.')) { await api('customers', 'delete', { id }); location.hash = '#/customers'; } };
   if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
