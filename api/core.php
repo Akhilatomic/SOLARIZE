@@ -41,7 +41,7 @@ function handle_crud($t, $a) {
   global $E;
   [$mod, $cols] = $E[$t];
   $in = body();
-  need($mod, in_array($a, ['save', 'delete', 'convert']));
+  need($mod, in_array($a, ['save', 'delete', 'convert', 'revert']));
   if ($t === 'leads') lead_guard($a, $in);
   switch ($a) {
     case 'list':
@@ -96,6 +96,36 @@ function handle_crud($t, $a) {
       if ($t === 'campaigns') { q('DELETE FROM ad_spend WHERE campaign_id=?', [$id]); q('UPDATE leads SET campaign_id=NULL WHERE campaign_id=?', [$id]); }
       q("DELETE FROM $t WHERE id=?", [$id]); q('DELETE FROM notes WHERE entity=? AND entity_id=?', [$t, $id]);
       audit('delete', $t, $id); out(['ok' => true]);
+    case 'revert': // customer → back to leads (undo a conversion)
+      if ($t !== 'customers') fail('Unknown action', 404);
+      need('leads', true);
+      $cu = row('SELECT * FROM customers WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$cu) fail('Customer not found', 404);
+      $p = row('SELECT title, stage FROM projects WHERE customer_id=? LIMIT 1', [$cu['id']]);
+      if ($p) fail("This customer has a project (" . ($p['title'] ?: 'project') . " · {$p['stage']}). Delete the project first, then revert to lead.");
+      $nf = (int)row("SELECT COUNT(*) c FROM files WHERE customer_id=? AND (project_id IS NULL OR project_id=0)", [$cu['id']])['c'];
+      if ($nf) fail("This customer has $nf uploaded document" . ($nf === 1 ? '' : 's') . ". Download and delete them first, then revert to lead.");
+      $why = mb_substr(trim((string)($in['reason'] ?? '')), 0, 300);
+      $stamp = date('d M Y') . ' · reverted from customer by ' . ($_SESSION['name'] ?? '') . ($why ? ": $why" : '');
+      $hasQuote = (int)row('SELECT COUNT(*) c FROM quotes WHERE customer_id=?', [$cu['id']])['c'] > 0;
+      $l = row('SELECT * FROM leads WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cu['id']]);
+      if ($l) { // the lead it came from: reopen it
+        $old = trim((string)($l['notes'] ?? ''));
+        q('UPDATE leads SET customer_id=NULL, status=?, notes=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$hasQuote ? 'Quoted' : 'Contacted', $old === '' ? $stamp : $old . "\n" . $stamp, $l['id']]);
+        $lid = (int)$l['id'];
+      } else { // customer was added directly: create a lead from it
+        q('INSERT INTO leads(name,phone,email,address,city,location,source,status,added_by,assigned_to,claimed_at,kw,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          [$cu['name'], $cu['phone'], $cu['email'], $cu['address'], $cu['district'], $cu['address'], 'Customer (reverted)', $hasQuote ? 'Quoted' : 'Contacted', $_SESSION['name'] ?? '', uid(), date('Y-m-d H:i:s'), $cu['kw'] ?? null, trim(($cu['notes'] ?? '') . "\n" . $stamp)]);
+        $lid = (int)db()->lastInsertId();
+      }
+      q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$cu['id']]);
+      q('UPDATE quotes SET lead_id=COALESCE(lead_id, ?), customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // quotes stay with the lead
+      q("UPDATE notes SET entity='leads', entity_id=? WHERE entity='customers' AND entity_id=?", [$lid, $cu['id']]);
+      foreach (rows('SELECT id FROM discussions WHERE customer_id=?', [$cu['id']]) as $d) { q('DELETE FROM disc_msgs WHERE discussion_id=?', [$d['id']]); q('DELETE FROM disc_reads WHERE discussion_id=?', [$d['id']]); }
+      q('DELETE FROM discussions WHERE customer_id=?', [$cu['id']]); q('DELETE FROM notifs WHERE customer_id=?', [$cu['id']]);
+      q('UPDATE messages SET lead_id=COALESCE(lead_id, ?), customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // WhatsApp log stays with the lead
+      q('DELETE FROM customers WHERE id=?', [$cu['id']]);
+      audit('revert', 'customers', $cu['id'], "{$cu['name']} → lead $lid" . ($why ? " · $why" : ''));
+      out(['lead_id' => $lid, 'reopened' => $l ? 1 : 0]);
     case 'convert':
       if ($t !== 'leads') fail('Unknown action', 404);
       $l = row('SELECT * FROM leads WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$l) fail('Not found', 404);

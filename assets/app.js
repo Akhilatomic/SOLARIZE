@@ -483,8 +483,14 @@ const CF = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k:
   { k: 'sanctioned_load', l: 'Sanctioned load (kW)', t: 'number' }, { k: 'roof_type', l: 'Roof type', opts: ['', 'RCC flat', 'Sheet / tin', 'Tile', 'Other'] }, { k: 'gst_no', l: 'GST no. (if business)' }];
 function customerModal(id, c = {}) {
   const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} customer</h2><div class="two">${CF.map(f => fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
-   <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
+   <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button>${id && canW('leads') ? '<span class="sp"></span><button class="btn sec" id="rvl" title="Move this customer back to Leads"><i class="i i-refresh"></i> Revert to lead</button>' : ''}</div>`);
   $('#cx', m).onclick = () => m.remove();
+  if ($('#rvl', m)) $('#rvl', m).onclick = async () => {
+    const why = prompt(`Revert "${c.name || 'this customer'}" back to Leads?\n\nThe customer record is removed and the lead is reopened (or created). Quotes and notes move to the lead; team discussions on this customer are deleted.\n\nReason (optional):`, '');
+    if (why === null) return;
+    const r = await api('customers', 'revert', { id, reason: why }); m.remove();
+    toast(r.reopened ? 'Reverted — the original lead is reopened' : 'Reverted — a new lead was created'); location.hash = '#/leads';
+  };
   $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; if (!o.name) return alert('Name required'); const r = await api('customers', 'save', o); m.remove(); if (id) route(); else location.hash = '#/customers/' + r.id; };
 }
 async function pgCustomer(id) {
