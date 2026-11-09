@@ -53,11 +53,15 @@ async function renderWarranty(box, c, id) {
     $$('[data-wk]', box).forEach(b => b.onclick = () => { const k = b.dataset.wk; if (S.steps[k]) { if (!confirm('Mark this step as not done?')) return; delete S.steps[k]; } else S.steps[k] = { on: today(), by: (ME || {}).name || '' }; save(S.steps[k] ? 'Status updated' : 'Step cleared'); });
     $$('[data-wd]', box).forEach(e => e.onchange = () => { if (!e.value) return; S.steps[e.dataset.wd].on = e.value; save('Date updated'); });
     if ($('#wcns', box)) $('#wcns', box).onclick = () => { S.note = $('#wcn', box).value.trim(); save('Note saved'); };
-    $$('[data-send]', box).forEach(b => b.onclick = () => { const k = b.dataset.send;
+    $$('[data-send]', box).forEach(b => b.onclick = async () => { const k = b.dataset.send;
       if (k === 'form') return $('#mfr', box).scrollIntoView({ behavior: 'smooth' });
-      const msg = `Dear ${c.name},\n\nPlease find attached the warranty card for your solar power plant installed by ${co.name || 'us'}. Kindly keep it safe for future warranty claims.${co.phone ? '\n\nFor service, call ' + co.phone + '.' : ''}\n\nRegards,\n${co.name || ''}`;
-      if (k === 'wa') { const ph = String(c.phone).replace(/\D/g, '').replace(/^0+/, ''); window.open(`https://wa.me/${ph.length === 10 ? '91' + ph : ph}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener'); }
-      else location.href = `mailto:${encodeURIComponent(c.email || '')}?subject=${encodeURIComponent('Warranty card — ' + (co.name || 'solar power plant'))}&body=${encodeURIComponent(msg)}`;
+      const msg = `Dear ${c.name},\n\nPlease find attached the warranty card for your solar power plant installed by ${co.name || 'us'}. Kindly keep it safe for future warranty claims.${co.phone ? '\n\nFor service, call ' + co.phone + '.' : ''}`;
+      // email from the CRM mailbox, with the uploaded warranty cards attached
+      if (k === 'mail' && typeof composeMail === 'function' && canW('email')) { try { EM.cfg = EM.cfg || await api('mail', 'config'); } catch (e) { }
+        if (EM.cfg && EM.cfg.ready) return composeMail({ to: c.email || '', subject: 'Warranty card — ' + (co.name || 'solar power plant'), body: msg, files: F.map(f => ({ id: f.id, name: f.item ? `${f.item} — ${f.name}` : f.name })),
+          onSent: () => { if (w && !S.steps.mail) { S.steps.mail = { on: today(), by: (ME || {}).name || '' }; save('Marked as sent by email'); } } }); }
+      if (k === 'wa') { const ph = String(c.phone).replace(/\D/g, '').replace(/^0+/, ''); window.open(`https://wa.me/${ph.length === 10 ? '91' + ph : ph}?text=${encodeURIComponent(msg + '\n\nRegards,\n' + (co.name || ''))}`, '_blank', 'noopener'); }
+      else location.href = `mailto:${encodeURIComponent(c.email || '')}?subject=${encodeURIComponent('Warranty card — ' + (co.name || 'solar power plant'))}&body=${encodeURIComponent(msg + '\n\nRegards,\n' + (co.name || ''))}`;
       toast('Attach the warranty card file, send it, then tick the step');
       if (F.length && k === 'wa') window.open(fileUrl(F[0], 1), '_blank', 'noopener'); }); };
   const drawU = () => {
