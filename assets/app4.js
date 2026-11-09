@@ -99,7 +99,7 @@ async function shareModal(list) {
   $('#scp', m).onclick = async () => { try { await navigator.clipboard.writeText(sm.value); toast('Message copied'); } catch (e) { sm.select(); } };
   $('#sgo', m).onclick = async () => {
     const num = waNum($('#sn', m).value), text = sm.value;
-    window.open(`https://wa.me/${num}?text=${encodeURIComponent(text)}`, '_blank');
+    waLaunch(num, text);
     if (who && canW('whatsapp')) { try { await api('whatsapp', 'log', { customer_id: who.type === 'customer' ? who.id : null, lead_id: who.type === 'lead' ? who.id : null, phone: who.phone, text }); } catch (e) { } }
     m.remove(); FD.sel.clear(); route();
   };

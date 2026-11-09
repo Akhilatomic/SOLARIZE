@@ -33,7 +33,7 @@ async function boot() {
   const s = await api('auth', 'status');
   if (!s.auth) return loginView(s.setup, s.brand || {});
   ME = s.user; S = await api('settings', 'get');
-  shell(); mountBell(); startMeta(); startCal(); route();
+  shell(); mountBell(); startMeta(); startCal(); startWa(); route();
 }
 function loginView(setup, brand) {
   const bg = brand.bg ? `url('${brand.bg}') center/cover no-repeat` : '';
@@ -67,7 +67,7 @@ async function route() {
   const t = MODS.find(m => m[0] === mod);
   $('#title').textContent = t ? t[1] : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
-  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, calendar: pgCalendar, subsidy: () => pgOverview('subsidy'), kseb: () => pgOverview('kseb'), whatsapp: pgWhatsapp, ads: pgAds, settings: pgSettings, admin: pgAdmin };
+  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, calendar: pgCalendar, subsidy: () => pgOverview('subsidy'), kseb: () => pgOverview('kseb'), whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
   try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
@@ -150,14 +150,17 @@ function waOpen(ctx) {
   const m = modal(`<h3 style="margin-top:0">WhatsApp → ${esc(ctx.name)} <span class="mut">(${esc(ctx.phone || 'no phone')})</span></h3>
    <label>Template</label><select id="wt">${T.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('')}</select>
    <label>Message (editable)</label><textarea id="wm" rows="6"></textarea>
-   <div class="bar" style="margin-top:12px"><button class="btn ok" id="wgo">Open WhatsApp</button><button class="btn sec" id="wx">Close</button></div>`);
+   <div class="bar" style="margin-top:12px"><button class="btn ok" id="wgo">Open in WhatsApp Web</button>${WA.on && canW('whatsapp') ? '<button class="btn" id="winb"><i class="i i-chat"></i> Send in CRM inbox</button>' : ''}<button class="btn sec" id="wx">Close</button></div>`);
   const set = () => $('#wm', m).value = fill(T[$('#wt', m).value]?.text || '', ctx);
   $('#wt', m).onchange = set; set();
   $('#wx', m).onclick = () => m.remove();
+  if ($('#winb', m)) $('#winb', m).onclick = async () => { if (!waNum(ctx.phone)) return alert('This contact has no phone number');
+    const r = await api('wa', 'start', { phone: ctx.phone, name: ctx.name, lead_id: ctx.lead_id || 0, customer_id: ctx.customer_id || 0 });
+    try { sessionStorage.waDraft = $('#wm', m).value; } catch (e) { } m.remove(); WA.tab = 'inbox'; WA.chat = r.id; location.hash = '#/whatsapp'; route(); };
   $('#wgo', m).onclick = async () => {
     if (!waNum(ctx.phone)) return alert('This contact has no phone number');
     const text = $('#wm', m).value;
-    window.open(`https://wa.me/${waNum(ctx.phone)}?text=${encodeURIComponent(text)}`, '_blank');
+    waLaunch(ctx.phone, text);
     if (canW('whatsapp')) await api('whatsapp', 'log', { customer_id: ctx.customer_id, lead_id: ctx.lead_id, phone: ctx.phone, text });
     m.remove(); route();
   };
