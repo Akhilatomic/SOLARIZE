@@ -23,7 +23,7 @@ async function pgWa() {
    ${ME.role === 'admin' && st.connected ? '<button class="btn sec" id="wcfg" title="Connection settings, webhook URL and verify token"><i class="i i-gear"></i> Connection</button>' : ''}<button class="btn ok" id="wweb"><i class="i i-chat"></i> Open WhatsApp Web</button></div><div id="wab"></div>`;
   $$('[data-wt]').forEach(b => b.onclick = () => { WA.tab = b.dataset.wt; pgWa(); });
   $('#wweb').onclick = () => waLaunch('', '');
-  if ($('#wcfg')) $('#wcfg').onclick = () => { clearInterval(WA.timer); $('[data-wt]').forEach(x => x.classList.remove('on')); waSetup(); };
+  if ($('#wcfg')) $('#wcfg').onclick = () => { clearInterval(WA.timer); $$('[data-wt]').forEach(x => x.classList.remove('on')); waSetup(); };
   if (WA.tab === 'inbox') return st.connected ? waInbox() : waSetup();
   if (WA.tab === 'web') return waWebTab();
   return waLogTab();
