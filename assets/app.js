@@ -33,7 +33,7 @@ async function boot() {
   const s = await api('auth', 'status');
   if (!s.auth) return loginView(s.setup, s.brand || {});
   ME = s.user; S = await api('settings', 'get');
-  shell(); mountBell(); startMeta(); startCal(); startWa(); startHr(); route();
+  shell(); mountBell(); startMeta(); startCal(); startWa(); startHr(); startDisc(); route();
 }
 function loginView(setup, brand) {
   const bg = brand.bg ? `url('${brand.bg}') center/cover no-repeat` : '';
@@ -430,7 +430,7 @@ async function convertLeadModal() {
 }
 async function pgCustomers() {
   if (!PIPE && canR('projects')) { try { PIPE = (await api('pipeline', 'board')).stages; } catch (e) { } }
-  const cs = await list('customers'); cs.forEach(c => c.status = c.stage || 'New');
+  const [cs] = await Promise.all([list('customers'), discSummary()]); cs.forEach(c => c.status = c.stage || 'New');
   const w = canW('customers');
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Customers</h2><div class="mut" id="ccount"></div></div><span class="sp"></span>
    <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${canW('leads') ? '<button class="btn sec" id="cconv"><i class="i i-userplus"></i> Convert lead</button>' : ''}${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
@@ -448,7 +448,7 @@ async function pgCustomers() {
     $('#ctb').innerHTML = `<colgroup><col><col style="width:122px"><col style="width:140px"><col style="width:150px"><col style="width:136px"><col style="width:86px"><col style="width:120px"><col style="width:96px"><col style="width:132px"></colgroup><thead><tr><th><i class="i i-user"></i> Name</th><th><i class="i i-project"></i> Status</th><th># Consumer no.</th><th><i class="i i-target"></i> District</th><th><i class="i i-phone"></i> Phone</th><th>Capacity</th><th>Added by</th><th><i class="i i-calendar"></i> Date</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(c => `<tr class="row" data-id="${c.id}">
       <td title="${esc(c.name)}"><b class="clip">${esc(c.name)}</b></td><td><span class="pill ${c.status === 'New' ? 'b' : (typeof stepCls === 'function' && PIPE ? stepCls(c.status) : STC[c.status]) || ''}">${esc(c.status)}</span></td><td class="mono">${esc(c.consumer_no) || '<span class="mut">—</span>'}</td><td title="${esc(c.district)}"><span class="clip">${esc(c.district) || '<span class="mut">—</span>'}</span></td>
       <td>${c.phone ? `<a href="tel:${esc(c.phone)}" class="tel"><i class="i i-phone"></i> ${esc(c.phone)}</a>` : '<span class="mut">—</span>'}</td><td>${c.kw ? c.kw + ' kWp' : '<span class="mut">—</span>'}</td><td title="${esc(c.added_by)}"><span class="clip">${esc(c.added_by) || '<span class="mut">—</span>'}</span></td><td class="mut">${dt(c.created)}</td>
-      <td class="cact">${c.phone ? ic('wa', 'chat', 'WhatsApp') : ''}${ic('pj', 'project', c.project_id ? 'Open project' : 'New project')}${ic('op', 'eye', 'Open customer — history & files')}${ic('more', 'dots', 'More actions')}</td></tr>`).join('') || '<tr><td colspan="9" class="mut">No customers match</td></tr>'}</tbody>`;
+      <td class="cact">${discBtn(c.id)}${ic('pj', 'project', c.project_id ? 'Open project' : 'New project')}${ic('op', 'eye', 'Open customer — history & files')}${ic('more', 'dots', 'More actions')}</td></tr>`).join('') || '<tr><td colspan="9" class="mut">No customers match</td></tr>'}</tbody>`;
     $$('#ctb tr.row').forEach(tr => {
       const c = cs.find(x => x.id == tr.dataset.id);
       tr.onclick = e => { if (!e.target.closest('a,button')) location.hash = '#/customers/' + c.id; };
@@ -456,6 +456,7 @@ async function pgCustomers() {
         const proj = tab => { if (!c.project_id) { toast('No project yet — create one first', true); return; } TAB.proj = tab; location.hash = '#/projects/' + c.project_id; };
         if (a === 'ed') customerModal(c.id, c);
         if (a === 'wa') waOpen({ name: c.name, phone: c.phone, customer_id: c.id });
+        if (a === 'ds') discOpen(c.id);
         if (a === 'pj') { if (c.project_id) { TAB.proj = 'overview'; location.hash = '#/projects/' + c.project_id; } else if (canW('projects')) startModal({ customer_id: c.id }); else toast('No project yet', true); }
         if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ customer_id: c.id, name: c.name }); location.hash = '#/quotes/new'; }
         if (a === 'pay') proj('overview'); if (a === 'kseb') proj('kseb'); if (a === 'sub') proj('subsidy');
@@ -489,7 +490,7 @@ async function pgCustomer(id) {
   const c = await api('customers', 'get', undefined, '&id=' + id);
   const w = canW('customers');
   $('#main').innerHTML = `<p><a href="#/customers">← Customers</a></p>
-   <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(c.name)}</h2>${c.phone ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(c.phone) + '">Call</a>' : ''}${w ? '<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>' : ''}</div>
+   <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(c.name)}</h2><button class="btn sec" id="dsc"><i class="i i-chat"></i> Discussion</button>${c.phone ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(c.phone) + '">Call</a>' : ''}${w ? '<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>' : ''}</div>
    <p class="mut" style="margin:6px 0 0">${esc(c.phone)} ${c.email ? '· ' + esc(c.email) : ''}<br>${esc(c.address)}${c.district ? ' · ' + esc(c.district) : ''}<br>${c.consumer_no ? 'Consumer no. <b>' + esc(c.consumer_no) + '</b>' : ''} ${c.kseb_section ? '· Section: ' + esc(c.kseb_section) : ''} ${c.sanctioned_load ? '· Load ' + c.sanctioned_load + ' kW' : ''} ${c.roof_type ? '· ' + esc(c.roof_type) + ' roof' : ''} ${c.gst_no ? '· GST ' + esc(c.gst_no) : ''}</p></div>
    <div class="grid cols2" style="margin-top:12px"><div class="card"><h3>Projects ${canW('projects') ? '<button class="btn sm" id="np" style="float:right">+ New project</button>' : ''}</h3>
     ${c.projects.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.stage, stageCls(p.stage))}<br><small>${p.kw} kW${FIN() ? ' · ' + inr(p.cost) + ' · paid ' + inr(p.paid) : ''}</small></div>`).join('') || '<p class="mut">No projects yet</p>'}</div>
@@ -498,6 +499,7 @@ async function pgCustomer(id) {
    <div class="card"><h3>WhatsApp messages</h3>${c.messages.map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None sent</p>'}</div></div>
    <div style="margin-top:12px">${noteBox('customers', id, c.notes_log)}</div>`;
   if ($('#wa')) $('#wa').onclick = () => waOpen({ name: c.name, phone: c.phone, customer_id: id });
+  if ($('#dsc')) $('#dsc').onclick = () => discOpen(id);
   if ($('#ed')) $('#ed').onclick = () => customerModal(id, c);
   if ($('#dl')) $('#dl').onclick = async () => { if (confirm('Delete this customer and ALL their projects, quotes and files? This cannot be undone.')) { await api('customers', 'delete', { id }); location.hash = '#/customers'; } };
   if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
