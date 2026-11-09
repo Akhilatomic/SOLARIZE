@@ -58,18 +58,20 @@ async function discOpen(tgt) {
      <div class="xdh"><span class="lvi"><i class="i i-chat"></i></span><div class="xdht"><h2>${isLead ? '<span class="pill b" style="vertical-align:3px;margin-right:6px">Lead</span>' : ''}${esc(c.name)}</h2><small>${openD ? `Discussion${openD.topic ? ' · ' + esc(openD.topic) : ''} · started by ${esc(openD.created_name || '')} ${agoStr(openD.created)}` : (isLead ? 'Team discussion about this lead' : 'Team discussion about this customer')}</small></div>
       ${openD && openD.can_end ? '<button class="btn sec sm" id="xdend"><i class="i i-check"></i> End discussion</button>' : ''}<button class="lvx" id="xdx" title="Close"><i class="i i-x"></i></button></div>
      <div class="xdbody" id="xdb">
-      ${past.length ? `<details class="xdpast"><summary>Earlier discussions (${past.length})</summary>${past.map(d => `<details class="xdold" data-pd="${d.id}" ${pastOpen[d.id] ? 'open' : ''}><summary><b>${esc(d.topic || 'Discussion')}</b> <span class="mut">· ${discTime(d.created)} → ended ${discTime(d.closed_at)} by ${esc(d.closed_name || '')}</span>${d.outcome ? `<div class="xdout">${esc(d.outcome)}</div>` : ''}</summary><div class="xdlist">${discMsgs(d, data)}</div></details>`).join('')}</details>` : ''}
-      ${openD ? `<div class="xdlist" id="xdl">${discMsgs(openD, data)}</div>` : `<div class="xdnew"><i class="i i-chat"></i><b>No open discussion</b><span class="mut">Start one to discuss ${isLead ? 'this lead' : 'status and updates'} with the team. Tag people with @ to notify them.</span><input id="xdtopic" placeholder="Topic (optional), e.g. KSEB feasibility delay" maxlength="120"></div>`}
+      ${past.length ? `<div class="xdhist"><div class="xdhl"><i class="i i-clock"></i> History · ${past.length} ended discussion${past.length === 1 ? '' : 's'}</div>${past.slice().reverse().map((d, k, arr) => { const isOpen = pastOpen[d.id] ?? (!openD && k === arr.length - 1), n = d.msgs.filter(x => x.kind !== 'end').length;
+        return `<details class="xdold" data-pd="${d.id}" ${isOpen ? 'open' : ''}><summary><div class="xdoh"><span class="pill">Ended</span><b>${esc(d.topic || 'Discussion')}</b><span class="mut">${n} message${n === 1 ? '' : 's'}</span></div>
+          <div class="mut xdom">Started by ${esc(d.created_name || '')} · ${discTime(d.created)} — ended by ${esc(d.closed_name || '')} · ${discTime(d.closed_at)}</div>${d.outcome ? `<div class="xdout"><b>Outcome:</b> ${esc(d.outcome)}</div>` : ''}</summary><div class="xdlist">${discMsgs(d, data)}</div></details>`; }).join('')}</div>` : ''}
+      ${openD ? `<div class="xdlist" id="xdl">${discMsgs(openD, data)}</div>` : `<div class="xdnew"><i class="i i-chat"></i><b>${past.length ? 'Start a new discussion' : 'No discussion yet'}</b><span class="mut">Start one to discuss ${isLead ? 'this lead' : 'status and updates'} with the team. Tag people with @ to notify them.</span><input id="xdtopic" placeholder="Topic (optional), e.g. KSEB feasibility delay" maxlength="120"></div>`}
      </div>
      <div class="xdcomp"><div class="xdmenu hide" id="xdmenu"></div>
       <textarea id="xdtx" rows="2" placeholder="${openD ? 'Write an update… type @ to tag someone' : 'First message… type @ to tag someone'}"></textarea>
       <div class="xdbar"><button class="btn sec sm" id="xdtag" title="Tag a user">@ Tag</button><span class="mut" style="font-size:12px">Enter to send · Shift+Enter for a new line</span><span class="sp"></span><button class="btn" id="xdsend"><i class="i i-chat"></i> ${openD ? 'Send' : 'Start discussion'}</button></div></div>`;
     const tx = $('#xdtx', m); m._tags = keep ? keep.tags : (m._tags || {});
     if (keep) { tx.value = keep.v; if (keep.f) { tx.focus(); tx.setSelectionRange(keep.s, keep.s); } }
-    const l = $('#xdl', m); if (l) $('#xdb', m).scrollTop = $('#xdb', m).scrollHeight;
+    $('#xdb', m).scrollTop = $('#xdb', m).scrollHeight;
     $$('[data-pd]', m).forEach(x => x.ontoggle = () => pastOpen[x.dataset.pd] = x.open);
     $('#xdx', m).onclick = close;
-    if ($('#xdend', m)) $('#xdend', m).onclick = async () => { const note = prompt('End this discussion?\n\nOutcome / summary (optional):', ''); if (note === null) return; await api('disc', 'end', { id: openD.id, note }); toast('Discussion ended'); await load(); draw(); };
+    if ($('#xdend', m)) $('#xdend', m).onclick = async () => { const note = prompt('End this discussion?\n\nAll messages are kept in the History below and can be read any time.\n\nOutcome / summary (optional):', ''); if (note === null) return; await api('disc', 'end', { id: openD.id, note }); toast('Discussion ended · kept in History'); await load(); draw(); };
     // @mention picker
     const menu = $('#xdmenu', m); let sel = 0, opts = [];
     const hide = () => { menu.classList.add('hide'); opts = []; };

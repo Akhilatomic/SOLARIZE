@@ -512,3 +512,9 @@ button.ac:not([disabled]){cursor:pointer}button.ac:not([disabled]):hover{outline
 .modal.rvmod>div{max-width:520px}.rvh{display:flex;gap:12px;align-items:center;margin-bottom:10px}.rvh h2{margin:0;font-size:18px}.rvh small{color:var(--mut)}
 .rvi{width:42px;height:42px;border-radius:12px;background:#ffecea;display:grid;place-items:center;flex:none}.rvi .i{background:#c4271f;width:22px;height:22px}
 .rvl{background:#fff6f5;border:1px solid #ffd2ce;border-radius:12px;padding:10px 14px 10px 30px;margin:6px 0 10px;font-size:14px;line-height:1.6}
+.xdhist{margin-bottom:14px}.xdhl{font-size:12px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px;display:flex;align-items:center;gap:6px}.xdhl .i{width:14px;height:14px}
+.xdold{border:1px solid var(--bd);border-radius:12px;padding:10px 12px;margin:0 0 8px;background:#fff}.xdold[open]{background:#fcfcfe}
+.xdold>summary{cursor:pointer;list-style:none}.xdold>summary::-webkit-details-marker{display:none}
+.xdoh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.xdoh .mut{margin-left:auto;font-size:12px}.xdoh .mut::after{content:' ▾'}.xdold[open] .xdoh .mut::after{content:' ▴'}
+.xdom{font-size:12px;margin-top:3px}.xdold .xdout{background:#f2f7ff;border-radius:8px;padding:6px 10px;margin-top:6px}
+.xdold .xdlist{margin-top:12px;padding-top:12px;border-top:1px dashed var(--bd)}
