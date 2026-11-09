@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 4; // bump when tables/columns change
+const SCHEMA_VERSION = 5; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -18,9 +18,9 @@ $E = [
 // role => [read modules, write modules]; '*' = everything
 const ROLES = [
   'admin' => ['*', '*'],
-  'sales' => [['dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings'], ['leads','customers','quotes','whatsapp','files']],
-  'engineer' => [['dashboard','leads','customers','projects','quotes','checklist','files','payments','settings'], ['projects','checklist','files','customers']],
-  'accounts' => [['dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings'], ['quotes','payments','ads']],
+  'sales' => [['folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings'], ['leads','customers','quotes','whatsapp','files','folder']],
+  'engineer' => [['folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings'], ['projects','checklist','files','customers','folder']],
+  'accounts' => [['folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings'], ['quotes','payments','ads']],
 ];
 
 function out($d, $code = 200) { http_response_code($code); echo json_encode($d, JSON_UNESCAPED_UNICODE); exit; }
@@ -71,6 +71,7 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS checklist(id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER, kind TEXT, item TEXT, status TEXT DEFAULT 'Pending', date TEXT, notes TEXT, UNIQUE(project_id,kind,item))");
   $db->exec("CREATE TABLE IF NOT EXISTS files(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, project_id INTEGER, kind TEXT, item TEXT, name TEXT, path TEXT, size INTEGER, user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, lead_id INTEGER, phone TEXT, text TEXT, user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec("CREATE TABLE IF NOT EXISTS datasheets(id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, title TEXT, brand TEXT, model TEXT, notes TEXT, file_name TEXT, path TEXT, size INTEGER, available INTEGER DEFAULT 1, avail_note TEXT DEFAULT '', token TEXT UNIQUE, user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
   migrateV1($db);
 }
 
@@ -97,6 +98,7 @@ function defaults() {
     'company' => ['name'=>'Jasper Solar Solutions','gstin'=>'32CZHPA7698N1ZR','address'=>'Nedumangad, Thiruvananthapuram, Kerala','phone'=>'','email'=>'','quote_prefix'=>'JS','terms'=>"1. Prices valid for 15 days.\n2. 50% advance with order, balance on commissioning.\n3. 25 years panel performance warranty, 5 years inverter warranty (as per manufacturer).\n4. Net-metering and KSEB formalities handled by Jasper Solar.\n5. Central subsidy (PM Surya Ghar) credited by the government directly to the customer's bank account."],
     'gst_rate' => 8.9,
     'lead_target' => 1000,
+    'ds_categories' => ['Solar Panel', 'On-Grid String Inverter', 'Micro Inverter', 'SolarEdge'],
     'login' => ['bg' => '', 'tagline' => 'Max speed CRM', 'dim' => 35],
     'lead_sources' => ['Meta Ads','Referral','Walk-in','Website','Google','Existing customer','Other'],
     'lead_statuses' => ['New','Contacted','Site Visit','Quoted','Won','Lost'],
