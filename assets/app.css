@@ -499,3 +499,10 @@ button.ac:not([disabled]){cursor:pointer}button.ac:not([disabled]):hover{outline
 @media(max-width:600px){.xdbar .mut{display:none}.xdmsg{max-width:95%}}
 .xdnot{justify-content:flex-start}.xdnot .nlm{flex:1;min-width:0}
 .xdbar .sp{flex:1}
+
+/* live discussions */
+@keyframes xdpulse{0%{box-shadow:0 0 0 0 rgba(255,59,48,.55)}70%{box-shadow:0 0 0 9px rgba(255,59,48,0)}100%{box-shadow:0 0 0 0 rgba(255,59,48,0)}}
+.ib.xdb.live{background:#ff3b30;color:#fff;animation:xdpulse 1.6s infinite}.ib.xdb.live .i{background:#fff}.ib.xdb.live:hover{background:#e0342a}
+.ib.xdb.live .xdn{background:#1d1d1f}
+#ctb tr.row.live td{background:#fff6f5}#ctb tr.row.live td:first-child{box-shadow:inset 3px 0 0 #ff3b30}
+.xdlive{color:#c4271f;font-weight:600;display:inline-flex;align-items:center;gap:6px}.xddot{width:8px;height:8px;border-radius:50%;background:#ff3b30;animation:xdpulse 1.6s infinite}

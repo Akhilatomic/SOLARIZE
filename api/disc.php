@@ -25,7 +25,7 @@ function handle_disc($a) {
   switch ($a) {
     case 'summary': // per-customer state for the customers list
       need('customers');
-      out(rows("SELECT d.customer_id, d.id, COUNT(m.id) msgs, MAX(m.created) last_at,
+      out(rows("SELECT d.customer_id, d.id, d.topic, d.created_by, d.created, (SELECT name FROM customers WHERE id=d.customer_id) customer_name, (SELECT name FROM users WHERE id=d.created_by) created_name, COUNT(m.id) msgs, MAX(m.created) last_at,
           SUM(CASE WHEN m.id > COALESCE((SELECT last_id FROM disc_reads r WHERE r.user_id=? AND r.discussion_id=d.id), 0) AND m.user_id<>? THEN 1 ELSE 0 END) unread
         FROM discussions d LEFT JOIN disc_msgs m ON m.discussion_id=d.id WHERE d.status='Open' GROUP BY d.id", [$uid, $uid]));
 

@@ -1,13 +1,28 @@
 // Customer discussions: team chat per customer with @mentions, notifications in the bell, "end discussion".
-let DISC = { sum: {}, notifs: [], count: 0, seen: null, timer: null };
+let DISC = { sum: {}, notifs: [], count: 0, seen: null, timer: null, live: null, redraw: null };
+const discRank = id => { const x = DISC.sum[id]; return x ? (+x.unread ? 2 : 1) : 0; };
+// desktop notifications: ask once on the first click (browsers only allow the prompt after a user action)
+function discDesk(title, body, cid) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try { const n = new Notification(title, { body, tag: 'disc-' + cid + '-' + Date.now(), icon: 'assets/logo.png' }); n.onclick = () => { window.focus(); n.close(); if (cid) discOpen(cid); }; } catch (e) { }
+}
+document.addEventListener('click', function askDesk() { document.removeEventListener('click', askDesk, true);
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().then(p => { if (p === 'granted') toast('Desktop notifications turned on'); }); }, true);
 
 async function discSummary() {
   if (!canR('customers')) return;
-  try { const r = await api('disc', 'summary'); DISC.sum = Object.fromEntries(r.map(x => [x.customer_id, x])); } catch (e) { }
+  let r; try { r = await api('disc', 'summary'); } catch (e) { return; }
+  const before = JSON.stringify(DISC.sum); DISC.sum = Object.fromEntries(r.map(x => [x.customer_id, x]));
+  const ids = r.map(x => x.id);
+  if (DISC.live) r.filter(x => !DISC.live.includes(x.id) && x.created_by != ME.id).forEach(x => {
+    toast(`Live discussion started on ${x.customer_name} by ${x.created_name}`);
+    discDesk('Live discussion · ' + x.customer_name, (x.created_name || 'Someone') + ' started a discussion' + (x.topic ? ': ' + x.topic : ''), x.customer_id); });
+  DISC.live = ids;
+  if (JSON.stringify(DISC.sum) !== before && DISC.redraw && /^#\/customers\/?$/.test(location.hash) && !document.querySelector('.xdmod')) DISC.redraw();
 }
 function discBtn(cid) {
   const s = DISC.sum[cid], n = s ? +s.unread : 0;
-  return `<button class="ib xdb ${s ? 'on' : ''}" data-a="ds" title="${s ? `Discussion open · ${s.msgs} message${s.msgs == 1 ? '' : 's'}${n ? ` · ${n} unread` : ''}` : 'Start a team discussion'}"><i class="i i-chat"></i>${n ? `<span class="xdn">${n > 9 ? '9+' : n}</span>` : ''}</button>`;
+  return `<button class="ib xdb ${s ? 'on live' : ''}" data-a="ds" title="${s ? `LIVE discussion · ${s.msgs} message${s.msgs == 1 ? '' : 's'}${n ? ` · ${n} unread` : ''}` : 'Start a team discussion'}"><i class="i i-chat"></i>${n ? `<span class="xdn">${n > 9 ? '9+' : n}</span>` : ''}</button>`;
 }
 
 // ---------- discussion panel ----------
@@ -96,7 +111,7 @@ async function refreshNotifs() {
   if (DISC.seen) { const fresh = DISC.notifs.filter(n => !DISC.seen.includes(n.id));
     fresh.slice(0, 3).forEach(n => toast(n.kind === 'mention' ? `${n.from_name} tagged you · ${n.customer_name}` : n.text));
     if (fresh.length && typeof SOUND !== 'undefined' && SOUND) try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 990; g.gain.setValueAtTime(.0001, a.currentTime); g.gain.exponentialRampToValueAtTime(.12, a.currentTime + .02); g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + .4); o.start(); o.stop(a.currentTime + .4); } catch (e) { }
-    if (fresh.length && 'Notification' in window && Notification.permission === 'granted' && document.hidden) try { new Notification('Solarize CRM', { body: fresh.map(n => n.text).join('\n') }); } catch (e) { } }
+    fresh.slice(0, 3).forEach(n => discDesk(n.kind === 'mention' ? `${n.from_name} tagged you · ${n.customer_name}` : n.kind === 'end' ? `Discussion ended · ${n.customer_name}` : `${n.from_name} · ${n.customer_name}`, n.text.replace(/^.*?:\s/, ''), n.customer_id)); }
   DISC.seen = ids;
   if (typeof drawBell === 'function') drawBell();
   const p = $('#bellp'); if (p && !p.classList.contains('hide') && typeof drawBellPanel === 'function') drawBellPanel();
@@ -114,5 +129,5 @@ function discBellBind(root) {
 function startDisc() {
   if (!canR('customers')) return;
   if (typeof mountBell === 'function') mountBell();
-  refreshNotifs(); setInterval(() => { if (!document.hidden) refreshNotifs(); }, 30000);
+  discSummary(); refreshNotifs(); setInterval(() => { refreshNotifs(); discSummary(); }, document.hidden ? 30000 : 20000);
 }
