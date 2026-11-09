@@ -30,8 +30,11 @@ function body() { static $b; if ($b === null) $b = json_decode(file_get_contents
 function can($module, $write = false) {
   $r = ROLES[$_SESSION['role'] ?? ''] ?? null; if (!$r) return false;
   $list = $r[$write ? 1 : 0];
-  return $list === '*' || in_array($module, $list);
+  if ($list === '*' || in_array($module, $list)) return true;
+  // 'Can see & claim leads' (Admin → Users) lets any role work the leads they claim; ownership is enforced in claims.php
+  return in_array($module, CLAIM_GRANTS) && function_exists('can_claim') && can_claim();
 }
+const CLAIM_GRANTS = ['leads', 'whatsapp'];
 function need($module, $write = false) { if (!can($module, $write)) fail('Not allowed for your role', 403); }
 
 function db() {
