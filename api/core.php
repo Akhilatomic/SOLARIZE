@@ -61,11 +61,13 @@ function handle_crud($t, $a) {
       if ($t === 'leads' && $v['status'] === '') $v['status'] = 'New';
       if (!empty($in['id'])) {
         $id = (int)$in['id'];
+        if ($t === 'leads') { unset($v['added_by']); $cols = array_values(array_diff($cols, ['added_by'])); }
         $set = implode(',', array_map(fn($c) => "$c=:$c", $cols));
         $v['id'] = $id;
         q("UPDATE $t SET $set, updated=CURRENT_TIMESTAMP WHERE id=:id", $v);
         audit('update', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
       } else {
+        if ($t === 'leads') $v['added_by'] = $_SESSION['name'] ?? '';
         q("INSERT INTO $t(" . implode(',', $cols) . ') VALUES(' . implode(',', array_map(fn($c) => ":$c", $cols)) . ')', $v);
         $id = (int)db()->lastInsertId(); audit('create', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
         if ($t === 'quotes' && $v['number'] === '') {
@@ -88,7 +90,7 @@ function handle_crud($t, $a) {
       if ($t !== 'leads') fail('Unknown action', 404);
       $l = row('SELECT * FROM leads WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$l) fail('Not found', 404);
       if ($l['customer_id']) out(['customer_id' => $l['customer_id']]);
-      q('INSERT INTO customers(name,phone,email,address,notes) VALUES(?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], $l['address'], $l['notes']]);
+      q('INSERT INTO customers(name,phone,email,address,notes) VALUES(?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['notes']]);
       $cid = (int)db()->lastInsertId();
       q("UPDATE leads SET customer_id=?, status='Won', updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
       q('UPDATE quotes SET customer_id=? WHERE lead_id=? AND customer_id IS NULL', [$cid, $l['id']]);

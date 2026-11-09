@@ -5,7 +5,7 @@ const NUMS = ['kw','budget','cost','subsidy_amount','gst_rate','subsidy','total'
 
 // entity => [module, columns]
 $E = [
-  'leads' => ['leads', ['name','phone','email','address','source','campaign_id','status','assigned_to','followup','kw','budget','customer_id','notes']],
+  'leads' => ['leads', ['name','phone','email','address','city','location','remark','appt','added_by','source','campaign_id','status','assigned_to','followup','kw','budget','customer_id','notes']],
   'customers' => ['customers', ['name','phone','email','address','consumer_no','kseb_section','sanctioned_load','roof_type','gst_no','notes']],
   'projects' => ['projects', ['customer_id','title','kw','panel','inverter','stage','engineer','start','end','cost','application_no','subsidy_status','subsidy_amount','notes']],
   'quotes' => ['quotes', ['customer_id','lead_id','number','date','items','gst_rate','subsidy','terms','status','total']],

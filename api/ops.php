@@ -14,7 +14,7 @@ function handle_dashboard() {
   $paid = $one("SELECT COALESCE(SUM(amount),0) v FROM payments");
   $stages = rows('SELECT stage, COUNT(*) n FROM projects GROUP BY stage');
   $lstat = rows('SELECT status, COUNT(*) n FROM leads GROUP BY status');
-  $follow = rows("SELECT id,name,phone,status,followup,'lead' type FROM leads WHERE followup<>'' AND followup<=? AND status NOT IN ('Won','Lost') ORDER BY followup LIMIT 15", [$today]);
+  $follow = rows("SELECT id,name,phone,status,appt followup,'lead' type FROM leads WHERE appt<>'' AND appt<=? AND status NOT IN ('Won','Lost') ORDER BY appt LIMIT 15", [$today]);
   $sub = rows("SELECT id,title,subsidy_status,subsidy_amount FROM projects WHERE stage NOT IN ('Closed') AND (subsidy_status IS NULL OR subsidy_status NOT IN ('Released')) AND application_no<>'' LIMIT 10");
   $S = settings();
   $ks = rows("SELECT p.id,p.title, (SELECT COUNT(*) FROM checklist c WHERE c.project_id=p.id AND c.kind='kseb' AND c.status IN ('Approved','NA')) done FROM projects p WHERE p.stage NOT IN ('Closed','Commissioned','Subsidy')");

@@ -149,38 +149,99 @@ function bars(data, order) {
 }
 
 // ---------- Leads ----------
-let LF = { q: '', status: '', source: '' };
+const LCOLS = [['date', 'Added date'], ['name', 'Name'], ['phone', 'Phone'], ['status', 'Status'], ['city', 'City'], ['location', 'Location'], ['added_by', 'Added by'], ['remark', 'Remark'], ['appt', 'Appt']];
+let LF = { q: '', status: '', active: 'active', city: '', appt: '', sort: 'created', dir: -1, edit: false };
+let LHIDE = []; try { LHIDE = JSON.parse(localStorage.lcols || '[]'); } catch (e) { }
+const dmy = s => s ? new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+const isActiveLead = l => !['Won', 'Lost'].includes(l.status);
+function apptBadge(l) {
+  if (!l.appt) return '<span class="pill" style="color:var(--mut)">● Not Scheduled</span>';
+  const od = l.appt < today() && isActiveLead(l), days = Math.round((new Date(today()) - new Date(l.appt)) / 864e5);
+  return `<span class="pill g">● ${dmy(l.appt)}</span>${od ? `<br><span class="pill r" style="margin-top:3px">⚠ OVERDUE · ${days}d</span>` : ''}`;
+}
 async function pgLeads() {
-  const [leads, camps, users] = await Promise.all([list('leads'), canR('ads') ? list('campaigns') : [], []]);
-  CACHE.leads = leads; CACHE.camps = camps;
-  const draw = () => {
-    const t = LF.q.toLowerCase(), rows = leads.filter(l => (!LF.status || l.status === LF.status) && (!LF.source || l.source === LF.source) && (!t || [l.name, l.phone, l.address].join(' ').toLowerCase().includes(t)));
-    $('#lt').innerHTML = table([['Name', l => `<b>${esc(l.name)}</b><br><small class="mut">${esc((l.address || '').slice(0, 40))}</small>`], ['Phone', l => esc(l.phone)], ['Source', l => esc(l.source)], ['kW', l => l.kw || ''],
-      ['Status', l => pill(l.status, stageCls(l.status))], ['Follow-up', l => `<span class="${l.followup && l.followup < today() && !['Won', 'Lost'].includes(l.status) ? 'over' : ''}">${esc(l.followup)}</span>`]], rows, id => leadModal(+id));
+  const [leads, camps] = await Promise.all([list('leads'), canR('ads') ? list('campaigns') : []]);
+  CACHE.leads = leads; CACHE.camps = camps; const w = canW('leads');
+  const cities = [...new Set(leads.map(l => l.city).filter(Boolean))].sort();
+  $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Leads</h2><div class="mut" id="lcount"></div></div><span class="sp"></span>
+   <button class="btn sec" id="lref">⟳ Refresh</button>${w ? `<button class="btn sec" id="ledit">✎ Edit ${LF.edit ? 'ON' : 'OFF'}</button><button class="btn" id="lnew">+ Add Lead</button>` : ''}</div>
+   <div class="bar" style="margin-top:12px"><input id="lq" placeholder="🔍 Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">
+   <select id="ls"><option value="">All Statuses</option>${S.lead_statuses.map(s => `<option ${LF.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+   <select id="la">${[['active', 'Active Leads'], ['all', 'All Leads'], ['won', 'Won'], ['lost', 'Lost']].map(([v, l]) => `<option value="${v}" ${LF.active === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+   <select id="lc"><option value="">All Cities</option>${cities.map(c => `<option ${LF.city === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+   <select id="lap">${[['', 'All Appointments'], ['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['none', 'Not Scheduled']].map(([v, l]) => `<option value="${v}" ${LF.appt === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+   <div style="position:relative"><button class="btn sec" id="lcol">☰ Columns</button><div id="lcm" class="card hide" style="position:absolute;z-index:9;top:42px;left:0;width:190px;padding:10px">${LCOLS.map(([k, l]) => `<label style="margin:4px 0;display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-col="${k}" ${LHIDE.includes(k) ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
+   <span class="sp"></span><button class="btn sec" id="lex">Export CSV</button>${w ? '<button class="btn sec" id="lim">Import CSV</button>' : ''}</div>
+   ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px">✎ ${LF.edit ? 'Click any cell to edit it inline.' : 'Turn Edit ON to edit cells inline.'} Click the column headers to sort.</p>` : ''}
+   <div class="card tw" style="padding:0"><table id="ltb"></table></div>`;
+
+  const filtered = () => {
+    const t = LF.q.toLowerCase(), td = today();
+    let r = leads.filter(l => (!LF.status || l.status === LF.status) && (LF.active === 'all' || (LF.active === 'active' ? isActiveLead(l) : l.status === (LF.active === 'won' ? 'Won' : 'Lost')))
+      && (!LF.city || l.city === LF.city) && (!t || [l.name, l.phone, l.city, l.location, l.remark, l.address].join(' ').toLowerCase().includes(t))
+      && (!LF.appt || (LF.appt === 'none' ? !l.appt : LF.appt === 'overdue' ? l.appt && l.appt < td && isActiveLead(l) : LF.appt === 'today' ? l.appt === td : l.appt > td)));
+    const key = l => l[LF.sort] ?? '';
+    return r.sort((a, b) => { const x = key(a), y = key(b); if (LF.sort === 'appt') { if (!x) return 1; if (!y) return -1; } return (x > y ? 1 : x < y ? -1 : 0) * LF.dir; });
   };
-  $('#main').innerHTML = `<div class="bar"><input id="lq" placeholder="Search leads…" value="${esc(LF.q)}"><select id="ls"><option value="">All statuses</option>${S.lead_statuses.map(s => `<option ${LF.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
-   <select id="lsrc"><option value="">All sources</option>${S.lead_sources.map(s => `<option ${LF.source === s ? 'selected' : ''}>${s}</option>`).join('')}</select><span class="sp"></span>
-   ${canW('leads') ? '<button class="btn sec" id="lim">Import CSV</button> ' : ''}<button class="btn sec" id="lex">Export CSV</button>${canW('leads') ? ' <button class="btn" id="lnew">+ New lead</button>' : ''}</div><div id="lt"></div>`;
-  $('#lq').oninput = e => { LF.q = e.target.value; draw(); }; $('#ls').onchange = e => { LF.status = e.target.value; draw(); }; $('#lsrc').onchange = e => { LF.source = e.target.value; draw(); };
-  $('#lex').onclick = () => csvDownload('leads-' + today() + '.csv', ['name', 'phone', 'email', 'address', 'source', 'status', 'kw', 'budget', 'followup', 'notes'], leads);
+  const sk = k => k === 'date' ? 'created' : k;
+  const draw = () => {
+    const rows = filtered(), show = LCOLS.filter(c => !LHIDE.includes(c[0]));
+    $('#lcount').textContent = rows.length + ' records';
+    const ed = (l, f, html) => `<td data-f="${f}" ${LF.edit && w ? 'style="cursor:text" title="Click to edit"' : ''}>${html}</td>`;
+    const cell = { date: l => `<td class="mut" style="white-space:nowrap">${dmy(l.created)}</td>`, name: l => ed(l, 'name', `<b>${esc(l.name)}</b>`), phone: l => ed(l, 'phone', esc(l.phone)), status: l => ed(l, 'status', pill(l.status, stageCls(l.status))), city: l => ed(l, 'city', esc(l.city)), location: l => ed(l, 'location', esc(l.location || l.address)),
+      added_by: l => `<td>${esc(l.added_by)}</td>`, remark: l => ed(l, 'remark', l.remark ? esc(l.remark) : '<span class="mut"><i>Add remark</i></span>'), appt: l => ed(l, 'appt', apptBadge(l)) };
+    $('#ltb').innerHTML = `<thead><tr>${show.map(([k, l]) => `<th data-sort="${sk(k)}" style="cursor:pointer;white-space:nowrap">${l}${LF.sort === sk(k) ? (LF.dir > 0 ? ' ↑' : ' ↓') : ' ⇅'}</th>`).join('')}<th class="right">Action</th></tr></thead><tbody>${rows.map(l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}
+      <td class="right" style="min-width:150px;max-width:190px">${l.phone ? `<button class="btn sm ok" title="WhatsApp" data-a="wa">💬</button> <a class="btn sm sec" title="Call" href="tel:${esc(l.phone)}">📞</a> ` : ''}${w ? '<button class="btn sm sec" title="Add remark" data-a="rm">📝</button> ' : ''}<button class="btn sm sec" title="View" data-a="vw">👁</button>${w ? ' <button class="btn sm sec" title="Edit" data-a="ed">✏️</button>' : ''}
+      ${l.customer_id ? ` <a class="btn sm sec" title="Open customer" href="#/customers/${l.customer_id}">👤</a>` : w ? ' <button class="btn sm sec" title="Convert to customer" data-a="cv">👤＋</button>' : ''}${canW('quotes') ? ' <button class="btn sm sec" title="Create quotation" data-a="qt">🧾</button>' : ''}</td></tr>`).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
+    $$('#ltb th[data-sort]').forEach(h => h.onclick = () => { const k = h.dataset.sort; LF.dir = LF.sort === k ? -LF.dir : (k === 'created' ? -1 : 1); LF.sort = k; draw(); });
+    $$('#ltb tbody tr[data-id]').forEach(tr => {
+      const l = leads.find(x => x.id == tr.dataset.id);
+      if (LF.edit && w) $$('td[data-f]', tr).forEach(td => td.onclick = () => startEdit(td, l));
+      $$('[data-a]', tr).forEach(b => b.onclick = async () => {
+        const a = b.dataset.a;
+        if (a === 'wa') waOpen({ name: l.name, phone: l.phone, lead_id: l.id });
+        if (a === 'vw' || a === 'ed') leadModal(l.id);
+        if (a === 'rm') { const r = prompt('Remark for ' + l.name, l.remark || ''); if (r !== null) { l.remark = r; await api('leads', 'save', { ...l }); draw(); } }
+        if (a === 'cv') { if (confirm('Convert ' + l.name + ' to a customer?')) { const r = await api('leads', 'convert', { id: l.id }); location.hash = '#/customers/' + r.customer_id; } }
+        if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ lead_id: l.id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; }
+      });
+    });
+  };
+  const startEdit = (td, l) => {
+    const f = td.dataset.f; if (td.querySelector('input,select')) return; let el;
+    if (f === 'status') { el = document.createElement('select'); el.innerHTML = S.lead_statuses.map(s => `<option ${s === l.status ? 'selected' : ''}>${s}</option>`).join(''); }
+    else { el = document.createElement('input'); el.type = f === 'appt' ? 'date' : f === 'phone' ? 'tel' : 'text'; el.value = (f === 'location' ? (l.location || l.address) : l[f]) || ''; }
+    td.innerHTML = ''; td.appendChild(el); el.focus(); let fin = false;
+    const done = async save => { if (fin) return; fin = true; if (save && el.value !== (l[f] || '')) { if (f === 'name' && !el.value.trim()) { draw(); return; } l[f] = el.value; await api('leads', 'save', { ...l }); } draw(); };
+    el.onblur = () => done(true); el.onchange = () => done(true); el.onkeydown = e => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); };
+  };
+  $('#lq').oninput = e => { LF.q = e.target.value; draw(); };
+  [['ls', 'status'], ['la', 'active'], ['lc', 'city'], ['lap', 'appt']].forEach(([id, k]) => $('#' + id).onchange = e => { LF[k] = e.target.value; draw(); });
+  $('#lref').onclick = () => route();
+  if ($('#ledit')) $('#ledit').onclick = () => { LF.edit = !LF.edit; route(); };
   if ($('#lnew')) $('#lnew').onclick = () => leadModal(0);
+  $('#lcol').onclick = () => $('#lcm').classList.toggle('hide');
+  $$('[data-col]').forEach(c => c.onchange = () => { LHIDE = $$('[data-col]').filter(x => !x.checked).map(x => x.dataset.col); try { localStorage.lcols = JSON.stringify(LHIDE); } catch (e) { } draw(); });
+  $('#lex').onclick = () => csvDownload('leads-' + today() + '.csv', ['name', 'phone', 'email', 'city', 'location', 'source', 'status', 'appt', 'remark', 'kw', 'budget', 'added_by', 'created', 'notes'], leads);
   if ($('#lim')) $('#lim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; const rows = csvObjs(await f.text()); let n = 0; for (const r of rows) { if (!r.name) continue; await api('leads', 'save', { ...r, status: r.status || 'New' }); n++; } alert('Imported ' + n + ' leads'); route(); };
   draw();
 }
 async function leadModal(id) {
-  const l = id ? await api('leads', 'get', undefined, '&id=' + id) : { status: 'New', source: S.lead_sources[0], followup: '' };
-  const F = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'source', l: 'Source', opts: S.lead_sources }, { k: 'address', l: 'Address / location', full: 1 },
-    { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'followup', l: 'Next follow-up', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, { k: 'budget', l: 'Budget (₹)', t: 'number' }];
+  const l = id ? await api('leads', 'get', undefined, '&id=' + id) : { status: 'New', source: S.lead_sources[0] };
+  if (id && !l.location) l.location = l.address;
+  const F = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'source', l: 'Source', opts: S.lead_sources }, { k: 'city', l: 'City' }, { k: 'location', l: 'Location / address' },
+    { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'appt', l: 'Appointment date', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, { k: 'budget', l: 'Budget (₹)', t: 'number' }, { k: 'remark', l: 'Remark', full: 1 }];
   if ((CACHE.camps || []).length) F.splice(4, 0, { k: 'campaign_id', l: 'Meta campaign', opts: opt(CACHE.camps.map(c => [c.id, c.name]), '— none —') });
   const w = canW('leads');
   const m = modal(`<h2 style="margin-top:0">${id ? 'Lead' : 'New lead'}</h2><div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(l.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px">${w ? '<button class="btn" id="sv">Save</button>' : ''}<button class="btn sec" id="cx">Close</button>
    ${id && l.phone ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(l.phone) + '">Call</a>' : ''}
-   ${id && w && !l.customer_id ? '<button class="btn sec" id="cv">Convert to customer</button>' : ''}${l.customer_id ? `<a class="btn sec" href="#/customers/${l.customer_id}" onclick="">Open customer</a>` : ''}
+   ${id && w && !l.customer_id ? '<button class="btn sec" id="cv">Convert to customer</button>' : ''}${l.customer_id ? `<a class="btn sec" href="#/customers/${l.customer_id}" id="oc">Open customer</a>` : ''}
    ${id && canW('quotes') ? '<button class="btn sec" id="qt">Create quotation</button>' : ''}<span class="sp"></span>${id && w ? '<button class="btn bad" id="dl">Delete</button>' : ''}</div>
-   ${id ? noteBox('leads', id, l.notes_log) + `<div class="card" style="margin-top:10px"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div>` : ''}`);
+   ${id ? `<p class="mut" style="font-size:12px">Added by ${esc(l.added_by || '—')} on ${dmy(l.created)}</p>` + noteBox('leads', id, l.notes_log) + `<div class="card" style="margin-top:10px"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div>` : ''}`);
   $('#cx', m).onclick = () => m.remove();
-  if (w) $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; if (!o.name) return alert('Name required'); await api('leads', 'save', o); m.remove(); route(); };
+  if ($('#oc', m)) $('#oc', m).onclick = () => m.remove();
+  if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m) }; if (!o.name) return alert('Name required'); await api('leads', 'save', o); m.remove(); route(); };
   if ($('#wa', m)) $('#wa', m).onclick = () => waOpen({ name: l.name, phone: l.phone, lead_id: id });
   if ($('#cv', m)) $('#cv', m).onclick = async () => { const r = await api('leads', 'convert', { id }); m.remove(); location.hash = '#/customers/' + r.customer_id; };
   if ($('#qt', m)) $('#qt', m).onclick = () => { m.remove(); sessionStorage.lead2quote = JSON.stringify({ lead_id: id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; };
