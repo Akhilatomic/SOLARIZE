@@ -411,12 +411,25 @@ async function leadModal(id) {
 // ---------- Customers ----------
 let CUF = { q: '', st: '', sort: 'recent' };
 const STC = { New: 'b', Survey: 'y', Design: 'y', Quotation: 'p', Approval: 'p', Material: 'y', Installation: 'c', 'Net-meter': 'c', Commissioned: 'g', Subsidy: 'g', Closed: 'g' };
+async function convertLeadModal() {
+  const ls = (await api('leads', 'list')).filter(l => l.can_edit && !l.customer_id && !['Won', 'Lost'].includes(l.status));
+  const m = modal(`<h2 style="margin-top:0">Convert lead to customer</h2><p class="mut" style="margin-top:-6px">Only your claimed (or admin-visible) open leads are listed.</p>
+   <label>Lead</label><input id="clq" placeholder="Search name, phone, city…" autocomplete="off"><select id="cls" size="8" style="margin-top:6px">${ls.map(l => `<option value="${l.id}">${esc(l.name)}${l.phone ? ' · ' + esc(l.phone) : ''}${l.city ? ' · ' + esc(l.city) : ''}</option>`).join('')}</select>
+   ${ls.length ? '' : '<p class="mut">No open leads to convert. Claim a lead first on the Leads page.</p>'}
+   <label style="display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px;margin-top:10px"><input type="checkbox" id="clp" style="width:auto" ${canW('projects') ? 'checked' : 'disabled'}> Also start a project for this customer</label>
+   <div class="bar" style="margin-top:14px"><button class="btn" id="clsv">Convert</button><button class="btn sec" id="clcx">Cancel</button></div>`);
+  $('#clq', m).oninput = e => { const t = e.target.value.toLowerCase(); [...$('#cls', m).options].forEach(o => o.hidden = !o.text.toLowerCase().includes(t)); };
+  $('#clcx', m).onclick = () => m.remove();
+  $('#clsv', m).onclick = async () => { const id = +$('#cls', m).value; if (!id) return toast('Choose a lead', true);
+    const r = await api('leads', 'convert', { id }); m.remove(); toast('Converted to customer');
+    if ($('#clp', m).checked) startModal({ customer_id: r.customer_id }); else location.hash = '#/customers/' + r.customer_id; };
+}
 async function pgCustomers() {
   if (!PIPE && canR('projects')) { try { PIPE = (await api('pipeline', 'board')).stages; } catch (e) { } }
   const cs = await list('customers'); cs.forEach(c => c.status = c.stage || 'New');
   const w = canW('customers');
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Customers</h2><div class="mut" id="ccount"></div></div><span class="sp"></span>
-   <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
+   <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${canW('leads') ? '<button class="btn sec" id="cconv"><i class="i i-userplus"></i> Convert lead</button>' : ''}${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
    <div class="bar" style="margin-top:12px"><input id="cq" placeholder="Search by name, consumer no, phone, district…" style="max-width:340px" value="${esc(CUF.q)}">
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
    <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity']].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
@@ -439,20 +452,22 @@ async function pgCustomers() {
         const proj = tab => { if (!c.project_id) { toast('No project yet — create one first', true); return; } TAB.proj = tab; location.hash = '#/projects/' + c.project_id; };
         if (a === 'ed') customerModal(c.id, c);
         if (a === 'wa') waOpen({ name: c.name, phone: c.phone, customer_id: c.id });
-        if (a === 'pj') { if (c.project_id) { TAB.proj = 'overview'; location.hash = '#/projects/' + c.project_id; } else if (canW('projects')) projectModal(0, { customer_id: c.id, kw: '' }); else toast('No project yet', true); }
+        if (a === 'pj') { if (c.project_id) { TAB.proj = 'overview'; location.hash = '#/projects/' + c.project_id; } else if (canW('projects')) startModal({ customer_id: c.id }); else toast('No project yet', true); }
         if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ customer_id: c.id, name: c.name }); location.hash = '#/quotes/new'; }
         if (a === 'pay') proj('overview'); if (a === 'kseb') proj('kseb'); if (a === 'sub') proj('subsidy');
         if (a === 'op') location.hash = '#/customers/' + c.id;
+        if (a === 'sp') startModal({ customer_id: c.id });
       };
       $$('[data-a]', tr).forEach(b => b.onclick = e => { e.stopPropagation(); const a = b.dataset.a;
         if (a !== 'more') return run(a);
-        popMenu(b, [w ? ['ed', 'pencil', 'Edit customer'] : null, canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ['pay', 'card', 'Payments'], ['kseb', 'folder', 'KSEB documents'], ['sub', 'coin', 'Subsidy']], run);
+        popMenu(b, [w ? ['ed', 'pencil', 'Edit customer'] : null, canW('projects') ? ['sp', 'project', 'Start a project'] : null, canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ['pay', 'card', 'Payments'], ['kseb', 'folder', 'KSEB documents'], ['sub', 'coin', 'Subsidy']], run);
       });
     });
   };
   $('#cq').oninput = e => { CUF.q = e.target.value; draw(); };
   $('#cst').onchange = e => { CUF.st = e.target.value; draw(); }; $('#csort').onchange = e => { CUF.sort = e.target.value; draw(); };
   $('#cref').onclick = () => route();
+  if ($('#cconv')) $('#cconv').onclick = convertLeadModal;
   $('#cex').onclick = () => csvDownload('customers-' + today() + '.csv', ['name', 'phone', 'email', 'address', 'district', 'consumer_no', 'kseb_section', 'sanctioned_load', 'roof_type', 'gst_no', 'status', 'kw', 'added_by', 'created', 'notes'], cs);
   if ($('#cnew')) $('#cnew').onclick = () => customerModal(0);
   if ($('#cim')) $('#cim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; let n = 0; for (const r of csvObjs(await f.text())) { if (!r.name) continue; await api('customers', 'save', r); n++; } toast('Imported ' + n + ' customers'); route(); };
@@ -481,7 +496,7 @@ async function pgCustomer(id) {
   if ($('#wa')) $('#wa').onclick = () => waOpen({ name: c.name, phone: c.phone, customer_id: id });
   if ($('#ed')) $('#ed').onclick = () => customerModal(id, c);
   if ($('#dl')) $('#dl').onclick = async () => { if (confirm('Delete this customer and ALL their projects, quotes and files? This cannot be undone.')) { await api('customers', 'delete', { id }); location.hash = '#/customers'; } };
-  if ($('#np')) $('#np').onclick = () => projectModal(0, { customer_id: id });
+  if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
   if ($('#nq')) $('#nq').onclick = () => { sessionStorage.lead2quote = JSON.stringify({ customer_id: id, name: c.name }); location.hash = '#/quotes/new'; };
   if ($('#up')) $('#up').onclick = async () => { if (await upload({ customer_id: id })) route(); };
   bindNote('customers', id, route);

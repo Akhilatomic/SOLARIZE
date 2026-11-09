@@ -16,9 +16,9 @@ async function pgPipeline() {
   const B = await api('pipeline', 'board'); PIPE = B.stages;
   const w = canW('projects'), t = PL.q.toLowerCase();
   const match = p => !t || [p.customer, p.title, p.phone, p.district].join(' ').toLowerCase().includes(t);
-  const ps = B.projects.filter(match), leads = B.leads.filter(l => !t || [l.name, l.phone, l.city].join(' ').toLowerCase().includes(t));
+  const ps = B.projects.filter(match);
   const done = ps.filter(p => p.stage === 'Project completed');
-  const counts = { 1: ps.filter(p => stepOf(p.stage) === 1).length + leads.length, 2: ps.filter(p => stepOf(p.stage) === 2).length, 3: ps.filter(p => stepOf(p.stage) === 3 && p.stage !== 'Project completed').length, 4: done.length };
+  const counts = { 1: ps.filter(p => stepOf(p.stage) === 1).length, 2: ps.filter(p => stepOf(p.stage) === 2).length, 3: ps.filter(p => stepOf(p.stage) === 3 && p.stage !== 'Project completed').length, 4: done.length };
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:8px"><div><h2 style="margin:0;font-size:26px">Project pipeline</h2><div class="mut">${B.projects.length} projects · ${B.projects.filter(p => p.stage !== 'Project completed').length} in progress</div></div><span class="sp"></span>
     <input id="plq" placeholder="Search customer, phone…" value="${esc(PL.q)}" style="max-width:260px">${PL.step < 4 ? `<div class="tabs" style="margin:0"><button data-pv="board" class="${PL.view === 'board' ? 'on' : ''}">Board</button><button data-pv="list" class="${PL.view === 'list' ? 'on' : ''}">List</button></div>` : ''}
     ${w ? '<button class="btn" id="pnew"><i class="i i-plus"></i> Start project</button>' : ''}</div>
@@ -37,8 +37,8 @@ async function pgPipeline() {
     $$('#ptb tr.row').forEach(r => r.onclick = e => { if (!e.target.closest('button')) location.hash = '#/projects/' + r.dataset.id; });
     bindNext(body, ps); return;
   }
-  const leadCol = PL.step === 1 ? `<div class="pcol" data-stage=""><div class="pch"><b>Lead</b><span>${leads.length}</span></div><div class="pcl">${leads.slice(0, 60).map(l => `<div class="pk lead" data-lead="${l.id}"><b>${esc(l.name)}</b><small>${esc(l.phone || '')}${l.city ? ' · ' + esc(l.city) : ''}</small><small class="mut">${l.kw ? l.kw + ' kW · ' : ''}${esc(l.status)}${l.assigned_to ? ' · ' + esc(l.owner_name || '') : ' · unclaimed'}</small>${w && l.can_edit ? `<button class="btn sm sec" data-start="${l.id}">Start project →</button>` : (!l.can_edit && ME.can_claim ? `<button class="btn sm claim" data-claimlead="${l.id}">Claim</button>` : '')}</div>`).join('') || '<p class="mut pce">No open leads</p>'}${leads.length > 60 ? `<p class="mut pce">+${leads.length - 60} more on the Leads page</p>` : ''}</div></div>` : '';
-  body.innerHTML = `<div class="pboard s${PL.step}">${leadCol}${cols.map(([k, label, , gate]) => { const cs = ps.filter(p => p.stage === label);
+
+  body.innerHTML = `<div class="pboard s${PL.step}">${cols.map(([k, label, , gate]) => { const cs = ps.filter(p => p.stage === label);
     return `<div class="pcol" data-stage="${esc(label)}"><div class="pch"><b title="${esc(label)}">${esc(label)}</b><span>${cs.length}</span></div>${gate === 'receipt' ? '<div class="pgate"><i class="i i-lock"></i> Receipt required to move on</div>' : gate === 'optional' ? '<div class="pgate">Only if a loan is taken</div>' : ''}
      <div class="pcl">${cs.map(p => pcard(p, k, gate)).join('') || '<p class="mut pce">—</p>'}</div></div>`; }).join('')}</div>`;
   $$('.pk[data-id]', body).forEach(c => { c.onclick = e => { if (!e.target.closest('button')) location.hash = '#/projects/' + c.dataset.id; }; if (w) c.ondragstart = e => e.dataTransfer.setData('text/plain', c.dataset.id); });
@@ -46,8 +46,8 @@ async function pgPipeline() {
     col.ondragover = e => { e.preventDefault(); col.classList.add('drop'); }; col.ondragleave = () => col.classList.remove('drop');
     col.ondrop = async e => { e.preventDefault(); col.classList.remove('drop'); const p = ps.find(x => x.id == e.dataTransfer.getData('text/plain')); if (p) await moveTo(p, col.dataset.stage); };
   });
-  $$('[data-start]', body).forEach(b => b.onclick = () => startModal({ lead: leads.find(l => l.id == b.dataset.start) }));
-  $$('[data-claimlead]', body).forEach(b => b.onclick = async () => { if (await claimLead(+b.dataset.claimlead)) pgPipeline(); });
+
+
   bindNext(body, ps);
 }
 const rcBadges = p => [['feas_pay', 'Feasibility'], ['reg_pay', 'Registration']].filter(([k]) => PIPE.findIndex(s => s[0] === k) <= PIPE.findIndex(s => s[1] === p.stage)).map(([k, l]) => `<span class="pill ${p.receipts[k] ? 'g' : 'r'}" title="${l} fee receipt">${p.receipts[k] ? '<i class="i i-check"></i>' : '<i class="i i-alert"></i>'} ${l}</span>`).join(' ') || '<span class="mut">—</span>';
@@ -92,18 +92,17 @@ function receiptModal(pid, key, done) {
   $('#rsv', m).onclick = async () => { const fd = new FormData(); fd.append('file', file); fd.append('project_id', pid); fd.append('stage', key); fd.append('amount', $('#ra', m).value); fd.append('date', $('#rd', m).value); fd.append('ref', $('#rr', m).value);
     $('#rsv', m).disabled = true; try { await api('pipeline', 'receipt', fd); toast('Receipt uploaded — you can move this project on'); m.remove(); done && done(); } catch (e) { $('#rsv', m).disabled = false; } };
 }
-async function startModal({ lead, customer_id }) {
-  const [ls, cs] = await Promise.all([canR('leads') ? api('leads', 'list') : [], canR('customers') ? api('customers', 'list') : []]);
-  const open = ls.filter(l => l.can_edit && !l.customer_id && !['Won', 'Lost'].includes(l.status));
-  const m = modal(`<h2 style="margin-top:0">Start a project</h2><div class="two">
-   <div class="full"><label>From</label><select id="sfrom"><option value="">— choose a lead or customer —</option><optgroup label="Leads (becomes a customer)">${open.map(l => `<option value="l${l.id}" ${lead && lead.id == l.id ? 'selected' : ''}>${esc(l.name)}${l.phone ? ' · ' + esc(l.phone) : ''}</option>`).join('')}</optgroup><optgroup label="Customers">${cs.map(c => `<option value="c${c.id}" ${customer_id == c.id ? 'selected' : ''}>${esc(c.name)}${c.phone ? ' · ' + esc(c.phone) : ''}</option>`).join('')}</optgroup></select></div>
-   <div><label>System size (kW)</label><input id="skw" type="number" step="any" value="${lead && lead.kw ? lead.kw : ''}"></div><div><label>Project value (₹)</label><input id="scost" type="number" step="any"></div>
+async function startModal({ customer_id }) {
+  const cs = canR('customers') ? await api('customers', 'list') : [];
+  const m = modal(`<h2 style="margin-top:0">Start a project</h2><p class="mut" style="margin-top:-6px">Projects start from a customer. To turn a lead into a customer, use <b>Convert lead</b> on the Customers page.</p><div class="two">
+   <div class="full"><label>Customer</label><select id="sfrom"><option value="">— choose a customer —</option>${cs.map(c => `<option value="${c.id}" ${customer_id == c.id ? 'selected' : ''}>${esc(c.name)}${c.phone ? ' · ' + esc(c.phone) : ''}${c.stage ? ' (has a project)' : ''}</option>`).join('')}</select></div>
+   <div><label>System size (kW)</label><input id="skw" type="number" step="any"></div><div><label>Project value (₹)</label><input id="scost" type="number" step="any"></div>
    <div><label>Loan taken?</label><select id="sloan"><option value="">Not decided</option><option>Yes</option><option>No</option></select></div><div><label>Site engineer</label><input id="seng"></div>
    <div class="full"><label>Project title</label><input id="stitle" placeholder="e.g. 3 kW rooftop solar (blank = automatic)"></div></div>
-   <div class="bar" style="margin-top:14px"><button class="btn" id="ssv">Start project</button><button class="btn sec" id="scx">Cancel</button></div>`);
-  $('#scx', m).onclick = () => m.remove();
-  $('#ssv', m).onclick = async () => { const v = $('#sfrom', m).value; if (!v) return toast('Choose a lead or customer', true);
-    const r = await api('pipeline', 'start', { [v[0] === 'l' ? 'lead_id' : 'customer_id']: +v.slice(1), kw: $('#skw', m).value, cost: $('#scost', m).value, loan: $('#sloan', m).value, engineer: $('#seng', m).value, title: $('#stitle', m).value });
+   <div class="bar" style="margin-top:14px"><button class="btn" id="ssv">Start project</button><button class="btn sec" id="scx">Cancel</button><span class="sp"></span><a class="btn sec" href="#/customers" id="sgoc">Go to Customers</a></div>`);
+  $('#scx', m).onclick = () => m.remove(); $('#sgoc', m).onclick = () => m.remove();
+  $('#ssv', m).onclick = async () => { const v = $('#sfrom', m).value; if (!v) return toast('Choose a customer', true);
+    const r = await api('pipeline', 'start', { customer_id: +v, kw: $('#skw', m).value, cost: $('#scost', m).value, loan: $('#sloan', m).value, engineer: $('#seng', m).value, title: $('#stitle', m).value });
     m.remove(); toast('Project started'); location.hash = '#/projects/' + r.id; };
 }
 

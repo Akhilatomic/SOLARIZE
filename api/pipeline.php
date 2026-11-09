@@ -35,9 +35,7 @@ function handle_pipeline($a) {
       $rec = []; foreach (rows("SELECT project_id,stage FROM stage_data WHERE file_id IS NOT NULL") as $r) $rec[$r['project_id']][$r['stage']] = true;
       $svc = []; foreach (rows("SELECT project_id, MAX(CASE WHEN status='Done' THEN date END) last_done, MIN(CASE WHEN status='Scheduled' THEN date END) next_sched, COUNT(*) n FROM services GROUP BY project_id") as $r) $svc[$r['project_id']] = $r;
       foreach ($ps as &$p) { $p['receipts'] = ['feas_pay' => !empty($rec[$p['id']]['feas_pay']), 'reg_pay' => !empty($rec[$p['id']]['reg_pay'])]; $p['svc'] = $svc[$p['id']] ?? null; } unset($p);
-      $leads = can('leads') ? array_map('lead_mask', rows("SELECT l.id,l.name,l.phone,l.email,l.city,l.status,l.kw,l.assigned_to,l.created,u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to
-        WHERE l.customer_id IS NULL AND l.status NOT IN ('Won','Lost') AND " . lead_scope('l') . " ORDER BY l.created DESC LIMIT 300")) : [];
-      out(['stages' => PIPE, 'projects' => $ps, 'leads' => $leads, 'service_types' => SERVICE_TYPES]);
+      out(['stages' => PIPE, 'projects' => $ps, 'service_types' => SERVICE_TYPES]);
     case 'move':
       need('projects', true);
       $p = row('SELECT * FROM projects WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$p) fail('Project not found', 404);
