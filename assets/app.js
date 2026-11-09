@@ -25,6 +25,7 @@ async function api(m, a, body, qs = '') {
   const j = await r.json().catch(() => ({ error: 'Bad server response' }));
   if (r.status === 401 && m !== 'auth') { boot(); throw j; }
   if (j.error && !(m === 'auth' && (a === 'login' || a === 'setup'))) { alert(j.error); throw j; }
+  if (m === 'leads' && a === 'save' && typeof refreshFeed === 'function') setTimeout(refreshFeed, 0); // edited leads leave "New leads to contact"
   return j;
 }
 const list = (m, qs = '') => api(m, 'list', undefined, qs);
@@ -396,6 +397,7 @@ async function pgLeads() {
 }
 async function leadModal(id) {
   const l = id ? await api('leads', 'get', undefined, '&id=' + id) : { status: 'New', source: S.lead_sources[0] };
+  if (id && typeof refreshFeed === 'function' && (FEED.leads || []).some(x => x.id == id)) refreshFeed(); // viewed → drops off the dashboard list
   if (id && !l.location) l.location = l.address;
   const F = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'source', l: 'Source', opts: S.lead_sources }, { k: 'city', l: 'City' }, { k: 'location', l: 'Location / address' },
     { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'appt', l: 'Appointment date', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, ...(FIN() ? [{ k: 'budget', l: 'Budget (₹)', t: 'number' }] : []), { k: 'remark', l: 'Remark', full: 1 }];

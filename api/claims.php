@@ -46,6 +46,7 @@ function lead_guard($a, $in) {
     case 'get':
       need('leads');
       $l = lead_or_404($_GET['id'] ?? 0);
+      if ((int)$l['notify'] && lead_can_write($l)) { q('UPDATE leads SET notify=0 WHERE id=?', [$l['id']]); $l['notify'] = 0; audit('ack', 'leads', $l['id'], 'viewed'); } // opened by its owner / admin → off the dashboard's "new leads"
       $r = strip_fin(lead_mask(detail('leads', $l))); $r['owner_name'] = owner_name($l['assigned_to']);
       if (!empty($r['masked'])) $r['messages'] = [];
       out($r);

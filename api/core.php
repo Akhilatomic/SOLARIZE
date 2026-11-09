@@ -79,6 +79,7 @@ function handle_crud($t, $a) {
         $set = implode(',', array_map(fn($c) => "$c=:$c", $cols));
         $v['id'] = $id;
         q("UPDATE $t SET $set, updated=CURRENT_TIMESTAMP WHERE id=:id", $v);
+        if ($t === 'leads') q('UPDATE leads SET notify=0 WHERE id=? AND notify=1', [$id]); // edited → no longer a "new lead to contact"
         audit('update', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
       } else {
         if ($t === 'customers') $v['added_by'] = $_SESSION['name'] ?? '';
