@@ -115,3 +115,28 @@ async function feeMenuRun(a, c) {
   toast(`${c.name} added to ${FEES[k].title}`);
   return true;
 }
+
+// ---- feasibility at a glance on the Customers list ----
+const feasOf = id => (FEEMAP[id] || {})._feas || null;
+// sort key: expired first, then soonest to expire; then demanded, not paid, not on the list
+function feasRank(id) { const f = feasOf(id); if (!f) return 1e7; if (f.paid && f.days_left != null) return f.days_left; return f.demanded ? 5e6 : 6e6; }
+function feasText(f) {
+  if (!f) return { t: 'Not on the feasibility list', c: 'n' };
+  if (f.paid && f.days_left != null) return f.days_left < 0 ? { t: `Expired ${-f.days_left} day${f.days_left === -1 ? '' : 's'} ago`, c: 'r', d: `Paid ${fdate(f.paid_on)} · expired ${fdate(f.expires)}` }
+    : { t: f.days_left === 0 ? 'Expires today' : `${f.days_left} day${f.days_left === 1 ? '' : 's'} left`, c: f.days_left <= 3 ? 'r' : f.days_left <= 10 ? 'y' : 'g', d: `Paid ${fdate(f.paid_on)} · expires ${fdate(f.expires)}` };
+  if (f.paid) return { t: 'Paid', c: 'g', d: f.paid_on ? 'Paid ' + fdate(f.paid_on) : '' };
+  return f.demanded ? { t: 'Demanded — not paid yet', c: 'y', d: f.demanded_on ? 'Demanded ' + fdate(f.demanded_on) : '' } : { t: 'Not paid', c: 'o', d: 'On the feasibility list' };
+}
+// touch devices have no hover → small chip under the name (only when it matters)
+function feasChip(id) { if (!canR('fees') || matchMedia('(hover: hover)').matches) return ''; const f = feasOf(id); if (!f) return ''; const x = feasText(f); return `<small class="feasc ${x.c}">Feasibility · ${x.t}</small>`; }
+let FH = null;
+function feasHover(tr, c) {
+  if (!canR('fees') || !matchMedia('(hover: hover)').matches) return;
+  tr.onmouseenter = e => { const x = feasText(feasOf(c.id)); FH = FH || Object.assign(document.createElement('div'), { id: 'feash' });
+    FH.innerHTML = `<div class="fh1"><span class="fhd ${x.c}"></span><b>Feasibility</b></div><div class="fh2 ${x.c}">${x.t}</div>${x.d ? `<div class="fh3">${x.d}</div>` : ''}`;
+    document.body.appendChild(FH); FH.classList.add('on'); place(e); };
+  const place = e => { if (!FH) return; const w = FH.offsetWidth, h = FH.offsetHeight; let x = e.clientX + 16, y = e.clientY + 18; if (x + w > innerWidth - 8) x = e.clientX - w - 12; if (y + h > innerHeight - 8) y = e.clientY - h - 12; FH.style.left = x + 'px'; FH.style.top = y + 'px'; };
+  tr.onmousemove = place;
+  tr.onmouseleave = () => { if (FH) FH.classList.remove('on'); };
+}
+addEventListener('hashchange', () => { if (FH) FH.classList.remove('on'); });

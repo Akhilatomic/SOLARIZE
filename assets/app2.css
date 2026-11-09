@@ -234,3 +234,13 @@ aside a .nb{box-shadow:0 0 0 2px #1c1c1e}
 input[type=range]{box-shadow:none;padding:0;accent-color:#007aff}
 .acav{background:#48484a!important;color:#fff}
 .menu button[hidden],.btn[hidden]{display:none!important}
+
+/* feasibility hover card on the Customers list */
+#feash{position:fixed;z-index:150;pointer-events:none;min-width:190px;max-width:280px;padding:9px 12px;border-radius:10px;background:rgba(252,252,254,.97);
+  box-shadow:0 0 0 .5px rgba(0,0,0,.14),0 10px 28px rgba(0,0,0,.16);font-size:12.5px;opacity:0;transition:opacity .1s}
+#feash.on{opacity:1}
+#feash .fh1{display:flex;align-items:center;gap:6px;color:#6e6e73;font-size:11.5px;font-weight:600}
+#feash .fhd{width:7px;height:7px;border-radius:50%;background:#c7c7cc}#feash .fhd.g{background:#34c759}#feash .fhd.y{background:#ff9f0a}#feash .fhd.r{background:#ff3b30}#feash .fhd.o{background:#8e8e93}
+#feash .fh2{font-size:15px;font-weight:700;margin:2px 0 1px;color:#1d1d1f}#feash .fh2.r{color:#d70015}#feash .fh2.g{color:#1e7a37}#feash .fh2.y{color:#a05a00}
+#feash .fh3{color:#6e6e73}
+.feasc{display:block;font-size:11px;font-weight:600;margin-top:2px;color:#6e6e73}.feasc.r{color:#d70015}.feasc.g{color:#1e7a37}.feasc.y{color:#a05a00}

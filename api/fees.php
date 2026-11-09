@@ -47,7 +47,13 @@ function handle_fees($a) {
 
     case 'member': // which Finance lists each customer is on (for the customer menus)
       need('fees'); $cid = (int)($_GET['customer_id'] ?? 0);
-      $m = []; foreach (rows('SELECT customer_id, kind, paid FROM fees' . ($cid ? ' WHERE customer_id=' . $cid : '')) as $r) $m[$r['customer_id']][$r['kind']] = (int)$r['paid'];
+      $m = []; $today = new DateTime(date('Y-m-d'));
+      foreach (rows('SELECT customer_id, kind, paid, paid_on, demanded, demanded_on, amount FROM fees' . ($cid ? ' WHERE customer_id=' . $cid : '')) as $r) {
+        $m[$r['customer_id']][$r['kind']] = (int)$r['paid'];
+        if ($r['kind'] === 'feasibility') { $x = ['paid' => (int)$r['paid'], 'paid_on' => $r['paid_on'], 'demanded' => (int)$r['demanded'], 'demanded_on' => $r['demanded_on'], 'amount' => (float)$r['amount']];
+          if ($x['paid'] && $r['paid_on']) { $e = (new DateTime($r['paid_on']))->modify('+' . FEAS_VALID_DAYS . ' days'); $x['expires'] = $e->format('Y-m-d'); $x['days_left'] = (int)$today->diff($e)->format('%r%a'); }
+          $m[$r['customer_id']]['_feas'] = $x; }
+      }
       out($m ?: new stdClass);
     case 'candidates': // customers not yet on this list
       need('fees'); $kind = fee_kind($_GET['kind'] ?? '');

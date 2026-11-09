@@ -456,7 +456,7 @@ async function pgCustomers() {
    <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${canW('leads') ? '<button class="btn sec" id="cconv"><i class="i i-userplus"></i> Convert lead</button>' : ''}${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
    <div class="bar cbar" style="margin-top:12px"><input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
-   <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity']].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+   <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity'], ...(canR('fees') ? [['feas', 'Feasibility expiry']] : [])].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
    <span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex">Export CSV</button>' : ''}${w ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
    <div class="card tw fitbox" style="padding:0"><table id="ctb" class="ctb2" data-min="680"></table></div>`;
   const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}" aria-label="${t}"><i class="i i-${i}"></i></button>`;
@@ -464,7 +464,8 @@ async function pgCustomers() {
     const t = CUF.q.toLowerCase();
     const rows = cs.filter(c => (!CUF.st || c.status === CUF.st) && (!t || [c.name, c.phone, c.consumer_no, c.district, c.address, c.email].join(' ').toLowerCase().includes(t)))
       .sort((a, b) => CUF.sort === 'name' ? a.name.localeCompare(b.name) : CUF.sort === 'kw' ? (b.kw || 0) - (a.kw || 0) : CUF.sort === 'oldest' ? (a.created > b.created ? 1 : -1) : (a.created < b.created ? 1 : -1))
-      .sort((a, b) => discRank(b.id) - discRank(a.id) || (DISC.sum[a.id] && DISC.sum[b.id] ? String(DISC.sum[b.id].last_at).localeCompare(String(DISC.sum[a.id].last_at)) : 0)); // live discussions first
+      .sort((a, b) => CUF.sort === 'feas' ? feasRank(a.id) - feasRank(b.id) : 0)
+      .sort((a, b) => CUF.sort === 'feas' ? 0 : discRank(b.id) - discRank(a.id) || (DISC.sum[a.id] && DISC.sum[b.id] ? String(DISC.sum[b.id].last_at).localeCompare(String(DISC.sum[a.id].last_at)) : 0)); // live discussions first
     const nLive = rows.filter(c => DISC.sum[c.id]).length; $('#ccount').innerHTML = rows.length + ' records' + (nLive ? ` · <span class="xdlive"><span class="xddot"></span>${nLive} live discussion${nLive === 1 ? '' : 's'}</span>` : '');
     const W = ($('#ctb').parentElement || {}).clientWidth || 1200;
     // fit to the window: drop the least important columns first, then fold the action icons into ⋯, then consumer no. / phone
@@ -477,7 +478,7 @@ async function pgCustomers() {
       const list = [['ed', 'pencil', 'Edit customer', w], ['pj', 'project', p ? 'Open project' : 'Start a project', p || canW('projects')], ['docs', 'file', 'Documents', true], ['pay', 'card', 'Payments', 1, p], ['fees', 'coin', 'Finance — feasibility, registration, stamp paper', fin],
         ['kseb', 'folder', 'KSEB documents', 1, p], ['sub', 'sun', 'Subsidy (PM Surya Ghar)', 1, p], ['tl', 'clock', 'Timeline & profile', true], ['rv', 'undo', 'Revert to lead', wl]].filter(x => x[3]);
       return full ? list : list.filter(x => ['ed', 'pj', 'docs'].includes(x[0])); };
-    const cell = (k, c) => ({ name: `<td class="cnm" title="${esc(c.name)}"><b class="clip">${esc(c.name)}</b>${!COLS.some(x => x[0] === 'cno') && c.consumer_no ? `<small class="mono mut">${esc(c.consumer_no)}</small>` : ''}</td>`,
+    const cell = (k, c) => ({ name: `<td class="cnm"><b class="clip">${esc(c.name)}</b>${feasChip(c.id)}${!COLS.some(x => x[0] === 'cno') && c.consumer_no ? `<small class="mono mut">${esc(c.consumer_no)}</small>` : ''}</td>`,
       status: `<td><span class="pill ${c.status === 'New' ? 'b' : (typeof stepCls === 'function' && PIPE ? stepCls(c.status) : STC[c.status]) || ''}">${esc(c.status)}</span></td>`,
       cno: `<td class="mono">${esc(c.consumer_no) || '<span class="mut">—</span>'}</td>`, dist: `<td title="${esc(c.district)}"><span class="clip">${esc(c.district) || '<span class="mut">—</span>'}</span></td>`,
       phone: `<td>${c.phone ? `<a href="tel:${esc(c.phone)}" class="tel"><i class="i i-phone"></i> ${esc(c.phone)}</a>` : '<span class="mut">—</span>'}</td>`, kw: `<td>${c.kw ? c.kw + ' kWp' : '<span class="mut">—</span>'}</td>`,
@@ -489,6 +490,7 @@ async function pgCustomers() {
         <td class="cact">${discBtn(c.id)}${ACTS(c).map(([k, i, t, , on]) => on === false ? `<button class="ib off" aria-disabled="true" title="${t} — start a project first"><i class="i i-${i}"></i></button>` : ic(k, i, t)).join('')}${ic('more', 'dots', 'More actions')}</td></tr>`).join('') || `<tr><td colspan="${COLS.length + 1}" class="mut">No customers match</td></tr>`}</tbody>`;
     $$('#ctb tr.row').forEach(tr => {
       const c = cs.find(x => x.id == tr.dataset.id);
+      feasHover(tr, c);
       tr.onclick = e => { if (!e.target.closest('a,button')) location.hash = '#/customers/' + c.id; };
       const run = async a => {
         if (a.startsWith('fadd-') || a.startsWith('fopen-')) return feeMenuRun(a, c);
