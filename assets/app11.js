@@ -79,11 +79,12 @@ async function pgCustomer(id) {
   $$('[data-pt]').forEach(b => b.onclick = () => showTab(b.dataset.pt));
   $$('[data-goto]').forEach(b => b.onclick = () => { showTab(b.dataset.goto); scrollTo({ top: 0, behavior: 'smooth' }); });
   if (PFT !== 'overview') showTab(PFT);
+  feeMembers(id);
   $('#pfmore').onclick = e => { e.stopPropagation(); const old = $('#lmenu'); if (old) { old.remove(); return; }
-    const items = [canW('projects') && tl.progress.length ? ['np2', 'project', '+ New project'] : null, w && canW('leads') ? ['rv', 'refresh', 'Revert to lead'] : null, w ? ['dl', 'trash', 'Delete customer'] : null].filter(Boolean);
+    const items = [canW('projects') && tl.progress.length ? ['np2', 'project', '+ New project'] : null, w && canW('leads') ? ['rv', 'refresh', 'Revert to lead'] : null, ...feeMenuItems(id), w ? ['dl', 'trash', 'Delete customer'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu'; m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('') || '<p class="mut" style="margin:6px">No actions</p>';
     document.body.appendChild(m); const r = e.currentTarget.getBoundingClientRect(); m.style.top = (r.bottom + 6 + scrollY) + 'px'; m.style.left = Math.max(8, r.right - m.offsetWidth) + 'px';
-    $$('[data-m]', m).forEach(b => b.onclick = async () => { m.remove(); const a = b.dataset.m;
+    $$('[data-m]', m).forEach(b => b.onclick = async () => { m.remove(); const a = b.dataset.m; if (await feeMenuRun(a, { id, name: c.name })) return;
       if (a === 'np2') startModal({ customer_id: id });
       if (a === 'rv') revertToLead(id, c.name);
       if (a === 'dl' && confirm('Delete this customer and all their projects, quotes and files?\n\nIt goes to the Recycle bin and can be restored for 72 hours.')) { await api('customers', 'delete', { id }); toast('Moved to Recycle bin'); location.hash = '#/customers'; } });

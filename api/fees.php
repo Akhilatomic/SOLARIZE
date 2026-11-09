@@ -45,6 +45,10 @@ function handle_fees($a) {
         unset($r); }
       out(['kind' => $kind, 'title' => FEE_KINDS[$kind], 'valid_days' => FEAS_VALID_DAYS, 'alert_days' => FEAS_ALERT_DAYS, 'rows' => $rs, 'default_amount' => fee_default_amount($kind)]);
 
+    case 'member': // which Finance lists each customer is on (for the customer menus)
+      need('fees'); $cid = (int)($_GET['customer_id'] ?? 0);
+      $m = []; foreach (rows('SELECT customer_id, kind, paid FROM fees' . ($cid ? ' WHERE customer_id=' . $cid : '')) as $r) $m[$r['customer_id']][$r['kind']] = (int)$r['paid'];
+      out($m ?: new stdClass);
     case 'candidates': // customers not yet on this list
       need('fees'); $kind = fee_kind($_GET['kind'] ?? '');
       out(rows('SELECT c.id, c.name, c.phone, c.consumer_no, c.district, c.kseb_section FROM customers c WHERE c.id NOT IN (SELECT customer_id FROM fees WHERE kind=?) ORDER BY c.created DESC LIMIT 1000', [$kind]));

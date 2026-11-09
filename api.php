@@ -34,7 +34,7 @@ try {
   if (empty($_SESSION['uid'])) fail('Unauthorized', 401);
   try { housekeeping(); } catch (Throwable $e) { } // hourly: expire 200-day documents, purge the 72-hour recycle bin
   // CSRF-light: state-changing calls must be POST
-  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status', 'me', 'today', 'month', 'range', 'pending', 'summary', 'notifs', 'timeline', 'serial', 'zip', 'candidates', 'leaves', 'balances', 'days']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
+  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status', 'me', 'today', 'month', 'range', 'pending', 'summary', 'notifs', 'timeline', 'serial', 'zip', 'candidates', 'member', 'leaves', 'balances', 'days']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
   if (isset($E[$m])) handle_crud($m, $a);
   switch ($m) {
     case 'dashboard': handle_dashboard();

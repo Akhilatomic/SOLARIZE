@@ -98,3 +98,20 @@ function feesPdf(kind, K, rows, st) {
     <tfoot><tr><td colspan="5">Total</td><td>${inr(total)}</td><td colspan="${kind === 'feasibility' ? 3 : kind === 'stamp' ? 1 : 2}"></td></tr></tfoot></table></body></html>`);
   w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 300);
 }
+
+// customer menus: add to / open the Finance lists
+let FEEMAP = {};
+async function feeMembers(cid) { if (!canR('fees')) return {}; try { const m = await api('fees', 'member', undefined, cid ? '&customer_id=' + cid : ''); if (cid) FEEMAP[cid] = m[cid] || {}; else FEEMAP = m || {}; } catch (e) { } return FEEMAP; }
+function feeMenuItems(cid) {
+  if (!canR('fees')) return [];
+  const on = FEEMAP[cid] || {};
+  return Object.entries(FEES).map(([k, v]) => on[k] !== undefined ? ['fopen-' + k, 'check', `On ${v.title}${on[k] ? (k === 'stamp' ? ' · purchased' : ' · paid') : ''} — open`] : canW('fees') ? ['fadd-' + k, 'plus', 'Add to ' + v.title] : null).filter(Boolean);
+}
+async function feeMenuRun(a, c) {
+  if (a.startsWith('fopen-')) { location.hash = '#/fees/' + a.slice(6); return true; }
+  if (!a.startsWith('fadd-')) return false;
+  const k = a.slice(5); await api('fees', 'add', { kind: k, customer_ids: [c.id] });
+  (FEEMAP[c.id] = FEEMAP[c.id] || {})[k] = 0;
+  toast(`${c.name} added to ${FEES[k].title}`);
+  return true;
+}

@@ -448,7 +448,7 @@ async function convertLeadModal() {
 }
 async function pgCustomers() {
   if (!PIPE && canR('projects')) { try { PIPE = (await api('pipeline', 'board')).stages; } catch (e) { } }
-  const [cs] = await Promise.all([list('customers'), discSummary()]); cs.forEach(c => c.status = c.stage || 'New');
+  const [cs] = await Promise.all([list('customers'), discSummary(), feeMembers()]); cs.forEach(c => c.status = c.stage || 'New');
   const w = canW('customers');
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Customers</h2><div class="mut" id="ccount"></div></div><span class="sp"></span>
    <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${canW('leads') ? '<button class="btn sec" id="cconv"><i class="i i-userplus"></i> Convert lead</button>' : ''}${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
@@ -471,7 +471,8 @@ async function pgCustomers() {
     $$('#ctb tr.row').forEach(tr => {
       const c = cs.find(x => x.id == tr.dataset.id);
       tr.onclick = e => { if (!e.target.closest('a,button')) location.hash = '#/customers/' + c.id; };
-      const run = a => {
+      const run = async a => {
+        if (a.startsWith('fadd-') || a.startsWith('fopen-')) return feeMenuRun(a, c);
         const proj = tab => { if (!c.project_id) { toast('No project yet — create one first', true); return; } TAB.proj = tab; location.hash = '#/projects/' + c.project_id; };
         if (a === 'ed') customerModal(c.id, c);
         if (a === 'wa') waOpen({ name: c.name, phone: c.phone, customer_id: c.id });
@@ -484,7 +485,7 @@ async function pgCustomers() {
       };
       $$('[data-a]', tr).forEach(b => b.onclick = e => { e.stopPropagation(); const a = b.dataset.a;
         if (a !== 'more') return run(a);
-        popMenu(b, [w ? ['ed', 'pencil', 'Edit customer'] : null, canW('projects') ? ['sp', 'project', 'Start a project'] : null, canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ['pay', 'card', 'Payments'], ['kseb', 'folder', 'KSEB documents'], ['sub', 'coin', 'Subsidy']], run);
+        popMenu(b, [w ? ['ed', 'pencil', 'Edit customer'] : null, canW('projects') ? ['sp', 'project', 'Start a project'] : null, canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ['pay', 'card', 'Payments'], ['kseb', 'folder', 'KSEB documents'], ['sub', 'coin', 'Subsidy'], ...feeMenuItems(c.id)], run);
       });
     });
   };
