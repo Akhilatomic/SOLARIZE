@@ -1,5 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
+const SCHEMA_VERSION = 4; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -44,7 +45,8 @@ function db() {
   $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
   $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
   $db->exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000');
-  migrate($db);
+  // schema changes run once per SCHEMA_VERSION (not on every request)
+  if ((int)$db->query('PRAGMA user_version')->fetchColumn() < SCHEMA_VERSION) { migrate($db); $db->exec('PRAGMA user_version=' . SCHEMA_VERSION); }
   return $db;
 }
 function q($sql, $args = []) { $s = db()->prepare($sql); $s->execute($args); return $s; }
@@ -60,7 +62,7 @@ function migrate($db) {
     $defs[] = 'created TEXT DEFAULT CURRENT_TIMESTAMP'; $defs[] = 'updated TEXT DEFAULT CURRENT_TIMESTAMP';
     $db->exec("CREATE TABLE IF NOT EXISTS $t(" . implode(',', $defs) . ')');
     $have = array_column($db->query("PRAGMA table_info($t)")->fetchAll(), 'name');
-    foreach ($cols as $c) if (!in_array($c, $have)) $db->exec("ALTER TABLE $t ADD COLUMN $c " . colType($c));
+    foreach ($cols as $c) if (!in_array($c, $have)) { try { $db->exec("ALTER TABLE $t ADD COLUMN $c " . colType($c)); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   }
   $db->exec("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, username TEXT UNIQUE, hash TEXT, role TEXT DEFAULT 'sales', active INTEGER DEFAULT 1, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE TABLE IF NOT EXISTS audit_log(id INTEGER PRIMARY KEY AUTOINCREMENT, user TEXT, action TEXT, entity TEXT, entity_id INTEGER, detail TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
