@@ -452,22 +452,39 @@ async function pgCustomers() {
   const w = canW('customers');
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Customers</h2><div class="mut" id="ccount"></div></div><span class="sp"></span>
    <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${canW('leads') ? '<button class="btn sec" id="cconv"><i class="i i-userplus"></i> Convert lead</button>' : ''}${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
-   <div class="bar" style="margin-top:12px"><input id="cq" placeholder="Search by name, consumer no, phone, district…" style="max-width:340px" value="${esc(CUF.q)}">
+   <div class="bar cbar" style="margin-top:12px"><input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
    <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity']].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
    <span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex">Export CSV</button>' : ''}${w ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
-   <div class="card tw fitbox" style="padding:0"><table id="ctb" data-min="960"></table></div>`;
-  const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}"><i class="i i-${i}"></i></button>`;
+   <div class="card tw fitbox" style="padding:0"><table id="ctb" class="ctb2" data-min="680"></table></div>`;
+  const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}" aria-label="${t}"><i class="i i-${i}"></i></button>`;
   const draw = () => {
     const t = CUF.q.toLowerCase();
     const rows = cs.filter(c => (!CUF.st || c.status === CUF.st) && (!t || [c.name, c.phone, c.consumer_no, c.district, c.address, c.email].join(' ').toLowerCase().includes(t)))
       .sort((a, b) => CUF.sort === 'name' ? a.name.localeCompare(b.name) : CUF.sort === 'kw' ? (b.kw || 0) - (a.kw || 0) : CUF.sort === 'oldest' ? (a.created > b.created ? 1 : -1) : (a.created < b.created ? 1 : -1))
       .sort((a, b) => discRank(b.id) - discRank(a.id) || (DISC.sum[a.id] && DISC.sum[b.id] ? String(DISC.sum[b.id].last_at).localeCompare(String(DISC.sum[a.id].last_at)) : 0)); // live discussions first
     const nLive = rows.filter(c => DISC.sum[c.id]).length; $('#ccount').innerHTML = rows.length + ' records' + (nLive ? ` · <span class="xdlive"><span class="xddot"></span>${nLive} live discussion${nLive === 1 ? '' : 's'}</span>` : '');
-    $('#ctb').innerHTML = `<colgroup><col><col style="width:122px"><col style="width:140px"><col style="width:150px"><col style="width:136px"><col style="width:86px"><col style="width:120px"><col style="width:96px"><col style="width:132px"></colgroup><thead><tr><th><i class="i i-user"></i> Name</th><th><i class="i i-project"></i> Status</th><th># Consumer no.</th><th><i class="i i-target"></i> District</th><th><i class="i i-phone"></i> Phone</th><th>Capacity</th><th>Added by</th><th><i class="i i-calendar"></i> Date</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(c => `<tr class="row ${DISC.sum[c.id] ? 'live' : ''}" data-id="${c.id}">
-      <td title="${esc(c.name)}"><b class="clip">${esc(c.name)}</b></td><td><span class="pill ${c.status === 'New' ? 'b' : (typeof stepCls === 'function' && PIPE ? stepCls(c.status) : STC[c.status]) || ''}">${esc(c.status)}</span></td><td class="mono">${esc(c.consumer_no) || '<span class="mut">—</span>'}</td><td title="${esc(c.district)}"><span class="clip">${esc(c.district) || '<span class="mut">—</span>'}</span></td>
-      <td>${c.phone ? `<a href="tel:${esc(c.phone)}" class="tel"><i class="i i-phone"></i> ${esc(c.phone)}</a>` : '<span class="mut">—</span>'}</td><td>${c.kw ? c.kw + ' kWp' : '<span class="mut">—</span>'}</td><td title="${esc(c.added_by)}"><span class="clip">${esc(c.added_by) || '<span class="mut">—</span>'}</span></td><td class="mut">${dt(c.created)}</td>
-      <td class="cact">${discBtn(c.id)}${ic('pj', 'project', c.project_id ? 'Open project' : 'New project')}${ic('op', 'eye', 'Open customer — history & files')}${ic('more', 'dots', 'More actions')}</td></tr>`).join('') || '<tr><td colspan="9" class="mut">No customers match</td></tr>'}</tbody>`;
+    const W = ($('#ctb').parentElement || {}).clientWidth || 1200;
+    // fit to the window: drop the least important columns first, then fold the action icons into ⋯, then consumer no. / phone
+    let COLS = [['name', 'Name', 0], ['status', 'Status', 140], ['cno', 'Consumer no.', 128], ['dist', 'District', 130], ['phone', 'Phone', 138], ['kw', 'Capacity', 78], ['by', 'Added by', 120], ['date', 'Date', 92]], full = true;
+    const need = () => COLS.reduce((s, c) => s + c[2], 0) + (full ? 330 : 172) + 170;
+    if (W < 680) { COLS = COLS.filter(c => !['by', 'date'].includes(c[0])); full = false; } // phones: card view has room for the key details
+    else for (const k of ['by', 'dist', 'date', 'kw', '#compact', 'cno', 'phone']) { if (need() <= W) break; if (k === '#compact') full = false; else COLS = COLS.filter(c => c[0] !== k); }
+    const fin = canR('fees');
+    const ACTS = c => { const p = !!c.project_id, wl = w && canW('leads');
+      const list = [['ed', 'pencil', 'Edit customer', w], ['pj', 'project', p ? 'Open project' : 'Start a project', p || canW('projects')], ['docs', 'file', 'Documents', true], ['pay', 'card', 'Payments', 1, p], ['fees', 'coin', 'Finance — feasibility, registration, stamp paper', fin],
+        ['kseb', 'folder', 'KSEB documents', 1, p], ['sub', 'sun', 'Subsidy (PM Surya Ghar)', 1, p], ['tl', 'clock', 'Timeline & profile', true], ['rv', 'undo', 'Revert to lead', wl]].filter(x => x[3]);
+      return full ? list : list.filter(x => ['ed', 'pj', 'docs'].includes(x[0])); };
+    const cell = (k, c) => ({ name: `<td class="cnm" title="${esc(c.name)}"><b class="clip">${esc(c.name)}</b>${!COLS.some(x => x[0] === 'cno') && c.consumer_no ? `<small class="mono mut">${esc(c.consumer_no)}</small>` : ''}</td>`,
+      status: `<td><span class="pill ${c.status === 'New' ? 'b' : (typeof stepCls === 'function' && PIPE ? stepCls(c.status) : STC[c.status]) || ''}">${esc(c.status)}</span></td>`,
+      cno: `<td class="mono">${esc(c.consumer_no) || '<span class="mut">—</span>'}</td>`, dist: `<td title="${esc(c.district)}"><span class="clip">${esc(c.district) || '<span class="mut">—</span>'}</span></td>`,
+      phone: `<td>${c.phone ? `<a href="tel:${esc(c.phone)}" class="tel"><i class="i i-phone"></i> ${esc(c.phone)}</a>` : '<span class="mut">—</span>'}</td>`, kw: `<td>${c.kw ? c.kw + ' kWp' : '<span class="mut">—</span>'}</td>`,
+      by: `<td title="${esc(c.added_by)}"><span class="clip mut2">${esc(c.added_by) || '<span class="mut">—</span>'}</span></td>`, date: `<td class="mut">${dt(c.created)}</td>` })[k];
+    const nA = rows.length ? Math.max(...rows.slice(0, 50).map(c => ACTS(c).length)) + 2 : 4;
+    $('#ctb').innerHTML = `<colgroup>${COLS.map(c => `<col${c[2] ? ` style="width:${c[2]}px"` : ''}>`).join('')}<col style="width:${nA * 28 + 14}px"></colgroup>
+      <thead><tr>${COLS.map(c => `<th>${c[1]}</th>`).join('')}<th class="right">Actions</th></tr></thead><tbody>
+      ${rows.map(c => `<tr class="row ${DISC.sum[c.id] ? 'live' : ''}" data-id="${c.id}">${COLS.map(k => cell(k[0], c)).join('')}
+        <td class="cact">${discBtn(c.id)}${ACTS(c).map(([k, i, t, , on]) => on === false ? `<button class="ib off" aria-disabled="true" title="${t} — start a project first"><i class="i i-${i}"></i></button>` : ic(k, i, t)).join('')}${ic('more', 'dots', 'More actions')}</td></tr>`).join('') || `<tr><td colspan="${COLS.length + 1}" class="mut">No customers match</td></tr>`}</tbody>`;
     $$('#ctb tr.row').forEach(tr => {
       const c = cs.find(x => x.id == tr.dataset.id);
       tr.onclick = e => { if (!e.target.closest('a,button')) location.hash = '#/customers/' + c.id; };
@@ -482,10 +499,15 @@ async function pgCustomers() {
         if (a === 'pay') proj('overview'); if (a === 'kseb') proj('kseb'); if (a === 'sub') proj('subsidy');
         if (a === 'op') location.hash = '#/customers/' + c.id;
         if (a === 'sp') startModal({ customer_id: c.id });
+        if (a === 'docs') { PFT = 'docs'; PFT_ID = c.id; location.hash = '#/customers/' + c.id; }
+        if (a === 'tl') { PFT = 'overview'; PFT_ID = c.id; location.hash = '#/customers/' + c.id; }
+        if (a === 'rv') revertToLead(c.id, c.name);
       };
       $$('[data-a]', tr).forEach(b => b.onclick = e => { e.stopPropagation(); const a = b.dataset.a;
+        if (a === 'fees') return popMenu(b, feeMenuItems(c.id), run);
         if (a !== 'more') return run(a);
-        popMenu(b, [w ? ['ed', 'pencil', 'Edit customer'] : null, canW('projects') ? ['sp', 'project', 'Start a project'] : null, canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ['pay', 'card', 'Payments'], ['kseb', 'folder', 'KSEB documents'], ['sub', 'coin', 'Subsidy'], ...feeMenuItems(c.id)], run);
+        const shown = new Set($$('[data-a]', tr).map(x => x.dataset.a));
+        popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['rv', 'undo', 'Revert to lead', w && canW('leads')]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
       });
     });
   };
@@ -497,6 +519,7 @@ async function pgCustomers() {
   if ($('#cnew')) $('#cnew').onclick = () => customerModal(0);
   if ($('#cim')) $('#cim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; let n = 0; for (const r of csvObjs(await f.text())) { if (!r.name) continue; await api('customers', 'save', r); n++; } toast('Imported ' + n + ' customers'); route(); };
   draw(); DISC.redraw = draw;
+  if (!window._custRz) { window._custRz = 1; let tm; addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(() => { if (/^#\/customers\/?$/.test(location.hash) && DISC.redraw) DISC.redraw(); }, 150); }); }
 }
 const CF = [{ g: 'Basic details' }, { k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'alt_phone', l: 'Alternate phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'address', l: 'Address', full: 1 }, { k: 'district', l: 'District', d: 'Thiruvananthapuram' }, { k: 'pincode', l: 'PIN code' },
   { k: 'roof_type', l: 'Roof type', opts: ['', 'RCC flat', 'Sheet / tin', 'Tile', 'Other'] }, { k: 'gst_no', l: 'GST no. (if business)' },
