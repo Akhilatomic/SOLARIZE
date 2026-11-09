@@ -150,7 +150,7 @@ async function pgAdmin() {
   if (t === 'users') {
     const us = await api('admin', 'users');
     ab.innerHTML = `<div class="bar"><span class="sp"></span><button class="btn" id="nu">+ New user</button></div>` +
-      table([['Name', u => `<b>${esc(u.name)}</b>`], ['Username', u => esc(u.username)], ['Role', u => pill((S.role_names || {})[u.role] || u.role, u.role === 'admin' ? 'y' : u.role === 'assistant_manager' ? 'p' : 'b')], ['Active', u => u.active ? pill('Yes', 'g') : pill('Disabled', 'r')], ['Leads access', u => u.role === 'admin' ? pill('All leads', 'b') : u.can_claim ? pill('Can see & claim', 'g') : pill('Own leads only')], ['Claimed leads', u => u.leads || 0], ['Created', u => dt(u.created)]], us, id => userModal(us.find(u => u.id == id))) +
+      table([['Name', u => `<span class="uav">${avImg(u.id, u.avatar, u.name)}</span><b>${esc(u.name)}</b>`], ['Username', u => esc(u.username)], ['Role', u => pill((S.role_names || {})[u.role] || u.role, u.role === 'admin' ? 'y' : u.role === 'assistant_manager' ? 'p' : 'b')], ['Active', u => u.active ? pill('Yes', 'g') : pill('Disabled', 'r')], ['Leads access', u => u.role === 'admin' ? pill('All leads', 'b') : u.can_claim ? pill('Can see & claim', 'g') : pill('Own leads only')], ['Claimed leads', u => u.leads || 0], ['Created', u => dt(u.created)]], us, id => userModal(us.find(u => u.id == id))) +
       `<div class="card" style="margin-top:12px"><h3>Role permissions</h3><p class="mut" style="margin:0">Choose what each role can view and edit in <a href="#/settings">Settings → User access</a>. Admin always has full access.</p></div>`;
     $('#nu').onclick = () => userModal({});
   }
@@ -196,8 +196,11 @@ function resetModal() {
 function userModal(u) {
   const id = u.id;
   const m = modal(`<h3 style="margin-top:0">${id ? 'Edit' : 'New'} user</h3><div class="two">${[{ k: 'name', l: 'Full name' }, { k: 'username', l: 'Username' }, { k: 'role', l: 'Role', opts: Object.entries(S.role_names || {}).map(([k, v]) => [k, v]) }, { k: 'active', l: 'Active', opts: [['1', 'Yes'], ['0', 'Disabled']], d: '1' }, { k: 'can_claim', l: 'Leads access', opts: [['1', 'Can see & claim unclaimed leads'], ['0', 'Only leads assigned to them']] }, { k: 'password', l: id ? 'New password (leave blank to keep)' : 'Password (min 8)', t: 'password', full: 1 }].map(f => fld(f, { ...u, active: u.active === 0 ? '0' : '1', can_claim: u.can_claim === 0 ? '0' : (u.can_claim ? '1' : '0') })).join('')}</div>
+   ${id ? `<div class="udp"><span class="uav big" id="udpi">${avImg(id, u.avatar, u.name)}</span><div><b>Profile photo</b><div class="bar" style="margin:6px 0 0"><button class="btn sec sm" id="udpu" type="button">Upload photo</button><button class="btn sec sm" id="udpr" type="button" ${u.avatar ? '' : 'hidden'}>Remove</button></div></div></div>` : ''}
    <div class="bar" style="margin-top:12px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button></div>`);
   $('#cx', m).onclick = () => m.remove();
+  const dpDone = av => { u.avatar = av; $('#udpi', m).innerHTML = avImg(id, av, u.name); $('#udpr', m).hidden = !av; if (id == ME.id) setMyAvatar(av); };
+  if ($('#udpu', m)) { $('#udpu', m).onclick = () => pickAvatar(id, u.name, dpDone); $('#udpr', m).onclick = () => removeAvatar(id, dpDone); }
   $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; o.active = o.active === '1' ? 1 : 0; o.can_claim = o.can_claim === '1' ? 1 : 0; await api('admin', 'user_save', o); m.remove(); route(); };
 }
 

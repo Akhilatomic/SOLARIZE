@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 21; // bump when tables/columns change
+const SCHEMA_VERSION = 22; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -118,6 +118,7 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS fees(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, kind TEXT, amount REAL DEFAULT 0, demanded INTEGER DEFAULT 0, demanded_on TEXT DEFAULT '', paid INTEGER DEFAULT 0, paid_on TEXT DEFAULT '', ref TEXT DEFAULT '', note TEXT DEFAULT '', alert INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(customer_id, kind))");
   $db->exec("CREATE TABLE IF NOT EXISTS login_guard(k TEXT PRIMARY KEY, fails INTEGER DEFAULT 0, first INTEGER DEFAULT 0, until INTEGER DEFAULT 0)");
   $ucols = array_column($db->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+  if (!in_array('avatar', $ucols)) { try { $db->exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   if (!in_array('sess_ver', $ucols)) { try { $db->exec('ALTER TABLE users ADD COLUMN sess_ver INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   $db->exec("CREATE TABLE IF NOT EXISTS plant(customer_id INTEGER PRIMARY KEY, data TEXT, updated TEXT DEFAULT CURRENT_TIMESTAMP, updated_by TEXT DEFAULT '')");
   $db->exec("CREATE TABLE IF NOT EXISTS trash(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, label TEXT, data TEXT, deleted_by TEXT, deleted_at TEXT DEFAULT CURRENT_TIMESTAMP)");

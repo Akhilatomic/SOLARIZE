@@ -10,7 +10,7 @@ function disc_role_can($role, $module) {
 }
 function disc_users($kind) { // who can be tagged
   $mod = $kind === 'lead' ? 'leads' : 'customers';
-  return array_values(array_map(fn($u) => ['id' => $u['id'], 'name' => $u['name'], 'role' => $u['role']], array_filter(rows('SELECT id,name,role,can_claim FROM users WHERE active=1 ORDER BY name'),
+  return array_values(array_map(fn($u) => ['id' => $u['id'], 'name' => $u['name'], 'role' => $u['role'], 'avatar' => $u['avatar']], array_filter(rows('SELECT id,name,role,can_claim,avatar FROM users WHERE active=1 ORDER BY name'),
     fn($u) => disc_role_can($u['role'], $mod) || ($kind === 'lead' && (int)$u['can_claim'] === 1))));
 }
 function disc_notify($users, $kind, $disc, $t, $text) {
@@ -56,7 +56,7 @@ function handle_disc($a) {
       $t = disc_target($_GET);
       $ds = rows("SELECT d.*, a.name created_name, b.name closed_name FROM discussions d LEFT JOIN users a ON a.id=d.created_by LEFT JOIN users b ON b.id=d.closed_by WHERE d.{$t['col']}=? ORDER BY d.status='Open' DESC, d.id DESC LIMIT 20", [$t['id']]);
       foreach ($ds as &$d) {
-        $d['msgs'] = rows('SELECT m.id,m.user_id,m.body,m.mentions,m.kind,m.created,u.name user_name FROM disc_msgs m LEFT JOIN users u ON u.id=m.user_id WHERE m.discussion_id=? ORDER BY m.id', [$d['id']]);
+        $d['msgs'] = rows('SELECT m.id,m.user_id,m.body,m.mentions,m.kind,m.created,u.name user_name,u.avatar user_av FROM disc_msgs m LEFT JOIN users u ON u.id=m.user_id WHERE m.discussion_id=? ORDER BY m.id', [$d['id']]);
         foreach ($d['msgs'] as &$m) $m['mentions'] = json_decode($m['mentions'] ?: '[]', true) ?: [];
         unset($m);
         $last = $d['msgs'] ? end($d['msgs'])['id'] : 0;
@@ -97,7 +97,7 @@ function handle_disc($a) {
       audit('disc_end', $t['kind'] === 'lead' ? 'leads' : 'customers', $t['id'], $note); out(['ok' => true]);
 
     case 'notifs': // my unseen notifications (bell)
-      $r = rows('SELECT n.*, COALESCE(c.name, l.name) customer_name, u.name from_name FROM notifs n LEFT JOIN customers c ON c.id=n.customer_id LEFT JOIN leads l ON l.id=n.lead_id LEFT JOIN users u ON u.id=n.from_id WHERE n.user_id=? AND n.seen=0 ORDER BY n.id DESC LIMIT 30', [$uid]);
+      $r = rows('SELECT n.*, COALESCE(c.name, l.name) customer_name, u.name from_name, u.avatar from_av FROM notifs n LEFT JOIN customers c ON c.id=n.customer_id LEFT JOIN leads l ON l.id=n.lead_id LEFT JOIN users u ON u.id=n.from_id WHERE n.user_id=? AND n.seen=0 ORDER BY n.id DESC LIMIT 30', [$uid]);
       out(['rows' => $r, 'count' => (int)row('SELECT COUNT(*) c FROM notifs WHERE user_id=? AND seen=0', [$uid])['c']]);
 
     case 'seen':

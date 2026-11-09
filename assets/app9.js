@@ -41,7 +41,7 @@ function discMsgs(d, data) {
   if (!d.msgs.length) return '<p class="mut xdempty">No messages yet.</p>';
   return d.msgs.map(m => m.kind === 'end'
     ? `<div class="xdsys"><i class="i i-check"></i> Discussion ended by <b>${esc(m.user_name || '')}</b> · ${discTime(m.created)}${m.body ? `<div class="xdout">${esc(m.body)}</div>` : ''}</div>`
-    : `<div class="xdmsg ${m.user_id == data.me ? 'me' : ''}"><div class="xdav">${esc((m.user_name || '?').trim().charAt(0).toUpperCase())}</div><div class="xdbub"><div class="xdhd"><b>${esc(m.user_name || 'Removed user')}</b><span>${discTime(m.created)}</span></div><div class="xdtx">${discFmt(m, data.users)}</div></div></div>`).join('');
+    : `<div class="xdmsg ${m.user_id == data.me ? 'me' : ''}"><div class="xdav">${m.user_av ? avImg(m.user_id, m.user_av, m.user_name) : esc((m.user_name || '?').trim().charAt(0).toUpperCase())}</div><div class="xdbub"><div class="xdhd"><b>${esc(m.user_name || 'Removed user')}</b><span>${discTime(m.created)}</span></div><div class="xdtx">${discFmt(m, data.users)}</div></div></div>`).join('');
 }
 
 async function discOpen(tgt) {
@@ -78,7 +78,7 @@ async function discOpen(tgt) {
     const query = () => { const v = tx.value.slice(0, tx.selectionStart), i = v.lastIndexOf('@'); if (i < 0 || (i > 0 && !/\s/.test(v[i - 1]))) return null; const q = v.slice(i + 1); return /\n/.test(q) || q.length > 30 ? null : { i, q }; };
     const show = () => { const q = query(); if (!q) return hide();
       opts = data.users.filter(u => u.id != data.me && u.name.toLowerCase().includes(q.q.toLowerCase())).slice(0, 8); if (!opts.length) return hide(); sel = Math.min(sel, opts.length - 1);
-      menu.innerHTML = opts.map((u, k) => `<button data-u="${u.id}" class="${k === sel ? 'on' : ''}"><span class="xdav">${esc(u.name.charAt(0).toUpperCase())}</span>${esc(u.name)} <small class="mut">${esc((S.role_names || {})[u.role] || u.role)}</small></button>`).join('');
+      menu.innerHTML = opts.map((u, k) => `<button data-u="${u.id}" class="${k === sel ? 'on' : ''}"><span class="xdav">${u.avatar ? avImg(u.id, u.avatar, u.name) : esc(u.name.charAt(0).toUpperCase())}</span>${esc(u.name)} <small class="mut">${esc((S.role_names || {})[u.role] || u.role)}</small></button>`).join('');
       menu.classList.remove('hide'); $$('[data-u]', menu).forEach(b => b.onmousedown = e => { e.preventDefault(); pick(opts.find(u => u.id == b.dataset.u)); }); };
     const pick = u => { const q = query(); const pos = q ? q.i : tx.selectionStart; const before = tx.value.slice(0, pos), after = tx.value.slice(q ? tx.selectionStart : pos);
       tx.value = before + '@' + u.name + ' ' + after; const p = (before + '@' + u.name + ' ').length; tx.focus(); tx.setSelectionRange(p, p); m._tags[u.id] = u.name; hide(); };
@@ -129,7 +129,7 @@ function discBellHtml() {
   const N = DISC.notifs; if (!N.length) return '';
   const lbl = { mention: 'tagged you', reply: 'replied', end: 'ended the discussion' };
   return `<div class="bar" style="margin:0 0 4px"><b>Notifications (${DISC.count})</b><span class="sp"></span><button class="btn sec sm" id="dnall">Mark all read</button></div>
-   ${N.slice(0, 8).map(n => n.kind === 'feas' ? `<div class="nl xdnot feasn" data-dn="${n.id}" data-go="#/fees/feasibility"><div class="xdav warn">!</div><div class="nlm"><b>Feasibility</b> <span class="mut">· ${agoStr(n.created)}</span><br><span style="font-size:13px">${esc(n.text)}</span></div></div>` : `<div class="nl xdnot" data-dn="${n.id}" data-dt='${JSON.stringify(n.lead_id ? { lead_id: n.lead_id } : { customer_id: n.customer_id })}'><div class="xdav">${esc((n.from_name || '?').charAt(0).toUpperCase())}</div><div class="nlm"><b>${esc(n.from_name || '')}</b> ${lbl[n.kind] || ''} <span class="mut">· ${agoStr(n.created)}</span><br><span style="font-size:13px"><b>${n.lead_id ? '<span class="pill b">Lead</span> ' : ''}${esc(n.customer_name || '')}</b> — ${esc(n.text.replace(/^.*?:\s/, ''))}</span></div></div>`).join('')}<div class="bsep"></div>`;
+   ${N.slice(0, 8).map(n => n.kind === 'feas' ? `<div class="nl xdnot feasn" data-dn="${n.id}" data-go="#/fees/feasibility"><div class="xdav warn">!</div><div class="nlm"><b>Feasibility</b> <span class="mut">· ${agoStr(n.created)}</span><br><span style="font-size:13px">${esc(n.text)}</span></div></div>` : `<div class="nl xdnot" data-dn="${n.id}" data-dt='${JSON.stringify(n.lead_id ? { lead_id: n.lead_id } : { customer_id: n.customer_id })}'><div class="xdav">${n.from_av ? avImg(n.from_id, n.from_av, n.from_name) : esc((n.from_name || '?').charAt(0).toUpperCase())}</div><div class="nlm"><b>${esc(n.from_name || '')}</b> ${lbl[n.kind] || ''} <span class="mut">· ${agoStr(n.created)}</span><br><span style="font-size:13px"><b>${n.lead_id ? '<span class="pill b">Lead</span> ' : ''}${esc(n.customer_name || '')}</b> — ${esc(n.text.replace(/^.*?:\s/, ''))}</span></div></div>`).join('')}<div class="bsep"></div>`;
 }
 function discBellBind(root) {
   if ($('#dnall', root)) $('#dnall', root).onclick = async e => { e.stopPropagation(); await api('disc', 'seen', { all: 1 }); refreshNotifs(); };

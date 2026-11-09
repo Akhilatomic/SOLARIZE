@@ -221,3 +221,16 @@ aside .sep{color:rgba(255,255,255,.45)!important}
 aside .sgh .i-chev{background:rgba(255,255,255,.5)!important}
 aside a .nb{box-shadow:0 0 0 2px #1c1c1e}
 @media(max-width:820px){aside{background:#1c1c1e!important}}
+
+/* ===== profile photos ===== */
+.avimg{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.acav,.xdav,.uav{overflow:hidden}
+.acav.big{width:44px;height:44px;font-size:15px;flex:none}
+.acmh{flex-direction:row!important;align-items:center;gap:10px}.acmh>div{display:flex;flex-direction:column;min-width:0}
+.uav{width:28px;height:28px;border-radius:50%;background:#e5e5ea;color:#3a3a3c;display:inline-grid;place-items:center;font-size:11px;font-weight:700;vertical-align:middle;margin-right:8px;flex:none}
+.uav.big{width:64px;height:64px;font-size:20px;margin:0}
+.udp{display:flex;gap:14px;align-items:center;margin-top:14px;padding:12px;border-radius:12px;background:#f5f5f7}
+.avcrop{display:grid;place-items:center;margin:6px 0 4px}.avcrop canvas{width:240px;height:240px;border-radius:50%;box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 6px 20px rgba(0,0,0,.12);cursor:grab;touch-action:none}
+input[type=range]{box-shadow:none;padding:0;accent-color:#007aff}
+.acav{background:#48484a!important;color:#fff}
+.menu button[hidden],.btn[hidden]{display:none!important}
