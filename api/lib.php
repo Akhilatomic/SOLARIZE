@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 20; // bump when tables/columns change
+const SCHEMA_VERSION = 21; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -17,15 +17,15 @@ $E = [
 
 // role => [read modules, write modules]; '*' = everything
 // Permission modules. 'finance' = every money figure (project values, payments, balances, ad spend, dashboard money cards).
-const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle'];
+const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees'];
 const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts'];
 // role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
 const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
-  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','settings','recycle'], ['attendance','leaves','calendar','leads','customers','projects','checklist','files','folder','whatsapp','recycle']],
+  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','settings','recycle','fees'], ['attendance','leaves','calendar','leads','customers','projects','checklist','files','folder','whatsapp','recycle','fees']],
   'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects']],
-  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings'], ['projects','checklist','files','customers','folder','calendar']],
-  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings','finance'], ['quotes','payments','ads','calendar']],
+  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings','fees'], ['projects','checklist','files','customers','folder','calendar']],
+  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings','finance','fees'], ['quotes','payments','ads','calendar','fees']],
 ];
 function roles() {
   static $r = null; if ($r !== null) return $r;
@@ -115,6 +115,7 @@ function migrate($db) {
       $st = $db->prepare("UPDATE settings SET v=? WHERE k='role_perms'"); $st->execute([json_encode($p)]); }
     $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('fin_v19','1')");
   }
+  $db->exec("CREATE TABLE IF NOT EXISTS fees(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, kind TEXT, amount REAL DEFAULT 0, demanded INTEGER DEFAULT 0, demanded_on TEXT DEFAULT '', paid INTEGER DEFAULT 0, paid_on TEXT DEFAULT '', ref TEXT DEFAULT '', note TEXT DEFAULT '', alert INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(customer_id, kind))");
   $db->exec("CREATE TABLE IF NOT EXISTS login_guard(k TEXT PRIMARY KEY, fails INTEGER DEFAULT 0, first INTEGER DEFAULT 0, until INTEGER DEFAULT 0)");
   $ucols = array_column($db->query('PRAGMA table_info(users)')->fetchAll(), 'name');
   if (!in_array('sess_ver', $ucols)) { try { $db->exec('ALTER TABLE users ADD COLUMN sess_ver INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }

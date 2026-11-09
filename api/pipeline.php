@@ -84,6 +84,7 @@ function handle_pipeline($a) {
       $fid = (int)db()->lastInsertId();
       q('INSERT INTO stage_data(project_id,stage,amount,ref,date,file_id,note,user) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(project_id,stage) DO UPDATE SET amount=excluded.amount,ref=excluded.ref,date=excluded.date,file_id=excluded.file_id,note=excluded.note,user=excluded.user,updated=CURRENT_TIMESTAMP',
         [$pid, $key, $amt, mb_substr(trim((string)($_POST['ref'] ?? '')), 0, 80), $date, $fid, mb_substr(trim((string)($_POST['note'] ?? '')), 0, 300), $_SESSION['name'] ?? '']);
+      try { fee_from_receipt((int)$p['customer_id'], $key, $amt, $date, (string)($_POST['ref'] ?? '')); } catch (Throwable $e) { } // Finance › fee marked paid
       audit('receipt', 'projects', $pid, $st[1] . ($amt ? ' ₹' . $amt : '')); out(['ok' => true, 'file_id' => $fid]);
     case 'amc':
       need('projects', true);

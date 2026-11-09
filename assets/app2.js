@@ -202,7 +202,7 @@ function userModal(u) {
 }
 
 // ---------- Settings → User access (role × module matrix) ----------
-const MOD_LABELS = { recycle: 'Recycle bin (Edit = restore)', dashboard: 'Dashboard', calendar: 'Calendar', attendance: 'Attendance (Edit = manage team)', leaves: 'Leaves (Edit = approve team)', leads: 'Leads', customers: 'Customers', projects: 'Project pipeline', checklist: 'Subsidy & KSEB checklists', files: 'Files & documents', folder: 'Folder (datasheets)', whatsapp: 'WhatsApp', quotes: 'Quotations', payments: 'Payments', ads: 'Meta Ads & ad spend', finance: 'Finance figures (values, balances, costs)', settings: 'Settings (view)' };
+const MOD_LABELS = { fees: 'Finance — feasibility, registration, stamp paper', recycle: 'Recycle bin (Edit = restore)', dashboard: 'Dashboard', calendar: 'Calendar', attendance: 'Attendance (Edit = manage team)', leaves: 'Leaves (Edit = approve team)', leads: 'Leads', customers: 'Customers', projects: 'Project pipeline', checklist: 'Subsidy & KSEB checklists', files: 'Files & documents', folder: 'Folder (datasheets)', whatsapp: 'WhatsApp', quotes: 'Quotations', payments: 'Payments', ads: 'Meta Ads & ad spend', finance: 'Finance figures (values, balances, costs)', settings: 'Settings (view)' };
 const FIN_MODS = ['quotes', 'payments', 'ads', 'finance'];
 function drawAccess() {
   const box = $('#uacc'); if (!box) return;

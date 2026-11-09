@@ -99,7 +99,7 @@ function handle_crud($t, $a) {
       $id = (int)($in['id'] ?? 0);
       trash_crud($t, $id); // snapshot into the Recycle bin first (restorable for 72 hours)
       if ($t === 'customers') {
-        q('DELETE FROM plant WHERE customer_id=?', [$id]);
+        q('DELETE FROM plant WHERE customer_id=?', [$id]); q('DELETE FROM fees WHERE customer_id=?', [$id]);
         foreach (rows('SELECT id FROM projects WHERE customer_id=?', [$id]) as $p) purge_project($p['id']);
         q('DELETE FROM quotes WHERE customer_id=?', [$id]); q('DELETE FROM messages WHERE customer_id=?', [$id]); q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$id]);
       }
@@ -149,7 +149,7 @@ function handle_crud($t, $a) {
       q("UPDATE notes SET entity='leads', entity_id=? WHERE entity='customers' AND entity_id=?", [$lid, $cu['id']]);
       q('UPDATE discussions SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); q('UPDATE notifs SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // discussions follow it back
       q('UPDATE messages SET lead_id=COALESCE(lead_id, ?), customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // WhatsApp log stays with the lead
-      q('DELETE FROM plant WHERE customer_id=?', [$cu['id']]); q('DELETE FROM customers WHERE id=?', [$cu['id']]);
+      q('DELETE FROM plant WHERE customer_id=?', [$cu['id']]); q('DELETE FROM fees WHERE customer_id=?', [$cu['id']]); q('DELETE FROM customers WHERE id=?', [$cu['id']]);
       audit('revert', 'customers', $cu['id'], "{$cu['name']} → lead $lid" . ($why ? " · $why" : '') . ($gone ? " · deleted $gone" : ''));
       out(['lead_id' => $lid, 'reopened' => $l ? 1 : 0]);
     case 'convert':

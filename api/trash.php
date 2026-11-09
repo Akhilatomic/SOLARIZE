@@ -30,7 +30,7 @@ function trash_spec_project($pid) {
     ['checklist', 'project_id=?', [$pid]], ['payments', 'project_id=?', [$pid]], ['files', 'project_id=?', [$pid]], ['notes', "entity='projects' AND entity_id=?", [$pid]]];
 }
 function trash_spec_customer($cid, $withLinked = true) {
-  $s = [['customers', 'id=?', [$cid]], ['plant', 'customer_id=?', [$cid]]];
+  $s = [['customers', 'id=?', [$cid]], ['plant', 'customer_id=?', [$cid]], ['fees', 'customer_id=?', [$cid]]];
   foreach (rows('SELECT id FROM projects WHERE customer_id=?', [$cid]) as $p) $s = array_merge($s, trash_spec_project($p['id']));
   $s[] = ['files', 'customer_id=? AND (project_id IS NULL OR project_id=0)', [$cid]];
   if ($withLinked) { $s[] = ['quotes', 'customer_id=?', [$cid]]; $s[] = ['messages', 'customer_id=?', [$cid]]; $s[] = ['notes', "entity='customers' AND entity_id=?", [$cid]];
@@ -104,6 +104,7 @@ function housekeeping($force = false) {
     q('UPDATE stage_data SET file_id=NULL WHERE file_id=?', [$f['id']]); q('DELETE FROM files WHERE id=?', [$f['id']]); $n++;
   }
   if ($n) { audit('docs_expired', 'files', null, "$n document(s) older than " . DOC_LIFE_DAYS . ' days moved to the Recycle bin'); }
+  try { fee_alerts(); } catch (Throwable $e) { }
   foreach (rows("SELECT id,data FROM trash WHERE deleted_at < datetime('now', ?)", ['-' . TRASH_HOURS . ' hours']) as $t) trash_purge_row($t);
 }
 

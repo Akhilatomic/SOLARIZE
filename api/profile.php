@@ -17,8 +17,8 @@ function handle_profile($a) {
       $add($a2['created'], $a2['action'] === 'convert' ? 'convert' : 'lead', ['convert' => 'Converted to customer', 'claim' => 'Lead claimed', 'unclaim' => 'Lead released', 'assign' => 'Lead assigned'][$a2['action']], '', $a2['user']);
   }
   $add($c['created'], 'customer', 'Customer created', $c['district'] ?? '', $c['added_by']);
-  foreach (rows("SELECT * FROM audit_log WHERE entity='customers' AND entity_id=? AND action IN ('update','plant','download_all') ORDER BY id", [$cid]) as $a2)
-    $add($a2['created'], $a2['action'] === 'plant' ? 'project' : 'edit', ['update' => 'Profile updated', 'plant' => 'Plant details updated', 'download_all' => 'All documents downloaded'][$a2['action']], $a2['action'] === 'update' ? '' : $a2['detail'], $a2['user']);
+  foreach (rows("SELECT * FROM audit_log WHERE entity='customers' AND entity_id=? AND action IN ('update','plant','download_all','fees_paid','fees_unpaid','fees_demanded') ORDER BY id", [$cid]) as $a2)
+    $add($a2['created'], in_array($a2['action'], ['fees_paid', 'fees_unpaid', 'fees_demanded']) ? 'payment' : ($a2['action'] === 'plant' ? 'project' : 'edit'), ['update' => 'Profile updated', 'plant' => 'Plant details updated', 'download_all' => 'All documents downloaded', 'fees_paid' => 'Fee paid', 'fees_unpaid' => 'Fee marked unpaid', 'fees_demanded' => 'Fee demanded'][$a2['action']], $a2['action'] === 'update' ? '' : $a2['detail'], $a2['user']);
 
   // projects and pipeline
   $S = settings(); $labels = function_exists('pipe_labels') ? pipe_labels() : ($S['project_stages'] ?? []);
