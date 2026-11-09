@@ -45,6 +45,8 @@ function handle_crud($t, $a) {
   if ($t === 'leads') lead_guard($a, $in);
   switch ($a) {
     case 'list':
+      if ($t === 'customers') out(rows("SELECT c.*, lp.id project_id, lp.stage, lp.kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects
+        FROM customers c LEFT JOIN projects lp ON lp.id=(SELECT id FROM projects WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) ORDER BY c.created DESC, c.id DESC"));
       if ($t === 'projects') out(rows('SELECT p.*, c.name customer, c.phone, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p LEFT JOIN customers c ON c.id=p.customer_id ORDER BY p.updated DESC'));
       $w = []; $args = [];
       foreach (['customer_id','project_id','campaign_id','lead_id','status','stage','source','assigned_to'] as $f)
@@ -62,12 +64,14 @@ function handle_crud($t, $a) {
       if ($t === 'leads' && $v['status'] === '') $v['status'] = 'New';
       if (!empty($in['id'])) {
         $id = (int)$in['id'];
+        if ($t === 'customers') { unset($v['added_by']); $cols = array_values(array_diff($cols, ['added_by'])); }
         if ($t === 'leads') { $keep = ['added_by','meta_id','meta_form','meta_ad','meta_campaign','notify','assigned_to','claimed_at']; foreach ($keep as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $keep)); }
         $set = implode(',', array_map(fn($c) => "$c=:$c", $cols));
         $v['id'] = $id;
         q("UPDATE $t SET $set, updated=CURRENT_TIMESTAMP WHERE id=:id", $v);
         audit('update', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
       } else {
+        if ($t === 'customers') $v['added_by'] = $_SESSION['name'] ?? '';
         if ($t === 'leads') { $v['added_by'] = $_SESSION['name'] ?? ''; $v['notify'] = 0;
           // a lead added by a staff member is automatically claimed by them; admin-added leads start unclaimed
           if (!is_admin()) { $v['assigned_to'] = uid(); $v['claimed_at'] = gmdate('Y-m-d H:i:s'); } else { $v['assigned_to'] = (int)($in['assigned_to'] ?? 0) ?: null; $v['claimed_at'] = $v['assigned_to'] ? gmdate('Y-m-d H:i:s') : ''; } }
@@ -93,7 +97,7 @@ function handle_crud($t, $a) {
       if ($t !== 'leads') fail('Unknown action', 404);
       $l = row('SELECT * FROM leads WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$l) fail('Not found', 404);
       if ($l['customer_id']) out(['customer_id' => $l['customer_id']]);
-      q('INSERT INTO customers(name,phone,email,address,notes) VALUES(?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['notes']]);
+      q('INSERT INTO customers(name,phone,email,address,district,notes,added_by) VALUES(?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '']);
       $cid = (int)db()->lastInsertId();
       q("UPDATE leads SET customer_id=?, status='Won', updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
       q('UPDATE quotes SET customer_id=? WHERE lead_id=? AND customer_id IS NULL', [$cid, $l['id']]);

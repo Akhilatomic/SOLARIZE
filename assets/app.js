@@ -341,18 +341,51 @@ async function leadModal(id) {
 }
 
 // ---------- Customers ----------
+let CUF = { q: '', st: '', sort: 'recent' };
+const STC = { New: 'b', Survey: 'y', Design: 'y', Quotation: 'p', Approval: 'p', Material: 'y', Installation: 'c', 'Net-meter': 'c', Commissioned: 'g', Subsidy: 'g', Closed: 'g' };
 async function pgCustomers() {
-  const cs = await list('customers'); const projs = await list('projects'); const cnt = {}; projs.forEach(p => cnt[p.customer_id] = (cnt[p.customer_id] || 0) + 1);
-  let q = '';
-  const draw = () => { const t = q.toLowerCase(); $('#ct').innerHTML = table([['Name', c => `<b>${esc(c.name)}</b><br><small class="mut">${esc((c.address || '').slice(0, 45))}</small>`], ['Phone', c => esc(c.phone)], ['Consumer no.', c => esc(c.consumer_no)], ['Projects', c => cnt[c.id] || 0]],
-    cs.filter(c => !t || [c.name, c.phone, c.address, c.consumer_no].join(' ').toLowerCase().includes(t)), id => location.hash = '#/customers/' + id); };
-  $('#main').innerHTML = `<div class="bar"><input id="cq" placeholder="Search customers…"><span class="sp"></span><button class="btn sec" id="cex">Export CSV</button>${canW('customers') ? ' <button class="btn sec" id="cim">Import CSV</button> <button class="btn" id="cnew">+ New customer</button>' : ''}</div><div id="ct"></div>`;
-  $('#cq').oninput = e => { q = e.target.value; draw(); }; draw();
-  $('#cex').onclick = () => csvDownload('customers-' + today() + '.csv', ['name', 'phone', 'email', 'address', 'consumer_no', 'kseb_section', 'sanctioned_load', 'roof_type', 'gst_no', 'notes'], cs);
+  const cs = await list('customers'); cs.forEach(c => c.status = c.stage || 'New');
+  const w = canW('customers');
+  $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Customers</h2><div class="mut" id="ccount"></div></div><span class="sp"></span>
+   <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
+   <div class="bar" style="margin-top:12px"><input id="cq" placeholder="Search by name, consumer no, phone, district…" style="max-width:340px" value="${esc(CUF.q)}">
+   <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
+   <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity']].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+   <span class="sp"></span><button class="btn sec" id="cex">Export CSV</button>${w ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
+   <div class="card tw" style="padding:0"><table id="ctb"></table></div>`;
+  const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}"><i class="i i-${i}"></i></button>`;
+  const draw = () => {
+    const t = CUF.q.toLowerCase();
+    const rows = cs.filter(c => (!CUF.st || c.status === CUF.st) && (!t || [c.name, c.phone, c.consumer_no, c.district, c.address, c.email].join(' ').toLowerCase().includes(t)))
+      .sort((a, b) => CUF.sort === 'name' ? a.name.localeCompare(b.name) : CUF.sort === 'kw' ? (b.kw || 0) - (a.kw || 0) : CUF.sort === 'oldest' ? (a.created > b.created ? 1 : -1) : (a.created < b.created ? 1 : -1));
+    $('#ccount').textContent = rows.length + ' records';
+    $('#ctb').innerHTML = `<thead><tr><th><i class="i i-user"></i> Name</th><th><i class="i i-project"></i> Status</th><th># Consumer no.</th><th><i class="i i-target"></i> District</th><th><i class="i i-phone"></i> Phone</th><th>Capacity</th><th>Added by</th><th><i class="i i-calendar"></i> Date</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(c => `<tr class="row" data-id="${c.id}">
+      <td><b>${esc(c.name)}</b></td><td><span class="pill ${STC[c.status] || ''}">${esc(c.status)}</span></td><td class="mono">${esc(c.consumer_no) || '<span class="mut">—</span>'}</td><td>${esc(c.district) || '<span class="mut">—</span>'}</td>
+      <td>${c.phone ? `<a href="tel:${esc(c.phone)}" class="tel"><i class="i i-phone"></i> ${esc(c.phone)}</a>` : '<span class="mut">—</span>'}</td><td>${c.kw ? c.kw + ' kWp' : '<span class="mut">—</span>'}</td><td>${esc(c.added_by) || '<span class="mut">—</span>'}</td><td class="mut">${dt(c.created)}</td>
+      <td class="cact">${w ? ic('ed', 'pencil', 'Edit customer') : ''}${c.phone ? ic('wa', 'chat', 'WhatsApp') : ''}${ic('pj', 'project', c.project_id ? 'Open project' : 'New project')}${canW('quotes') ? ic('qt', 'receipt', 'New quotation') : ''}${ic('pay', 'card', 'Payments')}${ic('kseb', 'folder', 'KSEB documents')}${ic('sub', 'coin', 'Subsidy')}${ic('op', 'eye', 'Open customer — history & files')}</td></tr>`).join('') || '<tr><td colspan="9" class="mut">No customers match</td></tr>'}</tbody>`;
+    $$('#ctb tr.row').forEach(tr => {
+      const c = cs.find(x => x.id == tr.dataset.id);
+      tr.onclick = e => { if (!e.target.closest('a,button')) location.hash = '#/customers/' + c.id; };
+      $$('[data-a]', tr).forEach(b => b.onclick = () => {
+        const a = b.dataset.a, proj = tab => { if (!c.project_id) { toast('No project yet — create one first', true); return; } TAB.proj = tab; location.hash = '#/projects/' + c.project_id; };
+        if (a === 'ed') customerModal(c.id, c);
+        if (a === 'wa') waOpen({ name: c.name, phone: c.phone, customer_id: c.id });
+        if (a === 'pj') { if (c.project_id) { TAB.proj = 'overview'; location.hash = '#/projects/' + c.project_id; } else if (canW('projects')) projectModal(0, { customer_id: c.id, kw: '' }); else toast('No project yet', true); }
+        if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ customer_id: c.id, name: c.name }); location.hash = '#/quotes/new'; }
+        if (a === 'pay') proj('overview'); if (a === 'kseb') proj('kseb'); if (a === 'sub') proj('subsidy');
+        if (a === 'op') location.hash = '#/customers/' + c.id;
+      });
+    });
+  };
+  $('#cq').oninput = e => { CUF.q = e.target.value; draw(); };
+  $('#cst').onchange = e => { CUF.st = e.target.value; draw(); }; $('#csort').onchange = e => { CUF.sort = e.target.value; draw(); };
+  $('#cref').onclick = () => route();
+  $('#cex').onclick = () => csvDownload('customers-' + today() + '.csv', ['name', 'phone', 'email', 'address', 'district', 'consumer_no', 'kseb_section', 'sanctioned_load', 'roof_type', 'gst_no', 'status', 'kw', 'added_by', 'created', 'notes'], cs);
   if ($('#cnew')) $('#cnew').onclick = () => customerModal(0);
-  if ($('#cim')) $('#cim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; let n = 0; for (const r of csvObjs(await f.text())) { if (!r.name) continue; await api('customers', 'save', r); n++; } alert('Imported ' + n); route(); };
+  if ($('#cim')) $('#cim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; let n = 0; for (const r of csvObjs(await f.text())) { if (!r.name) continue; await api('customers', 'save', r); n++; } toast('Imported ' + n + ' customers'); route(); };
+  draw();
 }
-const CF = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'consumer_no', l: 'KSEB consumer no.' }, { k: 'address', l: 'Address', full: 1 }, { k: 'kseb_section', l: 'KSEB section office' },
+const CF = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'consumer_no', l: 'KSEB consumer no.' }, { k: 'address', l: 'Address', full: 1 }, { k: 'district', l: 'District', d: 'Thiruvananthapuram' }, { k: 'kseb_section', l: 'KSEB section office' },
   { k: 'sanctioned_load', l: 'Sanctioned load (kW)', t: 'number' }, { k: 'roof_type', l: 'Roof type', opts: ['', 'RCC flat', 'Sheet / tin', 'Tile', 'Other'] }, { k: 'gst_no', l: 'GST no. (if business)' }];
 function customerModal(id, c = {}) {
   const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} customer</h2><div class="two">${CF.map(f => fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
@@ -365,7 +398,7 @@ async function pgCustomer(id) {
   const w = canW('customers');
   $('#main').innerHTML = `<p><a href="#/customers">← Customers</a></p>
    <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(c.name)}</h2>${c.phone ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(c.phone) + '">Call</a>' : ''}${w ? '<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>' : ''}</div>
-   <p class="mut" style="margin:6px 0 0">${esc(c.phone)} ${c.email ? '· ' + esc(c.email) : ''}<br>${esc(c.address)}<br>${c.consumer_no ? 'Consumer no. <b>' + esc(c.consumer_no) + '</b>' : ''} ${c.kseb_section ? '· Section: ' + esc(c.kseb_section) : ''} ${c.sanctioned_load ? '· Load ' + c.sanctioned_load + ' kW' : ''} ${c.roof_type ? '· ' + esc(c.roof_type) + ' roof' : ''} ${c.gst_no ? '· GST ' + esc(c.gst_no) : ''}</p></div>
+   <p class="mut" style="margin:6px 0 0">${esc(c.phone)} ${c.email ? '· ' + esc(c.email) : ''}<br>${esc(c.address)}${c.district ? ' · ' + esc(c.district) : ''}<br>${c.consumer_no ? 'Consumer no. <b>' + esc(c.consumer_no) + '</b>' : ''} ${c.kseb_section ? '· Section: ' + esc(c.kseb_section) : ''} ${c.sanctioned_load ? '· Load ' + c.sanctioned_load + ' kW' : ''} ${c.roof_type ? '· ' + esc(c.roof_type) + ' roof' : ''} ${c.gst_no ? '· GST ' + esc(c.gst_no) : ''}</p></div>
    <div class="grid cols2" style="margin-top:12px"><div class="card"><h3>Projects ${canW('projects') ? '<button class="btn sm" id="np" style="float:right">+ New project</button>' : ''}</h3>
     ${c.projects.map(p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.stage, stageCls(p.stage))}<br><small>${p.kw} kW · ${inr(p.cost)} · paid ${inr(p.paid)}</small></div>`).join('') || '<p class="mut">No projects yet</p>'}</div>
    <div class="card"><h3>Quotations ${canW('quotes') ? '<button class="btn sm" id="nq" style="float:right">+ New quote</button>' : ''}</h3>${c.quotes.map(q => `<div class="act"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${inr(q.total)}<br><small>${q.date}</small></div>`).join('') || '<p class="mut">No quotations</p>'}</div>
