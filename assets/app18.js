@@ -262,7 +262,7 @@ async function renderTax(box, c, id) {
   function serBox(v) { const nm = a => esc(a.filter(Boolean).join(' ')), cols = [];
     if (v.ser.p && pn.length) cols.push([`Panel serial nos. — ${nm([P.panel_make, P.panel_wattage ? P.panel_wattage + ' Wp' : '', P.panel_model])} (${pn.length} nos)`, pn.map(x => x.serial), 1]);
     if (v.ser.i && iv.length) cols.push([`Inverter serial no. — ${nm([P.inverter_make, P.inverter_capacity ? P.inverter_capacity + ' kW' : '', P.inverter_model])}${iv.length > 1 ? ` (${iv.length} nos)` : ''}`, iv.map(x => x.serial)]);
-    if (v.ser.m && P.meter_serial) cols.push([`Energy meter serial no. — ${nm([P.meter_make, P.meter_type])}`, [P.meter_serial]]);
+    if (v.ser.m && P.meter_serial) cols.push([`Energy meter serial no. — ${P.meter_make ? nm([P.meter_make]) + ' ' : ''}(uni-directional)`, [P.meter_serial]]); /* our meter is always the uni-directional solar generation meter */
     if (!cols.length) return '';
     /* panels get the wide column and split their list into sub-columns (read top to bottom) so 20+ panels still fit */
     const sub = n => n > 12 ? 3 : n > 4 ? 2 : 1, /* 3 columns is the most that fits the width */ wide = cols.length > 1 && cols[0][2];
