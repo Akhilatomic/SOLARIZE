@@ -343,15 +343,16 @@ const MNRE_CSS = `.lhp{position:relative;width:210mm;height:297mm;background:#ff
 .lhp th{border:0!important;padding:2px 0!important;font-size:12.5px!important;font-weight:700;text-decoration:underline;text-align:center;color:#111!important;background:transparent!important;text-transform:none!important;letter-spacing:0!important}
 .lhp .mcd td:first-child{width:44%}.lhp td.pre{white-space:pre-line}
 .lhp .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;margin-top:5px}.lhp .mgrid td:first-child{width:42%}
-.lhp .mbot{display:grid;grid-template-columns:54% 1fr;gap:14px;margin-top:6px;align-items:end}.lhp .mbot.full{grid-template-columns:1fr}
+.lhp .mbot{display:grid;grid-template-columns:54% 1fr;gap:14px;margin-top:6px;align-items:start}.lhp .mbot .msig{align-self:end}.lhp .mbot.full{grid-template-columns:1fr}
+.lhp .msrh{text-align:center;font-size:12.5px;font-weight:700;text-decoration:underline;padding:2px 0}.lhp .msrg{display:grid;gap:0 10px;align-items:start}
 .lhp .msr td{font-family:"Times New Roman",Times,serif}.lhp .msr td.n{width:28px;text-align:center}.lhp .msig .bl{display:inline-block;min-width:38mm;border-bottom:1px dotted #555}
 .lhp .msig{display:flex;flex-direction:column;align-items:center;text-align:center;font-size:12.5px}.lhp .msig .seal{height:34mm;width:100%}
 .lhp .msig b{font-size:13px}
 .lhwrap{overflow:hidden;margin:0 auto}.lhfit{transform-origin:top left;box-shadow:0 1px 3px rgba(0,0,0,.08),0 10px 30px rgba(0,0,0,.10)}`;
 const dotd = s => s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '';
 function mnrePage(v, ref, date, pn, iv) {
-  const sn = pn.map(x => x.serial), n = sn.length, pairs = n > 20 ? 3 : n > 10 ? 2 : 1, rows = pairs === 1 ? 10 : Math.ceil(n / pairs), shown = pairs === 1 ? 10 : n;
-  const srows = Array.from({ length: rows }, (_, r) => `<tr>${Array.from({ length: pairs }, (_, p) => { const i = p * rows + r; return `<td class="n">${i < shown ? i + 1 : ''}</td><td>${esc(sn[i] || '')}</td>`; }).join('')}</tr>`).join('');
+  const sn = pn.map(x => x.serial), n = sn.length, pairs = n > 20 ? 3 : n > 10 ? 2 : 1, per = Math.ceil(n / pairs) || 0; /* one row per panel, no blank rows */
+  const stabs = Array.from({ length: pairs }, (_, p) => sn.slice(p * per, (p + 1) * per)).filter(a => a.length).map((a, p) => `<table class="msr">${a.map((x, r) => `<tr><td class="n">${p * per + r + 1}</td><td>${esc(x)}</td></tr>`).join('')}</table>`).join('');
   const row = (l, x) => `<tr><td>${l}</td><td>${esc(x || '')}</td></tr>`;
   return `<div class="lhp"><img class="lhbg" src="${location.origin}/assets/letterhead.png" alt="">
    ${ref ? `<div class="lhref">${esc(ref)}</div>` : ''}${date ? `<div class="lhdate">${esc(dotd(date))}</div>` : ''}
@@ -362,7 +363,7 @@ function mnrePage(v, ref, date, pn, iv) {
     <table class="mcd">${row('NAME', v.name)}<tr><td>ADDRESS</td><td class="pre">${esc(v.address || '')}</td></tr>${row('EB CONSUMER NUMBER', v.consumer_no)}${row('INSTALLED PLANT CAPACITY', v.capacity)}${row('CONTACT NUMBER', v.phone)}${row('EB PHASE', v.phase)}</table>
     <div class="mgrid"><table><tr><th colspan="2">SPV MODULE</th></tr>${row('MAKE/MODEL', v.mod_make)}${row('MODULE TYPE', v.mod_type)}${row('MODULE WATTS', v.mod_watts)}</table>
      <table><tr><th colspan="2">INVERTER</th></tr>${row('MAKE/MODEL', v.inv_make)}${row('CAPACITY', v.inv_capacity)}${row('SERIAL NUMBER', iv.map(x => x.serial).join(', '))}</table></div>
-    <div class="mbot${pairs === 3 ? ' full' : ''}"><table class="msr"><tr><th colspan="${pairs * 2}">SPV MODULE SERIAL NUMBER</th></tr>${srows}</table>
+    <div class="mbot${pairs === 3 ? ' full' : ''}"><div>${n ? `<div class="msrh">SPV MODULE SERIAL NUMBER</div><div class="msrg" style="grid-template-columns:repeat(${pairs},minmax(0,1fr))">${stabs}</div>` : ''}</div>
      <div class="msig"><div class="seal"></div><b>For JASPER SOLAR SOLUTIONS</b><div>Name: ${v.sign_name ? esc(v.sign_name) : '<span class="bl"></span>'}</div><div>Designation: ${v.sign_desig ? esc(v.sign_desig) : '<span class="bl"></span>'}</div>${v.sign_phone ? `<div>Phone: ${esc(v.sign_phone)}</div>` : ''}</div></div>
    </div></div>`;
 }
