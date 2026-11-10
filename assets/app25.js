@@ -1,10 +1,10 @@
-// KSEB documentation page (#/kseb, #/kseb/<customerId>): tabs Work completion report · Annexure 1 · Checklist.
+// KSEB documentation page (#/kseb, #/kseb/<customerId>): tabs Work completion report · Annexure 1 · 2 · 3 · Checklist.
 // A document tab: customer picker, the document's fields (KD.DOCS in app24.js) on the left, a live A4 preview on the right,
 // Save and Download PDF. pdf-lib (loaded on first use) writes the text onto the template PDF in the browser.
 // Saving rule: only the fields that differ from the profile are stored (KD.overrides), plus the date, so a corrected
 // profile prints corrected. UI classes start with .kd (assets/kseb.css). Every value shown in HTML goes through esc().
 const KDS = { tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
-const KD_TABS = [['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['list', 'Checklist']];
+const KD_TABS = [['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['list', 'Checklist']];
 const KD_FONT = { T: "'Times New Roman',Times,serif", TB: "'Times New Roman',Times,serif", H: 'Arial,Helvetica,sans-serif', HB: 'Arial,Helvetica,sans-serif' };
 const kdT = v => String(v ?? '').trim();
 const kdOn = () => !!$('#kd');

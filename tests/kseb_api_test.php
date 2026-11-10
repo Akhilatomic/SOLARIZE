@@ -56,6 +56,9 @@ chk(call($admin, 'kseb', 'get', null, '&customer_id=999999')['_code'] === 404, '
 chk(call($anon, 'kseb', 'get', null, "&customer_id=$cid")['_code'] === 401, 'anonymous get is 401');
 
 chk(call($sales, 'kseb', 'get', null, "&customer_id=$cid")['_code'] === 200, 'sales can read');
+chk(call($admin, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'an3', 'data' => ['reg_no' => 'REG-9', 'date' => '2026-11-07']])['_code'] === 200, 'annexure 3 saves');
+$g = call($admin, 'kseb', 'get', null, "&customer_id=$cid");
+chk(($g['saved']['an3']['data']['reg_no'] ?? '') === 'REG-9' && array_key_exists('an2', $g['saved'] ?? []) && $g['saved']['an2'] === null, 'get returns saved edits for annexures 2 and 3');
 chk(call($sales, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'an1', 'data' => []])['_code'] === 403, 'sales cannot save');
 chk(call($sales, 'kseb', 'defaults_save', ['data' => ['sign_name' => 'X']])['_code'] === 403, 'sales cannot save defaults');
 

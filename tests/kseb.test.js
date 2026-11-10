@@ -220,3 +220,62 @@ test('an1 mount follows the plant form', () => {
   assert.equal(m({ rooftop_type: 'RCC' }), 'ROOF-TOP');
   assert.equal(m({}), 'ROOF-TOP');
 });
+
+const RAJ_REG = Object.assign({}, RAJ, { plant: Object.assign({}, RAJ.plant, { application_no: 'KSEB/REG/2026/123' }) });
+
+test('an2 and an3 defaults', () => {
+  const a2 = KD.defaults('an2', RAJ);
+  assert.equal(a2.name, 'RAJKUMAR M');
+  assert.equal(a2.category, 'LT-1A Domestic');
+  assert.equal(a2.load, '1.24 kW');
+  assert.equal(a2.capacity, '5 kWp');
+  assert.equal(a2.specs, 'YES');
+  assert.equal(a2.meters, 'YES');
+  assert.equal(a2.drawings, 'YES');
+  assert.equal(a2.days, '30 DAYS');
+  assert.equal(a2.place, 'Thiruvananthapuram');
+  assert.equal(a2.date, '2026-11-10');
+  const a3 = KD.defaults('an3', RAJ_REG);
+  assert.equal(a3.reg_no, 'KSEB/REG/2026/123');
+  assert.equal(a3.capacity, '5 kWp');
+  assert.equal(a3.type_test, 'YES');
+  assert.equal(a3.specs, 'YES');
+  assert.equal(a3.inspector, 'NOT APPLICABLE');
+  assert.ok(KD.empty('an3', KD.defaults('an3', RAJ)).includes('Solar registration number'));
+  for (const d of ['an2', 'an3']) {
+    const keys = KD.DOCS[d].groups.flatMap(g => g.fields.map(f => f.k));
+    assert.deepEqual(Object.keys(KD.defaults(d, RAJ)).sort(), keys.slice().sort(), d + ' default keys');
+  }
+});
+
+test('every document has a template on disk', () => {
+  for (const d of Object.keys(KD.DOCS)) {
+    const P = KD.PAGES[KD.DOCS[d].page];
+    assert.ok(P, d + ' page');
+    assert.ok(fs.existsSync(path.join(ROOT, P.pdf)) && fs.existsSync(path.join(ROOT, P.png)), d + ' files');
+  }
+});
+
+for (const [doc, ctx, rows, placeY, expect] of [
+  ['an2', RAJ, [[155.7, 233.7], [233.7, 256.1], [256.1, 285.5], [285.5, 343.8], [343.8, 402.2], [402.2, 438.6], [438.6, 460.1]], 471.67,
+    [['1.24 kW', 1], ['5 kWp', 2], ['30 DAYS', 6]]],
+  ['an3', RAJ_REG, [[125.3, 203.3], [203.3, 225.6], [225.6, 246.3], [246.3, 348.0], [348.0, 406.4], [406.4, 464.8]], 476.35,
+    [['KSEB/REG/2026/123', 1], ['5 kWp', 2], ['NOT APPLICABLE', 5]]],
+]) {
+  test(doc + ' values stay inside their cells', async () => {
+    const measure = await KD.measurer(PDFLib);
+    const r = KD.layout(doc, KD.values(doc, ctx, {}), measure);
+    assert.equal(r.overflow, false);
+    const cellOps = r.ops.filter(o => o.x > 300);
+    for (const o of cellOps) {
+      assert.ok(o.x >= 374.5 && o.x + measure(o.t, o.f, o.s) <= 548.8, o.t + ' x');
+      assert.ok(rows.some(([a, b]) => o.y > a && o.y <= b), o.t + ' y ' + o.y);
+    }
+    const inRow = (o, i) => o.y > rows[i][0] && o.y <= rows[i][1];
+    assert.ok(cellOps.filter(o => inRow(o, 0)).length >= 6, 'row 1 consumer lines');
+    for (const [t, i] of expect) assert.ok(r.ops.some(o => o.t === t && inRow(o, i)), t + ' in row ' + (i + 1));
+    rows.forEach((row, i) => assert.ok(cellOps.some(o => inRow(o, i)), doc + ' row ' + (i + 1) + ' has a value'));
+    assert.ok(r.ops.some(o => o.t === 'Thiruvananthapuram' && o.x < 369.5 && o.y === placeY), 'place');
+    assert.ok(r.ops.some(o => o.t === '10-11-2026' && o.x < 369.5 && o.y > placeY), 'date');
+  });
+}

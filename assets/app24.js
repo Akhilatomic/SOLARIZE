@@ -5,6 +5,24 @@ var KD = (function () {
   var trim = function (v) { return str(v).trim(); };
   var isNum = function (v) { return /^\d+(\.\d+)?$/.test(trim(v)); };
 
+  /* the KSEB annexures share row 1 (consumer details) and the Place / Date cell */
+  var consumerGroup = function () {
+    return { g: 'Consumer', fields: [
+      { k: 'name', l: 'Name' },
+      { k: 'consumer_no', l: 'Consumer No' },
+      { k: 'category', l: 'Category' },
+      { k: 'phone', l: 'Phone' },
+      { k: 'email', l: 'Email' },
+      { k: 'address', l: 'Address', t: 'area' }
+    ] };
+  };
+  var placeGroup = function () {
+    return { g: 'Place and date', fields: [
+      { k: 'place', l: 'Place' },
+      { k: 'date', l: 'Date', t: 'date' }
+    ] };
+  };
+
   K.DOCS = {
     wcr: {
       key: 'wcr', tab: 'Work completion report', file: 'Work Completion Report', page: 'letterhead',
@@ -48,14 +66,7 @@ var KD = (function () {
     an1: {
       key: 'an1', tab: 'Annexure 1', file: 'Annexure 1', page: 'an1',
       groups: [
-        { g: 'Consumer', fields: [
-          { k: 'name', l: 'Name' },
-          { k: 'consumer_no', l: 'Consumer No' },
-          { k: 'category', l: 'Category' },
-          { k: 'phone', l: 'Phone' },
-          { k: 'email', l: 'Email' },
-          { k: 'address', l: 'Address', t: 'area' }
-        ] },
+        consumerGroup(),
         { g: 'Plant', fields: [
           { k: 'load', l: 'Connected load' },
           { k: 'capacity', l: 'Plant capacity' },
@@ -63,10 +74,38 @@ var KD = (function () {
           { k: 'mount', l: 'Rooftop or ground' },
           { k: 'days', l: 'Completion period' }
         ] },
-        { g: 'Place and date', fields: [
-          { k: 'place', l: 'Place' },
-          { k: 'date', l: 'Date', t: 'date' }
-        ] }
+        placeGroup()
+      ]
+    },
+    /* Annexure 2: application to register the solar plant */
+    an2: {
+      key: 'an2', tab: 'Annexure 2', file: 'Annexure 2', page: 'an2',
+      groups: [
+        consumerGroup(),
+        { g: 'Plant', fields: [
+          { k: 'load', l: 'Connected load' },
+          { k: 'capacity', l: 'Plant capacity' },
+          { k: 'specs', l: 'Panel, inverter & interlock specs attached' },
+          { k: 'meters', l: 'Solar & net meter bought by consumer, specs attached' },
+          { k: 'drawings', l: 'Technical drawings attached' },
+          { k: 'days', l: 'Completion period' }
+        ] },
+        placeGroup()
+      ]
+    },
+    /* Annexure 3: application to test the plant after installation */
+    an3: {
+      key: 'an3', tab: 'Annexure 3', file: 'Annexure 3', page: 'an3',
+      groups: [
+        consumerGroup(),
+        { g: 'Plant', fields: [
+          { k: 'reg_no', l: 'Solar registration number' },
+          { k: 'capacity', l: 'Installed capacity' },
+          { k: 'type_test', l: 'Type test certificates provided' },
+          { k: 'specs', l: 'Panel, inverter & interlock specs attached' },
+          { k: 'inspector', l: 'Electrical Inspector approval attached' }
+        ] },
+        placeGroup()
       ]
     }
   };
@@ -151,14 +190,23 @@ var KD = (function () {
         inv_serial: serials,
         sign_name: str(sd.sign_name), sign_designation: str(sd.sign_designation), sign_phone: str(sd.sign_phone)
       };
-    } else if (docKey === 'an1') {
+    } else if (K.DOCS[docKey]) {
       v = {
         name: trim(c.name), consumer_no: trim(c.consumer_no), category: trim(c.tariff),
         phone: trim(c.phone), email: trim(c.email), address: K.joinAddr(c),
-        load: bare(c.sanctioned_load, 'kW'), capacity: cap('kWp'),
-        other: 'NO', mount: (p.rooftop_type === 'Ground' || p.structure_type === 'Ground mount') ? 'GROUND MOUNTED' : 'ROOF-TOP', days: '30 DAYS',
         place: trim(c.district), date: today
       };
+      var more = docKey === 'an1' ? {
+        load: bare(c.sanctioned_load, 'kW'), capacity: cap('kWp'),
+        other: 'NO', mount: (p.rooftop_type === 'Ground' || p.structure_type === 'Ground mount') ? 'GROUND MOUNTED' : 'ROOF-TOP', days: '30 DAYS'
+      } : docKey === 'an2' ? {
+        load: bare(c.sanctioned_load, 'kW'), capacity: cap('kWp'),
+        specs: 'YES', meters: 'YES', drawings: 'YES', days: '30 DAYS'
+      } : docKey === 'an3' ? {
+        reg_no: trim(p.application_no), capacity: cap('kWp'),
+        type_test: 'YES', specs: 'YES', inspector: 'NOT APPLICABLE'
+      } : {};
+      Object.keys(more).forEach(function (k) { v[k] = more[k]; });
     }
     return v;
   };
@@ -194,7 +242,9 @@ var KD = (function () {
   /* the template files are cached for 30 days: a replaced template must get a new file name */
   K.PAGES = {
     letterhead: { pdf: 'assets/kseb/letterhead.pdf', png: 'assets/kseb/letterhead.png', w: 595.92, h: 841.92 },
-    an1: { pdf: 'assets/kseb/annexure-1.pdf', png: 'assets/kseb/annexure-1.png', w: 595.32, h: 841.92 }
+    an1: { pdf: 'assets/kseb/annexure-1.pdf', png: 'assets/kseb/annexure-1.png', w: 595.32, h: 841.92 },
+    an2: { pdf: 'assets/kseb/annexure-2.pdf', png: 'assets/kseb/annexure-2.png', w: 595.32, h: 841.92 },
+    an3: { pdf: 'assets/kseb/annexure-3.pdf', png: 'assets/kseb/annexure-3.png', w: 595.32, h: 841.92 }
   };
   K.FONTS = { T: 'TimesRoman', TB: 'TimesRomanBold', H: 'Helvetica', HB: 'HelveticaBold' };
 
@@ -309,50 +359,55 @@ var KD = (function () {
     return { ops: ops.concat(r.ops), size: r.size, overflow: !(ok && r.fit) };
   };
 
-  /* Annexure 1 (KSEB form). Table rules measured on the form: value column x 369.5-553.8, row lines below.
-     Place / Date labels (FML-TTIndulekha 14 pt, PyMuPDF rawdict on assets/kseb/annexure-1.pdf): the colon glyphs
-     end at x 130.56 / 130.08, baselines 413.33 / 427.85; values start 6 pt after the colon. */
-  var AN1 = {
-    x0: 369.5, x1: 553.8, pad: 5, max: 10.5, min: 6,
-    rows: [['r1', 155.7, 233.7], ['load', 233.7, 256.1], ['capacity', 256.1, 285.5], ['other', 285.5, 343.8], ['mount', 343.8, 380.3], ['days', 380.3, 402]],
-    r1: ['name', 'consumer_no', 'category', 'phone', 'email', 'address'],
-    labelX: 136.6, placeY: 413.33, dateY: 427.85, labelRight: 364.5
+  /* KSEB annexures: the same table on every form — value column x 369.5-553.8, values in Helvetica.
+     Place / Date labels (FML-TTIndulekha 14 pt): the colon glyphs end at x 130.56 / 130.08 on every form,
+     so values start at x 136.6 (6 pt after the colon). Row lines and label baselines per form below,
+     measured with PyMuPDF on assets/kseb/annexure-N.pdf (drawings and rawdict). */
+  var FORM = { x0: 369.5, x1: 553.8, pad: 5, max: 10.5, min: 6, labelX: 136.6, labelRight: 364.5,
+    r1: ['name', 'consumer_no', 'category', 'phone', 'email', 'address'] };
+  var FORMS = {
+    an1: { placeY: 413.33, dateY: 427.85, rows: [['r1', 155.7, 233.7], ['load', 233.7, 256.1], ['capacity', 256.1, 285.5],
+      ['other', 285.5, 343.8], ['mount', 343.8, 380.3], ['days', 380.3, 402]] },
+    an2: { placeY: 471.67, dateY: 486.19, rows: [['r1', 155.7, 233.7], ['load', 233.7, 256.1], ['capacity', 256.1, 285.5],
+      ['specs', 285.5, 343.8], ['meters', 343.8, 402.2], ['drawings', 402.2, 438.6], ['days', 438.6, 460.1]] },
+    an3: { placeY: 476.35, dateY: 490.75, rows: [['r1', 125.3, 203.3], ['reg_no', 203.3, 225.6], ['capacity', 225.6, 246.3],
+      ['type_test', 246.3, 348.0], ['specs', 348.0, 406.4], ['inspector', 406.4, 464.8]] }
   };
 
   /* paragraphs in Helvetica, left-aligned, block centred vertically, largest size 10.5 -> 6 that fits the cell */
-  var an1Cell = function (paras, top, bottom, measure, lh) {
+  var formCell = function (paras, top, bottom, measure, lh) {
     lh = lh || 1.2;
-    var x = AN1.x0 + AN1.pad, w = AN1.x1 - AN1.x0 - 2 * AN1.pad, room = bottom - top - 2 * AN1.pad;
+    var x = FORM.x0 + FORM.pad, w = FORM.x1 - FORM.x0 - 2 * FORM.pad, room = bottom - top - 2 * FORM.pad;
     var lines, s, bh, fit = false;
-    for (s = AN1.max; s >= AN1.min; s -= 0.5) {
+    for (s = FORM.max; s >= FORM.min; s -= 0.5) {
       lines = [];
       paras.forEach(function (p) { lines = lines.concat(K.wrap(p, w, 'H', s, measure)); });
       bh = (lines.length - 1) * lh * s + s;
       if (bh <= room) { fit = true; break; }
     }
-    if (!fit) s = AN1.min;
+    if (!fit) s = FORM.min;
     var y0 = top + (bottom - top - bh) / 2 + 0.8 * s, ops = [];
     lines.forEach(function (line, i) { if (line) ops.push(op(line, x, y0 + i * lh * s, 'H', s)); });
     return { ops: ops, s: s, fit: fit };
   };
 
-  var layoutAn1 = function (v, measure) {
-    var ops = [], ok = true, size = AN1.max;
-    AN1.rows.forEach(function (row) {
+  var layoutForm = function (docKey, v, measure) {
+    var F = FORMS[docKey], ops = [], ok = true, size = FORM.max;
+    F.rows.forEach(function (row) {
       var paras = row[0] === 'r1'
-        ? AN1.r1.map(function (k) { return (labelOf('an1', k) + ': ' + clean(v[k])).trim(); })
+        ? FORM.r1.map(function (k) { return (labelOf(docKey, k) + ': ' + clean(v[k])).trim(); })
         : (clean(v[row[0]]) ? [clean(v[row[0]])] : []);
       if (!paras.length) return;
-      var c = an1Cell(paras, row[1], row[2], measure, row[0] === 'r1' ? 1.1 : 1.2);
+      var c = formCell(paras, row[1], row[2], measure, row[0] === 'r1' ? 1.1 : 1.2);
       ops = ops.concat(c.ops);
       ok = ok && c.fit;
       size = Math.min(size, c.s);
     });
-    [[clean(v.place), AN1.placeY], [K.dmy(v.date) || clean(v.date), AN1.dateY]].forEach(function (p) {
+    [[clean(v.place), F.placeY], [K.dmy(v.date) || clean(v.date), F.dateY]].forEach(function (p) {
       if (!p[0]) return;
-      var r = fitOne(p[0], 'H', AN1.max, AN1.min, AN1.labelRight - AN1.labelX, measure);
+      var r = fitOne(p[0], 'H', FORM.max, FORM.min, FORM.labelRight - FORM.labelX, measure);
       ok = ok && r.fit;
-      ops.push(op(p[0], AN1.labelX, p[1], 'H', r.s));
+      ops.push(op(p[0], FORM.labelX, p[1], 'H', r.s));
     });
     return { ops: ops, size: size, overflow: !ok };
   };
@@ -360,7 +415,7 @@ var KD = (function () {
   K.layout = function (docKey, values, measure) {
     values = values || {};
     if (docKey === 'wcr') return layoutWcr(values, measure);
-    if (docKey === 'an1') return layoutAn1(values, measure);
+    if (FORMS[docKey]) return layoutForm(docKey, values, measure);
     return { ops: [], size: 0, overflow: false };
   };
 

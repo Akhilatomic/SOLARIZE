@@ -6,6 +6,10 @@ Needs PyMuPDF.  Writes:
   outdir/annexure-1.pdf    Form 1 with the "ROOF-TOP" and "30 DAYS" FreeText annotations removed
   outdir/letterhead.png, outdir/annexure-1.png   page 1 of each at 150 dpi
 Then checks that nothing but those two annotations was removed.
+
+Blank forms with nothing typed on them (Annexure 2, 3):
+  python -I tools/kseb_templates.py --copy <form.pdf> annexure-2 <outdir>
+copies the PDF unchanged and renders its PNG.
 """
 import sys, os, shutil
 import pymupdf
@@ -58,7 +62,25 @@ def main(letterhead, form1, outdir):
         sys.exit(1)
 
 
+def copy_blank(form, name, outdir):
+    """A blank KSEB form (Annexure 2, 3, ...): copied byte for byte, refused if anything is typed on it."""
+    page = pymupdf.open(form)[0]
+    extra = list(page.annots()) + list(page.widgets())
+    if extra:
+        print('refusing: the form has annotations or form fields', [a.type for a in extra])
+        sys.exit(1)
+    os.makedirs(outdir, exist_ok=True)
+    shutil.copyfile(form, os.path.join(outdir, name + '.pdf'))
+    d = pymupdf.open(os.path.join(outdir, name + '.pdf'))
+    d[0].get_pixmap(dpi=150).save(os.path.join(outdir, name + '.png'))
+    print(name, 'pages', len(d), 'size', tuple(round(v, 2) for v in d[0].rect[2:]))
+    d.close()
+
+
 if __name__ == '__main__':
-    if len(sys.argv) != 4:
+    if len(sys.argv) == 5 and sys.argv[1] == '--copy':
+        copy_blank(*sys.argv[2:])  # python -I tools/kseb_templates.py --copy <form.pdf> annexure-2 assets/kseb
+    elif len(sys.argv) == 4:
+        main(*sys.argv[1:])
+    else:
         sys.exit(__doc__)
-    main(*sys.argv[1:])

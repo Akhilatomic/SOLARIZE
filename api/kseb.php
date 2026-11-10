@@ -1,8 +1,8 @@
 <?php
-// KSEB documents (Work Completion Report, Annexure 1): customer data for the page, per-customer edits, company defaults.
-// Edits live in gen_docs (kind 'kseb_wcr' / 'kseb_an1'); the PDF itself is built in the browser.
+// KSEB documents (Work Completion Report, Annexures 1-3): customer data for the page, per-customer edits, company defaults.
+// Edits live in gen_docs (kind 'kseb_wcr', 'kseb_an1', 'kseb_an2', 'kseb_an3'); the PDF itself is built in the browser.
 
-const KSEB_DOCS = ['wcr', 'an1'];
+const KSEB_DOCS = ['wcr', 'an1', 'an2', 'an3'];
 const KSEB_DEFAULTS = [
   'vendor_name' => 'M/S JASPER SOLAR SOLUTIONS',
   'vendor_address' => 'Jasper Building Anad Bank Junction Nedumangad Thiruvananthapuram',
@@ -37,7 +37,7 @@ function handle_kseb($a) {
       out(['customer' => mask_customer($c), 'plant' => $plant,
         'project' => $p ? ['id' => (int)$p['id'], 'title' => $p['title'], 'kw' => $p['kw'], 'stage' => $p['stage']] : null,
         'defaults' => kseb_defaults(),
-        'saved' => ['wcr' => kseb_saved($cid, 'wcr'), 'an1' => kseb_saved($cid, 'an1')]]);
+        'saved' => array_combine(KSEB_DOCS, array_map(fn($d) => kseb_saved($cid, $d), KSEB_DOCS))]);
 
     case 'save':
       need('checklist', true);
