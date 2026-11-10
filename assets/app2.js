@@ -8,14 +8,12 @@ async function pgQuotes() {
     table([['No.', q => `<b>${esc(q.number)}</b>`], ['For', q => esc(nm(q))], ['Date', q => q.date], ['Total (incl. GST)', q => inr(q.total)], ['Status', q => pill(q.status, stageCls(q.status === 'Accepted' ? 'Approved' : q.status === 'Rejected' ? 'Lost' : q.status === 'Sent' ? 'Submitted' : ''))]], qs, id => location.hash = '#/quotes/' + id);
   if ($('#qn')) $('#qn').onclick = () => { sessionStorage.removeItem('lead2quote'); location.hash = '#/quotes/new'; };
 }
+// New quotations and quotations made with the quotation maker open in the maker (app22.js); older ones keep this simple editor.
 async function pgQuote(id) {
+  if (id === 'new') return pgQuoteMaker(null);
+  const q = await api('quotes', 'get', undefined, '&id=' + id);
+  if (q.doc) return pgQuoteMaker(id, q);
   const [cs, ls] = await Promise.all([list('customers'), list('leads')]);
-  let q = { items: [], gst_rate: S.gst_rate, subsidy: 0, terms: S.company.terms, status: 'Draft', date: today(), customer_id: '', lead_id: '', number: '' };
-  if (id === 'new') {
-    const pre = JSON.parse(sessionStorage.lead2quote || 'null'); sessionStorage.removeItem('lead2quote');
-    if (pre) { q.customer_id = pre.customer_id || ''; q.lead_id = pre.lead_id || ''; }
-    q.items = S.catalog.map(c => ({ desc: c.desc.trim(), qty: 1, rate: c.rate }));
-  } else q = await api('quotes', 'get', undefined, '&id=' + id);
   const w = canW('quotes');
   $('#main').innerHTML = `<p><a href="#/quotes">← Quotations</a></p><div class="card">
    <h2 style="margin-top:0">${q.number ? 'Quotation ' + esc(q.number) : 'New quotation'}</h2>
