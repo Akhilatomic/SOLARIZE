@@ -18,4 +18,5 @@ for i in $(seq 1 50); do curl -s -o /dev/null "http://localhost:$PORT/" && break
 RC=0
 "$PHP" "$TMP/tests/qm_api_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
 "$PHP" "$TMP/tests/kseb_api_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
+"$PHP" "$TMP/tests/meta_err_test.php" || RC=1
 exit $RC

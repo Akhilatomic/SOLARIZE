@@ -5,7 +5,32 @@
 function kv_get($k, $def) { $r = row('SELECT v FROM settings WHERE k=?', [$k]); return $r ? (json_decode($r['v'], true) ?: []) + $def : $def; }
 function kv_set($k, $v) { q('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', [$k, json_encode($v, JSON_UNESCAPED_UNICODE)]); }
 function meta_cfg() { return kv_get('meta_cfg', ['page_id' => '', 'token' => '', 'form_ids' => '', 'cron_key' => '', 'api_base' => 'https://graph.facebook.com/v21.0']); }
-function meta_state() { return kv_get('meta_state', ['last_try' => 0, 'last_ok' => 0, 'last_error' => '', 'last_new' => 0, 'total_new' => 0, 'running' => 0]); }
+function meta_state() { return kv_get('meta_state', ['last_try' => 0, 'last_ok' => 0, 'last_error' => '', 'last_detail' => null, 'last_new' => 0, 'total_new' => 0, 'running' => 0]); }
+
+/* A Meta error keeps what the sync was doing and Meta's own code / subcode / trace id (Meta support asks for it),
+   with a plain hint on what to check. "API access blocked" and the like are fixed in Meta, not in the CRM. */
+class MetaError extends Exception {
+  public $d;
+  function __construct(array $d) { $this->d = $d; parent::__construct($d['message']); }
+}
+function meta_error_detail($j, $step) {
+  $e = (array)($j['error'] ?? []);
+  $d = ['step' => $step, 'message' => (string)($e['message'] ?? 'Meta API error'), 'code' => (int)($e['code'] ?? 0), 'subcode' => (int)($e['error_subcode'] ?? 0),
+    'type' => (string)($e['type'] ?? ''), 'user_msg' => (string)($e['error_user_msg'] ?? ''), 'trace' => (string)($e['fbtrace_id'] ?? '')];
+  $d['hint'] = meta_hint($d);
+  return $d;
+}
+function meta_hint(array $d) {
+  $c = (int)$d['code']; $m = strtolower((string)$d['message']);
+  if (strpos($m, 'api access blocked') !== false || strpos($m, 'blocked') !== false)
+    return 'Meta has blocked the API access of the app this token belongs to. It is fixed in Meta, not in the CRM: open developers.facebook.com → My Apps → that app and clear every alert on its dashboard (app restricted, Data Use Checkup, business verification, policy). The app must be Live with Advanced Access to leads_retrieval, pages_show_list, pages_read_engagement and pages_manage_ads, and allowed for the Page in Meta Business Settings → Integrations → Leads Access. Then create a new token and save it here.';
+  if ($c === 190) return 'The access token has expired or was revoked (for example after a password change). Create a new long-lived Page access token and save it here.';
+  if (in_array($c, [4, 17, 32, 613, 80004], true)) return 'Meta’s request limit was reached. The CRM tries again automatically in 30 minutes.';
+  if ($c === 10 || ($c >= 200 && $c < 300)) return 'The token is missing a permission, or the Page has not shared its leads with this app: give the token leads_retrieval, pages_show_list, pages_read_engagement and pages_manage_ads, and allow the app in Meta Business Settings → Integrations → Leads Access. Then create a new token.';
+  if ($c === 100) return 'Meta could not find the Page or a lead form: check the Page ID and the form IDs.';
+  if ($c === 1 || $c === 2) return 'A temporary problem at Meta. The CRM tries again automatically.';
+  return '';
+}
 
 function graph($cfg, $url, $params = []) {
   if (!preg_match('#^https?://#', $url)) $url = rtrim($cfg['api_base'], '/') . '/' . ltrim($url, '/');
@@ -26,11 +51,11 @@ function graph($cfg, $url, $params = []) {
   }
   return [$code, json_decode($body, true) ?: ['error' => ['message' => 'Bad response from Meta']]];
 }
-function graph_all($cfg, $path, $params, $maxPages = 10) {
+function graph_all($cfg, $path, $params, $maxPages = 10, $step = 'Reading from Meta') {
   $out = []; $url = $path; $p = $params;
   for ($i = 0; $i < $maxPages; $i++) {
     [$code, $j] = graph($cfg, $url, $p);
-    if (isset($j['error'])) throw new Exception($j['error']['message'] ?? 'Meta API error');
+    if (isset($j['error'])) throw new MetaError(meta_error_detail($j, $step));
     foreach ($j['data'] ?? [] as $d) $out[] = $d;
     $next = $j['paging']['next'] ?? null; if (!$next) break;
     $url = $next; $p = [];
@@ -42,6 +67,8 @@ function graph_all($cfg, $path, $params, $maxPages = 10) {
 // system-user token, ask Meta for the page's own token (works when the page is assigned to that user).
 function meta_page_cfg($cfg) {
   [$code, $j] = graph($cfg, $cfg['page_id'], ['fields' => 'access_token,name']);
+  /* a blocked app or a dead token fails here first: report this step (other errors keep the saved token, as before) */
+  if (isset($j['error'])) { $d = meta_error_detail($j, 'Reading the Page'); if ($d['code'] === 190 || stripos($d['message'], 'blocked') !== false) throw new MetaError($d); }
   if (!empty($j['access_token'])) $cfg['token'] = $j['access_token'];
   $cfg['page_name'] = $j['name'] ?? '';
   return $cfg;
@@ -65,16 +92,16 @@ function meta_sync($minGap) {
     $cfg = meta_page_cfg($cfg);
     $forms = [];
     foreach (preg_split('/[\s,]+/', trim($cfg['form_ids']), -1, PREG_SPLIT_NO_EMPTY) as $f) $forms[] = ['id' => $f, 'name' => ''];
-    if (!$forms) $forms = graph_all($cfg, $cfg['page_id'] . '/leadgen_forms', ['fields' => 'id,name,status', 'limit' => 100], 3);
+    if (!$forms) $forms = graph_all($cfg, $cfg['page_id'] . '/leadgen_forms', ['fields' => 'id,name,status', 'limit' => 100], 3, 'Reading the lead forms of the Page');
     $since = $st['last_ok'] ? $st['last_ok'] - 86400 : 0; // overlap by a day; dedupe by meta_id
     foreach ($forms as $f) {
       $params = ['fields' => 'id,created_time,field_data,campaign_name,adset_name,ad_name,form_id', 'limit' => 100];
       if ($since) $params['filtering'] = json_encode([['field' => 'time_created', 'operator' => 'GREATER_THAN', 'value' => $since]]);
-      foreach (graph_all($cfg, $f['id'] . '/leads', $params, $since ? 5 : 20) as $L) $new += meta_ingest($L, $f);
+      foreach (graph_all($cfg, $f['id'] . '/leads', $params, $since ? 5 : 20, 'Reading the leads of form ' . ($f['name'] ?: $f['id'])) as $L) $new += meta_ingest($L, $f);
     }
     $st['last_ok'] = $now; $st['last_error'] = '';
-  } catch (Throwable $e) { $err = $e->getMessage(); $st['last_error'] = $err; }
-  $st = meta_state() + $st; $st['running'] = 0; $st['last_try'] = $now; $st['last_error'] = $err; if (!$err) $st['last_ok'] = $now;
+  } catch (Throwable $e) { $err = $e->getMessage(); $st['last_error'] = $err; $det = $e instanceof MetaError ? $e->d : null; }
+  $st = meta_state() + $st; $st['running'] = 0; $st['last_try'] = $now; $st['last_error'] = $err; $st['last_detail'] = $err ? ($det ?? null) : null; if (!$err) $st['last_ok'] = $now;
   $st['last_new'] = $new; $st['total_new'] = ($st['total_new'] ?? 0) + $new; kv_set('meta_state', $st);
   if ($new) q('INSERT INTO audit_log(user,action,entity,entity_id,detail) VALUES(?,?,?,?,?)', ['Meta Ads', 'sync', 'leads', null, "$new new lead(s)"]);
   return $err ? ['error' => $err, 'new' => $new] : ['ok' => true, 'new' => $new];
@@ -108,7 +135,7 @@ function meta_ingest($L, $form) {
 
 function meta_public_state() {
   $st = meta_state(); $cfg = meta_cfg();
-  return ['connected' => $cfg['token'] !== '' && $cfg['page_id'] !== '', 'last_try' => $st['last_try'], 'last_ok' => $st['last_ok'], 'last_error' => $st['last_error'], 'last_new' => $st['last_new'], 'total_new' => $st['total_new'], 'running' => ($st['running'] && time() - $st['running'] < 120), 'next_due' => $st['last_try'] ? $st['last_try'] + 1800 : 0, 'now' => time()];
+  return ['connected' => $cfg['token'] !== '' && $cfg['page_id'] !== '', 'last_try' => $st['last_try'], 'last_ok' => $st['last_ok'], 'last_error' => $st['last_error'], 'last_detail' => $st['last_detail'] ?? null, 'last_new' => $st['last_new'], 'total_new' => $st['total_new'], 'running' => ($st['running'] && time() - $st['running'] < 120), 'next_due' => $st['last_try'] ? $st['last_try'] + 1800 : 0, 'now' => time()];
 }
 
 function handle_meta($a) {
@@ -149,10 +176,9 @@ function handle_meta($a) {
   if ($a === 'test') {
     $c = meta_cfg(); if ($c['token'] === '' || $c['page_id'] === '') fail('Save the Page ID and access token first');
     [$code, $j] = graph($c, $c['page_id'], ['fields' => 'name']);
-    if (isset($j['error'])) out(['ok' => false, 'error' => $j['error']['message'] ?? 'Meta API error']);
-    $c = meta_page_cfg($c);
-    try { $forms = graph_all($c, $c['page_id'] . '/leadgen_forms', ['fields' => 'id,name,status', 'limit' => 50], 2); }
-    catch (Throwable $e) { out(['ok' => false, 'error' => 'Connected to the page, but could not read lead forms: ' . $e->getMessage() . ' (the token needs leads_retrieval and pages_manage_ads permissions)']); }
+    if (isset($j['error'])) { $d = meta_error_detail($j, 'Reading the Page'); out(['ok' => false, 'error' => $d['message'], 'detail' => $d]); }
+    try { $c = meta_page_cfg($c); $forms = graph_all($c, $c['page_id'] . '/leadgen_forms', ['fields' => 'id,name,status', 'limit' => 50], 2, 'Reading the lead forms of the Page'); }
+    catch (MetaError $e) { out(['ok' => false, 'error' => 'Connected to the page, but could not read lead forms: ' . $e->getMessage(), 'detail' => $e->d]); }
     out(['ok' => true, 'page' => $j['name'] ?? $c['page_id'], 'forms' => array_map(fn($f) => ['id' => $f['id'], 'name' => $f['name'] ?? ''], $forms)]);
   }
   fail('Unknown action', 404);

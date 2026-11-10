@@ -93,13 +93,19 @@ function mountBell() {
 }
 
 // ---------- Meta Ads page: sync status + connection ----------
+/* Meta's error in full: the step, Meta's code / subcode and trace id (for Meta support), and what to check */
+function metaErrHtml(d) {
+  if (!d) return '';
+  const meta = [d.step && 'While: ' + d.step.toLowerCase(), d.code && 'Meta error ' + d.code + (d.subcode ? ' / ' + d.subcode : ''), d.trace && 'trace ' + d.trace].filter(Boolean).join(' · ');
+  return `<div class="merr">${meta ? `<small>${esc(meta)}</small>` : ''}${d.user_msg ? `<p>${esc(d.user_msg)}</p>` : ''}${d.hint ? `<p><b>What to do:</b> ${esc(d.hint)}</p>` : ''}</div>`;
+}
 async function renderMetaCard(soft) {
   const box = $('#metasync'); if (!box) return;
   const st = FEED.state || {}, adm = ME.role === 'admin';
   let cfg = null; if (adm) { try { cfg = await api('meta', 'config'); } catch (e) { } }
   if (!$('#metasync')) return;
   const open = $('#mcfg')?.open ?? !(st.connected);
-  box.innerHTML = `<div class="card"><div class="bar" style="margin:0"><div><h3 style="margin:0">Meta lead sync</h3><div class="mut" style="font-size:13px">${st.connected ? (st.last_error ? `<span class="over">Last sync failed: ${esc(st.last_error)}</span>` : `Last synced <b>${clock(st.last_ok)}</b>${st.last_new ? ` · ${st.last_new} new` : ''} · automatic refresh every 30 min · ${st.total_new || 0} leads imported so far`) : 'Not connected. New Meta leads will be imported automatically once connected.'}</div></div><span class="sp"></span>
+  box.innerHTML = `<div class="card"><div class="bar" style="margin:0"><div><h3 style="margin:0">Meta lead sync</h3><div class="mut" style="font-size:13px">${st.connected ? (st.last_error ? `<span class="over">Last sync failed: ${esc(st.last_error)}</span>${metaErrHtml(st.last_detail)}` : `Last synced <b>${clock(st.last_ok)}</b>${st.last_new ? ` · ${st.last_new} new` : ''} · automatic refresh every 30 min · ${st.total_new || 0} leads imported so far`) : 'Not connected. New Meta leads will be imported automatically once connected.'}</div></div><span class="sp"></span>
     ${st.connected ? '<button class="btn" id="msync"><i class="i i-refresh"></i> Refresh now</button>' : ''}</div>
     ${adm && cfg ? `<details id="mcfg" style="margin-top:12px" ${open ? 'open' : ''}><summary style="cursor:pointer;font-weight:600">Connection settings</summary>
      <p class="mut" style="font-size:13px;margin:8px 0">Create a long-lived <b>Page access token</b> in Meta (Graph API Explorer or a System User) with <code>leads_retrieval</code>, <code>pages_show_list</code>, <code>pages_read_engagement</code> and <code>pages_manage_ads</code> permissions, then paste it with your Facebook Page ID. Leave Form IDs empty to sync all lead forms on the page.</p>
@@ -114,7 +120,7 @@ async function renderMetaCard(soft) {
   $('#m-test').onclick = async () => {
     await api('meta', 'save', { page_id: $('#m-page').value, token: $('#m-token').value, form_ids: $('#m-forms').value });
     $('#m-res').textContent = 'Testing…'; const r = await api('meta', 'test', {});
-    $('#m-res').innerHTML = r.ok ? `<span style="color:var(--ok)">Connected to “${esc(r.page)}”.</span> ${r.forms.length} lead form${r.forms.length === 1 ? '' : 's'} found${r.forms.length ? ': ' + r.forms.map(f => esc(f.name || f.id)).join(', ') : ''}. Click “Refresh now” to import leads.` : `<span class="over">${esc(r.error)}</span>`;
+    $('#m-res').innerHTML = r.ok ? `<span style="color:var(--ok)">Connected to “${esc(r.page)}”.</span> ${r.forms.length} lead form${r.forms.length === 1 ? '' : 's'} found${r.forms.length ? ': ' + r.forms.map(f => esc(f.name || f.id)).join(', ') : ''}. Click “Refresh now” to import leads.` : `<span class="over">${esc(r.error)}</span>${metaErrHtml(r.detail)}`;
     if (r.ok) { await refreshFeed(); }
   };
   if ($('#m-clear')) $('#m-clear').onclick = async () => { if (confirm('Disconnect Meta? Existing leads stay; syncing stops.')) { await api('meta', 'save', { page_id: $('#m-page').value, clear_token: 1 }); renderMetaCard(); } };
