@@ -342,6 +342,7 @@ $n2 = call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[1], 'is
 chk($n1 !== '' && $n2 !== '' && $n1 !== $n2, "tax bill: two bills get different numbers ($n1, $n2)");
 $gb = call($admin, 'gen', 'get', null, "&kind=tax&customer_id={$tb[0]}");
 chk(($gb['doc']['data']['parts']['a']['gst'] ?? 0) === 5 && ($gb['doc']['data']['parts']['b']['hsn'] ?? '') === '995461' && ($gb['doc']['data']['parts']['total'] ?? 0) === 320000, 'tax bill: Part A / Part B saved as entered');
+chk(($gb['qm']['bank']['ifsc'] ?? '') === 'SBIN0064970' && ($gb['qm']['kseb']['reg_per_kw'] ?? 0) == 1000 && strpos($gb['qm']['address'] ?? '', 'Nedumangad') !== false && ($gb['qm']['site'] ?? '') === 'www.jasper.solar', 'tax bill: gets the company address, website, bank and KSEB fees from the quotation settings');
 $re = call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[0], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill One', 'items' => [], 'parts' => $parts]])['number'] ?? '';
 chk($re === $n1, 'tax bill: saving changes keeps the bill\'s number');
 if ($dbPath !== '' && is_file($dbPath)) { // a counter left stuck by the old bug ("1" stored as JSON text) must not hand out a used number again

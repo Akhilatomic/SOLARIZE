@@ -15,6 +15,14 @@ function gen_next_no($kind, $date) {
   $pre = trim((string)(settings()['company']['quote_prefix'] ?? 'JS')) ?: 'JS';
   return sprintf('%s/%s/%s/%03d', $pre, $mid, $fy, $n);
 }
+// The company address, contacts, bank account and KSEB fees set in the Quotation maker — the tax bill prints the same details.
+function gen_qm_info() {
+  try { $s = qm_settings(); } catch (Throwable $e) { return null; }
+  $co = (array)($s['company'] ?? []); $addr = '';
+  foreach ((array)($co['lines'] ?? []) as $l) if (preg_match('/office|address/i', (string)($l['label'] ?? ''))) { $addr = (string)($l['text'] ?? ''); break; }
+  return ['name' => (string)($co['name'] ?? ''), 'address' => $addr, 'phone' => (string)($co['phone'] ?? ''), 'email' => (string)($co['email'] ?? ''), 'site' => (string)($s['site'] ?? ''),
+    'bank' => $s['bank'] ?? null, 'kseb' => $s['kseb'] ?? null];
+}
 function gen_clean($v, $depth = 0) { // keep plain text / numbers / small nested lists only
   if (is_array($v)) { if ($depth > 3) return []; $o = []; foreach (array_slice($v, 0, 200, true) as $k => $x) $o[is_int($k) ? $k : mb_substr(preg_replace('/[^\w]/', '', (string)$k), 0, 40)] = gen_clean($x, $depth + 1); return $o; }
   if (is_bool($v) || is_int($v) || is_float($v)) return $v;
@@ -47,7 +55,8 @@ function handle_gen($a) {
         'company' => settings()['company'] ?? [],
         'mfr_defaults' => json_decode((string)(row("SELECT v FROM settings WHERE k='mfr_defaults'")['v'] ?? ''), true) ?: ['distributor' => 'Southern Power Source Pvt Ltd', 'email' => ''],
         'tax' => row("SELECT number, issued_on FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid]) ?: null, // bill no. also prints on the warranty card
-        'acct' => $kind === 'tax' ? gen_acct($cid) : null]);
+        'acct' => $kind === 'tax' ? gen_acct($cid) : null,
+        'qm' => $kind === 'tax' ? gen_qm_info() : null]);
 
     case 'cost': // plant cost = the customer's project value (creates the project if there is none yet)
       need('customers', true); need('finance');

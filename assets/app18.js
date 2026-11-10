@@ -16,6 +16,21 @@ function printDoc(title, inner) {
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${DOC_CSS}@page{size:A4;margin:12mm}body{margin:0;background:#fff}.doc{box-shadow:none;margin:0 auto;border:0}</style></head><body>${inner}</body></html>`);
   w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 350);
 }
+/* tax bill layout (header with the title on the right, Bill to / Ship to, item table with CGST/SGST % and amount, totals beside the words) */
+const TAXDOC_CSS = `.dhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:2px solid #1d1d1f;padding-bottom:10px}
+.dhead .dhco{border:0!important;padding:0!important}.dhead h1{margin:0!important;font-size:22px!important;font-weight:600!important;letter-spacing:.04em;text-align:right!important;white-space:nowrap}
+.dco{color:#3a3a3c;font-size:11px;line-height:1.45}.dbs{display:grid;grid-template-columns:1fr 1fr;gap:10px}.dsubj{margin:0 0 4px;font-size:12px}.dsubj span{color:#6e6e73;margin-right:6px}
+.dit th{text-align:center!important;vertical-align:middle!important;white-space:nowrap}.dit th.l{text-align:left!important}.dit td.r{text-align:right}
+.dfoot{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:12px;align-items:start;margin-top:4px}.dfoot .dtot{margin:0!important;width:100%!important}
+.dfoot .dtot tr:last-child td{font-weight:400;font-size:12px;border-bottom:1px solid #e5e5ea}
+.dtax .dmeta{grid-template-columns:repeat(3,minmax(0,1fr));gap:3px 14px;margin:8px 0 10px}.dtax .dmeta span{min-width:84px}.dtax .dbox{padding:6px 9px;margin-bottom:8px}
+.dit .dpt{text-transform:none!important}.dit .dpk{margin:0 4px 0 0!important;font-size:9.5px}
+.dit td{font-size:11px}.dit .dsub{font-size:10.5px}.dit .dpt{font-size:11.5px}.dfoot .dtot td{padding:3px 6px}.dfoot .dbox{margin-bottom:8px}.dlbl{color:#6e6e73;font-size:11px}
+.dsrt{margin:0 0 10px!important}.dsrt th{text-align:left!important;font-size:10.5px}.dsrt th.dsrh{background:#fff!important;color:#6e6e73;font-weight:600}.dsrt .dsrw{width:55%}.dsrt td{vertical-align:top}
+.dsrl{margin:0;padding:0 0 0 22px;column-gap:18px;font:10.5px/1.6 ui-monospace,Menlo,Consolas,monospace}.dsrl li{break-inside:avoid}
+.dsign{display:flex;justify-content:flex-end;margin-top:18px;break-inside:avoid}.dstamp{width:260px;text-align:center;font-size:11px}.dstamp .dfor{font-weight:600}
+.dstamp .dsp{height:92px}.dstamp .dsl{border-top:1px solid #1d1d1f;padding-top:4px;font-weight:600}.dstamp small{display:block;color:#6e6e73;font-size:10px}
+@media print{.dtax{font-size:11.5px!important;line-height:1.38!important;padding:0!important;min-height:270mm;box-sizing:border-box;display:flex;flex-direction:column}.dtax .dsign{margin-top:auto;padding-top:6px}}.dtot .dgt td,.dtot .dbal td{font-weight:700!important;font-size:13.5px!important;border-bottom:2px solid #1d1d1f!important}.dtot .dpay td{color:#c4271f}`;
 const DOC_CSS = `.tbg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px 12px;margin-top:2px}.tbs+.tbs{margin-top:6px}
 .doc{font:12px/1.45 -apple-system,"Segoe UI",Arial,sans-serif;color:#1d1d1f;background:#fff;padding:26px 28px;max-width:794px}
 .doc h1{font-size:18px;letter-spacing:.06em;text-align:center;margin:14px 0 12px;font-weight:700}
@@ -26,7 +41,7 @@ const DOC_CSS = `.tbg{display:grid;grid-template-columns:repeat(auto-fill,minmax
 .dtot{margin-left:auto;width:320px}.dtot td{border:0;border-bottom:1px solid #e5e5ea}.dtot tr:last-child td{font-weight:700;font-size:14px;border-bottom:2px solid #1d1d1f}
 .dsig{display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px}.dsig div{text-align:center;min-width:200px;border-top:1px solid #1d1d1f;padding-top:4px;font-size:11px}
 .dsmall{font-size:10.5px;color:#3a3a3c;white-space:pre-wrap}.dser{columns:3;column-gap:16px;font-size:10.5px;font-family:ui-monospace,Menlo,Consolas,monospace}
-.dpt{font-weight:700;text-transform:uppercase}.dpk{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.06em;color:#6e6e73;margin-bottom:1px}.dsub{white-space:pre-line;font-size:11px;color:#3a3a3c;margin-top:2px}`;
+.dpt{font-weight:700;text-transform:uppercase}.dpk{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.06em;color:#6e6e73;margin-bottom:1px}.dsub{white-space:pre-line;font-size:11px;color:#3a3a3c;margin-top:2px}` + TAXDOC_CSS;
 
 // ---------------- Warranty card ----------------
 const W_DEF = { panel_product: 12, panel_perf: 25, inverter: 5, workmanship: 5, structure: 10 };
@@ -142,12 +157,17 @@ const HSN = [[/install|commission|labour|service|kseb|net.?meter|formalit/i, '99
 const guessHsn = d => (HSN.find(([re]) => re.test(d || '')) || [null, '', 18]);
 async function renderTax(box, c, id) {
   box.innerHTML = '<p class="mut">Loading…</p>';
+  if (!document.getElementById('taxdoc-css')) document.head.insertAdjacentHTML('beforeend', `<style id="taxdoc-css">${TAXDOC_CSS}</style>`);
   const g = await api('gen', 'get', undefined, `&kind=tax&customer_id=${id}`), w = canW('customers'), co = g.company, P = g.plant || {};
   const cs = String(co.gstin || '32').slice(0, 2);
   let D = (g.doc || {}).data;
   if (!D) { const items = g.quote && g.quote.items.length ? g.quote.items.map(i => { const h = guessHsn(i.desc); return { desc: i.desc, hsn: h[1], qty: i.qty, rate: i.rate, gst: h[2] }; })
       : [{ desc: `Solar PV power plant ${P.capacity || (g.project || {}).kw || ''} kWp — supply, installation & commissioning`.replace(/\s+kWp/, ' kWp'), hsn: '85414300', qty: 1, rate: Math.round(((g.acct || {}).cost || (g.project || {}).cost || 0) / 1.05 * 100) / 100, gst: 5 }];
-    D = { bill_name: c.name, bill_address: [c.address, c.district, c.pincode].filter(Boolean).join(', '), cust_gstin: c.gst_no || '', interstate: c.gst_no && String(c.gst_no).slice(0, 2) !== cs ? 1 : 0, items, notes: 'Goods once sold will not be taken back. Subject to Thiruvananthapuram jurisdiction.' }; }
+    const kwN = parseFloat(P.capacity || (g.project || {}).kw) || 0, ks = (g.qm || {}).kseb || {}, ba = [c.address, c.district, c.pincode].filter(Boolean).join(', ');
+    const fee = kwN && ks.reg_per_kw != null ? Math.round((+ks.feas || 0) + (+ks.reg_per_kw || 0) * kwN * (100 + (+ks.reg_gst || 0)) / 100) : 0;
+    D = { bill_name: c.name, bill_address: ba, ship_address: ba, cust_gstin: c.gst_no || '', interstate: c.gst_no && String(c.gst_no).slice(0, 2) !== cs ? 1 : 0, items, show_paid: 1, terms: 'Due on receipt',
+      subject: kwN ? `${kwN} kW on-grid solar power plant` : 'On-grid solar power plant',
+      notes: (fee ? `Customer scope: KSEB feasibility and registration fee ₹${fee.toLocaleString('en-IN')} (registration fee 80% refundable by KSEB).\n` : '') + 'Goods once sold will not be taken back. Subject to Thiruvananthapuram jurisdiction.' }; }
   D.ser = D.ser || { p: 1, i: 1, m: 1 }; D.show_paid = +D.show_paid || 0;
   let A = g.acct || { project_id: 0, cost: 0, payments: [], paid: 0 };
   /* Part A / Part B bill (solar plant under the GST 70:30 rule): the total (incl. GST) is split so that 70% of the taxable value is
@@ -172,14 +192,18 @@ async function renderTax(box, c, id) {
       <div class="two"><div><label>Invoice date</label><input type="date" id="tdate" value="${issued}" ${w ? '' : 'disabled'}></div>
        <div><label>Supply</label><select id="tinter" ${w ? '' : 'disabled'}><option value="0" ${+D.interstate ? '' : 'selected'}>Within Kerala — CGST + SGST</option><option value="1" ${+D.interstate ? 'selected' : ''}>Outside Kerala — IGST</option></select></div>
        <div><label>Bill to (name)</label><input data-t="bill_name" value="${esc(D.bill_name || '')}" ${w ? '' : 'disabled'}></div><div><label>Customer GSTIN (if any)</label><input data-t="cust_gstin" value="${esc(D.cust_gstin || '')}" maxlength="15" ${w ? '' : 'disabled'}></div>
-       <div class="full"><label>Billing address</label><input data-t="bill_address" value="${esc(D.bill_address || '')}" ${w ? '' : 'disabled'}></div></div>
+       <div class="full"><label>Billing address</label><input data-t="bill_address" value="${esc(D.bill_address || '')}" ${w ? '' : 'disabled'}></div>
+       <div class="full"><label>Ship to — installation site</label><input data-t="ship_address" value="${esc(D.ship_address ?? D.bill_address ?? '')}" ${w ? '' : 'disabled'}></div>
+       <div class="full"><label>Subject</label><input data-t="subject" value="${esc(D.subject || '')}" placeholder="e.g. 5 kW on-grid solar power plant" ${w ? '' : 'disabled'}></div>
+       <div><label>Terms</label><input data-t="terms" value="${esc(D.terms || '')}" placeholder="Due on receipt" ${w ? '' : 'disabled'}></div><div><label>Due date</label><input type="date" data-t="due_on" value="${esc(D.due_on || '')}" ${w ? '' : 'disabled'}></div></div>
       <div id="tlines"></div>
       <label>Notes</label><textarea data-t="notes" rows="2" ${w ? '' : 'disabled'}>${esc(D.notes || '')}</textarea>
-      <label>Print on the bill</label><div class="tbo">${[['p', `Panel serial numbers (${pn.length})`], ['i', `Inverter serial numbers (${iv.length})`], ['m', `Energy meter serial${P.meter_serial ? '' : ' (not entered)'}`]].map(([k, l]) => `<label><input type="checkbox" data-o="${k}" ${D.ser[k] ? 'checked' : ''} ${w ? '' : 'disabled'}> ${l}</label>`).join('')}<label><input type="checkbox" data-o="paid" ${D.show_paid ? 'checked' : ''} ${w ? '' : 'disabled'}> Payments received & balance</label></div>
-      ${!pn.length && !iv.length && !P.meter_serial ? '<p class="mut" style="font-size:12.5px;margin:4px 0 0">Add serial numbers in <b>Plant details</b> to print them on the bill.</p>' : ''}
+      <label>Serial numbers on the bill</label><div class="tbo">${[['p', `Solar panels — ${pn.length ? pn.length + ' entered' : 'none entered'}`], ['i', `Inverter — ${iv.length ? iv.length + ' entered' : 'none entered'}`], ['m', `Energy meter — ${P.meter_serial ? 'entered' : 'not entered'}`]].map(([k, l]) => `<label><input type="checkbox" data-o="${k}" ${D.ser[k] ? 'checked' : ''} ${w ? '' : 'disabled'}> ${l}</label>`).join('')}</div>
+      ${!pn.length || !iv.length || !P.meter_serial ? `<p class="mut" style="font-size:12.5px;margin:4px 0 0">Serial numbers come from <b>Plant details</b>${[!pn.length && 'panels', !iv.length && 'inverter', !P.meter_serial && 'energy meter'].filter(Boolean).length ? ' — still missing: ' + [!pn.length && 'panels', !iv.length && 'inverter', !P.meter_serial && 'energy meter'].filter(Boolean).join(', ') : ''}. <button class="btn sec sm" id="tgoplant" type="button">Open Plant details</button></p>` : ''}
+      <label>Also print</label><div class="tbo"><label><input type="checkbox" data-o="paid" ${D.show_paid ? 'checked' : ''} ${w ? '' : 'disabled'}> Payment made & balance due</label></div>
       <div class="bar" style="margin-top:12px">${w ? `<button class="btn" id="tsv">${g.doc ? 'Save changes' : 'Issue tax bill'}</button>` : ''}<button class="btn sec" id="tpr"><i class="i i-download"></i> Print / PDF</button></div>
       <p class="mut" style="font-size:12px;margin:8px 0 0">HSN codes and GST rates are suggestions — confirm them with your accountant. The invoice number is issued once and never reused.</p></div>
-    <div class="gdp"><div class="doc" id="tdoc"></div></div></div>
+    <div class="gdp"><div class="doc dtax" id="tdoc"></div></div></div>
     <div class="tbx"><div class="card" id="tacc"></div><div class="card" id="tsum"></div></div>
     <datalist id="hsnl">${['85414300 — Solar PV modules', '85044090 — Inverters', '73089090 — Mounting structure', '85444999 — Cables', '853690 — Connectors / DB', '995461 — Installation services', '998732 — Repair & maintenance'].map(x => `<option value="${x.split(' ')[0]}">${x}</option>`).join('')}</datalist>`;
   let I = (D.items || []).map(x => ({ ...x }));
@@ -208,27 +232,42 @@ async function renderTax(box, c, id) {
       return { inter, rows, tx: r2(tx), tt: r2(tt), ro: r2(grand - sum), grand, parts: 1, sh, ga, gb }; } const rows = I.filter(x => x.desc).map(x => { const tv = (+x.qty || 0) * (+x.rate || 0), t = tv * (+x.gst || 0) / 100; tx += tv; tt += t; return { ...x, tv, t }; });
     const sum = tx + tt, grand = Math.round(sum); return { inter, rows, tx, tt, ro: grand - sum, grand }; };
   const val = () => { const o = { items: PT ? [] : I, ...(PT ? { parts: PT } : {}), interstate: +$('#tinter', box).value, ser: {}, show_paid: 0 }; $$('[data-t]', box).forEach(e => o[e.dataset.t] = e.value); $$('[data-o]', box).forEach(e => { if (e.dataset.o === 'paid') o.show_paid = e.checked ? 1 : 0; else o.ser[e.dataset.o] = e.checked ? 1 : 0; }); return o; };
-  const html = () => { const v = val(), k = calc();
-    return `${coBlock(co)}<h1>TAX INVOICE</h1>
-      <div class="dmeta"><div><span>Invoice no.</span><b>${esc(g.doc ? g.doc.number : '(issued on save)')}</b></div><div><span>Invoice date</span>${fdt($('#tdate', box).value)}</div>
-       <div><span>Place of supply</span>${k.inter ? 'Outside Kerala (IGST)' : 'Kerala (32)'}</div><div><span>Consumer no.</span>${esc(c.consumer_no || '—')}</div></div>
-      <div class="dbox"><h4>Bill to</h4><b>${esc(v.bill_name)}</b><br>${esc(v.bill_address || '')}${v.cust_gstin ? '<br>GSTIN: ' + esc(v.cust_gstin) : ''}${c.phone ? '<br>Ph: ' + esc(c.phone) : ''}</div>
-      ${k.parts ? `<table class="dt"><thead><tr><th>#</th><th>Item</th><th>HSN/SAC</th><th class="r">Taxable value</th><th class="r">GST</th>${k.inter ? '<th class="r">IGST</th>' : '<th class="r">CGST</th><th class="r">SGST</th>'}<th class="r">Amount</th></tr></thead><tbody>
-       ${k.rows.map((x, i) => `<tr><td>${i + 1}</td><td><span class="dpk">PART ${x.part}</span><div class="dpt">${esc(x.desc)}</div>${x.sub ? `<div class="dsub">${esc(x.sub)}</div>` : ''}</td><td class="h">${esc(x.hsn || '')}</td><td class="r">${inr2(x.tv)}</td><td class="r">${+x.gst}%</td>${k.inter ? `<td class="r">${inr2(x.t)}</td>` : `<td class="r">${inr2(x.t / 2)}</td><td class="r">${inr2(x.t / 2)}</td>`}<td class="r">${inr2(x.tv + x.t)}</td></tr>`).join('') || `<tr><td colspan="9">Enter the total amount</td></tr>`}</tbody></table>
-      <div class="dsmall">GST for a solar power plant: ${k.sh}% of the taxable value is supply of goods (Part A) at ${k.ga}% and ${100 - k.sh}% is installation / service (Part B) at ${k.gb}%.</div>` : `<table class="dt"><thead><tr><th>#</th><th>Description</th><th>HSN/SAC</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Taxable value</th><th class="r">GST</th>${k.inter ? '<th class="r">IGST</th>' : '<th class="r">CGST</th><th class="r">SGST</th>'}<th class="r">Amount</th></tr></thead><tbody>
-       ${k.rows.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.desc)}</td><td class="h">${esc(x.hsn || '')}</td><td class="r">${+x.qty}</td><td class="r">${inr2(x.rate)}</td><td class="r">${inr2(x.tv)}</td><td class="r">${+x.gst}%</td>${k.inter ? `<td class="r">${inr2(x.t)}</td>` : `<td class="r">${inr2(x.t / 2)}</td><td class="r">${inr2(x.t / 2)}</td>`}<td class="r">${inr2(x.tv + x.t)}</td></tr>`).join('') || `<tr><td colspan="10">No items</td></tr>`}</tbody></table>`}
-      <table class="dt dtot"><tbody><tr><td>Taxable value</td><td class="r">${inr2(k.tx)}</td></tr>${k.inter ? `<tr><td>IGST</td><td class="r">${inr2(k.tt)}</td></tr>` : `<tr><td>CGST</td><td class="r">${inr2(k.tt / 2)}</td></tr><tr><td>SGST</td><td class="r">${inr2(k.tt / 2)}</td></tr>`}
-       <tr><td>Round off</td><td class="r">${inr2(k.ro)}</td></tr><tr><td>Total</td><td class="r">${inr2(k.grand)}</td></tr></tbody></table>
-      <div class="dbox"><h4>Amount in words</h4>Rupees ${inWords(k.grand)} only</div>
-      ${v.show_paid ? `<table class="dt dtot"><tbody>${A.payments.map(p => `<tr><td>Received ${fdt(p.date)}${p.mode ? ' · ' + esc(p.mode) : ''}</td><td class="r">${inr2(p.amount)}</td></tr>`).join('')}<tr><td>Total received</td><td class="r">${inr2(A.paid)}</td></tr><tr><td>Balance due</td><td class="r">${inr2(Math.max(0, k.grand - A.paid))}</td></tr></tbody></table>` : ''}
+  const html = () => { const v = val(), k = calc(), Q = g.qm || {}, inter = k.inter, date = $('#tdate', box).value;
+    const CN = Q.name || co.name || 'Jasper Solar Solutions', web = Q.site || '', ph = Q.phone || co.phone || '', em = Q.email || co.email || '';
+    const meta = [['Invoice no.', `<b>${esc(g.doc ? g.doc.number : '(issued on save)')}</b>`], ['Invoice date', fdt(date)], ...(v.terms ? [['Terms', esc(v.terms)]] : []), ['Due date', fdt(v.due_on || date)],
+      ['Place of supply', inter ? 'Outside Kerala (IGST)' : 'Kerala (32)'], ['Consumer no.', esc(c.consumer_no || '—')]];
+    const nb = x => inr2(x).replace('₹', ''), taxTd = x => inter ? `<td class="r">${+x.gst}%</td><td class="r">${nb(x.t)}</td>` : `<td class="r">${+x.gst / 2}%</td><td class="r">${nb(x.t / 2)}</td><td class="r">${+x.gst / 2}%</td><td class="r">${nb(x.t / 2)}</td>`;
+    const colg = `<colgroup><col style="width:20px"><col><col style="width:62px"><col style="width:28px"><col style="width:74px">${inter ? '<col style="width:34px"><col style="width:64px">' : '<col style="width:34px"><col style="width:62px"><col style="width:34px"><col style="width:62px">'}<col style="width:76px"></colgroup>`;
+    const desc = x => k.parts ? `<div class="dpt"><span class="dpk">PART ${x.part}</span> ${esc(x.desc)}</div>${x.sub ? `<div class="dsub">${esc(x.sub)}</div>` : ''}` : esc(x.desc);
+    const byRate = {}; k.rows.forEach(x => { if (+x.gst) byRate[+x.gst] = (byRate[+x.gst] || 0) + x.t; });
+    const taxLines = Object.keys(byRate).map(Number).sort((a, b) => a - b).flatMap(r => inter ? [[`IGST ${r}%`, byRate[r]]] : [[`CGST ${r / 2}%`, byRate[r] / 2], [`SGST ${r / 2}%`, byRate[r] / 2]]);
+    const bank = Q.bank ? [['Bank', Q.bank.bank], ['Account name', Q.bank.name], ['Account no.', Q.bank.account], ['IFSC', Q.bank.ifsc]].filter(x => x[1]) : [];
+    return `<div class="dhead"><div class="dhco"><img src="${location.origin}/assets/logo.png" alt=""><div><b>${esc(CN)}</b><div class="dco">${esc(Q.address || co.address || '')}${co.gstin ? '<br>GSTIN ' + esc(co.gstin) : ''}${[ph, em, web].filter(Boolean).length ? '<br>' + [ph, em, web].filter(Boolean).map(esc).join(' · ') : ''}</div></div></div><h1>TAX INVOICE</h1></div>
+      <div class="dmeta">${meta.map(([l, x]) => `<div><span>${l}</span>${x}</div>`).join('')}</div>
+      <div class="dbs"><div class="dbox"><h4>Bill to</h4><b>${esc(v.bill_name)}</b><br>${esc(v.bill_address || '')}${v.cust_gstin ? '<br>GSTIN: ' + esc(v.cust_gstin) : ''}${c.phone ? '<br>Ph: ' + esc(c.phone) : ''}</div>
+       <div class="dbox"><h4>Ship to — installation site</h4>${esc(v.ship_address || v.bill_address || '')}</div></div>
+      ${v.subject ? `<div class="dsubj"><span>Subject:</span><b>${esc(v.subject)}</b></div>` : ''}
+      <table class="dt dit">${colg}<thead><tr><th rowspan="2">#</th><th rowspan="2" class="l">Item &amp; description</th><th rowspan="2">HSN/SAC</th><th rowspan="2">Qty</th><th rowspan="2">Rate (₹)</th>${inter ? '<th colspan="2">IGST</th>' : '<th colspan="2">CGST</th><th colspan="2">SGST</th>'}<th rowspan="2">Amount (₹)</th></tr>
+       <tr>${inter ? '<th>%</th><th>Amt</th>' : '<th>%</th><th>Amt</th><th>%</th><th>Amt</th>'}</tr></thead><tbody>
+       ${k.rows.map((x, i) => `<tr><td>${i + 1}</td><td>${desc(x)}</td><td class="h">${esc(x.hsn || '')}</td><td class="r">${+x.qty}</td><td class="r">${nb(x.rate)}</td>${taxTd(x)}<td class="r">${nb(x.tv)}</td></tr>`).join('') || `<tr><td colspan="${inter ? 8 : 10}">${k.parts ? 'Enter the total amount' : 'No items'}</td></tr>`}</tbody></table>
+      ${k.parts ? `<div class="dsmall" style="margin:-4px 0 8px">GST for a solar power plant: ${k.sh}% of the taxable value is supply of goods (Part A) at ${k.ga}% and ${100 - k.sh}% is installation / service (Part B) at ${k.gb}%.</div>` : ''}
       ${serBox(v)}
-      ${v.notes ? `<div class="dsmall">${esc(v.notes)}</div>` : ''}
-      <div class="dsig"><div>Customer signature</div><div>For ${esc(co.name || '')}<br>Authorised signatory</div></div>`; };
-  function serBox(v) { const mk = (t, a) => `<div class="tbs"><b>${t}</b><div class="dser tbg">${a.map((x, i) => `<span>${i + 1}. ${esc(x)}</span>`).join('')}</div></div>`, parts = [];
-    if (v.ser.p && pn.length) parts.push(mk(`Solar panels — ${esc([P.panel_make, P.panel_wattage ? P.panel_wattage + ' W' : ''].filter(Boolean).join(' '))} (${pn.length})`, pn.map(x => x.serial)));
-    if (v.ser.i && iv.length) parts.push(mk(`Inverter — ${esc([P.inverter_make, P.inverter_capacity ? P.inverter_capacity + ' kW' : ''].filter(Boolean).join(' '))}`, iv.map(x => x.serial)));
-    if (v.ser.m && P.meter_serial) parts.push(mk(`Energy meter — ${esc([P.meter_make, P.meter_type].filter(Boolean).join(', '))}`, [P.meter_serial]));
-    return parts.length ? `<div class="dbox"><h4>Serial numbers</h4>${parts.join('')}</div>` : ''; }
+      <div class="dfoot"><div><div class="dbox"><span class="dlbl">Total in words:</span> <b>Rupees ${inWords(k.grand)} only</b></div>
+        ${v.notes ? `<div class="dbox"><h4>Notes</h4><div class="dsmall">${esc(v.notes)}</div></div>` : ''}
+        ${bank.length ? `<div class="dbox"><h4>Bank account details</h4><div class="dsmall">${bank.map(([l, x], i) => `${i === 2 ? '<br>' : i ? ' · ' : ''}${l}: <b>${esc(x)}</b>`).join('')}</div></div>` : ''}</div>
+       <table class="dt dtot"><tbody><tr><td>Sub total</td><td class="r">${inr2(k.tx)}</td></tr>${taxLines.map(([l, a]) => `<tr><td>${l}</td><td class="r">${inr2(a)}</td></tr>`).join('')}
+        <tr><td>Rounding</td><td class="r">${inr2(k.ro)}</td></tr><tr class="dgt"><td>Total</td><td class="r">${inr2(k.grand)}</td></tr>
+        ${v.show_paid ? `<tr class="dpay"><td>Payment made (−)</td><td class="r">${inr2(A.paid)}</td></tr><tr class="dbal"><td>Balance due</td><td class="r">${inr2(Math.max(0, k.grand - A.paid))}</td></tr>` : ''}</tbody></table></div>
+      <div class="dsign"><div class="dstamp"><div class="dfor">For ${esc(CN)}</div><div class="dsp"></div><div class="dsl">Authorised signatory</div><small>Seal &amp; signature</small></div></div>`; };
+  function serBox(v) { const nm = a => esc(a.filter(Boolean).join(' ')), cols = [];
+    if (v.ser.p && pn.length) cols.push([`Panel serial nos. — ${nm([P.panel_make, P.panel_wattage ? P.panel_wattage + ' Wp' : '', P.panel_model])} (${pn.length} nos)`, pn.map(x => x.serial), 1]);
+    if (v.ser.i && iv.length) cols.push([`Inverter serial no. — ${nm([P.inverter_make, P.inverter_capacity ? P.inverter_capacity + ' kW' : '', P.inverter_model])}${iv.length > 1 ? ` (${iv.length} nos)` : ''}`, iv.map(x => x.serial)]);
+    if (v.ser.m && P.meter_serial) cols.push([`Energy meter serial no. — ${nm([P.meter_make, P.meter_type])}`, [P.meter_serial]]);
+    if (!cols.length) return '';
+    /* panels get the wide column and split their list into sub-columns (read top to bottom) so 20+ panels still fit */
+    const sub = n => n > 12 ? 3 : n > 4 ? 2 : 1, /* 3 columns is the most that fits the width */ wide = cols.length > 1 && cols[0][2];
+    return `<table class="dt dsrt"><thead><tr>${cols.map(([t], i) => `<th${wide && i === 0 ? ' class="dsrw"' : ''}>${t}</th>`).join('')}</tr></thead>
+      <tbody><tr>${cols.map(([, a, isP]) => `<td><ol class="dsrl" style="columns:${isP ? sub(a.length) : 1}">${a.map(x => `<li>${esc(x)}</li>`).join('')}</ol></td>`).join('')}</tr></tbody></table>`; }
   // ---- plant cost & payments received
   const MODES = ['UPI', 'Bank transfer', 'Cash', 'Cheque', 'Card', 'Loan', 'Subsidy'];
   const drawAcc = () => { const bal = Math.max(0, (A.cost || 0) - A.paid), wp = w && canW('payments');
@@ -271,7 +310,8 @@ async function renderTax(box, c, id) {
     if (e.target.dataset.i !== undefined) { const x = I[+e.target.dataset.i]; x[e.target.dataset.f] = e.target.dataset.f === 'desc' || e.target.dataset.f === 'hsn' ? e.target.value : +e.target.value || 0;
       if (e.target.dataset.f === 'desc' && !x.hsn) { const h = guessHsn(x.desc); if (h[1]) { x.hsn = h[1]; x.gst = h[2]; drawItems(); } } } upd(); });
   box.addEventListener('change', e => { if (e.target.dataset.f === 'gst') { I[+e.target.dataset.i].gst = +e.target.value; } upd(); });
-  $('#tpr', box).onclick = () => printDoc(`Tax invoice — ${c.name}`, `<div class="doc">${html()}</div>`);
+  if ($('#tgoplant', box)) $('#tgoplant', box).onclick = () => { const t = document.querySelector('[data-pt="plant"]'); if (t) { t.click(); scrollTo({ top: 0, behavior: 'smooth' }); } };
+  $('#tpr', box).onclick = () => printDoc(`Tax invoice — ${c.name}`, `<div class="doc dtax">${html()}</div>`);
   if ($('#tsv', box)) $('#tsv', box).onclick = async () => { const v = val(), k = calc(); if (!k.rows.length) return toast(PT ? 'Enter the total amount (incl. GST)' : 'Add at least one item', true);
     v.grand = k.grand; v.taxable = Math.round(k.tx * 100) / 100; v.tax = Math.round(k.tt * 100) / 100; const b = $('#tsv', box); b.disabled = true;
     try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, data: v }); toast(`Tax bill ${r.number} saved`); renderTax(box, c, id); } catch (e) { b.disabled = false; } };
