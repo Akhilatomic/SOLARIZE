@@ -15,5 +15,7 @@ tar -C "$ROOT" --exclude=.git --exclude=data --exclude='*.zip' --exclude=.superp
 "$PHP" -S "localhost:$PORT" -t "$TMP" >/dev/null 2>&1 &
 PID=$!
 for i in $(seq 1 50); do curl -s -o /dev/null "http://localhost:$PORT/" && break; sleep 0.2; done
-"$PHP" "$TMP/tests/qm_api_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite"
-exit $?
+RC=0
+"$PHP" "$TMP/tests/qm_api_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
+"$PHP" "$TMP/tests/kseb_api_test.php" "http://localhost:$PORT" || RC=1
+exit $RC
