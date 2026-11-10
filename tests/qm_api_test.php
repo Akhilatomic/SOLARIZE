@@ -1,6 +1,7 @@
 <?php
 // Quotation maker API tests. Usage: php tests/qm_api_test.php http://localhost:8094  (fresh data folder)
 $base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+$dbPath = $argv[2] ?? '';
 $pass = 0; $fail = 0;
 function chk($ok, $label) { global $pass, $fail; if ($ok) { $pass++; echo "  ok   $label\n"; } else { $fail++; echo "  FAIL $label\n"; } }
 
@@ -130,7 +131,7 @@ chk(call($sales, 'qm', 'save', ['customer_id' => $cid, 'status' => 'Bogus', 'doc
 call($admin, 'qm', 'product_save', ['id' => $panelId, 'name' => 'Changed name'] + $panel);
 chk(json_decode(call($sales, 'quotes', 'get', null, '&id=' . $q1['id'])['doc'], true)['snap']['panels'][0]['name'] === $panel['name'], 'saved quote keeps its snapshot');
 chk(call($sales, 'quotes', 'list')[0]['total'] == $doc['price'], 'list shows the package price');
-/* parallel saves get different numbers */
+/* consecutive saves; the built-in server handles one request at a time, so the lock test below is the real race check */
 $mh = curl_multi_init(); $chs = [];
 for ($i = 0; $i < 2; $i++) {
   $ch = curl_init("$base/api.php?m=qm&a=save");
@@ -140,7 +141,24 @@ for ($i = 0; $i < 2; $i++) {
 }
 do { curl_multi_exec($mh, $run); if ($run) curl_multi_select($mh, 1); } while ($run);
 $nums = []; foreach ($chs as $ch) { $j = json_decode(curl_multi_getcontent($ch), true); $nums[] = $j['number'] ?? null; curl_multi_remove_handle($mh, $ch); curl_close($ch); }
-chk($nums[0] && $nums[1] && $nums[0] !== $nums[1], 'parallel saves get different numbers');
+chk($nums[0] && $nums[1] && $nums[0] !== $nums[1], 'consecutive saves get different numbers');
+/* deterministic lock check: while another connection holds the SQLite write lock, save must wait (it takes BEGIN IMMEDIATE before reading qm_next) */
+if ($dbPath !== '' && is_file($dbPath)) {
+  $before = call($sales, 'qm', 'boot')['next_number'];
+  $lock = new PDO('sqlite:' . $dbPath); $lock->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $lock->exec('PRAGMA busy_timeout=5000');
+  $lock->exec('BEGIN IMMEDIATE');
+  $ch = curl_init("$base/api.php?m=qm&a=save");
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEFILE => $sales['jar'], CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['X-Solarize: 1', 'Content-Type: application/json'],
+    CURLOPT_POSTFIELDS => json_encode(['customer_id' => $cid, 'status' => 'Draft', 'doc' => $doc])]);
+  $mh = curl_multi_init(); curl_multi_add_handle($mh, $ch);
+  $t0 = microtime(true); $run = 1;
+  while ($run && microtime(true) - $t0 < 1.0) { curl_multi_exec($mh, $run); if ($run) curl_multi_select($mh, 0.05); }
+  chk($run > 0, 'save waits while the write lock is held');
+  $lock->exec('COMMIT');
+  while ($run) { curl_multi_exec($mh, $run); if ($run) curl_multi_select($mh, 0.1); }
+  $j = json_decode(curl_multi_getcontent($ch), true); curl_multi_remove_handle($mh, $ch); curl_close($ch);
+  chk(($j['number'] ?? null) === $before, 'save finishes after the lock is released, with the next number');
+} else echo "  skip lock test (no database path given)\n";
 
 
 echo "\n$pass passed, $fail failed\n";
