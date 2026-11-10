@@ -36,7 +36,7 @@ const QM_DEFAULTS = [
     ['amt' => '70%', 'text' => 'Before material readiness, for dispatch of major components (PV modules, inverter and mounting structure) to site'],
     ['amt' => '30%', 'text' => 'After installation'],
   ],
-  'kseb' => ['feas' => 1000, 'reg_per_kw' => 1000, 'stamp' => 300, 'reg_label' => 'Registration fee (₹1,000 per kW, 80% refundable)'],
+  'kseb' => ['feas' => 1000, 'reg_per_kw' => 1000, 'stamp' => 300, 'reg_label' => 'Registration fee (₹1,000 per kW, 80% refundable)', 'feas_label' => 'KSEB Ltd. feasibility charge', 'stamp_label' => 'Stamp paper'],
   'loan' => [
     'margin_pct' => 10, 'rate' => 6.0, 'months' => [60, 84, 120], 'units_per_kwp' => 1300, 'tariff' => 7,
     'texts' => [
@@ -139,7 +139,7 @@ function qm_seed(PDO $db): void {
       ['title' => 'Deye Microinverter', 'kw' => 2, 'qty_note' => '2 kW', 'picture' => $pic('inverter-micro'), 'warranty' => [$w(10, 'Deye microinverter')], 'brands' => [$br('', $L('deye'))]]],
     ['inv-deye-1', 'inverter', 'Micro inverters', 'Small inverters on the roof, one for every 2 to 4 panels. Each panel works on its own and is monitored separately, and there is no high-voltage DC in your house.',
       'Deye G4 micro inverters in a 2 kW + 2 kW + 1 kW split, one on each phase (R, Y, B): 2 × SUN-M200G4 (2 kW, 4 MPPT, 4 panels each) and 1 × SUN-M100G4 (1 kW, 2 MPPT, 2 panels). 96.5% peak efficiency, IP67 outdoor, rapid shutdown, Wi-Fi monitoring from your phone. 10-year warranty.',
-      ['title' => 'Deye Micro Inverter', 'kw' => 5, 'qty' => 3, 'qty_note' => '5 kW · 3-phase', 'picture' => $pic('inverter-micro'), 'warranty' => [$w(10, 'Deye micro inverters')], 'brands' => [$br('', $L('deye'))]]],
+      ['title' => 'Deye Micro Inverter', 'kw' => 5, 'kw_line' => 1, 'qty' => 3, 'qty_note' => '5 kW · 3-phase', 'picture' => $pic('inverter-micro'), 'warranty' => [$w(10, 'Deye micro inverters')], 'brands' => [$br('', $L('deye'))]]],
     ['inv-se-3', 'inverter', 'SolarEdge inverter', $wifi,
       'Home Wave SE3000H, 3 kW, single phase, HD-Wave, IP65 (outdoor). Arc-fault protection built in. Set up and monitored from your phone. 8-year warranty.',
       ['title' => 'SolarEdge Inverter', 'kw' => 3, 'qty_note' => '3 kW', 'needs_opt' => 1, 'picture' => $pic('inverter-solaredge'), 'warranty' => [$w(8, 'SolarEdge inverter')], 'brands' => [$br('', $L('solaredge'))]]],
@@ -235,10 +235,10 @@ function qm_seed(PDO $db): void {
     'install' => 'Installation',
   ];
   $db->beginTransaction();
-  $ins = $db->prepare('INSERT INTO qm_products(code,label,cat,name,line,details,title,unit,qty,qty_note,wp,kw,needs_opt,warranty,brands,picture,page,rate,is_default,hidden,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,0,?)');
+  $ins = $db->prepare('INSERT INTO qm_products(code,label,cat,name,line,details,title,unit,qty,qty_note,wp,kw,kw_line,needs_opt,warranty,brands,picture,page,rate,is_default,hidden,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,0,?)');
   $byCode = [];
   foreach ($P as $i => [$code, $cat, $name, $line, $details, $f]) {
-    $ins->execute([$code, $labels[$code], $cat, $name, $line, $details, $f['title'] ?? '', $f['unit'] ?? 'no', $f['qty'] ?? 1, $f['qty_note'] ?? '', $f['wp'] ?? 0, $f['kw'] ?? 0, $f['needs_opt'] ?? 0,
+    $ins->execute([$code, $labels[$code], $cat, $name, $line, $details, $f['title'] ?? '', $f['unit'] ?? 'no', $f['qty'] ?? 1, $f['qty_note'] ?? '', $f['wp'] ?? 0, $f['kw'] ?? 0, $f['kw_line'] ?? 0, $f['needs_opt'] ?? 0,
       json_encode($f['warranty'] ?? [], JSON_UNESCAPED_UNICODE), json_encode($f['brands'] ?? [], JSON_UNESCAPED_UNICODE), $f['picture'] ?? '', $f['page'] ?? '', $f['is_default'] ?? 0, ($i + 1) * 10]);
     $byCode[$code] = ['id' => (int)$db->lastInsertId(), 'cat' => $cat];
   }

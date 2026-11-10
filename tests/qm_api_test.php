@@ -42,6 +42,8 @@ chk(($boot['next_number'] ?? '') === 'JSS/PMSGY/' . date('Y') . '/0144', 'next n
 chk(($boot['admin'] ?? null) === 1 && ($boot['finance'] ?? null) === 1, 'admin flags');
 chk(array_key_exists('rate', $boot['products'][0] ?? []), 'admin sees rates');
 $codes = array_column($boot['products'] ?? [], 'code');
+$kl = []; foreach ($boot['products'] ?? [] as $p) $kl[$p['code']] = $p['kw_line'] ?? null;
+chk(($kl['inv-deye-1'] ?? null) === 1 && ($kl['inv-tsun-2'] ?? null) === 0, 'seed: kw_line on the Deye set only');
 chk(count(array_diff(['pan-premier-600', 'inv-tsun-2', 'inv-se-5-3ph', 'str-hdg', 'str-apollo', 'install', 'earthing'], $codes)) === 0, 'seed: product codes');
 $p0 = null; foreach ($boot['products'] ?? [] as $p) if ($p['code'] === 'pan-premier-600') $p0 = $p;
 chk($p0 && $p0['is_default'] == 1 && $p0['wp'] == 600 && is_array($p0['warranty']) && is_array($p0['brands']), 'default panel decoded');
@@ -64,6 +66,13 @@ chk(call($admin, 'qm', 'product_save', ['cat' => 'nonsense', 'name' => 'X'])['_c
 call($admin, 'qm', 'product_save', ['id' => $new['id'] ?? 0, 'name' => 'Waaree 585 Wp', 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-renew.png', 'text:Waaree', '../../etc/passwd']]], 'warranty' => [['years' => '25', 'label' => 'Panels']]]);
 $b3 = call($admin, 'qm', 'boot'); $np = null; foreach ($b3['products'] ?? [] as $p) if ($p['id'] == ($new['id'] ?? -1)) $np = $p;
 chk($np && $np['name'] === 'Waaree 585 Wp' && $np['wp'] == 580 && $np['brands'][0]['logos'] === ['assets/quote/logo-renew.png', 'text:Waaree'], 'update keeps other fields, drops unsafe logo paths');
+
+$kn = call($admin, 'qm', 'product_save', ['cat' => 'inverter', 'name' => 'Set inverter', 'kw' => 4, 'kw_line' => 1]);
+$bk = call($admin, 'qm', 'boot'); $kp = null; foreach ($bk['products'] ?? [] as $p) if ($p['id'] == ($kn['id'] ?? -1)) $kp = $p;
+chk($kp && $kp['kw_line'] === 1, 'product_save stores kw_line');
+call($admin, 'qm', 'product_save', ['id' => $kn['id'] ?? 0, 'name' => 'Set inverter', 'kw_line' => 0]);
+$bk = call($admin, 'qm', 'boot'); $kp = null; foreach ($bk['products'] ?? [] as $p) if ($p['id'] == ($kn['id'] ?? -1)) $kp = $p;
+chk($kp && $kp['kw_line'] === 0, 'kw_line round-trips back to 0');
 
 /* settings */
 chk(call($sales, 'qm', 'settings_save', ['settings' => ['valid_days' => 7]])['_code'] === 403, 'sales cannot save settings');

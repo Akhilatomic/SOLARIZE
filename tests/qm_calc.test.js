@@ -26,7 +26,7 @@ const PRODUCTS = [
   P(12, 'structure', 'Mounting structure', { unit: 'set', page: 'assets/quote/page-stormshield.jpg' }),
   P(13, 'install', 'Installation', { unit: 'plant' }),
   P(20, 'panels', 'Solar panels', { wp: 550, qty: 10, details: 'ReNew RPS2MH72BD DCR, 550 Wp', warranty: [w(12, 'Panels product'), w(30, 'Panels performance')] }),
-  P(21, 'inverter', 'Micro inverters', { title: 'Deye Micro Inverter', kw: 5, qty: 3, qty_note: '5 kW · 3-phase', warranty: [w(10, 'Deye micro inverters')] }),
+  P(21, 'inverter', 'Micro inverters', { title: 'Deye Micro Inverter', kw: 5, kw_line: 1, qty: 3, qty_note: '5 kW · 3-phase', warranty: [w(10, 'Deye micro inverters')] }),
   P(22, 'meter', 'Energy meter', { details: 'three-phase, with meter box', warranty: [w(1, 'Energy meter replacement')], hidden: 1 }),
   P(23, 'structure', 'Mounting structure', { unit: 'set' }),
 ];
@@ -83,7 +83,7 @@ test('calc: 2 kW TSUN Premier HDG', () => {
   assert.equal(c.title, '2 kW TSUN Microinverter Quotation'); assert.equal(c.project, '2 kW On-grid PMSGY');
   assert.equal(c.subsidy, 67200); assert.equal(c.subsidyAuto, 67200); assert.equal(c.net, 102800);
   assert.deepEqual(c.kseb.rows.map(r => r.amount), [1000, 2000, 300]); assert.equal(c.kseb.total, 3300);
-  assert.equal(c.kseb.rows[1].label, SET.kseb.reg_label);
+  assert.deepEqual(c.kseb.rows.map(r => r.label), ['KSEB Ltd. feasibility charge', 'Registration fee (₹1,000 per kW, 80% refundable)', 'Stamp paper']);
   assert.deepEqual([c.loan.margin, c.loan.loan, c.loan.after, c.loan.saving], [17000, 153000, 85800, 1820]);
   assert.equal(c.loan.capped, false); assert.equal(c.loan.min_margin, 17000); assert.equal(c.loan.max90, 153000); assert.equal(c.loan.margin90, 17000);
   assert.deepEqual(c.loan.emis, [{ months: 60, before: 2958, after: 1659 }, { months: 84, before: 2235, after: 1253 }, { months: 120, before: 1699, after: 953 }]);
@@ -120,6 +120,29 @@ test('calc: plant kW sums inverter lines', () => {
   const setup = Object.assign({}, SETUP5, { items: Object.assign({}, SETUP5.items, { inverter: [ln(30, 1), ln(30, 1), ln(31, 1)] }) });
   const c = QM.calc(setup, QM.resolve(setup, prods), SET, R);
   assert.equal(c.plantKw, 5); assert.equal(c.kseb.rows[1].amount, 5000);
+});
+
+test('calc: kw is per unit unless kw_line', () => {
+  const prods = PRODUCTS.concat([P(32, 'inverter', 'Micro', { title: 'TSUN Microinverter', kw: 2 })]);
+  const setup = Object.assign({}, SETUP2, { items: Object.assign({}, SETUP2.items, { inverter: [ln(32, 2)] }) });
+  assert.equal(QM.calc(setup, QM.resolve(setup, prods), SET, R).plantKw, 4);
+  const c5 = QM.calc(SETUP5, QM.resolve(SETUP5, PRODUCTS), SET, R);
+  assert.equal(c5.plantKw, 5);
+});
+
+test('calc: monthly saving is exact (no float drift)', () => {
+  const sv = (wp, qty, tariff) => {
+    const prods = PRODUCTS.concat([P(40, 'panels', 'Solar panels', { wp: wp, qty: qty })]);
+    const setup = Object.assign({}, SETUP2, { items: Object.assign({}, SETUP2.items, { panels: [ln(40, qty)] }) });
+    const s = JSON.parse(JSON.stringify(SET)); s.loan.tariff = tariff;
+    return QM.calc(setup, QM.resolve(setup, prods), s, R).loan.saving;
+  };
+  assert.equal(sv(560, 10, 7.5), 4550);
+  assert.equal(sv(700, 4, 6), 1820);
+  assert.equal(sv(600, 4, 7), 1820);
+  assert.equal(sv(550, 10, 7), 4170);
+  assert.equal(sv(510, 10, 8), 4420);
+  assert.equal(sv(600, 34, 7), 15470);
 });
 
 test('calc: settings cap default and margin', () => {

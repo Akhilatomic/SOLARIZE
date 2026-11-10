@@ -52,12 +52,12 @@ var QM = (function () {
         var base, o = it.over || {};
         if (it.custom) {
           var c = it.custom;
-          base = { name: c.name, line: c.line, details: c.details, picture: c.picture || '', brands: c.brands || [], warranty: c.warranty || [], wp: c.wp || 0, kw: c.kw || 0, title: c.title || '', unit: c.unit || 'no', qty: 1, qty_note: '', page: c.page || '', needs_opt: 0, code: '' };
+          base = { name: c.name, line: c.line, details: c.details, picture: c.picture || '', brands: c.brands || [], warranty: c.warranty || [], wp: c.wp || 0, kw: c.kw || 0, kw_line: c.kw_line ? 1 : 0, title: c.title || '', unit: c.unit || 'no', qty: 1, qty_note: '', page: c.page || '', needs_opt: 0, code: '' };
           o = {};
         } else {
           var p = byId[it.pid];
           if (!p) return;
-          base = { name: p.name, line: p.line, details: p.details, picture: p.picture || '', brands: p.brands || [], warranty: p.warranty || [], wp: num(p.wp), kw: num(p.kw), title: p.title || '', unit: p.unit || 'no', qty: p.qty == null ? 1 : num(p.qty), qty_note: p.qty_note || '', page: p.page || '', needs_opt: p.needs_opt || 0, code: p.code || '' };
+          base = { name: p.name, line: p.line, details: p.details, picture: p.picture || '', brands: p.brands || [], warranty: p.warranty || [], wp: num(p.wp), kw: num(p.kw), kw_line: num(p.kw_line) ? 1 : 0, title: p.title || '', unit: p.unit || 'no', qty: p.qty == null ? 1 : num(p.qty), qty_note: p.qty_note || '', page: p.page || '', needs_opt: p.needs_opt || 0, code: p.code || '' };
         }
         var line = base;
         line.pid = it.pid == null ? null : it.pid;
@@ -83,7 +83,8 @@ var QM = (function () {
     var panelWp = panelCount ? Math.round(wpTotal / panelCount) : 0;
     var dcKwp = r1(wpTotal / 1000);
     var plantKw = 0;
-    inverters.forEach(function (l) { plantKw += num(l.kw); });
+    /* product.kw is kW PER UNIT; kw_line = 1 means kw is the capacity of the whole line (a matched set, e.g. Deye 2+2+1 = 5 kW) */
+    inverters.forEach(function (l) { plantKw += l.kw_line ? num(l.kw) : num(l.kw) * num(l.qty); });
     plantKw = r1(plantKw);
 
     var inv = inverters[0];
@@ -101,9 +102,9 @@ var QM = (function () {
       kseb = { rows: kr, total: kr.reduce(function (s, r) { return s + r.amount; }, 0) };
     } else {
       var rows = [
-        { label: 'Feasibility fee', amount: num(ks.feas) },
+        { label: ks.feas_label || 'KSEB Ltd. feasibility charge', amount: num(ks.feas) },
         { label: ks.reg_label || 'Registration fee', amount: Math.round(num(ks.reg_per_kw) * plantKw) },
-        { label: 'Stamp paper', amount: num(ks.stamp) },
+        { label: ks.stamp_label || 'Stamp paper', amount: num(ks.stamp) },
       ];
       kseb = { rows: rows, total: rows.reduce(function (s, r) { return s + r.amount; }, 0) };
     }
@@ -119,7 +120,7 @@ var QM = (function () {
         capped: ln < max90, margin: gross - ln, loan: ln, after: after,
         min_margin: Math.round(gross * mp / 100), max90: max90, margin90: gross - max90,
         emis: (ls.months || [60, 84, 120]).map(function (m) { return { months: m, before: Q.emi(ln, rate, m), after: Q.emi(after, rate, m) }; }),
-        saving: Math.floor(dcKwp * num(ls.units_per_kwp, 1300) * num(ls.tariff, 7) / 12 / 10) * 10,
+        saving: Math.floor(Math.round(dcKwp * 10) * num(ls.units_per_kwp, 1300) * Math.round(num(ls.tariff, 7) * 100) / 12000 / 10 + 1e-9) * 10,
       };
     }
 

@@ -47,7 +47,7 @@ function qm_img_ok($s, $allowText = false): bool {
 function qm_product_out(array $p, bool $finance): array {
   $p['id'] = (int)$p['id'];
   foreach (['qty', 'wp', 'kw', 'rate'] as $c) $p[$c] = (float)$p[$c];
-  foreach (['needs_opt', 'is_default', 'hidden', 'sort'] as $c) $p[$c] = (int)$p[$c];
+  foreach (['needs_opt', 'kw_line', 'is_default', 'hidden', 'sort'] as $c) $p[$c] = (int)$p[$c];
   $p['warranty'] = json_decode((string)$p['warranty'], true) ?: [];
   $p['brands'] = json_decode((string)$p['brands'], true) ?: [];
   unset($p['created'], $p['updated']);
@@ -104,14 +104,14 @@ function handle_qm($a) {
       if ($pic !== '' && !qm_img_ok($pic)) fail('That picture is not valid');
       if ($page !== '' && !qm_img_ok($page)) fail('That page image is not valid');
       $vals = [$txt('label', 80), $cat, $name, $txt('line', 300), $txt('details', 2000), $txt('title', 80), $txt('unit', 30) ?: 'no', $num('qty', 1), $txt('qty_note', 80), $num('wp', 0), $num('kw', 0), (int)(!empty($get('needs_opt', 0))),
-        json_encode($warranty, JSON_UNESCAPED_UNICODE), json_encode($brands, JSON_UNESCAPED_UNICODE), $pic, $page, $num('rate', 0), (int)(!empty($get('is_default', 0))), (int)(!empty($get('hidden', 0)))];
+        json_encode($warranty, JSON_UNESCAPED_UNICODE), json_encode($brands, JSON_UNESCAPED_UNICODE), $pic, $page, $num('rate', 0), (int)(!empty($get('is_default', 0))), (int)(!empty($get('hidden', 0))), (int)(!empty($get('kw_line', 0)))];
       $db = db(); $db->beginTransaction();
       try {
         if ($cur) {
-          q("UPDATE qm_products SET label=?,cat=?,name=?,line=?,details=?,title=?,unit=?,qty=?,qty_note=?,wp=?,kw=?,needs_opt=?,warranty=?,brands=?,picture=?,page=?,rate=?,is_default=?,hidden=?,updated=CURRENT_TIMESTAMP WHERE id=?", array_merge($vals, [$id]));
+          q("UPDATE qm_products SET label=?,cat=?,name=?,line=?,details=?,title=?,unit=?,qty=?,qty_note=?,wp=?,kw=?,needs_opt=?,warranty=?,brands=?,picture=?,page=?,rate=?,is_default=?,hidden=?,kw_line=?,updated=CURRENT_TIMESTAMP WHERE id=?", array_merge($vals, [$id]));
         } else {
           $sort = (int)row('SELECT COALESCE(MAX(sort),0)+10 s FROM qm_products')['s'];
-          q('INSERT INTO qm_products(label,cat,name,line,details,title,unit,qty,qty_note,wp,kw,needs_opt,warranty,brands,picture,page,rate,is_default,hidden,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', array_merge($vals, [$sort]));
+          q('INSERT INTO qm_products(label,cat,name,line,details,title,unit,qty,qty_note,wp,kw,needs_opt,warranty,brands,picture,page,rate,is_default,hidden,kw_line,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', array_merge($vals, [$sort]));
           $id = (int)$db->lastInsertId();
         }
         if ($vals[17]) q('UPDATE qm_products SET is_default=0 WHERE cat=? AND id<>?', [$cat, $id]);
