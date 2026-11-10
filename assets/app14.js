@@ -30,13 +30,13 @@ function leadSitePane(l) {
   const d = ljson(l.site);
   return `<div class="ltp" data-lp="s" hidden><div class="lshint" id="lsh"></div>
     ${LS_SITE.map(([t, fs]) => `<div class="lsg"><div class="lsgh">${t}</div><div class="two">${fs.map(lsField('data-ls', d)).join('')}</div></div>`).join('')}
-    <div class="lsg"><div class="lsgh">Remarks</div><textarea data-ls="site_remarks" rows="3" placeholder="Anything the installation team should know — roof damage, neighbour shade, ladder needed…">${esc(d.site_remarks || '')}</textarea></div></div>`;
+    <div class="lsg"><div class="lsgh">Remarks</div><textarea data-ls="site_remarks" rows="3" ${SPELL} placeholder="Anything the installation team should know — roof damage, neighbour shade, ladder needed…">${esc(d.site_remarks || '')}</textarea></div></div>`;
 }
 function leadPlantPane(l) {
   const d = ljson(l.plant);
   return `<div class="ltp" data-lp="p" hidden><div class="lpsum" id="lps"></div>
     ${LS_PLANT.map(([t, fs]) => `<div class="lsg"><div class="lsgh">${t}${t === 'Panels' ? '<button class="btn sec sm" id="lpcalc" type="button">Calculate number of panels</button>' : ''}</div><div class="two">${fs.map(lsField('data-lpk', d)).join('')}</div></div>`).join('')}
-    <div class="lsg"><div class="lsgh">Remarks</div><textarea data-lpk="plant_remarks" rows="2" placeholder="Options discussed, upgrades, battery later…">${esc(d.plant_remarks || '')}</textarea></div>
+    <div class="lsg"><div class="lsgh">Remarks</div><textarea data-lpk="plant_remarks" rows="2" ${SPELL} placeholder="Options discussed, upgrades, battery later…">${esc(d.plant_remarks || '')}</textarea></div>
     <p class="mut" style="font-size:12px;margin:6px 0 0">When this lead is converted, the site condition and plant details are copied to the customer’s <b>Plant details</b> tab.</p></div>`;
 }
 function leadExtra(m) {

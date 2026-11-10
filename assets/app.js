@@ -161,13 +161,17 @@ function modal(html, wide) {
   m.addEventListener('mousedown', e => { if (e.target === m) m._md = true; }); m.addEventListener('mouseup', e => { if (e.target === m && m._md) m.remove(); m._md = false; });
   document.body.appendChild(m); return m;
 }
+/* Free-text fields (remarks, notes): browser spell check (red underline, right-click for corrections)
+   plus the phone keyboard's word suggestions, autocorrect and a capital letter at the start. */
+const SPELL = 'spellcheck="true" autocorrect="on" autocapitalize="sentences"';
+const spellOn = el => { el.spellcheck = true; el.setAttribute('autocorrect', 'on'); el.setAttribute('autocapitalize', 'sentences'); return el; };
 function fld(f, v = {}) {
   const val = v[f.k] ?? f.d ?? '';
-  const cls = f.full ? 'full' : '';
+  const cls = f.full ? 'full' : '', sp = f.spell ? ' ' + SPELL : '';
   let inp;
   if (f.opts) inp = `<select data-k="${f.k}">${f.opts.map(o => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov)}" ${String(val) === String(ov) ? 'selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>`;
-  else if (f.t === 'textarea') inp = `<textarea data-k="${f.k}" rows="${f.rows || 3}">${esc(val)}</textarea>`;
-  else inp = `<input data-k="${f.k}" type="${f.t || 'text'}" ${f.t === 'number' ? 'step="any"' : ''} value="${esc(val)}">`;
+  else if (f.t === 'textarea') inp = `<textarea data-k="${f.k}" rows="${f.rows || 3}"${sp}>${esc(val)}</textarea>`;
+  else inp = `<input data-k="${f.k}" type="${f.t || 'text'}" ${f.t === 'number' ? 'step="any"' : ''}${sp} value="${esc(val)}">`;
   return `<div class="${cls}"><label>${f.l}</label>${inp}</div>`;
 }
 const collect = r => { const o = {}; $$('[data-k]', r).forEach(e => o[e.dataset.k] = e.value); return o; };
@@ -413,10 +417,19 @@ async function pgLeads() {
     if (a === 'wa') waOpen({ name: l.name, phone: l.phone, lead_id: l.id });
     if (a === 'ds') discOpen({ lead_id: l.id });
     if (a === 'vw' || a === 'ed') leadModal(l.id);
-    if (a === 'rm') { const r = prompt('Remark for ' + l.name, l.remark || ''); if (r !== null) { l.remark = r; await api('leads', 'save', { ...l }); draw(); } }
+    if (a === 'rm') return remarkBox(l);
     if (a === 'cv') { if (confirm('Convert ' + l.name + ' to a customer?')) { const r = await api('leads', 'convert', { id: l.id }); location.hash = '#/customers/' + r.customer_id; } }
     if (a === 'oc') location.hash = '#/customers/' + l.customer_id;
     if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ lead_id: l.id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; }
+  };
+  /* "Add remark": a box with spell check (the browser's prompt() has none). Ctrl+Enter saves, Esc closes. */
+  const remarkBox = l => {
+    const m = modal(`<h3 style="margin-top:0">Remark — ${esc(l.name)}</h3><textarea id="rmt" rows="4" ${SPELL} placeholder="Type the remark…">${esc(l.remark || '')}</textarea>
+     <div class="bar" style="margin-top:12px"><button class="btn" id="rms">Save</button><button class="btn sec" id="rmc">Cancel</button></div>`);
+    const t = $('#rmt', m); t.focus(); t.setSelectionRange(t.value.length, t.value.length);
+    $('#rmc', m).onclick = () => m.remove();
+    $('#rms', m).onclick = async () => { if (t.value !== (l.remark || '')) { l.remark = t.value; await api('leads', 'save', { ...l }); } m.remove(); draw(); };
+    t.onkeydown = e => { if (e.key === 'Escape') m.remove(); if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('#rms', m).click(); };
   };
   const closeMenu = () => { const m = $('#lmenu'); if (m) m.remove(); };
   const moreMenu = (l, btn) => {
@@ -435,12 +448,14 @@ async function pgLeads() {
   const fitTable = () => { const box = $('#ltb')?.parentElement; if (!box) return; const top = box.getBoundingClientRect().top; box.style.maxHeight = Math.max(260, innerHeight - top - 18) + 'px'; };
   if (!window._lfit) { window._lfit = true; addEventListener('resize', () => { if (location.hash.startsWith('#/leads')) { const b = $('#ltb')?.parentElement; if (b) { const t = b.getBoundingClientRect().top; b.style.maxHeight = Math.max(260, innerHeight - t - 18) + 'px'; } } }); }
   const startEdit = (td, l) => {
-    const f = td.dataset.f; if (td.querySelector('input,select')) return; let el;
+    const f = td.dataset.f; if (td.querySelector('input,select,textarea')) return; let el;
     if (f === 'status') { el = document.createElement('select'); el.innerHTML = S.lead_statuses.map(s => `<option ${s === l.status ? 'selected' : ''}>${s}</option>`).join(''); }
+    else if (f === 'remark') { el = spellOn(document.createElement('textarea')); el.rows = 3; el.value = l.remark || ''; }
     else { el = document.createElement('input'); el.type = f === 'appt' ? 'date' : f === 'phone' ? 'tel' : 'text'; el.value = (f === 'location' ? (l.location || l.address) : l[f]) || ''; }
-    td.innerHTML = ''; td.appendChild(el); el.focus(); let fin = false;
+    td.innerHTML = ''; td.appendChild(el); el.focus(); if (f === 'remark') el.setSelectionRange(el.value.length, el.value.length); let fin = false;
     const done = async save => { if (fin) return; fin = true; if (save && el.value !== (l[f] || '')) { if (f === 'name' && !el.value.trim()) { draw(); return; } l[f] = el.value; await api('leads', 'save', { ...l }); } draw(); };
-    el.onblur = () => done(true); el.onchange = () => done(true); el.onkeydown = e => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); };
+    /* Enter saves; in the remark box Shift+Enter starts a new line. Not while a phone keyboard is still composing a word. */
+    el.onblur = () => done(true); el.onchange = () => done(true); el.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing && !(f === 'remark' && e.shiftKey)) { e.preventDefault(); done(true); } if (e.key === 'Escape') done(false); };
   };
   const drawSoon = debounce(() => draw(true), 120);
   $('#lq').oninput = e => { LF.q = e.target.value; drawSoon(); };
@@ -459,12 +474,12 @@ async function leadModal(id) {
   if (id && typeof refreshFeed === 'function' && (FEED.leads || []).some(x => x.id == id)) refreshFeed(); // viewed → drops off the dashboard list
   if (id && !l.location) l.location = l.address;
   const F = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'source', l: 'Source', opts: S.lead_sources }, { k: 'city', l: 'City' }, { k: 'location', l: 'Location / address' },
-    { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'appt', l: 'Appointment date', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, ...(FIN() ? [{ k: 'budget', l: 'Budget (₹)', t: 'number' }] : []), { k: 'remark', l: 'Remark', full: 1 }];
+    { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'appt', l: 'Appointment date', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, ...(FIN() ? [{ k: 'budget', l: 'Budget (₹)', t: 'number' }] : []), { k: 'remark', l: 'Remark', full: 1, t: 'textarea', rows: 2, spell: 1 }];
   if ((CACHE.camps || []).length) F.splice(4, 0, { k: 'campaign_id', l: 'Meta campaign', opts: opt(CACHE.camps.map(c => [c.id, c.name]), '— none —') });
   const w = canW('leads') && (!id || !!l.can_edit);
   const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}</span>` : '<span class="mut">Not claimed yet. Claim it to see the full number and start working on it.</span>'}<span class="sp"></span>${l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? '<button class="btn sm sec" id="mul"><i class="i i-lock"></i> Unclaim</button>' : ''}${isAdm() ? '<button class="btn sm sec" id="mas"><i class="i i-users"></i> Assign</button>' : ''}</div>` : '';
   const m = modal(`<div class="lmh"><div class="lmt"><div><small class="mut">${id ? 'Lead' : 'New lead'}${id && l.source ? ' · ' + esc(l.source) : ''}</small><h2>${id ? esc(l.name || 'Lead') : 'Add a new lead'}</h2></div><button class="lvx" id="cx2" title="Close (Esc)"><i class="i i-x"></i></button></div>${lock}${leadTabs(l)}</div>
-   <div class="lmb"><div class="ltp ltp-d"><div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(l.notes || '')}</textarea></div>${leadSitePane(l)}${leadPlantPane(l)}
+   <div class="lmb"><div class="ltp ltp-d"><div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2" ${SPELL}>${esc(l.notes || '')}</textarea></div>${leadSitePane(l)}${leadPlantPane(l)}
    ${id ? `<div class="ltp-d"><p class="mut" style="font-size:12px">Added by ${esc(l.added_by || '—')} on ${dmy(l.created)}</p>` + noteBox('leads', id, l.notes_log) + `<div class="card" style="margin-top:10px"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div></div>` : ''}</div>
    <div class="lmf">${w ? '<button class="btn" id="sv">Save</button>' : ''}<button class="btn sec" id="cx">Close</button>
    ${id && l.can_edit !== 0 ? '<button class="btn sec" id="lds"><i class="i i-chat"></i> Discussion</button>' : ''}${id && l.phone && w ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(l.phone) + '">Call</a>' : ''}

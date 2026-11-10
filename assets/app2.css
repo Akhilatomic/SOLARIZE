@@ -433,3 +433,4 @@ body.sbah aside.mini a .nb{position:absolute;top:0;right:-2px;margin:0}
 :where(.card.tw>table:not(.stack)) td.mut[colspan]{text-align:center;padding:28px 12px;background:#fff}
 .card.tw>table.stack>tbody>tr:nth-child(even){background:var(--galt)}
 :where(.card.tw>table:not(.stack)) :is(th,td).num{text-align:right;white-space:nowrap}
+#ltb td textarea{display:block;width:100%;min-width:0;min-height:62px;padding:6px 8px;font:inherit;font-size:14px;line-height:1.4;resize:vertical;background:#fff}
