@@ -59,7 +59,7 @@ function qmgProducts() {
     <p class="qm-hint">The star marks the product new quotations start with. Hidden products leave the maker's choices but still print on quotations and templates that use them.</p>
     ${cards || '<p class="qmg-empty">No products in this category yet.</p>'}</div></div>`;
 }
-const qmgBlank = cat => ({ id: 0, cat, label: '', name: '', line: '', details: '', title: '', unit: 'no', qty: 1, qty_note: '', wp: 0, kw: 0, kw_line: 0, needs_opt: 0, warranty: [], brands: [], picture: '', page: '', rate: 0, is_default: 0, hidden: 0 });
+const qmgBlank = cat => ({ id: 0, cat, label: '', name: '', line: '', details: '', title: '', unit: 'no', qty: 1, qty_note: '', wp: 0, kw: 0, kw_line: 0, needs_opt: 0, warranty: [], brands: [{ label: '', logos: [] }], picture: '', page: '', rate: 0, is_default: 0, hidden: 0 });
 function qmgImgField(k, label, hint) {
   const v = QMG.E[k];
   return `<div class="qmg-up"><label>${label}</label><div class="qmg-upr">${v ? `<img src="${esc(qmImgUrl(v))}" alt="">` : '<span class="qmg-none">None</span>'}
@@ -71,7 +71,7 @@ function qmgForm(body) {
   const known = []; b.products.forEach(p => (p.brands || []).forEach(br => (br.logos || []).forEach(l => { if (!String(l).startsWith('text:') && !known.includes(l)) known.push(l); })));
   const brands = E.brands.map((br, i) => `<div class="qmg-br"><div class="qmg-brh"><input data-e-br="${i}" data-f="label" placeholder="Label (BOX, MCB, SPD… or blank)" value="${esc(br.label)}" aria-label="Brand label"><button type="button" class="btn bad sm" data-a="brdel" data-k="${i}" aria-label="Remove this brand row">${qmgI('trash')}</button></div>
       <div class="qmg-logos">${br.logos.map((l, j) => `<span class="qmg-lg">${String(l).startsWith('text:') ? `<b>${esc(String(l).slice(5))}</b>` : `<img src="${esc(qmImgUrl(l))}" alt="">`}<button type="button" data-a="lgdel" data-k="${i}|${j}" aria-label="Remove logo">${qmgI('x')}</button></span>`).join('') || '<small class="qm-hint">No logos yet</small>'}</div>
-      <div class="qmg-lgadd"><button type="button" class="btn sec sm" data-a="lgup" data-k="${i}">${qmgI('upload')} Upload logo</button>
+      <div class="qmg-lgadd"><button type="button" class="btn sm" data-a="lgup" data-k="${i}">${qmgI('upload')} Upload logo</button>
         <input data-txt="${i}" placeholder="or a brand name as text" aria-label="Brand name as text"><button type="button" class="btn sec sm" data-a="lgtxt" data-k="${i}">Add name</button>
         ${known.length ? `<select data-pick="${i}" aria-label="Use a logo already in the catalogue"><option value="">Use an existing logo…</option>${known.map(l => `<option value="${esc(l)}">${esc(String(l).replace(/^assets\/quote\//, ''))}</option>`).join('')}</select>` : ''}</div></div>`).join('');
   const war = E.warranty.map((w, i) => `<div class="qmg-wr"><input data-e-w="${i}" data-f="years" placeholder="Years" value="${esc(w.years)}" aria-label="Warranty years"><input data-e-w="${i}" data-f="label" placeholder="Warranty box label (e.g. Panels product)" value="${esc(w.label)}" aria-label="Warranty label"><button type="button" class="btn bad sm" data-a="wdel" data-k="${i}" aria-label="Remove warranty">${qmgI('trash')}</button></div>`).join('');
@@ -95,7 +95,8 @@ function qmgForm(body) {
       <div class="qmg-ck"><label><input type="checkbox" data-e="hidden" ${E.hidden ? 'checked' : ''}> Hidden from the maker</label></div>
     </div>
     <h5>Warranty</h5><div class="qmg-list">${war}</div><button type="button" class="btn sec sm" data-a="wadd">${qmgI('plus')} Add warranty</button>
-    <h5>Brands</h5><div class="qmg-list">${brands}</div><button type="button" class="btn sec sm" data-a="bradd">${qmgI('plus')} Add brand row</button>
+    <h5>Brand logos</h5><small class="qm-hint">Printed in the BRAND column of the quotation. Upload the brand's logo (PNG, JPG or WebP, up to 5 MB), type the brand name if you have no logo, or reuse a logo already in the list. For boxes with several makes, add a row per part with a label such as BOX, MCB or SPD.</small>
+    <div class="qmg-list">${brands}</div><button type="button" class="btn sec sm" data-a="bradd">${qmgI('plus')} Add another brand row (BOX / MCB / SPD…)</button>
     <div class="qmg-bar"><button type="button" class="btn" data-a="psave">${qmgI('check')} Save product</button><button type="button" class="btn sec" data-a="pcancel">Cancel</button></div></div>
     <input type="file" id="qmgfile" accept="image/png,image/jpeg,image/webp" hidden>`;
   qmgCatVis();
@@ -123,7 +124,7 @@ async function qmgSaveProduct() {
   const p = {}; keep.forEach(k => { p[k] = E[k]; });
   if (!E.id) delete p.id;
   if (b.finance) p.rate = E.rate;
-  p.warranty = E.warranty; p.brands = E.brands.map(br => ({ label: br.label, logos: br.logos }));
+  p.warranty = E.warranty; p.brands = E.brands.filter(br => br.logos.length).map(br => ({ label: br.label, logos: br.logos })); /* empty rows are not saved */
   ['qty', 'wp', 'kw', 'rate'].forEach(k => { if (k in p) p[k] = +p[k] || 0; });
   try { await api('qm', 'product_save', p); } catch (e) { return; }
   QMG.cat = E.cat; QMG.E = null; QMG.dirty = false; await qmgReload(); toast('Product saved'); qmgBody();
@@ -208,7 +209,7 @@ async function qmgClick(e) {
   if (a === 'cat') { QMG.cat = k; return qmgProducts(); }
   if (a === 'kseb') { QMG.tab = 'set'; QMG.open = 'kseb'; qmgShell(); const s = $('#qmgs-kseb', QMG.m); if (s) s.scrollIntoView({ block: 'nearest' }); return; }
   if (a === 'add') { QMG.E = qmgBlank(QMG.cat); QMG.dirty = false; return qmgProducts(); }
-  if (a === 'edit') { const p = QMG.b.products.find(x => x.id == k); if (!p) return; QMG.E = Object.assign(qmgBlank(p.cat), qmgClone(p)); QMG.E.brands.forEach(br => { br.logos = br.logos || []; }); QMG.dirty = false; return qmgProducts(); }
+  if (a === 'edit') { const p = QMG.b.products.find(x => x.id == k); if (!p) return; QMG.E = Object.assign(qmgBlank(p.cat), qmgClone(p)); QMG.E.brands.forEach(br => { br.logos = br.logos || []; }); if (!QMG.E.brands.length) QMG.E.brands.push({ label: '', logos: [] }); QMG.dirty = false; return qmgProducts(); }
   if (a === 'def') { const p = QMG.b.products.find(x => x.id == k); if (!p) return; try { await api('qm', 'product_save', { id: p.id, is_default: p.is_default ? 0 : 1 }); } catch (x) { return; } await qmgReload(); return qmgProducts(); }
   if (a === 'hide') { const p = QMG.b.products.find(x => x.id == k); if (!p) return; try { await api('qm', 'product_save', { id: p.id, hidden: p.hidden ? 0 : 1 }); } catch (x) { return; } await qmgReload(); toast(p.hidden ? 'Shown in the maker' : 'Hidden from the maker'); return qmgProducts(); }
   if (a === 'pcancel') { if (QMG.dirty && !confirm('Discard your changes to this product?')) return; QMG.E = null; QMG.dirty = false; return qmgProducts(); }
@@ -219,7 +220,7 @@ async function qmgClick(e) {
   if (a === 'wdel') { E.warranty.splice(+k, 1); QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
   if (a === 'bradd') { E.brands.push({ label: '', logos: [] }); return qmgForm($('#qmgbody', QMG.m)); }
   if (a === 'brdel') { E.brands.splice(+k, 1); QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
-  if (a === 'lgup') { const r = await qmgPick(); if (r) { E.brands[+k].logos.push(r); QMG.dirty = true; qmgForm($('#qmgbody', QMG.m)); } return; }
+  if (a === 'lgup') { const r = await qmgPick(); if (r) { E.brands[+k].logos.push(r); QMG.dirty = true; qmgForm($('#qmgbody', QMG.m)); toast('Logo added — Save product to keep it'); } return; }
   if (a === 'lgtxt') { const inp = $(`[data-txt="${k}"]`, QMG.m), v = inp.value.trim().slice(0, 60); if (!v) return toast('Type the brand name first'); E.brands[+k].logos.push('text:' + v); QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
   if (a === 'lgdel') { const [i, j] = k.split('|'); E.brands[+i].logos.splice(+j, 1); QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
   if (a === 'ssave') return qmgSaveSettings();
