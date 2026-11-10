@@ -117,7 +117,9 @@ function handle_meta($a) {
   if ($a === 'feed') {
     $sc = lead_scope('l');
     out(['leads' => array_map('lead_mask', rows("SELECT l.id,l.name,l.phone,l.email,l.city,l.created,l.meta_campaign,l.meta_form,l.meta_ad,l.notes,l.source,l.status,l.assigned_to,u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE l.notify=1 AND $sc ORDER BY l.created DESC LIMIT 50")),
-      'count' => (int)row("SELECT COUNT(*) c FROM leads l WHERE l.notify=1 AND $sc")['c'], 'state' => meta_public_state()]);
+      'count' => (int)row("SELECT COUNT(*) c FROM leads l WHERE l.notify=1 AND $sc")['c'],
+      'day' => (int)row("SELECT COUNT(*) c FROM leads l WHERE l.notify=1 AND $sc AND l.created >= datetime('now','-1 day')")['c'], // the dashboard lists only leads from the last 24 hours
+      'state' => meta_public_state()]);
   }
   if ($a === 'sync') { $r = meta_sync(!empty($in['manual']) ? 20 : 1500); out($r + ['state' => meta_public_state()]); }
   if ($a === 'ack') {

@@ -61,10 +61,11 @@ function bindNl(root) {
 }
 function renderNewLeads() {
   const box = $('#newleads'); if (box) {
-    const L = FEED.leads.slice(0, 8);
-    box.innerHTML = `<div class="card nlc ${FEED.count ? 'hot' : ''}"><div class="bar" style="margin:0 0 6px"><h3 style="margin:0"><i class="i i-bell"></i> New leads to contact <span class="pill ${FEED.count ? 'r' : ''}">${FEED.count}</span></h3><span class="sp"></span>
-     ${FEED.state.connected ? `<small class="mut">Synced ${clock(FEED.state.last_ok)}</small> <button class="btn sec sm" id="nlr"><i class="i i-refresh"></i> Refresh</button>` : ''}${FEED.count > 8 ? '<a class="btn sec sm" href="#/leads">All</a>' : ''}</div>
-     ${L.map(nlRow).join('') || `<p class="mut" style="margin:6px 0 0">${FEED.state.connected ? 'No new leads waiting. New Meta leads appear here as soon as they arrive.' : 'Connect Meta Lead Ads on the Meta Ads page to get new leads here automatically.'}</p>`}</div>`;
+    /* dashboard: only leads from the last 24 hours (older ones stay in Leads and the bell) */
+    const R = FEED.leads.filter(l => Date.now() - new Date(String(l.created || '').replace(' ', 'T') + 'Z') <= 864e5), n = FEED.day ?? R.length, L = R.slice(0, 8);
+    box.innerHTML = `<div class="card nlc ${n ? 'hot' : ''}"><div class="bar" style="margin:0 0 6px"><h3 style="margin:0"><i class="i i-bell"></i> New leads to contact <span class="pill ${n ? 'r' : ''}">${n}</span> <small class="mut" style="font-weight:400;font-size:12px">last 24 hours</small></h3><span class="sp"></span>
+     ${FEED.state.connected ? `<small class="mut">Synced ${clock(FEED.state.last_ok)}</small> <button class="btn sec sm" id="nlr"><i class="i i-refresh"></i> Refresh</button>` : ''}${n > 8 ? '<a class="btn sec sm" href="#/leads">All</a>' : ''}</div>
+     ${L.map(nlRow).join('') || `<p class="mut" style="margin:6px 0 0">${FEED.state.connected ? 'No new leads in the last 24 hours. New Meta leads appear here as soon as they arrive.' : 'No new leads in the last 24 hours. Connect Meta Lead Ads on the Meta Ads page to get new leads here automatically.'}</p>`}</div>`;
     bindNl(box); if ($('#nlr')) $('#nlr').onclick = e => manualSync(e.currentTarget);
   }
   const p = $('#bellp'); if (p && !p.classList.contains('hide')) drawBellPanel();

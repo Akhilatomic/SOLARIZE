@@ -235,6 +235,19 @@ call($admin, 'admin', 'user_save', ['id' => $lu['id'], 'name' => 'Lock Me', 'use
 chk((call($lk, 'auth', 'login', ['username' => 'Lockme', 'password' => $pw])['_code'] ?? 0) === 200, 'lockout: admin saving the user unlocks them');
 @unlink($lk['jar']);
 
+/* ---- dashboard "New leads to contact": only leads from the last 24 hours ---- */
+if ($dbPath !== '' && is_file($dbPath)) {
+  $fa = call($admin, 'leads', 'save', ['name' => 'Fresh Lead', 'phone' => '9847000222', 'status' => 'New'])['id'] ?? 0;
+  $fb = call($admin, 'leads', 'save', ['name' => 'Old Lead', 'phone' => '9847000333', 'status' => 'New'])['id'] ?? 0;
+  $pdo = new PDO('sqlite:' . $dbPath); $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $pdo->exec('PRAGMA busy_timeout=5000');
+  $pdo->exec('UPDATE leads SET notify=0');
+  $pdo->prepare('UPDATE leads SET notify=1 WHERE id IN (?,?)')->execute([$fa, $fb]);
+  $pdo->prepare("UPDATE leads SET created=datetime('now','-3 days') WHERE id=?")->execute([$fb]);
+  $pdo = null;
+  $feed = call($admin, 'meta', 'feed');
+  chk(($feed['count'] ?? 0) === 2 && ($feed['day'] ?? -1) === 1, 'dashboard feed: 2 waiting, 1 from the last 24 hours');
+} else echo "  skip dashboard feed test (no database path given)\n";
+
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);
