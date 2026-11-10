@@ -159,18 +159,21 @@ function qmgSettings() {
       <div><label>Next quotation number</label><input data-next type="number" min="1" step="1" value="${esc(QMG.nextN)}"><small class="qm-hint">Only change this to restart or skip numbers. It is used by the next saved quotation.</small></div>
       ${qmgField('valid_days', 'Valid for (days)')}${qmgField('pill', 'Pill text beside the title')}`),
     qmgSec('co', 'Company header', ['line1', 'line2', 'gstin', 'name', 'phone', 'email', 'site'].map(k => qmgField(k === 'site' ? 'site' : 'company.' + k, qmgLbl(k))).join('') + qmgList('company.lines', 'Header lines (label and text)', ['label', 'text'])),
-    qmgSec('bank', 'Bank block', ['bank', 'name', 'account', 'ifsc'].map(k => qmgField('bank.' + k, k === 'bank' ? 'Bank' : qmgLbl(k))).join('')),
+    qmgSec('bank', 'Bank block', ['bank', 'name', 'account', 'ifsc'].map(k => qmgField('bank.' + k, k === 'bank' ? 'Bank' : k === 'name' ? 'Account name' : qmgLbl(k))).join('')),
     qmgSec('foot', 'Footer', qmgField('footer', 'Footer line', true)),
     qmgSec('del', 'Delivery and installation', qmgList('delivery', 'Delivery texts'), true),
     qmgSec('pay', 'Payment schedule', qmgList('pay', 'Payment steps (amount and text)', ['amt', 'text']), true),
     qmgSec('kseb', 'KSEB charges', ['feas', 'reg_per_kw', 'stamp', 'feas_label', 'reg_label', 'stamp_label'].map(k => qmgField('kseb.' + k, qmgLbl(k))).join('')),
-    qmgSec('loan', 'Loan figures', ['margin_pct', 'rate', 'units_per_kwp', 'tariff', 'cap'].map(k => qmgField('loan.' + k, qmgLbl(k))).join('') + qmgList('loan.months', 'Repayment periods (months)')),
+    qmgSec('loan', 'Loan figures', ['margin_pct', 'rate', 'units_per_kwp', 'tariff', 'cap'].map(k => qmgField('loan.' + k, qmgLbl(k))).join('') + qmgList('loan.months', 'Repayment periods (months)') + '<p class="qm-hint full">Subsidy rates (₹ per kW and the cap) are set in Settings → Rates and are shared with the rest of the CRM.</p>'),
     qmgSec('lt', 'Loan texts', textKeys.map(k => qmgField('loan.texts.' + k, qmgLbl(k), QMG_LONG.has(k) || String(T[k]).length > 60)).join('')
       + qmgList('loan.texts.terms', 'SBI loan terms (list)') + qmgList('loan.texts.who', 'Who can apply (list)') + qmgList('loan.texts.steps', 'How to apply (steps)', ['t', 'd']), true),
+    qmgSec('lts', 'Loan texts, small loans (2–3 kW)', '<p class="qm-hint full">Used instead of the matching loan texts above when the loan stays under the cap (usually 2 to 3 kW). Anything left out here falls back to the loan text above. Same placeholders and **bold** rules as the loan texts.</p>'
+      + Object.keys(S.loan.texts_small || {}).filter(k => typeof S.loan.texts_small[k] === 'string').map(k => qmgField('loan.texts_small.' + k, qmgLbl(k), QMG_LONG.has(k) || String(S.loan.texts_small[k]).length > 60)).join('')
+      + qmgList('loan.texts_small.terms', 'SBI loan terms (list)') + qmgList('loan.texts_small.who', 'Who can apply (list)'), true),
     qmgSec('terms', 'Terms and conditions', qmgList('terms', 'Terms'), true),
   ].join('');
   body.innerHTML = `<div class="qmg-hintbox"><b>Placeholders</b> that fill in automatically (loan texts, delivery, payment and terms): <code>${esc(QMG_PH)}</code><br>
-    <b>**Bold**</b>: put two stars round words to print them bold. It works in the delivery texts, payment step texts, terms and every loan text (title, helpline, steps and so on). It does not work in the company, bank, footer, pill or label fields.</div>
+    <b>**Bold**</b>: put two stars round words to print them bold. It works in the delivery texts, payment step texts, terms and the loan texts (title, labels, notes, helpline, steps, lists), but not in the loan sub-line or the four loan headings (EMI, terms, who can apply, how to apply), and not in the company, bank, footer, pill or KSEB label fields.</div>
     ${sections}<div class="qmg-bar"><button type="button" class="btn" data-a="ssave">${qmgI('check')} Save settings</button><button type="button" class="btn sec" data-a="sreset">Discard changes</button></div>`;
 }
 async function qmgSaveSettings() {
