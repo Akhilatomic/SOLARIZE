@@ -188,6 +188,198 @@ var KD = (function () {
       .map(function (f) { return f.l; });
   };
 
+  /* ---- page layout and PDF writing. Positions in pt from the page's top-left; y is the baseline. ---- */
+  K.PAGES = {
+    letterhead: { pdf: 'assets/kseb/letterhead.pdf', png: 'assets/kseb/letterhead.png', w: 595.92, h: 841.92 },
+    an1: { pdf: 'assets/kseb/annexure-1.pdf', png: 'assets/kseb/annexure-1.png', w: 595.32, h: 841.92 }
+  };
+  K.FONTS = { T: 'TimesRoman', TB: 'TimesRomanBold', H: 'Helvetica', HB: 'HelveticaBold' };
+
+  /* measure(text, f, size) -> width in pt, from pdf-lib's standard font metrics (fonts embedded once) */
+  var measLib = null, measP = null;
+  K.measurer = function (PDFLib) {
+    if (measP && measLib === PDFLib) return measP;
+    measLib = PDFLib;
+    var keys = Object.keys(K.FONTS);
+    measP = PDFLib.PDFDocument.create().then(function (doc) {
+      return Promise.all(keys.map(function (k) { return doc.embedFont(PDFLib.StandardFonts[K.FONTS[k]]); }));
+    }).then(function (list) {
+      var fonts = {};
+      keys.forEach(function (k, i) { fonts[k] = list[i]; });
+      return function (text, f, size) { return fonts[f].widthOfTextAtSize(str(text), size); };
+    }).catch(function (e) { measP = null; throw e; });
+    return measP;
+  };
+
+  /* lines of at most `width` pt: paragraphs on \n, then words; a word wider than a line is broken by characters */
+  K.wrap = function (text, width, f, size, measure) {
+    var out = [];
+    var fits = function (s) { return measure(s, f, size) <= width; };
+    str(text).split(/\r?\n/).forEach(function (para) {
+      var line = '';
+      para.split(/[ \t]+/).forEach(function (w) {
+        if (!w) return;
+        var both = line ? line + ' ' + w : w;
+        if (fits(both)) { line = both; return; }
+        if (line) out.push(line);
+        line = '';
+        if (fits(w)) { line = w; return; }
+        for (var ch of w) {
+          if (line && !fits(line + ch)) { out.push(line); line = ''; }
+          line += ch;
+        }
+      });
+      out.push(line);
+    });
+    return out;
+  };
+
+  var r2 = function (n) { return Math.round(n * 100) / 100; };
+  /* field value ready for the standard fonts: trimmed, \r\n -> \n, WinAnsi-clean */
+  var clean = function (v) { return K.ansi(trim(v).replace(/\r\n?/g, '\n')); };
+  var labelOf = function (docKey, k) {
+    var f = fieldsOf(docKey).filter(function (x) { return x.k === k; })[0];
+    return f ? f.l : k;
+  };
+  /* one line at the largest size from max down to min (0.5 steps) that fits width */
+  var fitOne = function (t, f, max, min, width, measure) {
+    for (var s = max; s >= min; s -= 0.5) if (measure(t, f, s) <= width) return { s: s, fit: true };
+    return { s: min, fit: false };
+  };
+  var op = function (t, x, y, f, s) { return { t: t, x: r2(x), y: r2(y), f: f, s: s }; };
+
+  /* Work Completion Report on the letterhead. Ref No. / Date labels end at x 64.2 / 427.3, baseline 185.25;
+     footer rule at y 750.8 (measured with PyMuPDF on assets/kseb/letterhead.pdf). */
+  var WCR = { left: 60, right: 536, mid: 298, top: 200, specW: 360, refX: 70, refMax: 400, dateX: 432, headY: 185, headS: 9, sigLast: 740, sigGap: 60, sigMax: 11 };
+
+  var wcrBlocks = function (v) {
+    var L = function (k) { return { t: labelOf('wcr', k) + ': ' + clean(v[k]) }; };
+    var C = function (label, k, gap) { return { t: label + clean(v[k]), al: 'c', w: WCR.specW, gap: gap }; };
+    return [
+      { t: 'WORK COMPLETION REPORT', f: 'HB', d: 2, al: 'c' },
+      { t: 'VENDOR DATA', f: 'HB', al: 'c', gap: 0.6 },
+      L('vendor_name'), L('vendor_address'), L('vendor_email'), L('vendor_phone'),
+      { t: 'CUSTOMER DATA', f: 'HB', al: 'c', gap: 1 },
+      L('cust_name'), L('cust_address'), L('cust_phone'), L('consumer_no'), L('section'), L('capacity'), L('phase'),
+      { t: 'SPECIFICATION', f: 'TB', d: 1, al: 'c', gap: 1 },
+      { t: 'SPV Module', f: 'TB' },
+      C('Make : ', 'pv_make', 1), C('Type : ', 'pv_type'), C('Each Module Watt: ', 'pv_watt'),
+      { t: 'Inverter', f: 'TB' },
+      C('Make : ', 'inv_make', 1), C('Capacity : ', 'inv_capacity'), C('Serial No: ', 'inv_serial')
+    ];
+  };
+
+  /* body and signature block at body size s; fit = the signature keeps sigGap pt of blank space above it */
+  var wcrAt = function (v, s, measure) {
+    var ops = [], y = null, lh = 1.3 * s, colW = WCR.right - WCR.left;
+    wcrBlocks(v).forEach(function (b) {
+      var f = b.f || 'T', sz = s + (b.d || 0);
+      K.wrap(b.t.trim(), b.w || colW, f, sz, measure).forEach(function (line, i) {
+        y = y === null ? WCR.top + sz : y + (i ? 0 : (b.gap || 0) * lh) + 1.3 * sz;
+        var x = b.al === 'c' ? WCR.mid - measure(line, f, sz) / 2 : WCR.left;
+        if (line) ops.push(op(line, x, y, f, sz));
+      });
+    });
+    var ss = Math.min(s, WCR.sigMax), sig = [];
+    var vendor = clean(v.vendor_name).replace(/^M\/S(\.|\s)+/i, '');
+    ['For ' + vendor, 'Name: ' + clean(v.sign_name), 'Designation: ' + clean(v.sign_designation), 'Phone: ' + clean(v.sign_phone)]
+      .forEach(function (t) { sig = sig.concat(K.wrap(t.trim(), colW, 'H', ss, measure)); });
+    var sy = WCR.sigLast - (sig.length - 1) * 1.3 * ss;
+    sig.forEach(function (line, i) {
+      if (line) ops.push(op(line, WCR.right - measure(line, 'H', ss), sy + i * 1.3 * ss, 'H', ss));
+    });
+    return { ops: ops, size: s, fit: y <= sy - WCR.sigGap - s };
+  };
+
+  var layoutWcr = function (v, measure) {
+    var ops = [], ok = true;
+    var head = function (t, x, max) {
+      if (!t) return;
+      var r = fitOne(t, 'H', WCR.headS, 6, max - x, measure);
+      ok = ok && r.fit;
+      ops.push(op(t, x, WCR.headY, 'H', r.s));
+    };
+    head(clean(v.ref), WCR.refX, WCR.refMax);
+    head(K.dmy(v.date) || clean(v.date), WCR.dateX, WCR.right);
+    var r;
+    for (var s = 12; s >= 9; s -= 0.5) { r = wcrAt(v, s, measure); if (r.fit) break; }
+    return { ops: ops.concat(r.ops), size: r.size, overflow: !(ok && r.fit) };
+  };
+
+  /* Annexure 1 (KSEB form). Table rules measured on the form: value column x 369.5-553.8, row lines below.
+     Place / Date labels (FML-TTIndulekha 14 pt, PyMuPDF rawdict on assets/kseb/annexure-1.pdf): the colon glyphs
+     end at x 130.56 / 130.08, baselines 413.33 / 427.85; values start 6 pt after the colon. */
+  var AN1 = {
+    x0: 369.5, x1: 553.8, pad: 5, max: 10.5, min: 6,
+    rows: [['r1', 155.7, 233.7], ['load', 233.7, 256.1], ['capacity', 256.1, 285.5], ['other', 285.5, 343.8], ['mount', 343.8, 380.3], ['days', 380.3, 402]],
+    r1: ['name', 'consumer_no', 'category', 'phone', 'email', 'address'],
+    labelX: 136.6, placeY: 413.33, dateY: 427.85, labelRight: 364.5
+  };
+
+  /* paragraphs in Helvetica, left-aligned, block centred vertically, largest size 10.5 -> 6 that fits the cell */
+  var an1Cell = function (paras, top, bottom, measure) {
+    var x = AN1.x0 + AN1.pad, w = AN1.x1 - AN1.x0 - 2 * AN1.pad, room = bottom - top - 2 * AN1.pad;
+    var lines, s, bh, fit = false;
+    for (s = AN1.max; s >= AN1.min; s -= 0.5) {
+      lines = [];
+      paras.forEach(function (p) { lines = lines.concat(K.wrap(p, w, 'H', s, measure)); });
+      bh = (lines.length - 1) * 1.2 * s + s;
+      if (bh <= room) { fit = true; break; }
+    }
+    if (!fit) s = AN1.min;
+    var y0 = top + (bottom - top - bh) / 2 + 0.8 * s, ops = [];
+    lines.forEach(function (line, i) { if (line) ops.push(op(line, x, y0 + i * 1.2 * s, 'H', s)); });
+    return { ops: ops, s: s, fit: fit };
+  };
+
+  var layoutAn1 = function (v, measure) {
+    var ops = [], ok = true, size = AN1.max;
+    AN1.rows.forEach(function (row) {
+      var paras = row[0] === 'r1'
+        ? AN1.r1.map(function (k) { return (labelOf('an1', k) + ': ' + clean(v[k])).trim(); })
+        : (clean(v[row[0]]) ? [clean(v[row[0]])] : []);
+      if (!paras.length) return;
+      var c = an1Cell(paras, row[1], row[2], measure);
+      ops = ops.concat(c.ops);
+      ok = ok && c.fit;
+      size = Math.min(size, c.s);
+    });
+    [[clean(v.place), AN1.placeY], [K.dmy(v.date) || clean(v.date), AN1.dateY]].forEach(function (p) {
+      if (!p[0]) return;
+      var r = fitOne(p[0], 'H', AN1.max, AN1.min, AN1.labelRight - AN1.labelX, measure);
+      ok = ok && r.fit;
+      ops.push(op(p[0], AN1.labelX, p[1], 'H', r.s));
+    });
+    return { ops: ops, size: size, overflow: !ok };
+  };
+
+  K.layout = function (docKey, values, measure) {
+    values = values || {};
+    if (docKey === 'wcr') return layoutWcr(values, measure);
+    if (docKey === 'an1') return layoutAn1(values, measure);
+    return { ops: [], size: 0, overflow: false };
+  };
+
+  /* template PDF + ops -> PDF bytes; every op drawn on page 0 in black.
+     Saved with a classic xref table (no object streams): readable by older PDF software, and never smaller than the template. */
+  K.buildPdf = function (PDFLib, templateBytes, ops) {
+    ops = ops || [];
+    return PDFLib.PDFDocument.load(templateBytes).then(function (doc) {
+      var page = doc.getPage(0), box = page.getMediaBox(), black = PDFLib.rgb(0, 0, 0), keys = [];
+      ops.forEach(function (o) { if (keys.indexOf(o.f) < 0) keys.push(o.f); });
+      return Promise.all(keys.map(function (k) { return doc.embedFont(PDFLib.StandardFonts[K.FONTS[k]]); }))
+        .then(function (list) {
+          var fonts = {};
+          keys.forEach(function (k, i) { fonts[k] = list[i]; });
+          ops.forEach(function (o) {
+            var t = K.ansi(o.t).replace(/\n/g, ' ');
+            if (t) page.drawText(t, { x: box.x + o.x, y: box.y + box.height - o.y, size: o.s, font: fonts[o.f], color: black });
+          });
+          return doc.save({ useObjectStreams: false });
+        });
+    });
+  };
+
   return K;
 })();
 if (typeof module !== 'undefined') module.exports = KD;
