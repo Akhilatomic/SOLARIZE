@@ -280,6 +280,20 @@ var KD = (function () {
     return n + ' × ' + cap + ' KW (' + total + ' KW)';
   };
 
+  /* 'single' / 'three' / '' from text like "Single phase", "3 Ph", "415 V" */
+  var phaseOf = function (s) {
+    s = trim(s).toLowerCase();
+    return /three|3\s*-?\s*ph|415/.test(s) ? 'three' : /single|1\s*-?\s*ph|230|240/.test(s) ? 'single' : '';
+  };
+  /* the inverter's phase: the plant's inverter type, else any inverter's own type, else the KSEB connection
+     (a three-phase connection can have a single-phase inverter, so the connection is only the last resort) */
+  K.invPhase = function (p, c) {
+    p = p || {}; c = c || {};
+    var srcs = [p.inverter_type].concat((Array.isArray(p.inverters) ? p.inverters : []).map(function (i) { return i && i.type; }));
+    for (var i = 0; i < srcs.length; i++) { var ph = phaseOf(srcs[i]); if (ph) return ph; }
+    return phaseOf(c.phase);
+  };
+
   /* WinAnsi-safe text for the standard PDF fonts: unsupported runs become one '?' */
   var WIN_EXTRA = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
   K.ansi = function (s) {
@@ -326,7 +340,7 @@ var KD = (function () {
         sign_name: str(sd.sign_name), sign_designation: str(sd.sign_designation), sign_phone: str(sd.sign_phone)
       };
     } else if (docKey === 'cov') {
-      var cph = trim(c.phase) || trim(p.inverter_type), csg = /single/i.test(cph), cth = /three/i.test(cph);
+      var cph = trim(c.phase) || trim(p.inverter_type), csg = /single/i.test(cph), cth = /three/i.test(cph), cip = K.invPhase(p, c);
       var cinv = Array.isArray(p.inverters) ? p.inverters : [], cpan = Array.isArray(p.panels) ? p.panels : [];
       var uniq = function (a) { return a.map(trim).filter(function (x, i, l) { return x && l.indexOf(x) === i; }); };
       var dot = function (d) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trim(d)); return m ? m[3] + '.' + m[2] + '.' + m[1] : trim(d); };
@@ -351,7 +365,7 @@ var KD = (function () {
         panel_serials: cpan.map(function (x) { return trim(x && x.serial); }).filter(Boolean).join('\n'),
         inv_make: trim(p.inverter_make) || uniq(cinv.map(function (i) { return i && i.make; })).join(', '),
         inv_serials: cinv.map(function (i) { return trim(i && i.serial); }).filter(Boolean).join(', '),
-        inv_phase: csg ? 'Single' : cth ? 'Three' : '',
+        inv_phase: cip === 'single' ? 'Single' : cip === 'three' ? 'Three' : '',
         inv_capacity: caps.length > 1 ? caps.map(function (x) { return isNum(x) ? x + ' KW' : x; }).join(', ') : K.invCapacity(p.inverter_capacity, p.inverter_count),
         cell_invoice: trim(p.cell_invoice_no), app_no: trim(p.application_no), app_date: dot(p.application_date),
         kseb_reg: trim(p.kseb_reg_no),
@@ -359,7 +373,7 @@ var KD = (function () {
         installed: dot(trim(p.installed_on) || trim(p.commissioned_on))
       };
     } else if (docKey === 'doi') {
-      var phs = trim(c.phase) || trim(p.inverter_type), one = /single/i.test(phs), three = /three/i.test(phs);
+      var phs = trim(c.phase) || trim(p.inverter_type), one = /single/i.test(phs), three = /three/i.test(phs), dip = K.invPhase(p, c);
       var invSerials = (Array.isArray(p.inverters) ? p.inverters : []).map(function (i) { return trim(i && i.serial); }).filter(Boolean);
       var nPanels = trim(p.panel_count) && !zero(p.panel_count) ? trim(p.panel_count)
         : String((Array.isArray(p.panels) ? p.panels : []).filter(function (x) { return trim(x && x.serial); }).length || '');
@@ -379,10 +393,10 @@ var KD = (function () {
         plant_type: /hybrid/i.test(sys) ? 'Hybrid' : /off/i.test(sys) ? 'Off grid' : 'On grid',
         capacity: cap('KW'), panel_count: nPanels, panel_watt: bare(p.panel_wattage, 'Wp'),
         inv_serial: [trim(p.inverter_make), invSerials.length ? 'S/N: ' + invSerials.join(', ') : ''].filter(Boolean).join(' '),
-        inv_phase: one ? 'Single Phase' : three ? 'Three Phase' : '',
+        inv_phase: dip === 'single' ? 'Single Phase' : dip === 'three' ? 'Three Phase' : '',
         inv_capacity: K.invCapacity(p.inverter_capacity, p.inverter_count),
         dc_voltage: bare(p.inverter_dc_voltage, 'Vdc'),
-        ac_voltage: one ? '230V, 1 Phase' : three ? '415V, 3 Phase' : '',
+        ac_voltage: dip === 'single' ? '230V, 1 Phase' : dip === 'three' ? '415V, 3 Phase' : '',
         /* the checklist answers and inverter settings the office normally gives (as on the KSEB sample) */
         hybrid: '', completion: '', energ: 'Not Applicable', energ_details: '',
         dc_isolator: 'Yes', visual_isolator: 'Yes', wiring: 'Yes', earthing: 'Yes', protection: 'Yes',

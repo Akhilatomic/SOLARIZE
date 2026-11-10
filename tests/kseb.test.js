@@ -486,3 +486,18 @@ test('cover page: PDF on the cover template (letterhead footer, hairline header)
   const noLines = await KD.buildPdf(PDFLib, tpl, ops.filter(o => !o.ln));
   assert.ok(out.length > noLines.length, 'the hairlines are drawn');
 });
+
+test('inverter phase comes from the inverter, not the KSEB connection', () => {
+  const ctx = (plant, phase) => Object.assign({}, SREE, { customer: Object.assign({}, SREE.customer, { phase }), plant: Object.assign({}, SREE.plant, plant) });
+  /* three-phase connection, single-phase inverter */
+  const mixed = ctx({ inverter_type: 'Single phase' }, 'Three phase');
+  assert.equal(KD.defaults('cov', mixed).inv_phase, 'Single');
+  assert.equal(KD.defaults('cov', mixed).tariff, 'LT-1/Three', 'the tariff keeps the connection');
+  assert.equal(KD.defaults('doi', mixed).inv_phase, 'Single Phase');
+  assert.equal(KD.defaults('doi', mixed).ac_voltage, '230V, 1 Phase');
+  /* no plant-level type: an inverter's own type, then the connection */
+  assert.equal(KD.defaults('cov', ctx({ inverter_type: '', inverters: [{ type: '1 Ph on-grid', serial: 'A1' }] }, 'Three phase')).inv_phase, 'Single');
+  assert.equal(KD.defaults('cov', ctx({ inverter_type: 'Three phase' }, 'Single phase')).inv_phase, 'Three');
+  assert.equal(KD.defaults('cov', ctx({ inverter_type: '', inverters: [] }, 'Three phase')).inv_phase, 'Three');
+  assert.equal(KD.invPhase({ inverter_type: 'Hybrid' }, {}), '');
+});
