@@ -1,3 +1,6 @@
 data/
 *.zip
 uploads/
+.superpowers/
+.claude/
+tools/out/
