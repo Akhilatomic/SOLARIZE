@@ -39,7 +39,7 @@ const qpSplit = s => {
   return [w.slice(0, k).join(' '), w.slice(k).join(' ')];
 };
 const qpCats = lines => QM.CATS.concat(Object.keys(lines || {}).filter(k => QM.CATS.indexOf(k) < 0));
-const qpKv = rows => '<table class="qp-kv">' + rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(qpVal(v))}</td></tr>`).join('') + '</table>';
+const qpKv = rows => '<table class="qp-kv" data-nofit="1">' + rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(qpVal(v))}</td></tr>`).join('') + '</table>';
 const qpCard = (title, body, cls) => `<div class="qp-card${cls ? ' ' + cls : ''}"><div class="qp-ct"><span class="qp-tick"></span>${esc(title)}</div>${body}</div>`;
 const qpSec = (title, cls) => `<div class="qp-sec${cls ? ' ' + cls : ''}"><span class="qp-dash"></span>${esc(title)}</div>`;
 const qpCols = n => `style="grid-template-columns:repeat(${Math.max(1, Math.min(n, 6))},minmax(0,1fr))"`;
@@ -80,7 +80,7 @@ function qpCover(doc, lines, calc, st, ctx) {
   gl.push([qpRs(calc.subsidy), 'Government subsidy', '(PM Surya Ghar)']);
   const right = (co.lines || []).map(l => `<tr><th>${esc(l.label)}</th><td>${esc(l.text)}</td></tr>`).join('');
   return qpPage('qp-cover', ctx,
-    `<div class="qp-top"><img class="qp-logo" src="assets/quote/jasper-logo.png" alt=""><div class="qp-brand"><div class="qp-b1">${esc(co.line1 || '')}</div><div class="qp-b2">${esc(co.line2 || '')}</div><div class="qp-b3">${esc(co.gstin || '')}</div></div><table class="qp-co">${right}</table></div>`
+    `<div class="qp-top"><img class="qp-logo" src="assets/quote/jasper-logo.png" alt=""><div class="qp-brand"><div class="qp-b1">${esc(co.line1 || '')}</div><div class="qp-b2">${esc(co.line2 || '')}</div><div class="qp-b3">${esc(co.gstin || '')}</div></div><table class="qp-co" data-nofit="1">${right}</table></div>`
     + `<div class="qp-title"><h1>${esc(calc.title)}</h1><span class="qp-pill">${esc(st.pill || '')}</span></div>`
     + '<div class="qp-two">'
     + qpCard('Customer details', qpKv([['Name', cu.name], ['Address', cu.address], ['Consumer number', cu.consumer_no], ['Email', cu.email], ['Mobile', cu.mobile], ['Project', project]]))
@@ -120,7 +120,7 @@ function qpItems(lines, calc, ctx) {
   const rows = qpCats(lines).map(cat => (lines[cat] || []).map(l => qpRow(++n, l, calc)).join('')).join('');
   return qpPage('qp-items', ctx, qpHead(ctx)
     + qpH1('What is included in your plant<span class="qp-contd">(continued)</span>', 'Every item has a picture, a simple explanation, the brand and the quantity.')
-    + `<table class="qp-tb"><thead><tr><th>#</th><th>Item</th><th>What it is</th><th>Brand</th><th>Qty</th></tr></thead><tbody>${rows}</tbody></table>`
+    + `<table class="qp-tb" data-nofit="1"><thead><tr><th>#</th><th>Item</th><th>What it is</th><th>Brand</th><th>Qty</th></tr></thead><tbody>${rows}</tbody></table>`
     + '<div class="qp-notes"><p class="qp-n1">Brands are chosen from the approved makes listed, based on availability at the time of installation.</p>'
     + '<p class="qp-n2">“As required” items are measured on site. PV modules and inverters comply with IEC standards; all other accessories comply with IS standards.</p></div>');
 }
@@ -142,7 +142,7 @@ function qpLoan(calc, st, ctx, fill) {
     + `<div class="qp-lb2"><small>${f('loan_label')}</small><b>${qpRs(L.loan)}</b><span>${f('loan_note')}</span></div>`
     + `<div class="qp-lb3"><small>${f('subsidy_label')}</small><b>${qpRs(calc.subsidy)}</b><span>${f('subsidy_note')}</span></div></div>`
     + qpSec(fill(T.emi_title || ''))
-    + `<table class="qp-emi"><thead><tr><th>${f('col_period')}</th><th>${f('col_before')}<small>${f('col_before_sub')}</small></th><th>${f('col_after')}<small>${f('col_after_sub')}</small></th><th>${f('col_saving')}</th></tr></thead><tbody>${rows}</tbody></table>`
+    + `<table class="qp-emi" data-nofit="1"><thead><tr><th>${f('col_period')}</th><th>${f('col_before')}<small>${f('col_before_sub')}</small></th><th>${f('col_after')}<small>${f('col_after_sub')}</small></th><th>${f('col_saving')}</th></tr></thead><tbody>${rows}</tbody></table>`
     + `<p class="qp-note">${f('illustration')}</p>`
     + `<div class="qp-two qp-ltw">${qpCard(fill(T.terms_title || ''), `<ul class="qp-dots">${list('terms')}</ul>`)}${qpCard(fill(T.who_title || ''), `<ul class="qp-dots">${list('who')}</ul>`)}</div>`
     + qpSec(fill(T.how_title || ''), 'qp-sec-tight') + `<div class="qp-steps" ${qpCols((T.steps || []).length || 4)}>${steps}</div>`
@@ -159,31 +159,36 @@ function qpTerms(doc, calc, st, ctx, fill) {
     const m = /^(.*?)\s*(\([^()]*\))\s*$/.exec(r.label || '');
     return `<tr><td>${i + 1}</td><td>${m && m[1] ? `${esc(m[1])} <small>${esc(m[2])}</small>` : esc(r.label)}</td><td><b>${QM.inr(r.amount)}</b></td></tr>`;
   }).join('') + `<tr class="qp-tot"><td></td><td>Total</td><td>${QM.inr(calc.kseb.total)}</td></tr>`;
-  return qpPage('qp-terms', ctx, qpHead(ctx) + qpH1('Delivery, payment &amp; terms')
+  return qpPage('qp-terms', ctx, qpHead(ctx) + qpH1('Delivery, payment &amp; terms<span class="qp-contd">(continued)</span>')
     + '<div class="qp-two qp-t1">' + qpCard('Delivery & installation', '<ul class="qp-del">' + del.map((t, i) => `<li>${qpIcon(i)}<span>${qpRich(fill(t))}</span></li>`).join('') + '</ul>')
     + `<div class="qp-subx"><div class="qp-subl"><small>MNRE SUBSIDY</small><span>(PM Surya Ghar)</span><b>₹ ${QM.inr(calc.subsidy)}</b></div><div class="qp-vr"></div><div class="qp-subt">${esc(stext)}</div></div></div>`
     + qpSec('Payment schedule') + `<div class="qp-pay" ${qpCols(pay.length)}>` + pay.map((p, i) => `<div><span class="qp-num">${i + 1}</span><b>${esc(p.amt)}</b><span>${qpRich(fill(p.text || ''))}</span></div>`).join('') + '</div>'
     + (war ? qpSec('Warranty at a glance') + `<div class="qp-war" ${qpCols(calc.warranties.length)}>${war}</div>` : '')
-    + '<div class="qp-two qp-tk">' + qpCard('Terms and conditions', '<ul class="qp-dots">' + terms.map(t => `<li><i></i>${qpRich(fill(t))}</li>`).join('') + '</ul>')
-    + qpCard('KSEB charges (included)', `<p class="qp-ksn">These KSEB charges for grid connection are already included in your gross amount.</p><table class="qp-ks"><thead><tr><th>#</th><th>Particulars</th><th>Amount (₹)</th></tr></thead><tbody>${kseb}</tbody></table>`)
+    + '<div class="qp-two qp-tk">' + qpCard('Terms and conditions', '<ul class="qp-dots">' + terms.map(t => `<li><i></i>${qpRich(fill(t))}</li>`).join('') + '</ul>', 'qp-tc')
+    + qpCard('KSEB charges (included)', `<p class="qp-ksn">These KSEB charges for grid connection are already included in your gross amount.</p><table class="qp-ks" data-nofit="1"><thead><tr><th>#</th><th>Particulars</th><th>Amount (₹)</th></tr></thead><tbody>${kseb}</tbody></table>`, 'qp-kc')
     + '</div>');
 }
 
 /* ---- mounting and pagination ---- */
 const qpFits = p => { const inn = p.querySelector('.qp-in'), last = inn && inn.lastElementChild; return !last || last.offsetTop + last.offsetHeight <= inn.clientHeight; };
-/* Put every item row back on the first items page, then move rows that overflow onto "(continued)" pages; tighten other pages that run
-   past the footer; renumber the footers. Safe to run again. */
+const qpTighten = p => { p.classList.remove('qp-tight', 'qp-tight2'); if (!qpFits(p)) p.classList.add('qp-tight'); if (!qpFits(p)) p.classList.add('qp-tight2'); };
+/* Lays the pages out again from scratch (safe to run any number of times):
+   item rows that overflow move onto "(continued)" items pages; other pages that run past the footer get tighter spacing;
+   if the terms page still overflows, its Terms card (then the KSEB card) moves onto a "(continued)" page.
+   A page that still does not fit gets .qp-over and its title goes into c._qmOverflow (empty when all is well). Footers are renumbered. */
 function qpPaginate(c) {
+  c.querySelectorAll('.qp-over').forEach(p => p.classList.remove('qp-over'));
   const all = [...c.querySelectorAll('.qp-items')];
   if (all.length) {
     const first = all[0], tb = first.querySelector('tbody'), notes = first.querySelector('.qp-notes');
     all.slice(1).forEach(p => { p.querySelectorAll('tbody > tr').forEach(tr => tb.appendChild(tr)); const n2 = p.querySelector('.qp-n2'); if (n2) notes.appendChild(n2); p.remove(); });
+    const isCont = p => p && p.classList.contains('qp-items') && p.classList.contains('qp-cont');
     let page = first, guard = 0;
     while (page && guard++ < 1000) {
       const rows = page.querySelectorAll('tbody > tr'), n2 = page.querySelector('.qp-n2');
-      if (qpFits(page) || (!n2 && rows.length <= 1)) { const nx = page.nextElementSibling; page = nx && nx.classList.contains('qp-cont') ? nx : null; continue; }
+      if (qpFits(page) || (!n2 && rows.length <= 1)) { const nx = page.nextElementSibling; page = isCont(nx) ? nx : null; continue; }
       let nx = page.nextElementSibling;
-      if (!nx || !nx.classList.contains('qp-cont')) {
+      if (!isCont(nx)) {
         nx = page.cloneNode(true); nx.classList.add('qp-cont');
         nx.querySelector('tbody').innerHTML = '';
         nx.querySelectorAll('.qp-n1, .qp-n2').forEach(e => e.remove());
@@ -195,18 +200,39 @@ function qpPaginate(c) {
       if (!n2 || (!nb.firstChild && rows.length > 1)) nb.insertBefore(rows[rows.length - 1], nb.firstChild);
     }
   }
-  c.querySelectorAll('.qp:not(.qp-items):not(.qp-feat)').forEach(p => {
-    p.classList.remove('qp-tight', 'qp-tight2');
-    if (!qpFits(p)) p.classList.add('qp-tight');
-    if (!qpFits(p)) p.classList.add('qp-tight2');
+  const terms = c.querySelector('.qp-terms:not(.qp-cont)'), tcont = c.querySelector('.qp-terms.qp-cont');
+  if (terms && tcont) { const tk = terms.querySelector('.qp-tk'); [tcont.querySelector('.qp-tc'), tcont.querySelector('.qp-kc')].forEach(e => { if (e) tk.appendChild(e); }); tcont.remove(); }
+  if (terms) { const tk = terms.querySelector('.qp-tk'), kc = tk.querySelector('.qp-kc'); if (kc) tk.appendChild(kc); } /* Terms card first, then KSEB */
+  c.querySelectorAll('.qp:not(.qp-items):not(.qp-feat)').forEach(qpTighten);
+  if (terms && !qpFits(terms)) {
+    const nx = terms.cloneNode(true); nx.classList.add('qp-cont');
+    const keep = nx.querySelector('.qp-tk');
+    [...nx.querySelector('.qp-in').children].forEach(e => { if (e !== keep && !e.matches('.qp-hd, .qp-h1bar, .qp-h1')) e.remove(); });
+    keep.innerHTML = '';
+    terms.after(nx);
+    const tk = terms.querySelector('.qp-tk');
+    keep.appendChild(tk.querySelector('.qp-tc'));
+    qpTighten(terms);
+    if (!qpFits(terms)) { keep.appendChild(tk.querySelector('.qp-kc')); qpTighten(terms); }
+    qpTighten(nx);
+  }
+  const pg = [...c.querySelectorAll('.qp')], over = [];
+  pg.forEach((p, i) => {
+    const e = p.querySelector('.qp-pno'); if (e) e.textContent = `Page ${i + 1} of ${pg.length}`;
+    if (p.querySelector('.qp-in') && !qpFits(p)) {
+      p.classList.add('qp-over');
+      const h = p.querySelector('.qp-h1, .qp-title h1'), t = h ? h.cloneNode(true) : null;
+      if (t) t.querySelectorAll('.qp-contd').forEach(x => x.remove());
+      over.push(`Page ${i + 1}: ${t ? t.textContent.trim() : ''}${p.classList.contains('qp-cont') ? ' (continued)' : ''}`);
+    }
   });
-  const pg = c.querySelectorAll('.qp');
-  pg.forEach((p, i) => { const e = p.querySelector('.qp-pno'); if (e) e.textContent = `Page ${i + 1} of ${pg.length}`; });
+  c._qmOverflow = over;
 }
 const qpFontsReady = () => document.fonts ? Promise.all(QP_FONTS.map(f => document.fonts.load(f))).then(() => document.fonts.ready).catch(() => {}) : Promise.resolve();
 
-/* Render the pages into container (which must be in the document and displayed), then paginate the item rows.
-   Paginates again once the font and pictures have loaded; container._qmReady resolves after that. */
+/* Render the pages into container (which must be in the document and displayed), then paginate (qpPaginate).
+   Paginates again once the font and pictures have loaded; container._qmReady resolves after that,
+   and container._qmOverflow then lists the pages that still do not fit (the PDF is refused while it is not empty). */
 function qmMount(container, pages) {
   const tok = container._qmTok = (container._qmTok || 0) + 1;
   container.innerHTML = (pages || []).join('');
@@ -253,6 +279,8 @@ async function qmDownloadPdf(container, fileName) {
   await qpLibs();
   if (container._qmReady) await container._qmReady;
   await qpFontsReady();
+  const over = container._qmOverflow || [];
+  if (over.length) throw new Error('Some pages do not fit on A4 (' + over.join('; ') + '). Shorten their text first.');
   const W = 595.28, H = 841.89, pdf = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait', compress: true });
   const pages = [...container.querySelectorAll('.qp')];
   for (let i = 0; i < pages.length; i++) {
@@ -264,6 +292,7 @@ async function qmDownloadPdf(container, fileName) {
       onclone: (d, c) => { for (let n = c; n && n.style; n = n.parentElement) { n.style.transform = 'none'; n.style.zoom = '1'; } c.style.margin = '0'; c.style.boxShadow = 'none'; },
     });
     pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, W, H);
+    cv.width = cv.height = 0; /* free the canvas memory */
   }
   pdf.save(fileName || 'Quotation.pdf');
 }
