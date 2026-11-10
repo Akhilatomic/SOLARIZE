@@ -221,7 +221,7 @@ test('an1 mount follows the plant form', () => {
   assert.equal(m({}), 'ROOF-TOP');
 });
 
-const RAJ_REG = Object.assign({}, RAJ, { plant: Object.assign({}, RAJ.plant, { application_no: 'KSEB/REG/2026/123' }) });
+const RAJ_REG = Object.assign({}, RAJ, { plant: Object.assign({}, RAJ.plant, { kseb_reg_no: 'KSEB/REG/2026/123', application_no: 'PMSG/APP/999' }) });
 
 test('an2 and an3 defaults', () => {
   const a2 = KD.defaults('an2', RAJ);
@@ -237,6 +237,8 @@ test('an2 and an3 defaults', () => {
   assert.equal(a2.date, '2026-11-10');
   const a3 = KD.defaults('an3', RAJ_REG);
   assert.equal(a3.reg_no, 'KSEB/REG/2026/123');
+  /* the KSEB registration no. has its own field; the application no. is a different number and never stands in for it */
+  assert.equal(KD.defaults('an3', Object.assign({}, RAJ, { plant: Object.assign({}, RAJ.plant, { application_no: 'PMSG/APP/999' }) })).reg_no, '');
   assert.equal(a3.capacity, '5 kWp');
   assert.equal(a3.type_test, 'YES');
   assert.equal(a3.specs, 'YES');

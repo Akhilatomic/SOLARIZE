@@ -174,7 +174,7 @@ function fld(f, v = {}) {
   let inp;
   if (f.opts) inp = `<select data-k="${f.k}">${f.opts.map(o => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov)}" ${String(val) === String(ov) ? 'selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>`;
   else if (f.t === 'textarea') inp = `<textarea data-k="${f.k}" rows="${f.rows || 3}"${sp}>${esc(val)}</textarea>`;
-  else inp = `<input data-k="${f.k}" type="${f.t || 'text'}" ${f.t === 'number' ? 'step="any"' : ''}${sp} value="${esc(val)}">`;
+  else inp = `<input data-k="${f.k}" type="${f.t || 'text'}" ${f.t === 'number' ? 'step="any"' : ''}${sp}${f.ph ? ` placeholder="${esc(f.ph)}"` : ''} value="${esc(val)}">`;
   return `<div class="${cls}"><label>${f.l}</label>${inp}</div>`;
 }
 const collect = r => { const o = {}; $$('[data-k]', r).forEach(e => o[e.dataset.k] = e.value); return o; };
@@ -668,6 +668,8 @@ async function pgCustomers() {
 const CF = [{ g: 'Basic details' }, { k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'alt_phone', l: 'Alternate phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'address', l: 'Address', full: 1 }, { k: 'district', l: 'District', d: 'Thiruvananthapuram' }, { k: 'pincode', l: 'PIN code' },
   { k: 'roof_type', l: 'Roof type', opts: ['', 'RCC flat', 'Sheet / tin', 'Tile', 'Other'] }, { k: 'gst_no', l: 'GST no. (if business)' },
   { g: 'KSEB details' }, { k: 'consumer_no', l: 'KSEB consumer no.' }, { k: 'kseb_section', l: 'KSEB section office' }, { k: 'sanctioned_load', l: 'Sanctioned load (kW)', t: 'number' }, { k: 'phase', l: 'Connection', opts: ['', 'Single phase', 'Three phase'] }, { k: 'tariff', l: 'Tariff', opts: ['', 'LT-1A Domestic', 'LT-6 Non-domestic', 'LT-7 Commercial', 'LT-4 Industrial', 'Other'] }, { k: 'meter_no', l: 'Meter no.' },
+  { k: 'kseb_circle', l: 'Electrical circle', ph: 'e.g. Electrical Circle (Rural) Kattakada' }, { k: 'kseb_division', l: 'Electrical division', ph: 'e.g. Electrical Division Neyyattinkara' }, { k: 'kseb_subdivision', l: 'Electrical sub division' },
+  { k: 'local_body', l: 'Panchayath / Municipality / Corporation' }, { k: 'village_survey', l: 'Village & survey no.' },
   { g: 'Bank details (for subsidy)' }, { k: 'bank_holder', l: 'Account holder name' }, { k: 'bank_name', l: 'Bank name' }, { k: 'bank_branch', l: 'Branch' }, { k: 'bank_account', l: 'Account number' }, { k: 'bank_ifsc', l: 'IFSC code' },
   { g: 'Location' }, { k: 'landmark', l: 'Landmark', full: 1 }];
 function customerModal(id, c = {}) {

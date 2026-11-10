@@ -7,12 +7,15 @@ const PL_OPTS = {
   system_type: ['On-grid', 'Off-grid', 'Hybrid'], rooftop_type: ['RCC flat', 'RCC sloped', 'Sheet / tin', 'Tile', 'Ground'], rooftop_penetration: ['No (ballasted)', 'Yes (anchored)'],
 };
 const PL_SECTIONS = [
-  ['Plant', 'sun', [['capacity', 'Solar capacity (kWp)', 'n'], ['panel_make', 'Panel make'], ['panel_type', 'Panel type'], ['panel_wattage', 'Panel wattage (W)', 'n'], ['panel_count', 'Number of panels', 'n']]],
-  ['Inverter', 'gear', [['inverter_make', 'Inverter make'], ['inverter_count', 'Number of inverters', 'n'], ['inverter_type', 'Inverter type'], ['inverter_capacity', 'Inverter capacity (kW)', 'n']]],
+  ['Plant', 'sun', [['capacity', 'Solar capacity (kWp)', 'n'], ['panel_make', 'Panel make'], ['panel_type', 'Panel type'], ['panel_wattage', 'Panel wattage (W)', 'n'], ['panel_count', 'Number of panels', 'n'], ['panel_model', 'Panel model no.'], ['panel_efficiency', 'Panel efficiency (%)', 'n']]],
+  ['Inverter', 'gear', [['inverter_make', 'Inverter make'], ['inverter_count', 'Number of inverters', 'n'], ['inverter_type', 'Inverter type'], ['inverter_capacity', 'Inverter capacity (kW)', 'n'], ['inverter_model', 'Inverter model'], ['inverter_dc_voltage', 'DC input voltage (V)', 'n']]],
   ['Structure', 'project', [['structure_type', 'Structure type'], ['structure_material', 'Material'], ['panel_arrangement', 'Panel arrangement']]],
   ['Rooftop', 'target', [['system_type', 'System type'], ['rooftop_type', 'Rooftop type'], ['rooftop_age', 'Rooftop age (years)', 'n'], ['building_height', 'Building height (m)', 'n'], ['floors', 'Number of floors', 'n'], ['rooftop_penetration', 'Rooftop penetration'], ['slab_thickness', 'Slab thickness (mm)', 'n'], ['slab_slope', 'Slope of slab (degrees)', 'n']]],
-  ['Energy meter', 'gauge', [['meter_type', 'Meter type'], ['meter_make', 'Meter make'], ['meter_serial', 'Meter serial no.']]],
+  ['Energy meter', 'gauge', [['meter_type', 'Meter type'], ['meter_make', 'Meter make'], ['meter_serial', 'Meter serial no.'], ['meter_reading', 'Solar meter initial reading (kWh)', 'n']]],
   ['Application', 'receipt', [['application_no', 'Application no.'], ['application_date', 'Application date', 'd'], ['gst_invoice_no', 'GST invoice no.'], ['commissioned_on', 'Commissioned on', 'd'], ['warranty_till', 'Warranty till', 'd']]],
+  ['KSEB & dates', 'calendar', [['kseb_reg_no', 'KSEB solar registration no.'], ['spin', 'SPIN (solar plant identification no.)'], ['installed_on', 'Date of installation', 'd'], ['inspected_on', 'Date of joint inspection', 'd']]],
+  ['DCR', 'shield', [['dcr_po_no', 'Purchase order / invoice no.'], ['dcr_po_date', 'Purchase order / invoice date', 'd'], ['cell_maker', 'Cell manufacturer'], ['cell_invoice_no', 'Cell GST invoice no.']]],
+  ['Test results', 'check', [['ir_total', 'Insulation resistance, whole installation (MΩ)', 'n'], ['ir_earth', 'Insulation resistance, conductor to earth (MΩ)', 'n'], ['ir_between', 'Insulation resistance, between conductors (MΩ)', 'n'], ['earth_resistance', 'Earth electrode resistance (Ω)', 'n'], ['earth_max', 'Maximum earthing resistance (Ω)', 'n']]],
 ];
 const cpv = (v, l) => v ? `<button class="pfv" data-cp="${esc(v)}" data-l="${esc(l)}" title="Click to copy">${esc(v)}<i class="i i-copy"></i></button>` : '<em class="mut">—</em>';
 const bindCopy = root => $$('[data-cp]', root).forEach(b => b.onclick = e => { e.preventDefault(); copyText(b.dataset.cp, b.dataset.l || ''); b.classList.add('ok'); setTimeout(() => b.classList.remove('ok'), 900); });
@@ -35,7 +38,7 @@ async function renderPlant(box, c, id, edit) {
     <div class="plcols">
      ${sec(PL_SECTIONS[0], `<div class="pfsub">Panels (${d.panels.length})${pw ? ` · ${(pw / 1000).toFixed(2)} kWp total` : ''}</div>${serialList(d.panels, 'Panel', [['make', 'Make'], ['wattage', 'W', ' W']])}`)}
      ${sec(PL_SECTIONS[1], `<div class="pfsub">Inverters (${d.inverters.length})</div>${serialList(d.inverters, 'Inverter', [['make', 'Make'], ['type', 'Type'], ['capacity', 'kW', ' kW']])}`)}
-     ${sec(PL_SECTIONS[2])}${sec(PL_SECTIONS[3])}${sec(PL_SECTIONS[4])}${sec(PL_SECTIONS[5])}
+     ${PL_SECTIONS.slice(2).map(s => sec(s)).join('')}
      ${pay ? `<div class="card pfc"><div class="pfch"><i class="i i-coin"></i><h3>Project cost & payment</h3>${r.project ? `<span class="sp"></span><a class="btn sec sm" href="#/projects/${r.project.id}">Open project</a>` : ''}</div>
        <div class="plpay"><div class="b"><small>Total project cost</small><b>${pay.cost ? inr(pay.cost) : 'Not set'}</b></div><div class="g"><small>Total paid</small><b>${inr(pay.paid)}</b><em>${pay.count} payment${pay.count === 1 ? '' : 's'}</em></div>
         <div class="y"><small>Pending</small><b>${inr(pay.pending)}</b></div><div class="n"><small>Status</small><b>${pay.status}</b></div></div></div>` : ''}

@@ -222,7 +222,7 @@ var KD = (function () {
         load: bare(c.sanctioned_load, 'kW'), capacity: cap('kWp'),
         specs: 'YES', meters: 'YES', drawings: 'YES', days: '30 DAYS'
       } : docKey === 'an3' ? {
-        reg_no: trim(p.application_no), capacity: cap('kWp'),
+        reg_no: trim(p.kseb_reg_no), capacity: cap('kWp'),
         type_test: 'YES', specs: 'YES', inspector: 'NOT APPLICABLE'
       } : {};
       Object.keys(more).forEach(function (k) { v[k] = more[k]; });

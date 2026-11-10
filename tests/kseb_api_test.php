@@ -100,6 +100,22 @@ if ($dbPath !== '' && is_file($dbPath)) {
   chk(($row['total'] ?? 0) === 17 && ($row['approved'] ?? -1) === 1, 'progress counts only items on the new list (1/17)');
 } else echo "  skip checklist carry-over test (no database path given)\n";
 
+/* fields the KSEB / MNRE papers ask for: customer columns + plant keys save and come back */
+$kx = ['kseb_circle' => 'Electrical Circle (Rural) Kattakada', 'kseb_division' => 'Electrical Division Neyyattinkara', 'kseb_subdivision' => 'Kattakada', 'local_body' => 'ANAD', 'village_survey' => 'Anad 123/4'];
+$cf = call($admin, 'customers', 'save', array_merge(['name' => 'Field Test', 'phone' => '9811111111'], $kx));
+$cfid = (int)($cf['id'] ?? 0);
+$cg = call($admin, 'customers', 'get', null, "&id=$cfid");
+chk($cfid > 0 && count(array_filter(array_keys($kx), fn($k) => ($cg[$k] ?? null) === $kx[$k])) === 5, 'customer KSEB fields (circle, division, sub division, local body, village & survey) save and load');
+$px = ['panel_model' => 'RPS2MH72BD550', 'panel_efficiency' => '21.29', 'inverter_model' => 'SUN-5K-G03', 'inverter_dc_voltage' => '480', 'meter_reading' => '0.2794',
+  'kseb_reg_no' => 'KSEB/REG/9', 'spin' => 'SPIN-77', 'installed_on' => '2026-11-01', 'inspected_on' => '2026-11-08',
+  'dcr_po_no' => 'SPS/123', 'dcr_po_date' => '2026-10-20', 'cell_maker' => 'ReNew', 'cell_invoice_no' => 'INV-9',
+  'ir_total' => '50', 'ir_earth' => '40', 'ir_between' => '30', 'earth_resistance' => '1.5', 'earth_max' => '2'];
+chk(call($admin, 'plant', 'save', ['customer_id' => $cfid, 'data' => $px + ['panels' => [], 'inverters' => []]])['_code'] === 200, 'plant with the new KSEB fields saved');
+$pg = call($admin, 'plant', 'get', null, "&customer_id=$cfid");
+chk(count(array_filter(array_keys($px), fn($k) => ($pg['data'][$k] ?? null) === $px[$k])) === count($px), 'all 18 new plant fields come back');
+$kg = call($admin, 'kseb', 'get', null, "&customer_id=$cfid");
+chk(($kg['customer']['kseb_division'] ?? '') === $kx['kseb_division'] && ($kg['plant']['kseb_reg_no'] ?? '') === 'KSEB/REG/9', 'kseb/get carries the new customer and plant fields');
+
 /* total reset (keep last: it wipes customers): nothing keyed by customer id may survive into a new customer #1 */
 call($admin, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'wcr', 'data' => ['cust_phone' => '111']]);
 $rs = call($admin, 'reset', 'reset', ['password' => $pw, 'confirm' => 'RESET', 'opts' => []]);

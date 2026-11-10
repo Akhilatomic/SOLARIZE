@@ -7,6 +7,11 @@ const PLANT_KEYS = [
   'structure_type', 'structure_material', 'panel_arrangement',
   'system_type', 'rooftop_type', 'rooftop_age', 'building_height', 'floors', 'rooftop_penetration', 'slab_thickness', 'slab_slope',
   'meter_make', 'meter_type', 'meter_serial', 'gst_invoice_no', 'application_no', 'application_date', 'commissioned_on', 'warranty_till',
+  // asked for by the KSEB / MNRE papers (net metering agreement, joint inspection, DCR declaration, completion report)
+  'panel_model', 'panel_efficiency', 'inverter_model', 'inverter_dc_voltage', 'meter_reading',
+  'kseb_reg_no', 'spin', 'installed_on', 'inspected_on',
+  'dcr_po_no', 'dcr_po_date', 'cell_maker', 'cell_invoice_no',
+  'ir_total', 'ir_earth', 'ir_between', 'earth_resistance', 'earth_max',
 ];
 
 // lead survey (site condition) and proposed system (plant) — stored as JSON on the lead, copied to the customer on conversion
