@@ -8,7 +8,7 @@ const QM_CATS = [
   ['earthing', 'Earthing'], ['la', 'Lightning arrester'], ['structure', 'Mounting structure'], ['install', 'Installation'],
 ];
 
-/* Placeholders in {braces} (loan texts, terms) are filled in by the renderer. */
+/* Placeholders in {braces} (loan texts, terms) are filled in by the renderer; **two stars** around words print them bold (red in the loan title, amber in the helpline). */
 const QM_DEFAULTS = [
   'company' => [
     'line1' => 'JASPER', 'line2' => 'SOLAR SOLUTIONS', 'gstin' => 'GSTIN/UIN: 32CZHPA7698N1ZR', 'name' => 'JASPER SOLAR SOLUTIONS',
@@ -27,8 +27,8 @@ const QM_DEFAULTS = [
   'valid_days' => 5,
   'number_format' => 'JSS/PMSGY/{YYYY}/{NNNN}',
   'delivery' => [
-    'Materials will be delivered within 15 to 30 days from the date of work order.',
-    'Installation will be completed within 10 to 15 days from the date materials reach the site.',
+    'Materials will be delivered within **15 to 30 days** from the date of work order.',
+    'Installation will be completed within **10 to 15 days** from the date materials reach the site.',
     'Final commissioning after the necessary approvals from the Electrical Inspectorate and KSEB.',
   ],
   'pay' => [
@@ -38,9 +38,9 @@ const QM_DEFAULTS = [
   ],
   'kseb' => ['feas' => 1000, 'reg_per_kw' => 1000, 'stamp' => 300, 'reg_label' => 'Registration fee (₹1,000 per kW, 80% refundable)', 'feas_label' => 'KSEB Ltd. feasibility charge', 'stamp_label' => 'Stamp paper'],
   'loan' => [
-    'margin_pct' => 10, 'rate' => 6.0, 'months' => [60, 84, 120], 'units_per_kwp' => 1300, 'tariff' => 7,
+    'margin_pct' => 10, 'rate' => 6.0, 'months' => [60, 84, 120], 'units_per_kwp' => 1300, 'tariff' => 7, 'cap' => 200000,
     'texts' => [
-      'title' => 'Easy finance with the SBI Surya Ghar loan',
+      'title' => 'Easy **finance** with the SBI Surya Ghar loan',
       'sub' => 'Start with a margin payment. Let your solar savings help pay the rest.',
       'margin_label' => 'YOU PAY FIRST (MARGIN)',
       'margin_note' => 'Keeps the loan within ₹2 lakh for the {rate}% rate. The {margin_pct}% minimum is {min_margin} (see note below for the larger-loan option)',
@@ -50,9 +50,9 @@ const QM_DEFAULTS = [
       'subsidy_note' => 'Credited to your loan account, so your loan balance falls to about {after}',
       'emi_title' => 'What your monthly EMI could look like',
       'col_period' => 'REPAYMENT PERIOD',
-      'col_before' => 'EMI BEFORE SUBSIDY IS CREDITED',
+      'col_before' => 'EMI **BEFORE** SUBSIDY IS CREDITED',
       'col_before_sub' => 'on a loan of {loan}',
-      'col_after' => 'EMI AFTER SUBSIDY IS CREDITED',
+      'col_after' => 'EMI **AFTER** SUBSIDY IS CREDITED',
       'col_after_sub' => 'on about {after}',
       'col_saving' => 'YOUR MONTHLY SOLAR SAVING',
       'per_month' => 'a month',
@@ -61,10 +61,10 @@ const QM_DEFAULTS = [
       'illustration' => 'Illustration at {rate}% a year (floating). “After” assumes the loan is re-worked on about {after} once the {subsidy} subsidy is credited (about 30 working days after commissioning); SBI confirms the exact figures. Savings are approximate. You can borrow up to 90% ({max90}) at 8.15% a year (floating) with a margin of only {margin90}, but SBI then needs a CIBIL score of 650+, PAN, income proof (₹3 lakh+ a year) and insurance of the plant.',
       'terms_title' => 'SBI loan terms',
       'terms' => [
-        'Interest: {rate}% a year (floating) for loans up to ₹2 lakh, as shown by SBI on 15 Oct 2026',
-        'Repayment: up to 10 years, including a 6-month moratorium',
-        'No processing fee and no penalty for paying the loan early',
-        'Security: the solar plant itself. Insurance of the plant may be asked for loans above ₹2 lakh',
+        '**Interest:** {rate}% a year (floating) for loans up to ₹2 lakh, as shown by SBI on 15 Oct 2026',
+        '**Repayment:** up to 10 years, including a 6-month moratorium',
+        '**No processing fee** and **no penalty** for paying the loan early',
+        '**Security:** the solar plant itself. Insurance of the plant may be asked for loans above ₹2 lakh',
         'No minimum income or CIBIL score for loans up to ₹2 lakh. A default or write-off in CIBIL is not accepted',
       ],
       'who_title' => 'Who can apply, and what to keep ready',
@@ -83,8 +83,32 @@ const QM_DEFAULTS = [
         ['t' => 'Bank pays us', 'd' => 'SBI pays Jasper directly (loan + your margin) after the site feasibility report.'],
         ['t' => 'Subsidy', 'd' => 'Comes into your loan account. Give your loan account number on the portal.'],
       ],
-      'helpline' => 'SBI helpline: 1800 1234 · 1800 2100 · 1800 11 2211',
+      'helpline' => 'SBI helpline: **1800 1234** · **1800 2100** · **1800 11 2211**',
       'footnote' => 'Loan terms are SBI’s and may change; approval is at SBI’s discretion. Source: sbi.bank.in, SBI Surya Ghar loan page (updated 19 Oct 2026).',
+    ],
+    /* used instead of the matching 'texts' when the loan stays under the cap (the full {loan_pct}% loan, e.g. 2 kW at ₹1,70,000) */
+    'texts_small' => [
+      'sub' => 'Start with a small margin. Let your solar savings help pay the rest.',
+      'margin_label' => 'YOU PAY FIRST ({margin_pct}% MARGIN)',
+      'margin_note' => '{margin_pct}% of the project cost of {gross}',
+      'loan_label' => 'SBI LOAN ({loan_pct}%)',
+      'loan_note' => 'Paid by the bank directly to Jasper Solar',
+      'illustration' => 'Illustration at {rate}% a year (floating). “After” assumes the loan is re-worked on about {after} once the {subsidy} subsidy is credited (usually within about 30 working days after commissioning). SBI confirms whether the EMI or the repayment period is adjusted. Savings are approximate and depend on your site, shade, weather and KSEB tariff.',
+      'terms' => [
+        '**Interest:** {rate}% a year (floating) for loans up to ₹2 lakh, as shown by SBI on 15 Oct 2026',
+        '**Repayment:** up to 10 years, including a 6-month moratorium',
+        '**No processing fee** and **no penalty** for paying the loan early',
+        '**Security:** the solar plant itself. Insurance is optional for 1 to 3 kW',
+        'No minimum income or CIBIL score for loans up to ₹2 lakh. A default or write-off in CIBIL is not accepted',
+      ],
+      'who' => [
+        'Indian resident with rooftop rights, enough roof area and a valid electricity connection',
+        'Age up to 65 (up to 75 with a co-borrower)',
+        'An SBI savings account (you can open one)',
+        'KYC documents and a copy of your electricity bill',
+        'No earlier solar subsidy taken',
+        'From Jasper: quotation or invoice, site feasibility report and agreement',
+      ],
     ],
   ],
   'terms' => [

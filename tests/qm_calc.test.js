@@ -158,6 +158,7 @@ test('vars', () => {
   assert.equal(v.loan, '₹2,00,000'); assert.equal(v.subsidy, '₹78,000'); assert.equal(v.max90, '₹3,11,670'); assert.equal(v.margin90, '₹34,630');
   assert.equal(v.gross, '₹3,46,300'); assert.equal(v.kwp, '5.5'); assert.equal(v.units, '1,300'); assert.equal(v.tariff, '7');
   assert.equal(v.phase, 'three-phase'); assert.equal(v.days, '5');
+  assert.equal(v.loan_pct, '90');
   const s3 = JSON.parse(JSON.stringify(SET)); s3.loan.tariff = 7.5;
   assert.equal(QM.vars(c, Object.assign({}, SETUP5, { valid_days: 7 }), s3).tariff, '7.5');
   assert.equal(QM.vars(c, Object.assign({}, SETUP5, { valid_days: 7 }), s3).days, '7');

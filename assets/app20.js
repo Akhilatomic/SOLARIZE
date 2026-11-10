@@ -148,7 +148,7 @@ var QM = (function () {
     var ls = settings.loan || {}, l = calc.loan;
     var rs = function (n) { return '₹' + Q.inr(n); };
     var v = {
-      rate: num(ls.rate, 6).toFixed(2), margin_pct: String(num(ls.margin_pct, 10)),
+      rate: num(ls.rate, 6).toFixed(2), margin_pct: String(num(ls.margin_pct, 10)), loan_pct: String(r1(100 - num(ls.margin_pct, 10))),
       subsidy: rs(calc.subsidy), gross: rs(doc.price),
       kwp: String(calc.dcKwp), units: Q.inr(ls.units_per_kwp == null ? 1300 : ls.units_per_kwp), tariff: String(num(ls.tariff, 7)),
       phase: calc.phase || 'single-phase',
