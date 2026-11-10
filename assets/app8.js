@@ -66,7 +66,8 @@ function hrBadge() {
   const n = HR.me ? HR.me.pending_requests : 0; if (!b) { b = document.createElement('span'); b.className = 'nb nbo'; a.appendChild(b); }
   b.textContent = n || ''; b.style.display = n ? '' : 'none';
 }
-function startHr() { if (canR('attendance') || canR('leaves')) hrMe(); setInterval(() => { if (canR('attendance') || canR('leaves')) { if (!document.hidden) hrMe(); else if (HR.me && HR.me.manage_lv) hrPending(); } }, 60000); }
+// one timer only, even when boot() runs again after a sign-in
+function startHr() { if (canR('attendance') || canR('leaves')) hrMe(); clearInterval(HR.poll); HR.poll = setInterval(() => { if (canR('attendance') || canR('leaves')) { if (!document.hidden) hrMe(); else if (HR.me && HR.me.manage_lv) hrPending(); } }, 60000); }
 
 // ---------- Attendance page ----------
 async function pgAttendance() {

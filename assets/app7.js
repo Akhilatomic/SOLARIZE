@@ -76,6 +76,7 @@ async function waInbox() {
 async function loadChats(quiet) {
   let cs; try { cs = await api('wa', 'chats', undefined, `&f=${WA.f}&q=${encodeURIComponent(WA.q)}`); } catch (e) { return; }
   const el = $('#wll'); if (!el) return;
+  const lsig = JSON.stringify(cs); if (quiet && lsig === WA.lsig && el.childElementCount) return; WA.lsig = lsig; // 5-second poll: rebuild the list only when something changed
   el.innerHTML = cs.map(c => `<div class="wc ${c.id == WA.chat ? 'on' : ''}" data-c="${c.id}"><div class="wav">${esc(initials(c.name || c.wa_id))}</div><div class="wcm"><div class="wct"><b>${esc(c.name || prettyNum(c.wa_id))}</b><small>${waTime(c.last_at)}</small></div>
      <div class="wct"><span class="wcp">${esc(c.last_msg || '')}</span>${c.unread ? `<span class="ub">${c.unread}</span>` : ''}</div>
      <div class="wctag">${c.customer_name ? '<span class="pill g">Customer</span>' : c.lead_name ? '<span class="pill b">Lead</span>' : ''}${c.assigned_name ? `<span class="pill">${esc(c.assigned_name)}</span>` : '<span class="pill y">Unassigned</span>'}</div></div></div>`).join('') || `<p class="mut" style="padding:14px">${WA.q || WA.f ? 'No chats match.' : 'No conversations yet. Incoming WhatsApp messages appear here.'}</p>`;

@@ -219,12 +219,14 @@ function handle_checklist($a) {
   if ($a === 'list') { // overview for subsidy / kseb pages
     need('checklist'); $kind = $_GET['kind'] === 'kseb' ? 'kseb' : 'subsidy'; $S = settings();
     $total = count($kind === 'kseb' ? $S['kseb_items'] : $S['subsidy_steps']); $items = $kind === 'kseb' ? $S['kseb_items'] : $S['subsidy_steps'];
-    $res = [];
+    $res = []; $want = array_flip($items); $cnt = [];
+    foreach (rows('SELECT project_id,item,status FROM checklist WHERE kind=?', [$kind]) as $c) { // one query for all projects (was one per project)
+      if (!isset($want[$c['item']])) continue;
+      $k = $c['status'] === 'Approved' || $c['status'] === 'NA' ? 'a' : ($c['status'] === 'Submitted' ? 's' : '');
+      if ($k !== '') $cnt[$c['project_id']][$k] = ($cnt[$c['project_id']][$k] ?? 0) + 1;
+    }
     foreach (rows('SELECT p.id,p.title,p.kw,p.stage,p.application_no,p.subsidy_status,p.subsidy_amount,c.name customer FROM projects p LEFT JOIN customers c ON c.id=p.customer_id ORDER BY p.updated DESC') as $p) {
-      $st = [];
-      foreach (rows('SELECT item,status FROM checklist WHERE project_id=? AND kind=?', [$p['id'], $kind]) as $c) if (in_array($c['item'], $items)) $st[] = $c['status'];
-      $p['total'] = $total; $p['approved'] = count(array_filter($st, fn($s) => $s === 'Approved' || $s === 'NA'));
-      $p['submitted'] = count(array_filter($st, fn($s) => $s === 'Submitted')); $res[] = $p;
+      $p['total'] = $total; $p['approved'] = $cnt[$p['id']]['a'] ?? 0; $p['submitted'] = $cnt[$p['id']]['s'] ?? 0; $res[] = $p;
     }
     out($res);
   }

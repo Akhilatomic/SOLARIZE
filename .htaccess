@@ -46,6 +46,10 @@ RedirectMatch 404 /\.git
 <FilesMatch "api\.php$">
   Header set Cache-Control "no-store"
 </FilesMatch>
+# the app shell is always re-checked (a quick 304), so a new ?v= on the scripts reaches staff at once while the scripts themselves stay cached
+<FilesMatch "\.html$">
+  Header set Cache-Control "no-cache"
+</FilesMatch>
 
 # Home-screen app manifest (iPhone / iPad / Android)
 AddType application/manifest+json .webmanifest

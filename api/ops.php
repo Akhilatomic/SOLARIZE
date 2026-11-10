@@ -51,11 +51,15 @@ function handle_dashboard() {
 function handle_ads($a) {
   need('ads', in_array($a, ['import']));
   if ($a === 'report') {
+    // one grouped pass per table (the old per-campaign subqueries rescanned every lead and project for each campaign)
     out(rows("SELECT c.*, COALESCE(s.spend,0) spent, COALESCE(s.impr,0) impressions, COALESCE(s.clk,0) clicks,
-      (SELECT COUNT(*) FROM leads l WHERE l.campaign_id=c.id) crm_leads,
-      (SELECT COUNT(*) FROM leads l WHERE l.campaign_id=c.id AND l.status='Won') won,
-      (SELECT COALESCE(SUM(p.cost),0) FROM projects p WHERE p.customer_id IN (SELECT customer_id FROM leads l WHERE l.campaign_id=c.id AND l.customer_id IS NOT NULL)) revenue
-      FROM campaigns c LEFT JOIN (SELECT campaign_id, SUM(spend) spend, SUM(impressions) impr, SUM(clicks) clk FROM ad_spend GROUP BY campaign_id) s ON s.campaign_id=c.id ORDER BY c.updated DESC"));
+      COALESCE(l.n,0) crm_leads, COALESCE(l.won,0) won, COALESCE(r.revenue,0) revenue
+      FROM campaigns c
+      LEFT JOIN (SELECT campaign_id, SUM(spend) spend, SUM(impressions) impr, SUM(clicks) clk FROM ad_spend GROUP BY campaign_id) s ON s.campaign_id=c.id
+      LEFT JOIN (SELECT campaign_id, COUNT(*) n, SUM(status='Won') won FROM leads WHERE campaign_id IS NOT NULL GROUP BY campaign_id) l ON l.campaign_id=c.id
+      LEFT JOIN (SELECT x.campaign_id, SUM(p.cost) revenue FROM (SELECT DISTINCT campaign_id, customer_id FROM leads WHERE campaign_id IS NOT NULL AND customer_id IS NOT NULL) x
+        JOIN projects p ON p.customer_id=x.customer_id GROUP BY x.campaign_id) r ON r.campaign_id=c.id
+      ORDER BY c.updated DESC"));
   }
   if ($a === 'import') {
     $n = 0; $made = 0;

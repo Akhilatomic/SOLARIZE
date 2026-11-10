@@ -7,6 +7,17 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const inr = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
 const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const dt = s => (s || '').slice(0, 10);
+const debounce = (fn, ms = 150) => { let t = 0; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }; // speed: redraw big tables once the user pauses typing
+// speed: long tables put the first rows on screen at once and add the next batch when the last row scrolls into view,
+// so a sort, filter or inline edit never lays out thousands of rows nobody is looking at. more(step) appends rows, returns true while rows remain.
+const LAZY_FIRST = 200, LAZY_STEP = 300;
+function lazyMore(tb, more, pending) {
+  if (tb._lazyIO) tb._lazyIO.disconnect();
+  if (!pending || !('IntersectionObserver' in window)) { while (pending && more(1e9)); return; } // very old browser: render everything
+  const io = tb._lazyIO = new IntersectionObserver(es => { if (!es.some(e => e.isIntersecting)) return; io.disconnect(); if (more(LAZY_STEP)) watch(); });
+  const watch = () => { const last = tb.tBodies[0] && tb.tBodies[0].lastElementChild; if (last) io.observe(last); };
+  watch();
+}
 const app = $('#app');
 let ME = null, S = {}, CACHE = {}, TAB = {};
 const SUB_STATUS = ['Not applied', 'Applied', 'Under review', 'Approved', 'Released'];
@@ -70,7 +81,9 @@ function shell() {
   $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
 }
 window.onhashchange = () => ME && route();
+let ROUTE_N = 0; // each navigation gets a number, so a slow page you already left can't paint its error over the page you are on
 async function route() {
+  const nav = ++ROUTE_N;
   const [, mod = 'dashboard', id] = location.hash.split('/');
   $$('aside a').forEach(a => a.classList.toggle('on', a.dataset.m === mod));
   $('#side')?.classList.remove('open'); document.body.classList.remove('drawer');
@@ -80,7 +93,7 @@ async function route() {
   const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, subsidy: () => pgOverview('subsidy'), kseb: () => pgOverview('kseb'), whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
-  try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
+  try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { if (nav === ROUTE_N) main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
 }
 
 // ---------- fit-to-window: no horizontal scrolling anywhere ----------
@@ -263,9 +276,12 @@ const LCOLS = [['date', 'Added'], ['name', 'Name'], ['phone', 'Phone'], ['status
 const LW = { date: 92, phone: 112, status: 96, owner: 124, appt: 128 }; // fixed px; name/location/remark share the rest
 let LF = { q: '', status: '', active: 'active', city: '', appt: '', own: '', sort: 'created', dir: -1, edit: false };
 let LHIDE = []; try { LHIDE = JSON.parse(localStorage.lcols || '[]'); } catch (e) { }
-const dmy = s => s ? new Date(s.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+// speed: build each date formatter once (toLocaleDateString with options builds a new one on every call — seconds on a 4,000-row table)
+const DF = { dmy: new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), dm: new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }), dmyy: new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) };
+const dfmt = (f, d) => isNaN(d) ? 'Invalid Date' : f.format(d); // same text as before for bad dates (format() would throw)
+const dmy = s => s ? dfmt(DF.dmy, new Date(s.slice(0, 10) + 'T00:00:00')) : '';
 const isActiveLead = l => !['Won', 'Lost'].includes(l.status);
-const dshort = s => { if (!s) return ''; const d = new Date(s.slice(0, 10) + 'T00:00:00'); return d.toLocaleDateString('en-GB', d.getFullYear() === new Date().getFullYear() ? { day: '2-digit', month: 'short' } : { day: '2-digit', month: 'short', year: '2-digit' }); };
+const dshort = s => { if (!s) return ''; const d = new Date(s.slice(0, 10) + 'T00:00:00'); return dfmt(d.getFullYear() === new Date().getFullYear() ? DF.dm : DF.dmyy, d); };
 function apptBadge(l) {
   if (!l.appt) return '<span class="pill" style="color:var(--mut)">Not scheduled</span>';
   const od = l.appt < today() && isActiveLead(l), days = Math.round((new Date(today()) - new Date(l.appt)) / 864e5);
@@ -319,7 +335,8 @@ async function pgLeads() {
     return r.sort((a, b) => { const x = key(a), y = key(b); if (LF.sort === 'appt') { if (!x) return 1; if (!y) return -1; } return (x > y ? 1 : x < y ? -1 : 0) * LF.dir; });
   };
   const sk = k => k === 'date' ? 'created' : k;
-  const draw = () => {
+  let shown = 0; // rows on screen; a redraw after an edit keeps at least this many so the scroll position stays put
+  const draw = reset => {
     const rows = filtered(), show = LCOLS.filter(c => !LHIDE.includes(c[0]));
     $('#lcount').textContent = rows.length + ' records';
     const QE = ['remark', 'appt']; // always editable inline
@@ -336,15 +353,22 @@ async function pgLeads() {
       appt: l => ed(l, 'appt', apptBadge(l)) };
     const acts = l => !l.can_edit ? `<button class="ib" title="View" data-a="vw"><i class="i i-eye"></i></button>`
       : `${discBtn(l.id, 1)}${l.phone ? '<a class="ib" title="Call" href="tel:' + esc(l.phone) + '"><i class="i i-phone"></i></a>' : ''}<button class="ib" title="View / edit" data-a="vw"><i class="i i-eye"></i></button><button class="ib" title="More actions" data-a="more"><i class="i i-dots"></i></button>`;
-    $('#ltb').innerHTML = `<colgroup>${show.map(([k]) => `<col${LW[k] ? ` style="width:${LW[k]}px"` : ''}>`).join('')}<col style="width:${isAdm() ? 136 : 128}px"></colgroup>
+    const rowHtml = l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}<td class="lact">${acts(l)}</td></tr>`;
+    const tb = $('#ltb'); let n = Math.min(rows.length, Math.max(LAZY_FIRST, reset === true ? 0 : shown));
+    tb.innerHTML = `<colgroup>${show.map(([k]) => `<col${LW[k] ? ` style="width:${LW[k]}px"` : ''}>`).join('')}<col style="width:${isAdm() ? 136 : 128}px"></colgroup>
       <thead><tr>${show.map(([k, t]) => `<th data-sort="${sk(k)}">${t}<span class="so">${LF.sort === sk(k) ? (LF.dir > 0 ? '↑' : '↓') : '⇅'}</span></th>`).join('')}<th class="right">Actions</th></tr></thead>
-      <tbody>${rows.map(l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}<td class="lact">${acts(l)}</td></tr>`).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
-    $$('#ltb th[data-sort]').forEach(h => h.onclick = () => { const k = h.dataset.sort; LF.dir = LF.sort === k ? -LF.dir : (k === 'created' ? -1 : 1); LF.sort = k; draw(); });
-    $$('#ltb tbody tr[data-id]').forEach(tr => {
-      const l = leads.find(x => x.id == tr.dataset.id);
+      <tbody>${rows.slice(0, n).map(rowHtml).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
+    if (reset === true && tb.parentElement) tb.parentElement.scrollTop = 0; // new sort / filter / search starts at the top
+    $$('#ltb th[data-sort]').forEach(h => h.onclick = () => { const k = h.dataset.sort; LF.dir = LF.sort === k ? -LF.dir : (k === 'created' ? -1 : 1); LF.sort = k; draw(true); });
+    const byId = new Map(rows.map(l => [String(l.id), l])); // O(1) lookup per row (was a scan of every lead for every row)
+    const bind = trs => trs.forEach(tr => {
+      const l = byId.get(tr.dataset.id); if (!l) return;
       if (w && l.can_edit) $$('td[data-f]', tr).forEach(td => { if (LF.edit || QE.includes(td.dataset.f)) td.onclick = () => startEdit(td, l); });
       $$('[data-a]', tr).forEach(b => b.onclick = e => { e.stopPropagation(); act(b.dataset.a, l, b); });
     });
+    bind([...tb.tBodies[0].rows]); shown = n;
+    lazyMore(tb, step => { const body = tb.tBodies[0], from = body.rows.length, next = rows.slice(n, n + step);
+      body.insertAdjacentHTML('beforeend', next.map(rowHtml).join('')); bind([...body.rows].slice(from)); n += next.length; shown = n; return n < rows.length; }, n < rows.length);
     fitTable();
   };
   // one handler for row buttons and the "more" menu
@@ -386,8 +410,9 @@ async function pgLeads() {
     const done = async save => { if (fin) return; fin = true; if (save && el.value !== (l[f] || '')) { if (f === 'name' && !el.value.trim()) { draw(); return; } l[f] = el.value; await api('leads', 'save', { ...l }); } draw(); };
     el.onblur = () => done(true); el.onchange = () => done(true); el.onkeydown = e => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); };
   };
-  $('#lq').oninput = e => { LF.q = e.target.value; draw(); };
-  [['ls', 'status'], ['la', 'active'], ['lc', 'city'], ['lap', 'appt'], ['lown', 'own']].forEach(([id, k]) => $('#' + id).onchange = e => { LF[k] = e.target.value; draw(); });
+  const drawSoon = debounce(() => draw(true), 120);
+  $('#lq').oninput = e => { LF.q = e.target.value; drawSoon(); };
+  [['ls', 'status'], ['la', 'active'], ['lc', 'city'], ['lap', 'appt'], ['lown', 'own']].forEach(([id, k]) => $('#' + id).onchange = e => { LF[k] = e.target.value; draw(true); });
   $('#lref').onclick = () => route();
   if ($('#ledit')) $('#ledit').onclick = () => { LF.edit = !LF.edit; route(); };
   if ($('#lnew')) $('#lnew').onclick = () => leadModal(0);
@@ -460,7 +485,8 @@ async function pgCustomers() {
    <label class="hsw" title="Show status, next step and feasibility when you point at a customer"><input type="checkbox" id="chov" ${hoverOn() ? 'checked' : ''}><span class="hswt"></span>Hover info</label><span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex">Export CSV</button>' : ''}${w ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
    <div class="card tw fitbox" style="padding:0"><table id="ctb" class="ctb2" data-min="680"></table></div>`;
   const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}" aria-label="${t}"><i class="i i-${i}"></i></button>`;
-  const draw = () => {
+  let onScreen = 0; // rows on screen; a refresh (resize, discussion update) keeps at least this many
+  const draw = reset => {
     const t = CUF.q.toLowerCase();
     const rows = cs.filter(c => (!CUF.st || c.status === CUF.st) && (!t || [c.name, c.phone, c.consumer_no, c.district, c.address, c.email].join(' ').toLowerCase().includes(t)))
       .sort((a, b) => CUF.sort === 'name' ? a.name.localeCompare(b.name) : CUF.sort === 'kw' ? (b.kw || 0) - (a.kw || 0) : CUF.sort === 'oldest' ? (a.created > b.created ? 1 : -1) : (a.created < b.created ? 1 : -1))
@@ -484,12 +510,16 @@ async function pgCustomers() {
       phone: `<td>${c.phone ? `<a href="tel:${esc(c.phone)}" class="tel"><i class="i i-phone"></i> ${esc(c.phone)}</a>` : '<span class="mut">—</span>'}</td>`, kw: `<td>${c.kw ? c.kw + ' kWp' : '<span class="mut">—</span>'}</td>`,
       by: `<td title="${esc(c.added_by)}"><span class="clip mut2">${esc(c.added_by) || '<span class="mut">—</span>'}</span></td>`, date: `<td class="mut">${dt(c.created)}</td>` })[k];
     const nA = rows.length ? Math.max(...rows.slice(0, 50).map(c => ACTS(c).length)) + 2 : 4;
-    $('#ctb').innerHTML = `<colgroup>${COLS.map(c => `<col${c[2] ? ` style="width:${c[2]}px"` : ''}>`).join('')}<col style="width:${nA * 28 + 14}px"></colgroup>
+    const rowHtml = c => `<tr class="row ${DISC.sum[c.id] ? 'live' : ''}" data-id="${c.id}">${COLS.map(k => cell(k[0], c)).join('')}
+        <td class="cact">${discBtn(c.id)}${ACTS(c).map(([k, i, t, , on]) => on === false ? `<button class="ib off" aria-disabled="true" title="${t} — start a project first"><i class="i i-${i}"></i></button>` : ic(k, i, t)).join('')}${ic('more', 'dots', 'More actions')}</td></tr>`;
+    const tb = $('#ctb'); let n = Math.min(rows.length, Math.max(LAZY_FIRST, reset === true ? 0 : onScreen));
+    tb.innerHTML = `<colgroup>${COLS.map(c => `<col${c[2] ? ` style="width:${c[2]}px"` : ''}>`).join('')}<col style="width:${nA * 28 + 14}px"></colgroup>
       <thead><tr>${COLS.map(c => `<th>${c[1]}</th>`).join('')}<th class="right">Actions</th></tr></thead><tbody>
-      ${rows.map(c => `<tr class="row ${DISC.sum[c.id] ? 'live' : ''}" data-id="${c.id}">${COLS.map(k => cell(k[0], c)).join('')}
-        <td class="cact">${discBtn(c.id)}${ACTS(c).map(([k, i, t, , on]) => on === false ? `<button class="ib off" aria-disabled="true" title="${t} — start a project first"><i class="i i-${i}"></i></button>` : ic(k, i, t)).join('')}${ic('more', 'dots', 'More actions')}</td></tr>`).join('') || `<tr><td colspan="${COLS.length + 1}" class="mut">No customers match</td></tr>`}</tbody>`;
-    $$('#ctb tr.row').forEach(tr => {
-      const c = cs.find(x => x.id == tr.dataset.id);
+      ${rows.slice(0, n).map(rowHtml).join('') || `<tr><td colspan="${COLS.length + 1}" class="mut">No customers match</td></tr>`}</tbody>`;
+    if (reset === true && tb.parentElement) tb.parentElement.scrollTop = 0; // new sort / filter / search starts at the top
+    const byId = new Map(rows.map(c => [String(c.id), c])); // O(1) lookup per row
+    const bind = trs => trs.forEach(tr => {
+      const c = byId.get(tr.dataset.id); if (!c) return;
       feasHover(tr, c);
       tr.onclick = e => { if (!e.target.closest('a,button')) location.hash = '#/customers/' + c.id; };
       const run = async a => {
@@ -514,9 +544,13 @@ async function pgCustomers() {
         popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['rv', 'undo', 'Revert to lead', w && canW('leads')]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
       });
     });
+    bind([...tb.tBodies[0].rows]); onScreen = n;
+    lazyMore(tb, step => { const body = tb.tBodies[0], from = body.rows.length, next = rows.slice(n, n + step);
+      body.insertAdjacentHTML('beforeend', next.map(rowHtml).join('')); bind([...body.rows].slice(from)); n += next.length; onScreen = n; return n < rows.length; }, n < rows.length);
   };
-  $('#cq').oninput = e => { CUF.q = e.target.value; draw(); };
-  $('#cst').onchange = e => { CUF.st = e.target.value; draw(); }; $('#csort').onchange = e => { CUF.sort = e.target.value; draw(); };
+  const drawSoon = debounce(() => draw(true), 120);
+  $('#cq').oninput = e => { CUF.q = e.target.value; drawSoon(); };
+  $('#cst').onchange = e => { CUF.st = e.target.value; draw(true); }; $('#csort').onchange = e => { CUF.sort = e.target.value; draw(true); };
   $('#cref').onclick = () => route();
   $('#chov').onchange = e => { try { localStorage.custHover = e.target.checked ? '1' : '0'; } catch (x) { } if (FH) FH.classList.remove('on'); toast('Hover info ' + (e.target.checked ? 'on' : 'off')); };
   if ($('#cconv')) $('#cconv').onclick = convertLeadModal;

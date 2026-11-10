@@ -35,6 +35,9 @@ try {
   if (!empty($_SESSION['uid'])) sec_session_check($m === 'auth'); // still active, same password, not idle
   if ($m === 'auth') handle_auth($a);
   if (empty($_SESSION['uid'])) fail('Unauthorized', 401);
+  // Speed: nothing below writes the session, so release its file lock now. Otherwise every request from this browser
+  // waits in line behind a slow one (Meta sync, mailbox, WhatsApp) instead of running in parallel. $_SESSION stays readable.
+  session_write_close();
   try { housekeeping(); } catch (Throwable $e) { } // hourly: expire 200-day documents, purge the 72-hour recycle bin
   // CSRF-light: state-changing calls must be POST
   if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status', 'me', 'today', 'month', 'range', 'pending', 'summary', 'notifs', 'timeline', 'serial', 'zip', 'candidates', 'member', 'avatar', 'leaves', 'balances', 'days', 'folders', 'att']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);

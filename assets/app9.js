@@ -138,5 +138,10 @@ function discBellBind(root) {
 function startDisc() {
   if (!canR('customers') && !canR('leads')) return;
   if (typeof mountBell === 'function') mountBell();
-  discSummary(); refreshNotifs(); setInterval(() => { refreshNotifs(); discSummary(); }, document.hidden ? 30000 : 20000);
+  discSummary(); refreshNotifs();
+  // every 20 s while the tab is in view, 30 s in a background tab (the old setInterval picked one delay at start-up and kept it);
+  // one timer only, even when boot() runs again after a sign-in
+  clearTimeout(DISC.poll);
+  const next = () => { DISC.poll = setTimeout(() => { refreshNotifs(); discSummary(); next(); }, document.hidden ? 30000 : 20000); };
+  next();
 }

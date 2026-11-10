@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 23; // bump when tables/columns change
+const SCHEMA_VERSION = 24; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -69,7 +69,8 @@ function db() {
   $db = new PDO('sqlite:' . $dir . '/crm.sqlite');
   $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
   $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-  $db->exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000');
+  // WAL + synchronous=NORMAL: fast commits, never corrupts (a power cut can only lose the last instant's write); temp sorts in RAM; 8 MB page cache
+  $db->exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-8000');
   // schema changes run once per SCHEMA_VERSION (not on every request)
   if ((int)$db->query('PRAGMA user_version')->fetchColumn() < SCHEMA_VERSION) { migrate($db); $db->exec('PRAGMA user_version=' . SCHEMA_VERSION); }
   return $db;
@@ -152,6 +153,16 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, check_in TEXT, check_out TEXT, in_lat REAL, in_lng REAL, in_acc INTEGER, out_lat REAL, out_lng REAL, out_acc INTEGER, in_place TEXT DEFAULT '', out_place TEXT DEFAULT '', status TEXT DEFAULT 'Present', notes TEXT DEFAULT '', edited_by TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, date))");
   $db->exec("CREATE TABLE IF NOT EXISTS leaves(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, from_date TEXT, to_date TEXT, half TEXT DEFAULT '', days REAL, reason TEXT DEFAULT '', status TEXT DEFAULT 'Pending', approver_id INTEGER, approver_note TEXT DEFAULT '', decided_at TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   migrateV1($db);
+  // Speed: indexes on every column used to look up child rows / filter lists (lists, dashboard, pipeline and ads report were scanning whole tables per row)
+  foreach ([
+    'leads_owner ON leads(assigned_to)', 'leads_cust ON leads(customer_id)', 'leads_camp ON leads(campaign_id, status)', 'leads_notify ON leads(notify, created)',
+    'leads_appt ON leads(appt)', 'cust_created ON customers(created)', 'proj_cust ON projects(customer_id)',
+    'pay_proj ON payments(project_id, amount)', 'files_cust ON files(customer_id)', 'files_proj ON files(project_id)', 'notes_ent ON notes(entity, entity_id)',
+    'msg_cust ON messages(customer_id)', 'msg_lead ON messages(lead_id)', 'quotes_cust ON quotes(customer_id)', 'quotes_lead ON quotes(lead_id)',
+    'steps_proj ON project_steps(project_id, created)', 'svc_proj ON services(project_id)', 'spend_camp ON ad_spend(campaign_id)', 'leaves_user ON leaves(user_id, status)',
+    'checklist_kind ON checklist(kind, project_id)',
+  ] as $ix) $db->exec("CREATE INDEX IF NOT EXISTS $ix");
+  $db->exec('ANALYZE'); // give the query planner row counts for the new indexes
 }
 
 // v1 (single-table) customers -> projects, once.
@@ -199,9 +210,11 @@ function defaults() {
     ],
   ];
 }
-function settings() {
-  $s = defaults();
-  foreach (rows('SELECT k,v FROM settings') as $r) if (array_key_exists($r['k'], $s)) $s[$r['k']] = json_decode($r['v'], true);
+function settings($fresh = false) { // read once per request; only the keys we use (skips big blobs such as mail / Meta state)
+  static $s = null;
+  if ($s !== null && !$fresh) return $s;
+  $s = defaults(); $keys = array_keys($s);
+  foreach (rows('SELECT k,v FROM settings WHERE k IN (' . implode(',', array_fill(0, count($keys), '?')) . ')', $keys) as $r) $s[$r['k']] = json_decode($r['v'], true);
   return $s;
 }
 
