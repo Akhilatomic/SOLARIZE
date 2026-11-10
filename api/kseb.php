@@ -26,6 +26,9 @@ function kseb_saved($cid, $doc) {
 
 function handle_kseb($a) {
   $in = body();
+  /* the KSEB office list, for the customer form (anyone who can see customers) */
+  if ($a === 'office') { need('customers'); out(['office' => kseb_office($_GET['consumer_no'] ?? '', $_GET['section'] ?? '')]); }
+  if ($a === 'offices') { need('customers'); header('Cache-Control: private, max-age=86400'); out(array_map(fn($r) => $r['section'], kseb_offices()['list'])); }
   need('checklist');
   switch ($a) {
     case 'get':

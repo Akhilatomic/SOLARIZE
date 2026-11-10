@@ -492,6 +492,37 @@ if ($dbPath !== '' && is_file($dbPath)) {
   $apdo = null;
 } else chk(true, 'audit log: 72-hour check skipped (no database path)');
 
+/* ---- KSEB office: section, sub division, division and circle from the consumer number (11 + section code) or the section ---- */
+$kc = fn($id) => call($admin, 'customers', 'get', null, "&id=$id");
+$ko = fn($c) => [$c['kseb_section'] ?? '', $c['kseb_subdivision'] ?? '', $c['kseb_division'] ?? '', $c['kseb_circle'] ?? ''];
+$k1 = (int)(call($admin, 'customers', 'save', ['name' => 'Office Test One', 'phone' => '9800000101', 'consumer_no' => '1146530000001'])['id'] ?? 0);
+chk($ko($kc($k1)) === ['Chullimanoor', 'Nedumangad', 'Nedumangad', 'Kattakkada'], 'KSEB office: the consumer number fills section, sub division, division and circle (' . implode(' / ', $ko($kc($k1))) . ')');
+$k2 = (int)(call($admin, 'customers', 'save', ['name' => 'Office Test Two', 'phone' => '9800000102', 'kseb_section' => 'Varapuzha section'])['id'] ?? 0);
+chk(array_slice($ko($kc($k2)), 1, 2) === ['Varapuzha', 'North Paravur'] && $ko($kc($k2))[0] === 'Varapuzha section', 'KSEB office: the section name alone fills sub division and division (typed section kept)');
+$k3 = (int)(call($admin, 'customers', 'save', ['name' => 'Office Test Three', 'phone' => '9800000103', 'consumer_no' => '1146530000002', 'kseb_division' => 'My Division'])['id'] ?? 0);
+chk($ko($kc($k3))[2] === 'My Division' && $ko($kc($k3))[1] === 'Nedumangad', 'KSEB office: a division typed by hand is kept, the empty fields are filled');
+$c1 = $kc($k1); unset($c1['_code']);
+call($admin, 'customers', 'save', array_merge($c1, ['consumer_no' => '1157370000001']));
+chk($ko($kc($k1)) === ['Alangad', 'Varapuzha', 'North Paravur', 'Perumbavoor'], 'KSEB office: a new consumer number moves the untouched fields to the new office (' . implode(' / ', $ko($kc($k1))) . ')');
+$c1 = $kc($k1); unset($c1['_code']);
+call($admin, 'customers', 'save', array_merge($c1, ['consumer_no' => '1146530000001', 'kseb_circle' => 'Typed Circle']));
+chk($ko($kc($k1)) === ['Chullimanoor', 'Nedumangad', 'Nedumangad', 'Typed Circle'], 'KSEB office: a value typed in the same save wins over the office');
+$of = call($admin, 'kseb', 'office', null, '&consumer_no=1146533000000');
+chk(($of['office']['section'] ?? '') === 'Chullimanoor' && ($of['office']['code'] ?? '') === '4653', 'KSEB office: lookup by consumer number');
+chk((call($admin, 'kseb', 'office', null, '&section=' . urlencode('Aluva Town'))['office']['code'] ?? '') === '5567', 'KSEB office: lookup by section name, spacing ignored (Aluva Town = AluvaTown)');
+$un = call($admin, 'kseb', 'office', null, '&consumer_no=123&section=Nowhere');
+chk(($un['_code'] ?? 0) === 200 && array_key_exists('office', $un) && $un['office'] === null, 'KSEB office: unknown → null');
+$ol = call($admin, 'kseb', 'offices');
+chk(count(array_filter($ol, 'is_string')) > 700 && in_array('Chullimanoor', $ol, true), 'KSEB office: the section list for the form (' . count(array_filter($ol, 'is_string')) . ' offices)');
+if ($dbPath !== '' && is_file($dbPath)) {
+  $kp = new PDO('sqlite:' . $dbPath); $kp->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $kp->exec('PRAGMA busy_timeout=5000');
+  $kp->exec("INSERT INTO customers(name, phone, consumer_no, kseb_section, kseb_subdivision, kseb_division, kseb_circle) VALUES('Old Customer', '9800000104', '1146530000004', '', '', 'Kept Division', '')");
+  $kid = (int)$kp->lastInsertId();
+  $kp->exec('PRAGMA user_version=32'); $kp = null; /* the next request upgrades the database again, which fills old customers */
+  call($admin, 'auth', 'status');
+  chk($ko($kc($kid)) === ['Chullimanoor', 'Nedumangad', 'Kept Division', 'Kattakkada'], 'KSEB office: the database upgrade fills existing customers (empty fields only)');
+} else chk(true, 'KSEB office: backfill check skipped (no database path)');
+
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);

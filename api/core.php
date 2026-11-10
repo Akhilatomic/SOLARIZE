@@ -68,6 +68,8 @@ function handle_crud($t, $a) {
       out($t === 'customers' ? mask_customer($r) : $r);
     case 'save':
       $v = pick($in, $cols);
+      /* KSEB sub division / division / circle follow the consumer number or section office (api/kseb_offices.php) */
+      if ($t === 'customers') $v = kseb_autofill($v, !empty($in['id']) ? row('SELECT consumer_no, kseb_section, kseb_subdivision, kseb_division, kseb_circle FROM customers WHERE id=?', [(int)$in['id']]) : null);
       if (isset($v['name']) && $v['name'] === '') fail('Name required');
       if ($t === 'projects' && !$v['customer_id']) fail('Select a customer');
       if ($t === 'quotes') { $v = prep_quote($v, $in); }

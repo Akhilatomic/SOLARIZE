@@ -1,0 +1,6210 @@
+[
+{
+"code": "5617",
+"section": "Adimali",
+"subdivision": "Chithirapuram",
+"division": "Adimali",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "4609",
+"section": "Adoor",
+"subdivision": "Adoor",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6516",
+"section": "Agali",
+"subdivision": "Agali",
+"division": "Mannarkkad",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "6796",
+"section": "Akampadam",
+"subdivision": "Nilambur",
+"division": "Nilambur",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "6648",
+"section": "Alakkode",
+"subdivision": "Alakkode",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5753",
+"section": "Alakode - Thodupuzha",
+"subdivision": "Thodupuzha East",
+"division": "Thodupuzha",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6521",
+"section": "Alanellur",
+"subdivision": "Mannarkkad",
+"division": "Mannarkkad",
+"circle": "Shoranur",
+"region": "DN"
+},
+{
+"code": "5737",
+"section": "Alangad",
+"subdivision": "Varapuzha",
+"division": "North Paravur",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5501",
+"section": "Alappuzha North",
+"subdivision": "Alappuzha North",
+"division": "Alappuzha",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "5503",
+"section": "Alappuzha South",
+"subdivision": "Alappuzha North",
+"division": "Alappuzha",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "5502",
+"section": "Alappuzha Town",
+"subdivision": "Alappuzha North",
+"division": "Alappuzha",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "6574",
+"section": "Alathiyur",
+"subdivision": "Alathiyur",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6509",
+"section": "Alathur",
+"subdivision": "Alathur",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5568",
+"section": "Aluva North",
+"subdivision": "Aluva Town",
+"division": "Aluva",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5567",
+"section": "Aluva Town",
+"subdivision": "Aluva Town",
+"division": "Aluva",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5569",
+"section": "Aluva West",
+"subdivision": "Aluva Town",
+"division": "Aluva",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6534",
+"section": "Ambalappara",
+"subdivision": "Shornur",
+"division": "Shornur",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5505",
+"section": "Ambalappuzha",
+"subdivision": "Ambalappuzha",
+"division": "Alappuzha",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "6762",
+"section": "Ambalavayal",
+"subdivision": "Sulthan Bathery",
+"division": "Kalpetta",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "5552",
+"section": "Amballoor",
+"subdivision": "Chottanikara",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4656",
+"section": "Amboori",
+"subdivision": "Kattakada",
+"division": "Kattakada",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5670",
+"section": "Ammadam",
+"subdivision": "Koorkkenchery",
+"division": "Thrissur East",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6756",
+"section": "Anakayam",
+"subdivision": "Manjeri South",
+"division": "Manjeri",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "5742",
+"section": "Anakkara",
+"subdivision": "Kattappana",
+"division": "Kattappana",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "4597",
+"section": "Anchal East",
+"subdivision": "Anchal",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "4669",
+"section": "Anchal West",
+"subdivision": "Anchal",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6748",
+"section": "Angadipuram",
+"subdivision": "Perinthalmanna",
+"division": "Perinthalmanna",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "5579",
+"section": "Angamaly",
+"subdivision": "Angamaly",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5648",
+"section": "Annamanada",
+"subdivision": "Koratty",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "5553",
+"section": "Arakkunnam",
+"subdivision": "Chottanikara",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "5535",
+"section": "Aranmula",
+"subdivision": "Kozhenchery",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "5833",
+"section": "Arattupuzha",
+"subdivision": "Harippad",
+"division": "Harippad",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "6789",
+"section": "Areekkad",
+"subdivision": "Kallayi",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6549",
+"section": "Areekode",
+"subdivision": "Areekode",
+"division": "Kondotty",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6767",
+"section": "Arikkulam",
+"subdivision": "Quilandy North",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "5679",
+"section": "Arimbur",
+"subdivision": "Ayyanthole",
+"division": "Thrissur East",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "5705",
+"section": "Arookutty",
+"subdivision": "Poochakkal",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "5515",
+"section": "Aroor",
+"subdivision": "Poochakkal",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "5518",
+"section": "Arthinkal",
+"subdivision": "Pattanakkad",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "4652",
+"section": "Aryanad",
+"subdivision": "Peyad",
+"division": "Kattakada",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5572",
+"section": "Athani",
+"subdivision": "Chengamanad",
+"division": "Aluva",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4664",
+"section": "Athirampuzha",
+"subdivision": "Ettumanoor",
+"division": "Vaikom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "6615",
+"section": "Atholy",
+"subdivision": "West Hill",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "4531",
+"section": "Attingal",
+"subdivision": "Attingal",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4532",
+"section": "Avanavanchery",
+"subdivision": "Attingal",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6624",
+"section": "Ayanchery",
+"subdivision": "Vadakara South",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "4632",
+"section": "Ayarkunnam",
+"subdivision": "Manarcaud",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4565",
+"section": "Ayathil",
+"subdivision": "Pallimukku",
+"division": "Kollam",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "4608",
+"section": "Ayiroor",
+"subdivision": "Kozhenchery",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4629",
+"section": "Aymanam",
+"subdivision": "Gandhi Nagar",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4591",
+"section": "Ayoor",
+"subdivision": "Ayoor",
+"division": "Kottarakara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "5678",
+"section": "Ayyanthole",
+"subdivision": "Ayyanthole",
+"division": "Thrissur East",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6662",
+"section": "Azheekode",
+"subdivision": "Pappinissery",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6743",
+"section": "Azhiyoor",
+"subdivision": "Muttungal",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6690",
+"section": "Badiadka",
+"subdivision": "Cherkala",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6773",
+"section": "Balamthode",
+"subdivision": "Mavungal",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "4542",
+"section": "Balaramapuram",
+"subdivision": "Balaramapuram",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6613",
+"section": "Balussery",
+"subdivision": "Balussery",
+"division": "Balussery",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5699",
+"section": "Beach Chavakkad",
+"subdivision": "Guruvayur",
+"division": "Kunnamkulam",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6603",
+"section": "Beach Kozhikode",
+"subdivision": "Kallayi",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "4513",
+"section": "Beach Trivandrum",
+"subdivision": "Beach TVM",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6635",
+"section": "Beypur",
+"subdivision": "Kallayi",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5627",
+"section": "Bharananganam",
+"subdivision": "Ramapuram",
+"division": "Pala",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "6697",
+"section": "Bhimanadi",
+"subdivision": "Nileswar",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6518",
+"section": "Big Bazar Palakkad",
+"subdivision": "Sulthanpet",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5702",
+"section": "Big Bazar Thrissur",
+"subdivision": "Punnayurkulam",
+"division": "Kunnamkulam",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6655",
+"section": "Burnassery",
+"subdivision": "Kannur",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "4558",
+"section": "Cantonment Kollam",
+"subdivision": "Kollam",
+"division": "Kollam",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "4506",
+"section": "Cantonment TVM",
+"subdivision": "Puthenchantha",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6602",
+"section": "Central Kozhikode",
+"subdivision": "Nadakkavu",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "4672",
+"section": "Chadayamangalam",
+"subdivision": "Ayoor",
+"division": "Kottarakara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6660",
+"section": "Chakkarakallu",
+"subdivision": "Eaichur",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6716",
+"section": "Chakkittapara",
+"subdivision": "Perambra",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "5651",
+"section": "Chalakudy",
+"subdivision": "Chalakudy",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6538",
+"section": "Chalissery",
+"subdivision": "Thrithala",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "6661",
+"section": "Chalode",
+"subdivision": "Eaichur",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "5508",
+"section": "Champakulam",
+"subdivision": "Edathua",
+"division": "Alappuzha",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "4636",
+"section": "Changanacherry",
+"subdivision": "Changanacherry",
+"division": "Changanacherry",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "6585",
+"section": "Changaramkulam",
+"subdivision": "Edappal",
+"division": "Ponnani",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6745",
+"section": "Chapparappadavu",
+"subdivision": "Alakkode",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5527",
+"section": "Charummood",
+"subdivision": "Charummood",
+"division": "Mavelikkara",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "4575",
+"section": "Chathannoor",
+"subdivision": "Chathannoor",
+"division": "Chathannoor",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "6772",
+"section": "Chattanchal",
+"subdivision": "Udma",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6708",
+"section": "Chattiparamba",
+"subdivision": "Malappuram",
+"division": "Manjeri",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "5698",
+"section": "Chavakkad",
+"subdivision": "Guruvayur",
+"division": "Kunnamkulam",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4571",
+"section": "Chavara",
+"subdivision": "Karunagappally",
+"division": "Karunagappally",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "5691",
+"section": "Chelakara",
+"subdivision": "Chelakara",
+"division": "Wadakkanchery",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6744",
+"section": "Chelannur",
+"subdivision": "Kakkodi",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6577",
+"section": "Chelari",
+"subdivision": "Parappanangadi",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6721",
+"section": "Chemberi",
+"subdivision": "Sreekandapuram",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "4644",
+"section": "Chempu",
+"subdivision": "Vaikom",
+"division": "Vaikom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4590",
+"section": "Chengamanad Kottarakkara",
+"subdivision": "Ayoor",
+"division": "Kottarakara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "5571",
+"section": "Chengamanad Perumbavoor",
+"subdivision": "Chengamanad",
+"division": "Aluva",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5533",
+"section": "Chengannoor",
+"subdivision": "Chenganoor",
+"division": "Chenganoor",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "5606",
+"section": "Chennamangalam",
+"subdivision": "Chennamangalam",
+"division": "North Paravur",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5538",
+"section": "Chennithala",
+"subdivision": "Kollakadavu",
+"division": "Chenganoor",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "5530",
+"section": "Chepad",
+"subdivision": "Kayamkulam",
+"division": "Harippad",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "5605",
+"section": "Cherai",
+"subdivision": "North Paravur",
+"division": "North Paravur",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5739",
+"section": "Cheranelloor",
+"subdivision": "Ernakulam Central",
+"division": "Ernakulam",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "6689",
+"section": "Cherkala",
+"subdivision": "Cherkala",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6541",
+"section": "Cherplassery",
+"subdivision": "Cherplassery",
+"division": "Shornur",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5639",
+"section": "Cherpu",
+"subdivision": "Karuvannoor",
+"division": "Irinjalakuda",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "5704",
+"section": "Cherthala East",
+"subdivision": "Cherthala",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "5512",
+"section": "Cherthala West",
+"subdivision": "Cherthala",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "6664",
+"section": "Cherukunnu",
+"subdivision": "Pappinissery",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6816",
+"section": "Cherupuzha",
+"subdivision": "Vellur",
+"division": "Payyanur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5692",
+"section": "Cheruthuruthy",
+"subdivision": "Kundannur",
+"division": "Wadakkanchery",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "5642",
+"section": "Chirakkal",
+"subdivision": "Kattoor",
+"division": "Irinjalakuda",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "4529",
+"section": "Chirayinkeezhu",
+"subdivision": "Kadakkavoor",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4662",
+"section": "Chithara",
+"subdivision": "Kadakkal",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "5615",
+"section": "Chithirapuram",
+"subdivision": "Chithirapuram",
+"division": "Adimali",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6695",
+"section": "Chittari",
+"subdivision": "Kanhangad",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6501",
+"section": "Chittur",
+"subdivision": "Chittur",
+"division": "Chittur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6671",
+"section": "Chokli",
+"subdivision": "Panoor",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "5551",
+"section": "Chottanikkara",
+"subdivision": "Chottanikara",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "6657",
+"section": "Chovva",
+"subdivision": "Chovva",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "5570",
+"section": "Chowara",
+"subdivision": "Chengamanad",
+"division": "Aluva",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6750",
+"section": "Choyomkode",
+"subdivision": "Nileswar",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "4653",
+"section": "Chullimanoor",
+"subdivision": "Nedumangad",
+"division": "Nedumangad",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6713",
+"section": "Chungathara",
+"subdivision": "Edakkara",
+"division": "Nilambur",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "5540",
+"section": "College Ernakulam",
+"subdivision": "College Ernakulam",
+"division": "Ernakulam",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "5717",
+"section": "Desamangalam",
+"subdivision": "Kundannur",
+"division": "Wadakkanchery",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6677",
+"section": "Dharmadom",
+"subdivision": "Pinarayi",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6646",
+"section": "Dharmasala",
+"subdivision": "Thaliparamba",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "6659",
+"section": "Eaichur",
+"subdivision": "Eaichur",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "4583",
+"section": "East Kallada",
+"subdivision": "Kundara",
+"division": "Kundara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6627",
+"section": "Edacherri",
+"subdivision": "Nadapuram",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6544",
+"section": "Edakkara",
+"subdivision": "Edakkara",
+"division": "Nilambur",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "6584",
+"section": "Edappal",
+"subdivision": "Edappal",
+"division": "Ponnani",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "5544",
+"section": "Edappally",
+"subdivision": "Palarivattom",
+"division": "Ernakulam",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "6558",
+"section": "Edarikode",
+"subdivision": "Kottakkal",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "5750",
+"section": "Edathala",
+"subdivision": "Kizhakkambalam",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5507",
+"section": "Edathua",
+"subdivision": "Edathua",
+"division": "Alappuzha",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "4526",
+"section": "Edava",
+"subdivision": "Varkala",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6548",
+"section": "Edavanna",
+"subdivision": "Wandoor",
+"division": "Wandoor",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "6550",
+"section": "Edavannappara",
+"subdivision": "Areekode",
+"division": "Kondotty",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "5712",
+"section": "Edayar",
+"subdivision": "Aluva Town",
+"division": "Aluva",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6769",
+"section": "Edayoor",
+"subdivision": "Valanchery",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6722",
+"section": "Edoor",
+"subdivision": "Iritty",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "6530",
+"section": "Elapully",
+"subdivision": "Kanjikode",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "4616",
+"section": "Elavumthitta",
+"subdivision": "Pandalam",
+"division": "Adoor",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "5574",
+"section": "Eloor",
+"subdivision": "Kalamassery",
+"division": "Aluva",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4806",
+"section": "Enathu",
+"subdivision": "Ezhamkulam",
+"division": "Adoor",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6606",
+"section": "Eranhikkal",
+"subdivision": "West Hill",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5724",
+"section": "Erattayar",
+"subdivision": "Nedumkandam",
+"division": "Kattappana",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "5630",
+"section": "Erattupetta",
+"subdivision": "Erattupetta",
+"division": "Pala",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "5665",
+"section": "Erayad",
+"subdivision": "Kodungallur",
+"division": "Kodungallur",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "5546",
+"section": "Ernakulam Central",
+"subdivision": "Ernakulam Central",
+"division": "Ernakulam",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "5733",
+"section": "Eroor",
+"subdivision": "Tripunithura",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "5637",
+"section": "Erumely",
+"subdivision": "Kanjirappally",
+"division": "Ponkunnam",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "4646",
+"section": "Ettumanoor",
+"subdivision": "Ettumanoor",
+"division": "Vaikom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4611",
+"section": "Ezhamkulam",
+"subdivision": "Ezhamkulam",
+"division": "Adoor",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "5603",
+"section": "Ezhikkara",
+"subdivision": "Varapuzha",
+"division": "North Paravur",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4582",
+"section": "Ezhukone",
+"subdivision": "Kundara",
+"division": "Kundara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6802",
+"section": "Ezhuvathiruthy",
+"subdivision": "Ponnani",
+"division": "Ponnani",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6631",
+"section": "Feroke",
+"subdivision": "Feroke",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5564",
+"section": "Fort Kochi",
+"subdivision": "Thoppumpady",
+"division": "Mattancherry",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4503",
+"section": "Fort Thiruvananthapuram",
+"subdivision": "Fort TVM",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4628",
+"section": "Gandhinagar",
+"subdivision": "Gandhi nagar",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "5542",
+"section": "Girinagar",
+"subdivision": "College Ernakulam",
+"division": "Ernakulam",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "5697",
+"section": "Guruvayur",
+"subdivision": "Guruvayur",
+"division": "Kunnamkulam",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "5524",
+"section": "Haripad",
+"subdivision": "Harippad",
+"division": "Harippad",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "6649",
+"section": "Irikkur",
+"subdivision": "Sreekandapuram",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5644",
+"section": "Irinjalakuda No 1",
+"subdivision": "Kattoor",
+"division": "Irinjalakuda",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "5647",
+"section": "Irinjalakuda No 2",
+"subdivision": "Vellangalloor",
+"division": "Irinjalakuda",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6674",
+"section": "Iritty",
+"subdivision": "Iritty",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "4691",
+"section": "Kachani",
+"subdivision": "Vellayambalam",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6658",
+"section": "Kadachira",
+"subdivision": "Chovva",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "4599",
+"section": "Kadakkal",
+"subdivision": "Kadakkal",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "4528",
+"section": "Kadakkavoor",
+"subdivision": "Kadakkavoor",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6632",
+"section": "Kadalundi",
+"subdivision": "Feroke",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6786",
+"section": "Kadambazipuram",
+"subdivision": "Kongad",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "4613",
+"section": "Kadampanad",
+"subdivision": "Ezhamkulam",
+"division": "Adoor",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6572",
+"section": "Kadampuzha",
+"subdivision": "Puthenathani",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "4559",
+"section": "Kadappakkada",
+"subdivision": "Kollam",
+"division": "Kollam",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "4621",
+"section": "Kadapra",
+"subdivision": "Manipuzha",
+"division": "Thiruvalla",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6741",
+"section": "Kadungathukundu",
+"subdivision": "Puthenathani",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "4651",
+"section": "Kaduthuruthy",
+"subdivision": "Kuravilangadu",
+"division": "Vaikom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "5511",
+"section": "Kainakary",
+"subdivision": "Mankombu",
+"division": "Alappuzha",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "5660",
+"section": "Kaipamangalam",
+"subdivision": "Perinjanam",
+"division": "Kodungallur",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "4610",
+"section": "Kaippattoor",
+"subdivision": "Adoor",
+"division": "Adoor",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4604",
+"section": "Kakkad",
+"subdivision": "Vadasserikkara",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6735",
+"section": "Kakkattil",
+"subdivision": "Kuttiyadi",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6787",
+"section": "Kakkayangad",
+"subdivision": "Sivapuram",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "6599",
+"section": "Kakkodi",
+"subdivision": "Kakkodi",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6764",
+"section": "Kakkur",
+"subdivision": "Balussery",
+"division": "Balussery",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5576",
+"section": "Kalady",
+"subdivision": "Kalady",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5573",
+"section": "Kalamassery",
+"subdivision": "Kalamassery",
+"division": "Aluva",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4612",
+"section": "Kalanjoor",
+"subdivision": "Ezhamkulam",
+"division": "Adoor",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "5726",
+"section": "Kalavoor",
+"subdivision": "S.L.Puram",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "6560",
+"section": "Kalikavu",
+"subdivision": "Kalikavu",
+"division": "Wandoor",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "4533",
+"section": "Kallambalam",
+"subdivision": "Kallambalam",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4557",
+"section": "Kallara",
+"subdivision": "Venjaramoodu",
+"division": "Nedumangad",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6634",
+"section": "Kallayi",
+"subdivision": "Kallayi",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5534",
+"section": "Kallisserry",
+"subdivision": "Chenganoor",
+"division": "Chenganoor",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "4675",
+"section": "Kalliyoor",
+"subdivision": "Balaramapuram",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5593",
+"section": "Kalloorkad",
+"subdivision": "Muvattupuzha",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5545",
+"section": "Kaloor",
+"subdivision": "Palarivattom",
+"division": "Ernakulam",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "6531",
+"section": "Kalpathy",
+"subdivision": "Kalpathy",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6586",
+"section": "Kalpetta",
+"subdivision": "Kalpetta",
+"division": "Kalpetta",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "6718",
+"section": "Kambalakkad",
+"subdivision": "Kalpetta",
+"division": "Kalpetta",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "5710",
+"section": "Kambilikandom",
+"subdivision": "Chithirapuram",
+"division": "Adimali",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "4868",
+"section": "Kamukinkode",
+"subdivision": "Neyyattinkara",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5746",
+"section": "Kanchiyar",
+"subdivision": "Kattappana",
+"division": "Kattappana",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6755",
+"section": "Kandanakam-Kalady",
+"subdivision": "Edappal",
+"division": "Ponnani",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "5689",
+"section": "Kandassankadavu",
+"subdivision": "Kandassankadavu",
+"division": "Thrissur West",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6694",
+"section": "Kanhangad",
+"subdivision": "Kanhangad",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "4522",
+"section": "Kaniyapuram",
+"subdivision": "Kaniyapuram",
+"division": "Kazhakuttam",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6528",
+"section": "Kanjikode",
+"subdivision": "Kanjikode",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5722",
+"section": "Kanjikuzhy",
+"subdivision": "Vazhathope",
+"division": "Kattappana",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "4544",
+"section": "Kanjiramkulam",
+"subdivision": "Vizhinjam",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "4670",
+"section": "Kanjiramkuzhy",
+"subdivision": "Perinad",
+"division": "Kollam",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "5636",
+"section": "Kanjirappally",
+"subdivision": "Kanjirappally",
+"division": "Ponkunnam",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "6771",
+"section": "Kanjirapuzha",
+"subdivision": "Mannarkkad",
+"division": "Mannarkkad",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5747",
+"section": "Kanjoor",
+"subdivision": "Kalady",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5560",
+"section": "Kannamaly",
+"subdivision": "Palluruthy",
+"division": "Mattancherry",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4579",
+"section": "Kannanalloor",
+"subdivision": "Kottiyam",
+"division": "Chathannoor",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "6654",
+"section": "Kannur",
+"subdivision": "Kannur",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "4556",
+"section": "Kanyakulangara",
+"subdivision": "Venjaramoodu",
+"division": "Nedumangad",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6768",
+"section": "Karad",
+"subdivision": "Kondotty",
+"division": "Kondotty",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "4510",
+"section": "Karamana",
+"subdivision": "Poojappura",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6598",
+"section": "Karaparamba",
+"subdivision": "Nadakkavu",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "4677",
+"section": "Karavaloor",
+"subdivision": "Punalur",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "5621",
+"section": "Karimannoor",
+"subdivision": "Thodupuzha East",
+"division": "Thodupuzha",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6645",
+"section": "Karimbam",
+"subdivision": "Thaliparamba",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "6651",
+"section": "Karivellur",
+"subdivision": "Vellur",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5526",
+"section": "Karthikappally",
+"subdivision": "Harippad",
+"division": "Harippad",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "6799",
+"section": "Karthikapuram",
+"subdivision": "Alakkode",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "4641",
+"section": "Karukachal",
+"subdivision": "Karukachal",
+"division": "Changanacherry",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4661",
+"section": "Karukon",
+"subdivision": "Anchal",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "5581",
+"section": "Karukutty",
+"subdivision": "Angamaly",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6795",
+"section": "Karulai",
+"subdivision": "Nilambur",
+"division": "Nilambur",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "4569",
+"section": "Karunagappally North",
+"subdivision": "Oachira",
+"division": "Karunagappally",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "4570",
+"section": "Karunagappally South",
+"subdivision": "Karunagappally",
+"division": "Karunagappally",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "5640",
+"section": "Karuvannoor",
+"subdivision": "Karuvannoor",
+"division": "Irinjalakuda",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6794",
+"section": "Karuvarakundu",
+"subdivision": "Kalikavu",
+"division": "Wandoor",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "5525",
+"section": "Karuvatta",
+"subdivision": "Harippad",
+"division": "Harippad",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "6688",
+"section": "Kasargod",
+"subdivision": "Kasargod",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6682",
+"section": "Kathirur",
+"subdivision": "Koothuparamba",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "4552",
+"section": "Kattakada",
+"subdivision": "Kattakada",
+"division": "Kattakada",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5528",
+"section": "Kattanam",
+"subdivision": "Mavelikkara",
+"division": "Mavelikkara",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "6747",
+"section": "Kattangal",
+"subdivision": "Kunnamangalam",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5609",
+"section": "Kattappana",
+"subdivision": "Kattappana",
+"division": "Kattappana",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6783",
+"section": "Kattikulam",
+"subdivision": "Mananthavady",
+"division": "Mananthavady",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "5643",
+"section": "Kattoor",
+"subdivision": "Kattoor",
+"division": "Irinjalakuda",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "5531",
+"section": "Kayamkulam East",
+"subdivision": "Kayamkulam",
+"division": "Harippad",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "5532",
+"section": "Kayamkulam West",
+"subdivision": "Kayamkulam",
+"division": "Harippad",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "6822",
+"section": "Kayaradi",
+"subdivision": "Vadakkumchery",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6699",
+"section": "Kayyur",
+"subdivision": "Pilicode",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "4521",
+"section": "Kazhakkuttam",
+"subdivision": "Kazhakuttam",
+"division": "Kazhakuttam",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "5694",
+"section": "Kecheri",
+"subdivision": "Kecheri",
+"division": "Kunnamkulam",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4527",
+"section": "Kedakulam",
+"subdivision": "Varkala",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "5713",
+"section": "Keerampara",
+"subdivision": "Kothamangalam",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6707",
+"section": "Keezhuparamba",
+"subdivision": "Areekode",
+"division": "Kondotty",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6759",
+"section": "Kelakam",
+"subdivision": "Sivapuram",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "4516",
+"section": "Kesavadasapuram",
+"subdivision": "Kesavadasapuram",
+"division": "Kazhakuttam",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "5510",
+"section": "Kidangara",
+"subdivision": "Mankombu",
+"division": "Alappuzha",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "5625",
+"section": "Kidangoor",
+"subdivision": "Pala",
+"division": "Pala",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "4564",
+"section": "Kilikolloor",
+"subdivision": "Perinad",
+"division": "Kollam",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "4535",
+"section": "Kilimanoor",
+"subdivision": "Kilimanoor",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "5586",
+"section": "Kizhakkambalam",
+"subdivision": "Kizhakkambalam",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6754",
+"section": "Kizhakkancherry",
+"subdivision": "Vadakkumchery",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6551",
+"section": "Kizhissery",
+"subdivision": "Areekode",
+"division": "Kondotty",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "5654",
+"section": "Kodakara",
+"subdivision": "Kodakara",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6612",
+"section": "Kodenchery",
+"subdivision": "Thiruvambady",
+"division": "Balussery",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6670",
+"section": "Kodiyeri",
+"subdivision": "Thalasseri",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "5664",
+"section": "Kodungallur II",
+"subdivision": "Kodungallur",
+"division": "Kodungallur",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "5663",
+"section": "Kodungallur No 1",
+"subdivision": "Kodungallur",
+"division": "Kodungallur",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6611",
+"section": "Koduvally",
+"subdivision": "Thamarasseri",
+"division": "Balussery",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6505",
+"section": "Koduvayoor",
+"subdivision": "Koduvayoor",
+"division": "Chittur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6666",
+"section": "kolachery",
+"subdivision": "Valapattanam",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6567",
+"section": "Kolathur Manjeri",
+"subdivision": "Pulamanthole",
+"division": "Perinthalmanna",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6758",
+"section": "Kolayad",
+"subdivision": "Koothuparamba",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "5554",
+"section": "Kolencherry",
+"subdivision": "Puthencruz",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "5537",
+"section": "Kollakadavu",
+"subdivision": "Kollakadavu",
+"division": "Chenganoor",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "5740",
+"section": "Kollappally",
+"subdivision": "Ramapuram",
+"division": "Pala",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "6510",
+"section": "Kollengode",
+"subdivision": "Kollengode",
+"division": "Chittur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5645",
+"section": "Kombodinjamakal",
+"subdivision": "Vellangalloor",
+"division": "Irinjalakuda",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6552",
+"section": "Kondotty",
+"subdivision": "Kondotty",
+"division": "Kondotty",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6523",
+"section": "Kongad",
+"subdivision": "Kongad",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "4602",
+"section": "Konny",
+"subdivision": "Pathanamthitta",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6805",
+"section": "Koombara",
+"subdivision": "Thiruvampady",
+"division": "Balusseri",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5696",
+"section": "Koonamoochy",
+"subdivision": "Kecheri",
+"division": "Kunnamkulam",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6763",
+"section": "Koorachundu",
+"subdivision": "Balussery",
+"division": "Balussery",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5669",
+"section": "Koorkkenchery",
+"subdivision": "Koorkkenchery",
+"division": "Thrissur East",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "5749",
+"section": "Kooroppada",
+"subdivision": "Ponkunnam",
+"division": "Ponkunnam",
+"circle": "Pala",
+"region": "DS"
+},
+{
+"code": "5598",
+"section": "Koothattukulam",
+"subdivision": "Piravom",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6680",
+"section": "Koothuparamba",
+"subdivision": "Koothuparamba",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6765",
+"section": "Koottalida",
+"subdivision": "Balussery",
+"division": "Balussery",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5721",
+"section": "Koottickal",
+"subdivision": "Kanjirappally",
+"division": "Ponkunnam",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "6791",
+"section": "Koottupatha",
+"subdivision": "Thrithala",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5590",
+"section": "Koovappady",
+"subdivision": "Kuruppampady",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6537",
+"section": "Koppam",
+"subdivision": "Pattambi",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5649",
+"section": "Koratty",
+"subdivision": "Koratty",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6806",
+"section": "Korom",
+"subdivision": "Mananthavady",
+"division": "Mananthavady",
+"circle": "Kalpetta",
+"region": "DC"
+},
+{
+"code": "6542",
+"section": "Kothakkurissi",
+"subdivision": "Cherplassery",
+"division": "Shornur",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5600",
+"section": "Kothamangalam No 1",
+"subdivision": "Kothamangalam",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5601",
+"section": "Kothamangalam No 2",
+"subdivision": "Kothamangalam",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6557",
+"section": "Kottakkal",
+"subdivision": "Kottakkal",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "4587",
+"section": "Kottarakara West",
+"subdivision": "Kottarakara",
+"division": "Kottarakara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "4683",
+"section": "Kottarakkara East",
+"subdivision": "Kottarakara",
+"division": "Kottarakara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6785",
+"section": "Kottathara",
+"subdivision": "Agali",
+"division": "Mannarkkad",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "4634",
+"section": "Kottayam Central",
+"subdivision": "Kottayam",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4635",
+"section": "Kottayam East",
+"subdivision": "Kottayam",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "6526",
+"section": "Kottayi",
+"subdivision": "Kuzhalmannam",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "4578",
+"section": "Kottiyam",
+"subdivision": "Kottiyam",
+"division": "Chathannoor",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "4657",
+"section": "Kottukal",
+"subdivision": "Balaramapuram",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6595",
+"section": "Kovoor",
+"subdivision": "Kovoor",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "4605",
+"section": "Kozhencherry",
+"subdivision": "Kozhenchery",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6502",
+"section": "Kozhinjampara",
+"subdivision": "Chittur",
+"division": "Chittur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "4568",
+"section": "Krishnapuram",
+"subdivision": "Kayamkulam",
+"division": "Harippad",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "4676",
+"section": "Kudappanakunnu",
+"subdivision": "Vellayambalam",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4588",
+"section": "Kulakkada",
+"subdivision": "Kottarakara",
+"division": "Kottarakara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "4615",
+"section": "Kulanada",
+"subdivision": "Pandalam",
+"division": "Adoor",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4598",
+"section": "Kulathupuzha",
+"subdivision": "Anchal",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "4520",
+"section": "Kulathur Tvpm",
+"subdivision": "Kazhakuttam",
+"division": "Kazhakuttam",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4630",
+"section": "Kumarakom",
+"subdivision": "Gandhi Nagar",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "6742",
+"section": "Kumaramputhur",
+"subdivision": "Mannarkkad",
+"division": "Mannarkkad",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "6687",
+"section": "Kumbala",
+"subdivision": "Kasargod",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "5561",
+"section": "Kumbalangy",
+"subdivision": "Palluruthy",
+"division": "Mattancherry",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4619",
+"section": "Kumbanad",
+"subdivision": "Thiruvalla",
+"division": "Thiruvalla",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4601",
+"section": "Kumbazha",
+"subdivision": "Pathanamthitta",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6812",
+"section": "Kumbidi",
+"subdivision": "Pattambi",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5708",
+"section": "Kumily",
+"subdivision": "Vandiperiyar",
+"division": "Peerumade",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "5684",
+"section": "Kundannur",
+"subdivision": "Kundannur",
+"division": "Wadakkanchery",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4581",
+"section": "Kundara",
+"subdivision": "Kundara",
+"division": "Kundara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6639",
+"section": "Kunhimangalam",
+"subdivision": "Payyannur",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "6726",
+"section": "Kunissery",
+"subdivision": "Alathur",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6607",
+"section": "Kunnamangalam",
+"subdivision": "Kunnamangalam",
+"division": "Kozhikkode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5700",
+"section": "Kunnamkulam",
+"subdivision": "Kunnamkulam",
+"division": "Kunnamkulam",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4667",
+"section": "Kunnathukal",
+"subdivision": "Parassala",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5575",
+"section": "Kunnukara",
+"subdivision": "Chengamanad",
+"division": "Aluva",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6739",
+"section": "Kunnumpuram (A.R.Nagar)",
+"subdivision": "Thirurangadi",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "4649",
+"section": "Kuravilangad",
+"subdivision": "Kuravilangadu",
+"division": "Vaikom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "5671",
+"section": "Kuriachira",
+"subdivision": "Koorkkenchery",
+"division": "Thrissur East",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4637",
+"section": "Kurichy",
+"subdivision": "Changanacherry",
+"division": "Changanacherry",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4647",
+"section": "Kurupanthara",
+"subdivision": "Ettumanoor",
+"division": "Vaikom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "5588",
+"section": "Kuruppampady",
+"subdivision": "Kuruppampady",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6728",
+"section": "Kuthannur",
+"subdivision": "Kuzhalmannam",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5516",
+"section": "Kuthiyathodu",
+"subdivision": "Pattanakkad",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "5729",
+"section": "Kuttichira",
+"subdivision": "Chalakudy",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6693",
+"section": "Kuttikol",
+"subdivision": "Udma",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6712",
+"section": "Kuttipuram",
+"subdivision": "Valanchery",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6629",
+"section": "Kuttiyadi",
+"subdivision": "Kuttiyadi",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6525",
+"section": "Kuzhalmannam",
+"subdivision": "Kuzhalmannam",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5657",
+"section": "Kuzhoor",
+"subdivision": "Mala",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6824",
+"section": "Lakkidi Koottupatha",
+"subdivision": "Shornur",
+"division": "Shornur",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "6643",
+"section": "Madai",
+"subdivision": "Pazhayangadi",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "4536",
+"section": "Madavoor",
+"subdivision": "Kilimanoor",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6565",
+"section": "Makkaraparamba",
+"subdivision": "Pulamanthole",
+"division": "Perinthalmanna",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "5658",
+"section": "Mala",
+"subdivision": "Mala",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6725",
+"section": "Malampuzha",
+"subdivision": "Kalpathy",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6555",
+"section": "Malappuram East",
+"subdivision": "Malappuram",
+"division": "Manjeri",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6780",
+"section": "Malappuram West",
+"subdivision": "Malappuram",
+"division": "Manjeri",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "5715",
+"section": "Malayattoor",
+"subdivision": "Kalady",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4666",
+"section": "Malayinkeezh",
+"subdivision": "Peyad",
+"division": "Kattakada",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "4623",
+"section": "Mallappally",
+"subdivision": "Mallappally",
+"division": "Thiruvalla",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6814",
+"section": "Mampad",
+"subdivision": "Wandoor",
+"division": "Wandoor",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "4501",
+"section": "Manacaud",
+"subdivision": "Fort TVM",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6589",
+"section": "Mananthavady",
+"subdivision": "Mananthavady",
+"division": "Mananthavady",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "4658",
+"section": "Manapally",
+"subdivision": "Oachira",
+"division": "Karunagappally",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "4631",
+"section": "Manarcadu",
+"subdivision": "Manarcaud",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "5509",
+"section": "Mancombu",
+"subdivision": "Mankombu",
+"division": "Alappuzha",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "4523",
+"section": "Mangalapuram",
+"subdivision": "Kaniyapuram",
+"division": "Kazhakuttam",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4642",
+"section": "Manimala",
+"subdivision": "Karukachal",
+"division": "Changanacherry",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4620",
+"section": "Manippuzha",
+"subdivision": "Manipuzha",
+"division": "Thiruvalla",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6717",
+"section": "Maniyoor",
+"subdivision": "Vadakara South",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "5752",
+"section": "Manjalloor",
+"subdivision": "Muvattupuzha",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5578",
+"section": "Manjapra",
+"subdivision": "Kalady",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6547",
+"section": "Manjeri North",
+"subdivision": "Manjeri South",
+"division": "Manjeri",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6546",
+"section": "Manjeri South",
+"subdivision": "Manjeri South",
+"division": "Manjeri",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6684",
+"section": "Manjeswaram",
+"subdivision": "Uppala",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6711",
+"section": "Mankada",
+"subdivision": "Pulamanthole",
+"division": "Perinthalmanna",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6636",
+"section": "Mankavu",
+"subdivision": "Mankavu",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5736",
+"section": "Mannam",
+"subdivision": "North Paravur",
+"division": "North Paravur",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5539",
+"section": "Mannar",
+"subdivision": "Kollakadavu",
+"division": "Chenganoor",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "6520",
+"section": "Mannarkkad",
+"subdivision": "Mannarkkad",
+"division": "Mannarkkad",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5675",
+"section": "Mannuthy",
+"subdivision": "Mannuthy",
+"division": "Thrissur East",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "5550",
+"section": "Maradu",
+"subdivision": "Tripunithura",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4553",
+"section": "Maranalloor",
+"subdivision": "Kattakada",
+"division": "Kattakada",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5628",
+"section": "Marangattupally",
+"subdivision": "Ramapuram",
+"division": "Pala",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "5673",
+"section": "Marathakkara",
+"subdivision": "Ollur",
+"division": "Thrissur East",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4539",
+"section": "Marayamuttom",
+"subdivision": "Neyyattinkara",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5616",
+"section": "Marayoor",
+"subdivision": "Chithirapuram",
+"division": "Adimali",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6529",
+"section": "Marutha Road",
+"subdivision": "Kanjikode",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6641",
+"section": "Mathamangalam",
+"subdivision": "Pazhayangadi",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5661",
+"section": "Mathilakam",
+"subdivision": "Perinjanam",
+"division": "Kodungallur",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "5563",
+"section": "Mattancherry",
+"subdivision": "Thoppumpady",
+"division": "Mattancherry",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "6675",
+"section": "Mattannur",
+"subdivision": "Iritty",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5522",
+"section": "Mavelikkara",
+"subdivision": "Mavelikkara",
+"division": "Mavelikkara",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "6596",
+"section": "Mavoor",
+"subdivision": "Kovoor",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6701",
+"section": "Mavungal",
+"subdivision": "Mavungal",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "4580",
+"section": "Mayyanad",
+"subdivision": "Kottiyam",
+"division": "Chathannoor",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "6667",
+"section": "Mayyil",
+"subdivision": "Valapattanam",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "5714",
+"section": "Medical College (Peringandoor)",
+"subdivision": "Wadakkanchery",
+"division": "Wadakkanchery",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4689",
+"section": "Meenadom",
+"subdivision": "Manarkad",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "6593",
+"section": "Meenangadi",
+"subdivision": "Sulthan Bathery",
+"division": "Kalpetta",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "6620",
+"section": "Melady",
+"subdivision": "Quilandy North",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6519",
+"section": "Melamuri",
+"subdivision": "Sulthanpet",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6563",
+"section": "Melattoor",
+"subdivision": "Kalikavu",
+"division": "Wandoor",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "5650",
+"section": "Meloor",
+"subdivision": "Koratty",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6588",
+"section": "Meppadi",
+"subdivision": "Kalpetta",
+"division": "Kalpetta",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "6617",
+"section": "Meppayoor",
+"subdivision": "Perambra",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6766",
+"section": "Moodady",
+"subdivision": "Quilandy North",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "5582",
+"section": "Mookkannur",
+"subdivision": "Angamaly",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5619",
+"section": "Moolamattom",
+"subdivision": "Thodupuzha",
+"division": "Thodupuzha",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "5608",
+"section": "Moothakunnam",
+"subdivision": "Chennamangalam",
+"division": "North Paravur",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6807",
+"section": "Moothedam",
+"subdivision": "Edakkara",
+"division": "Nilambur",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "6514",
+"section": "Mudappallur",
+"subdivision": "Vadakkumchery",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5519",
+"section": "Muhamma",
+"subdivision": "S.L.Puram",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "6608",
+"section": "Mukkam",
+"subdivision": "Kunnamangalam",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5536",
+"section": "Mulakkuzha",
+"subdivision": "Chenganoor",
+"division": "Chenganoor",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "5682",
+"section": "Mulamkunnathukavu",
+"subdivision": "Viyyur",
+"division": "Thrissur West",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "5748",
+"section": "Mulamthuruthy",
+"subdivision": "Chottanikara",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "6691",
+"section": "Mulleria",
+"subdivision": "Cherkala",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "5638",
+"section": "Mundakkayam",
+"subdivision": "Kanjirappally",
+"division": "Ponkunnam",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "6823",
+"section": "Mundakkulam",
+"subdivision": "Kondotty",
+"division": "Kondotty",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6740",
+"section": "Mundur Palakkad",
+"subdivision": "Kongad",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5695",
+"section": "Mundur Thrissur",
+"subdivision": "Kecheri",
+"division": "Kunnamkulam",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "5711",
+"section": "Murikkassery",
+"subdivision": "Vazhathope",
+"division": "Kattappana",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6511",
+"section": "Muthalamada",
+"subdivision": "Kollengode",
+"division": "Chittur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5741",
+"section": "Muthukulam",
+"subdivision": "Kayamkulam",
+"division": "Harippad",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "6704",
+"section": "Muthuthala",
+"subdivision": "Pattambi",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5685",
+"section": "Muthuvara",
+"subdivision": "Muthuvara",
+"division": "Thrissur West",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6792",
+"section": "Muttil",
+"subdivision": "Kalpetta",
+"division": "Kalpetta",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "6625",
+"section": "Muttungal",
+"subdivision": "Muttungal",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "5591",
+"section": "Muvattupuzha No.I",
+"subdivision": "Muvattupuzha",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5594",
+"section": "Muvattupuzha No.II",
+"subdivision": "Velloorkunnam",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4659",
+"section": "Mynagapally",
+"subdivision": "Sasthamkottah",
+"division": "Karunagappally",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "6601",
+"section": "Nadakkavu",
+"subdivision": "Nadakkavu",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6628",
+"section": "Nadapuram",
+"subdivision": "Nadapuram",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "5677",
+"section": "Nadathara",
+"subdivision": "Mannuthy",
+"division": "Thrissur East",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6618",
+"section": "Naduvannur",
+"subdivision": "Perambra",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "4654",
+"section": "Nagaroor",
+"subdivision": "Kilimanoor",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4518",
+"section": "Nalanchira",
+"subdivision": "Kesavadasapuram",
+"division": "Kazhakuttam",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4586",
+"section": "Nallila",
+"subdivision": "Veliyam",
+"division": "Kundara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6749",
+"section": "Nallompuzha",
+"subdivision": "Nileswar",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6600",
+"section": "Narikkuni",
+"subdivision": "Kakkodi",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "4627",
+"section": "Nattakom",
+"subdivision": "Pallom",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4547",
+"section": "Nedumangad",
+"subdivision": "Nedumangad",
+"division": "Nedumangad",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5610",
+"section": "Nedumkandam",
+"subdivision": "Kattappana",
+"division": "Kattappana",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6696",
+"section": "Neeleswar",
+"subdivision": "Nileswar",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "4648",
+"section": "Neendoor",
+"subdivision": "Ettumanoor",
+"division": "Vaikom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "6512",
+"section": "Nelliampathy",
+"subdivision": "Kollengode",
+"division": "Chittur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6686",
+"section": "Nellikkunnu",
+"subdivision": "Kasargod",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "5751",
+"section": "Nellikuzhy",
+"subdivision": "Kothamangalam",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4543",
+"section": "Nemom",
+"subdivision": "Balaramapuram",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6513",
+"section": "Nenmara",
+"subdivision": "Vadakkumchery",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "4537",
+"section": "Neyyattinkara",
+"subdivision": "Neyyattinkara",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6543",
+"section": "Nilambur",
+"subdivision": "Nilambur",
+"division": "Nilambur",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "5566",
+"section": "Njarakkal",
+"subdivision": "Vypin",
+"division": "Mattancherry",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "5529",
+"section": "Nooranadu",
+"subdivision": "Charummood",
+"division": "Mavelikkara",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "5604",
+"section": "North Paravur",
+"subdivision": "North Paravur",
+"division": "North Paravur",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4567",
+"section": "Oachira",
+"subdivision": "Oachira",
+"division": "karunagappally",
+"circle": "kollam",
+"region": "DS"
+},
+{
+"code": "5738",
+"section": "Okkal",
+"subdivision": "Perumbavoor",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4560",
+"section": "Olai",
+"subdivision": "Kollam",
+"division": "Kollam",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "6532",
+"section": "Olavakkod",
+"subdivision": "Kalpathy",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5672",
+"section": "Ollur",
+"subdivision": "Ollur",
+"division": "Thrissur East",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6751",
+"section": "Omassery",
+"subdivision": "Thiruvampady",
+"division": "Ballussery",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6801",
+"section": "Ongallur",
+"subdivision": "Pattambi",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "6808",
+"section": "Oorakam",
+"subdivision": "Kottakkal",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6626",
+"section": "Orkkatteri",
+"subdivision": "Muttungal",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6709",
+"section": "Othukkungal",
+"subdivision": "Kottakkal",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6533",
+"section": "Ottappalam",
+"subdivision": "Shornur",
+"division": "Shornur",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "4554",
+"section": "Ottasekharamangalam",
+"subdivision": "Kattakada",
+"division": "Kattakada",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "4660",
+"section": "Oyoor",
+"subdivision": "Veliyam",
+"division": "Kundara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6723",
+"section": "Padanna",
+"subdivision": "Pilicode",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6804",
+"section": "Padannakkad",
+"subdivision": "Kanhanagad",
+"division": "Kanhanagad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6811",
+"section": "Padichira",
+"subdivision": "Panamaram",
+"division": "Mananthavady",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "6540",
+"section": "Padinjarangadi",
+"subdivision": "Thrithala",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "6782",
+"section": "Padinjarathara",
+"subdivision": "Panamaram",
+"division": "Mananthavady",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "6652",
+"section": "Padiyottuchal",
+"subdivision": "Vellur",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "6507",
+"section": "Padoor",
+"subdivision": "Alathur",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5626",
+"section": "Paika",
+"subdivision": "Pala",
+"division": "Pala",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "5623",
+"section": "Painavu",
+"subdivision": "Vazhathope",
+"division": "Kattappana",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6757",
+"section": "Paivalika",
+"subdivision": "Uppala",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "5624",
+"section": "Pala",
+"subdivision": "Pala",
+"division": "Pala",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "4534",
+"section": "Palachira",
+"subdivision": "Kallambalam",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "5543",
+"section": "Palarivattom",
+"subdivision": "Palarivattom",
+"division": "Ernakulam",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4680",
+"section": "Pallickal Attingal",
+"subdivision": "Kilimanoor",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "5707",
+"section": "Pallickathodu",
+"subdivision": "Ponkunnam",
+"division": "Ponkunnam",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "6653",
+"section": "Pallikunnu",
+"subdivision": "Kannur",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "4566",
+"section": "Pallimukku",
+"subdivision": "Pallimukku",
+"division": "Kollam",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "5725",
+"section": "Pallippad",
+"subdivision": "Harippad",
+"division": "Harippad",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "4625",
+"section": "Pallom",
+"subdivision": "Pallom",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4626",
+"section": "Pallom Punja",
+"subdivision": "Pallom",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "5559",
+"section": "Palluruthy",
+"subdivision": "Palluruthy",
+"division": "Mattancherry",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4548",
+"section": "Palode",
+"subdivision": "Palode",
+"division": "Nedumangad",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5635",
+"section": "Pampady",
+"subdivision": "Ponkunnam",
+"division": "Ponkunnam",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "5599",
+"section": "Pampakuda",
+"subdivision": "Piravom",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6590",
+"section": "Panamaram",
+"subdivision": "Panamaram",
+"division": "Mananthavady",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "5735",
+"section": "Panangad",
+"subdivision": "Tripunithura",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4614",
+"section": "Pandalam",
+"subdivision": "Pandalam",
+"division": "Adoor",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4692",
+"section": "Pandalam Thekkekkara",
+"subdivision": "Adoor",
+"division": "Adoor",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6561",
+"section": "Pandikkad",
+"subdivision": "Wandoor",
+"division": "Wandoor",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "4682",
+"section": "Panmana (Edappallykotta)",
+"subdivision": "Karunagappally",
+"division": "Karunagappally",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "6777",
+"section": "Pannikode",
+"subdivision": "Kunnamangalam",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6672",
+"section": "Panoor",
+"subdivision": "Panoor",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6637",
+"section": "Pantheerankavu",
+"subdivision": "Mankavu",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6663",
+"section": "Pappinissery",
+"subdivision": "Pappinissery",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6673",
+"section": "Parad",
+"subdivision": "Panoor",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6724",
+"section": "Parakkadavu Kozhikode",
+"subdivision": "Nadapuram",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "5580",
+"section": "Parakkadavu Perumbavoor",
+"subdivision": "Angamaly",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6527",
+"section": "Parali",
+"subdivision": "Parali",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6575",
+"section": "Parappanangadi",
+"subdivision": "Parappanangadi",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "5641",
+"section": "Parappukkara",
+"subdivision": "Karuvannoor",
+"division": "Irinjalakuda",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6752",
+"section": "Parappupara",
+"subdivision": "Nadapuram",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "5686",
+"section": "Parappur",
+"subdivision": "Muthuvara",
+"division": "Thrissur West",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4540",
+"section": "Parassala",
+"subdivision": "Parassala",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5745",
+"section": "Parathode",
+"subdivision": "Kanjirappally",
+"division": "Ponkunnam",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "4576",
+"section": "Paravoor",
+"subdivision": "Chathannoor",
+"division": "Chathannoor",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "4577",
+"section": "Parippally",
+"subdivision": "Chathannoor",
+"division": "Chathannoor",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "6760",
+"section": "Pariyaram Kannur",
+"subdivision": "Thaliparamba",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5652",
+"section": "Pariyaram Thrissur",
+"subdivision": "Chalakudy",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "4684",
+"section": "Pathanadu",
+"subdivision": "Karukachal",
+"division": "Changanacherry",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4600",
+"section": "Pathanamthitta",
+"subdivision": "Pathanamthitta",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4595",
+"section": "Pathanapuram",
+"subdivision": "Pathanapuram",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "5521",
+"section": "Pathirappally",
+"subdivision": "S.L.Puram",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "6729",
+"section": "Pathiripala",
+"subdivision": "Parali",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6536",
+"section": "Pattambi",
+"subdivision": "Pattambi",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5517",
+"section": "Pattanakkad",
+"subdivision": "Pattanakkad",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "4685",
+"section": "Pattazhy",
+"subdivision": "Kottarakara",
+"division": "Kottarakara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6681",
+"section": "Pattiam",
+"subdivision": "Koothuparamba",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "5676",
+"section": "Pattikkad Thrissur",
+"subdivision": "Mannuthy",
+"division": "Thrissur East",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6779",
+"section": "Pattikkad-Chungam",
+"subdivision": "Perinthalmanna",
+"division": "Perinthalmanna",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "5587",
+"section": "Pattimattom",
+"subdivision": "Kizhakkambalam",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5687",
+"section": "Pavaratty",
+"subdivision": "Muthuvara",
+"division": "Thrissur West",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6638",
+"section": "Payyannur",
+"subdivision": "Payyannur",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "6775",
+"section": "Payyavur",
+"subdivision": "Sreekandapuram",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5701",
+"section": "Pazhanji",
+"subdivision": "Kunnamkulam",
+"division": "Kunnamkulam",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6642",
+"section": "Pazhayangadi",
+"subdivision": "Pazhayangadi",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5719",
+"section": "Pazhayannur",
+"subdivision": "Chelakara",
+"division": "Wadakkanchery",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "5612",
+"section": "Peerumade",
+"subdivision": "Vandiperiyar",
+"division": "Peerumade",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6784",
+"section": "Pengattiri",
+"subdivision": "Cherplassery",
+"division": "Shornur",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "6790",
+"section": "Peralassery",
+"subdivision": "Chovva",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6778",
+"section": "Perambra North",
+"subdivision": "Perambra",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6616",
+"section": "Perambra South",
+"subdivision": "Perambra",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "4563",
+"section": "Perinad",
+"subdivision": "Perinad",
+"division": "Kollam",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "4674",
+"section": "Peringamala",
+"subdivision": "Palode",
+"division": "Nedumangad",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6817",
+"section": "Peringathur",
+"subdivision": "Panoor",
+"division": "Thalassery",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6705",
+"section": "Peringode",
+"subdivision": "Thrithala",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5666",
+"section": "Peringottukara",
+"subdivision": "Thriprayar",
+"division": "Kodungallur",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6727",
+"section": "Peringottukurissi",
+"subdivision": "Kuzhalmannam",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5662",
+"section": "Perinjanam",
+"subdivision": "Perinjanam",
+"division": "Kodungallur",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6562",
+"section": "Perinthalmanna",
+"subdivision": "Perinthalmanna",
+"division": "Perinthalmanna",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6774",
+"section": "Periya Bazar",
+"subdivision": "Mavungal",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6800",
+"section": "Perla",
+"subdivision": "Cherkala",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "4508",
+"section": "Peroorkada",
+"subdivision": "Vellayambalam",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6734",
+"section": "Perumanna",
+"subdivision": "Mankavu",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5583",
+"section": "Perumbavoor",
+"subdivision": "Perumbavoor",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5727",
+"section": "Perumbilavu",
+"subdivision": "Kunnamkulam",
+"division": "Kunnamkulam",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4585",
+"section": "Perumbuzha",
+"subdivision": "Veliyam",
+"division": "Kundara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6803",
+"section": "Perumpadappu",
+"subdivision": "Ponnani",
+"division": "Ponnani",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "4686",
+"section": "Peruva",
+"subdivision": "Kuravilangadu",
+"division": "Vaikom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "5720",
+"section": "Peruvanthanam",
+"subdivision": "Vandiperiyar",
+"division": "Peerumade",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "4514",
+"section": "Pettah",
+"subdivision": "Beach TVM",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4550",
+"section": "Peyad",
+"subdivision": "Peyad",
+"division": "Kattakada",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6698",
+"section": "Pilicode",
+"subdivision": "Pilicode",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6679",
+"section": "Pinarayi",
+"subdivision": "Pinarayi",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "5632",
+"section": "Pinnakkanad",
+"subdivision": "Erattupetta",
+"division": "Pala",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "4668",
+"section": "Piravanthur",
+"subdivision": "Pathanapuram",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "5597",
+"section": "Piravom",
+"subdivision": "Piravom",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5633",
+"section": "Ponkunnam",
+"subdivision": "Ponkunnam",
+"division": "Ponkunnam",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "6570",
+"section": "Ponmundam (Vylathur)",
+"subdivision": "Tirur East",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6581",
+"section": "Ponnani",
+"subdivision": "Ponnani",
+"division": "Ponnani",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "5514",
+"section": "Poochakkal",
+"subdivision": "Poochakkal",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "4512",
+"section": "Poojappura",
+"subdivision": "Poojappura",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6545",
+"section": "Pookottumpadam",
+"subdivision": "Nilambur",
+"division": "Nilambur",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "5631",
+"section": "Poonjar",
+"subdivision": "Erattupetta",
+"division": "Pala",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "4679",
+"section": "Poonthura",
+"subdivision": "Fort TVM",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4671",
+"section": "Poothakulam",
+"subdivision": "Chathannoor",
+"division": "Chathannoor",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "4864",
+"section": "Poovachal",
+"subdivision": "Kattakada",
+"division": "Kattakada",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "4545",
+"section": "Poovar",
+"subdivision": "Vizhinjam",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "4688",
+"section": "Poozhikkunnu",
+"subdivision": "Neyyattinkara",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5592",
+"section": "Pothanicad",
+"subdivision": "Muvattupuzha",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4524",
+"section": "Pothencode",
+"subdivision": "Kaniyapuram",
+"division": "Kazhakuttam",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6310",
+"section": "Pothukallu",
+"subdivision": "Edakkara",
+"division": "Nilambur",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "6597",
+"section": "Pottammal",
+"subdivision": "kovoor",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6564",
+"section": "Pulamanthole",
+"subdivision": "Pulamanthole",
+"division": "Perinthalmanna",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6553",
+"section": "Pulikkal",
+"subdivision": "Kondotty",
+"division": "Kondotty",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6594",
+"section": "Pulpally",
+"subdivision": "Panamaram",
+"division": "Mananthavady",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "4593",
+"section": "Punalur",
+"subdivision": "Punalur",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "5718",
+"section": "Punnamparambu",
+"subdivision": "Wadakkanchery",
+"division": "Wadakkanchery",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "5504",
+"section": "Punnapra",
+"subdivision": "Ambalappuzha",
+"division": "Alappuzha",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "5703",
+"section": "Punnayurkulam",
+"subdivision": "Punnayurkulam",
+"division": "Kunnamkulam",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6583",
+"section": "Purang",
+"subdivision": "Ponnani",
+"division": "Ponnani",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "5743",
+"section": "Purappuzha",
+"subdivision": "Thodupuzha",
+"division": "Thodupuzha",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6781",
+"section": "Purathur",
+"subdivision": "Alathiyur",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6571",
+"section": "Puthenathani",
+"subdivision": "Puthenathani",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "4504",
+"section": "Puthenchantha",
+"subdivision": "Puthenchantha",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "5728",
+"section": "Puthenchira",
+"subdivision": "Vellangalloor",
+"division": "Irinjalakuda",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "5555",
+"section": "Puthencruz",
+"subdivision": "Puthencruz",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "5659",
+"section": "Puthenvelikkara",
+"subdivision": "Mala",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6508",
+"section": "Puthucode",
+"subdivision": "Alathur",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5655",
+"section": "Puthukkad",
+"subdivision": "Kodakara",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6506",
+"section": "Puthunagaram",
+"subdivision": "Koduvayoor",
+"division": "Chittur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6732",
+"section": "Puthupady",
+"subdivision": "Thamarasseri",
+"division": "Balussery",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "4633",
+"section": "Puthuppally",
+"subdivision": "Manarcaud",
+"division": "Pallom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4589",
+"section": "Puthur Kottarakara",
+"subdivision": "Kottarakara",
+"division": "Kottarakara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "5674",
+"section": "Puthur Thrissur",
+"subdivision": "Ollur",
+"division": "Thrissur East",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6820",
+"section": "Puzhakkattiri",
+"subdivision": "Pulamanthole",
+"division": "Perinthalmanna",
+"circle": "Manjeri",
+"region": "DC"
+},
+{
+"code": "6619",
+"section": "Quilandy North",
+"subdivision": "Quilandy North",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6621",
+"section": "Quilandy South",
+"subdivision": "Quilandy North",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "5730",
+"section": "Rajakkad",
+"subdivision": "Chithirapuram",
+"division": "Adimali",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "5709",
+"section": "Rajakumari",
+"subdivision": "Chithirapuram",
+"division": "Adimali",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6702",
+"section": "Rajapuram",
+"subdivision": "Mavungal",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6633",
+"section": "Ramanattukara",
+"subdivision": "Feroke",
+"division": "Feroke",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6640",
+"section": "Ramanthali",
+"subdivision": "Payyannur",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5629",
+"section": "Ramapuram",
+"subdivision": "Ramapuram",
+"division": "Pala",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "5681",
+"section": "Ramavarmapuram",
+"subdivision": "Viyyur",
+"division": "Thrissur West",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4607",
+"section": "Ranni North",
+"subdivision": "Ranni",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4690",
+"section": "Ranni Perinad",
+"subdivision": "Ranni",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4606",
+"section": "Ranni South",
+"subdivision": "Ranni",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "5520",
+"section": "S.L.Puram",
+"subdivision": "S.L.Puram",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "4561",
+"section": "Sakthikulangara",
+"subdivision": "Sakthikulangara",
+"division": "Kollam",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "4573",
+"section": "Sasthamkotta",
+"subdivision": "Sasthamkottah",
+"division": "Karunagappally",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "6818",
+"section": "Seethangoli",
+"subdivision": "Kasargod",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "6535",
+"section": "Shornur",
+"subdivision": "Shornur",
+"division": "Shornur",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "6776",
+"section": "Sivapuram",
+"subdivision": "sivapuram",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "4574",
+"section": "Sooranad North",
+"subdivision": "Sasthamkottah",
+"division": "Karunagappally",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "6647",
+"section": "Sreekandapuram",
+"subdivision": "Sreekandapuram",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "4519",
+"section": "Sreekariyam",
+"subdivision": "Kazhakuttam",
+"division": "Kazhakuttam",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6524",
+"section": "Sreekrishnapuram",
+"subdivision": "Cherplassery",
+"division": "Shornur",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "4515",
+"section": "Sreevaraham",
+"subdivision": "Beach TVM",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6592",
+"section": "Sulthan Bathery East",
+"subdivision": "Sulthan Bathery",
+"division": "Kalpetta",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "6720",
+"section": "Sulthan Bathery West",
+"subdivision": "Sulthan Bathery",
+"division": "Kalpetta",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "6517",
+"section": "Sulthanpet",
+"subdivision": "Sulthanpet",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5744",
+"section": "Teekoy",
+"subdivision": "Erattupetta",
+"division": "Pala",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "6522",
+"section": "Thachampara",
+"subdivision": "Mannarkkad",
+"division": "Mannarkkad",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5506",
+"section": "Thakazhy",
+"subdivision": "Edathua",
+"division": "Alappuzha",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "6580",
+"section": "Thalappara",
+"subdivision": "Thirurangadi",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6669",
+"section": "Thalasseri North",
+"subdivision": "Thalasseri",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6668",
+"section": "Thalasseri South",
+"subdivision": "Thalasseri",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "4645",
+"section": "Thalayazham",
+"subdivision": "Vaikom",
+"division": "Vaikom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4650",
+"section": "Thalayolaparambu",
+"subdivision": "Kuravilangadu",
+"division": "Vaikom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "5716",
+"section": "Thalikulam",
+"subdivision": "Thriprayar",
+"division": "Kodungallur",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6644",
+"section": "Thaliparamba",
+"subdivision": "Thaliparamba",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "6610",
+"section": "Thamarasseri",
+"subdivision": "Thamarasseri",
+"division": "Balussery",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6736",
+"section": "Thanalur",
+"subdivision": "Tirur East",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "4562",
+"section": "Thangasseri",
+"subdivision": "Sakthikulangara",
+"division": "Kollam",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "5513",
+"section": "Thanneermukkom",
+"subdivision": "Cherthala",
+"division": "Cherthala",
+"circle": "Alappuzha",
+"region": "DC"
+},
+{
+"code": "6576",
+"section": "Thanur",
+"subdivision": "Tirur East",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6798",
+"section": "Thanur East",
+"subdivision": "Tirur East",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6504",
+"section": "Thathamangalam",
+"subdivision": "Koduvayoor",
+"division": "Chittur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5523",
+"section": "Thattarambalam",
+"subdivision": "Mavelikkara",
+"division": "Mavelikkara",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "6582",
+"section": "Thavanur",
+"subdivision": "Ponnani",
+"division": "Ponnani",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6719",
+"section": "Thavinhal",
+"subdivision": "Mananthavady",
+"division": "Mananthavady",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "6656",
+"section": "Thayyil",
+"subdivision": "Chovva",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6710",
+"section": "Thazhecode",
+"subdivision": "Perinthalmanna",
+"division": "Perinthalmanna",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "4663",
+"section": "Thengamom-Pallickal",
+"subdivision": "Adoor",
+"division": "Adoor",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4638",
+"section": "Thengana",
+"subdivision": "Thengana",
+"division": "Changanacherry",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4594",
+"section": "Thenmala",
+"subdivision": "Punalur",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "5558",
+"section": "Thevakkal",
+"subdivision": "Kalamassery",
+"division": "Aluva",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4572",
+"section": "Thevalakkara",
+"subdivision": "Karunagappally",
+"division": "Karunagappally",
+"circle": "Kollam",
+"region": "DS"
+},
+{
+"code": "5541",
+"section": "Thevara",
+"subdivision": "College Ernakulam",
+"division": "Ernakulam",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "6746",
+"section": "Thikkody",
+"subdivision": "Quilandy North",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "4511",
+"section": "Thirumala",
+"subdivision": "Poojappura",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6573",
+"section": "Thirunavaya",
+"subdivision": "Alathiyur",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6770",
+"section": "Thiruvali",
+"subdivision": "Wandoor",
+"division": "Wandoor",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "4617",
+"section": "Thiruvalla",
+"subdivision": "Thiruvalla",
+"division": "Thiruvalla",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4502",
+"section": "Thiruvallam",
+"subdivision": "Fort TVM",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6738",
+"section": "Thiruvallur",
+"subdivision": "Vadakara South",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6609",
+"section": "Thiruvambadi",
+"subdivision": "Thiruvampady",
+"division": "Balussery",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5734",
+"section": "Thiruvaniyoor",
+"subdivision": "Puthencruz",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "6753",
+"section": "Thiruvegapura",
+"subdivision": "Pattambi",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5693",
+"section": "Thiruvilwamala",
+"subdivision": "Chelakara",
+"division": "Wadakkanchery",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "5620",
+"section": "Thodupuzha II",
+"subdivision": "Thodupuzha East",
+"division": "Thodupuzha",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "5618",
+"section": "Thodupuzha No 1",
+"subdivision": "Thodupuzha",
+"division": "Thodupuzha",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "4681",
+"section": "Tholicode",
+"subdivision": "Nedumangad",
+"division": "Nedumangad",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6676",
+"section": "Thondiyil",
+"subdivision": "Sivapuram",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "5723",
+"section": "Thookkupalam",
+"subdivision": "Nedumkandam",
+"division": "Kattappana",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "5562",
+"section": "Thoppumpady",
+"subdivision": "Thoppumpady",
+"division": "Mattancherry",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4618",
+"section": "Thottabhagam",
+"subdivision": "Thiruvalla",
+"division": "Thiruvalla",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6630",
+"section": "Thottilpalam",
+"subdivision": "Kuttiyadi",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6700",
+"section": "Thrikaripur",
+"subdivision": "Pilicode",
+"division": "Kanhangad",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "5557",
+"section": "Thrikkakara",
+"subdivision": "Vyttila",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "5731",
+"section": "Thrikkakkara West",
+"subdivision": "Vyttila",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "6706",
+"section": "Thrikkalangode",
+"subdivision": "Manjeri South",
+"division": "Manjeri",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "4640",
+"section": "Thrikodithanam",
+"subdivision": "Thengana",
+"division": "Changanacherry",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "5667",
+"section": "Thriprayar",
+"subdivision": "Thriprayar",
+"division": "Kodungallur",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6539",
+"section": "Thrithala",
+"subdivision": "Thrithala",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "6731",
+"section": "Thuneri",
+"subdivision": "Nadapuram",
+"division": "Nadapuram",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "5577",
+"section": "Thuravoor",
+"subdivision": "Kalady",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6797",
+"section": "Thuvvakkad",
+"subdivision": "Puthenathani",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "4505",
+"section": "Thycaud",
+"subdivision": "Puthenchantha",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6568",
+"section": "Tirur East",
+"subdivision": "Tirur East",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6569",
+"section": "Tirur West",
+"subdivision": "Tirur East",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6578",
+"section": "Tirurangadi",
+"subdivision": "Thirurangadi",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "5548",
+"section": "Tripunithura",
+"subdivision": "Tripunithura",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "6815",
+"section": "Tuvur",
+"subdivision": "Wandoor",
+"division": "Wandoor",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "4655",
+"section": "Uchakkada",
+"subdivision": "Parassala",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5549",
+"section": "Udayamperoor",
+"subdivision": "Tripunithura",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4538",
+"section": "Udiyankulangara",
+"subdivision": "Neyyattinkara",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6692",
+"section": "Udma",
+"subdivision": "Udma",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "5755",
+"section": "Udumpanchola",
+"subdivision": "Nedumkandam",
+"division": "Kattapana",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6761",
+"section": "Ulikkal",
+"subdivision": "Iritty",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "4517",
+"section": "Ulloor",
+"subdivision": "Kesavadasapuram",
+"division": "Kazhakuttam",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "6614",
+"section": "Unnikulam",
+"subdivision": "Balussery",
+"division": "Balussery",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "6683",
+"section": "Uppala",
+"subdivision": "Uppala",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "5613",
+"section": "Upputhara",
+"subdivision": "Vandiperiyar",
+"division": "Peerumade",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "4673",
+"section": "Uzhamalakkal",
+"subdivision": "Nedumangad",
+"division": "Nedumangad",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6737",
+"section": "Vadakara Beach",
+"subdivision": "Vadakara South",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6623",
+"section": "Vadakara North",
+"subdivision": "Vadakara South",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "6622",
+"section": "Vadakara South",
+"subdivision": "Vadakara South",
+"division": "Vadakara",
+"circle": "Vadakara",
+"region": "DN"
+},
+{
+"code": "5607",
+"section": "Vadakkekara",
+"subdivision": "Chennamangalam",
+"division": "North Paravur",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6515",
+"section": "Vadakkumchery",
+"subdivision": "Vadakkumchery",
+"division": "Alathur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5688",
+"section": "Vadanappally",
+"subdivision": "Kandassankadavu",
+"division": "Thrissur West",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4603",
+"section": "Vadasserikkara",
+"subdivision": "Vadasserikkara",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6810",
+"section": "Vadavannur",
+"subdivision": "Kollengode",
+"division": "Chittur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "5547",
+"section": "Vaduthala",
+"subdivision": "Ernakulam Central",
+"division": "Ernakulam",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4643",
+"section": "Vaikom",
+"subdivision": "Vaikom",
+"division": "Vaikom",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4624",
+"section": "Vaipur",
+"subdivision": "Mallappally",
+"division": "Thiruvalla",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4639",
+"section": "Vakathanam",
+"subdivision": "Thengana",
+"division": "Changanacherry",
+"circle": "Kottayam",
+"region": "DS"
+},
+{
+"code": "4687",
+"section": "Vakayar",
+"subdivision": "Pathanamthitta",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "4530",
+"section": "Vakkom",
+"subdivision": "Kadakkavur",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4592",
+"section": "Valakom",
+"subdivision": "Ayoor",
+"division": "Kottarakara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6566",
+"section": "Valanchery",
+"subdivision": "Valanchery",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6665",
+"section": "Valapattanam",
+"subdivision": "Valapattanam",
+"division": "Kannur",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "5668",
+"section": "Valappad",
+"subdivision": "Thriprayar",
+"division": "Kodungallur",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "5596",
+"section": "Valayanchirangara",
+"subdivision": "Velloorkunnam",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6703",
+"section": "Vallapuzha",
+"subdivision": "Pattambi",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5754",
+"section": "Vallikunnam",
+"subdivision": "Charummood",
+"division": "Mavelikkara",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "6715",
+"section": "Vallikunnu",
+"subdivision": "Parappanangadi",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6813",
+"section": "Vallithode",
+"subdivision": "Iritty",
+"division": "Iritty",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "4821",
+"section": "Vamanapuram",
+"subdivision": "Kilimanoor",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "5611",
+"section": "Vandanmedu",
+"subdivision": "Nedumkandam",
+"division": "Kattappana",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "5614",
+"section": "Vandiperiyar",
+"subdivision": "Vandiperiyar",
+"division": "Peerumade",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "6809",
+"section": "Vandithavalam",
+"subdivision": "Koduvayoor",
+"division": "Chittur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6793",
+"section": "Vaniyambalam",
+"subdivision": "Wandoor",
+"division": "Wandoor",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "6733",
+"section": "Vaniyamkulam",
+"subdivision": "Shornur",
+"division": "Shornur",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "5622",
+"section": "Vannapuram",
+"subdivision": "Thodupuzha East",
+"division": "Thodupuzha",
+"circle": "Thodupuzha",
+"region": "DC"
+},
+{
+"code": "5656",
+"section": "Varandarappally",
+"subdivision": "Kodakara",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "5602",
+"section": "Varapuzha",
+"subdivision": "Varapuzha",
+"division": "North Paravur",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4525",
+"section": "Varkala",
+"subdivision": "Varkala",
+"division": "Attingal",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4678",
+"section": "Vattappara",
+"subdivision": "Kesavadasapuram",
+"division": "Kazhakuttam",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "4509",
+"section": "Vattiyoorkavu",
+"subdivision": "Vellayambalam",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "5584",
+"section": "Vazhakulam mudikkal",
+"subdivision": "Perumbavoor",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6714",
+"section": "Vazhikkadavu",
+"subdivision": "Edakkara",
+"division": "Nilambur",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "5634",
+"section": "Vazhoor",
+"subdivision": "Ponkunnam",
+"division": "Ponkunnam",
+"circle": "Pala",
+"region": "DC"
+},
+{
+"code": "4665",
+"section": "Vechoochira",
+"subdivision": "Ranni",
+"division": "Pathanamthitta",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6503",
+"section": "Velanthavalam",
+"subdivision": "Chittur",
+"division": "Chittur",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "4584",
+"section": "Veliyam",
+"subdivision": "Veliyam",
+"division": "Kundara",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6591",
+"section": "Vellamunda",
+"subdivision": "Mananthavady",
+"division": "Mananthavady",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "4551",
+"section": "Vellanadu",
+"subdivision": "Peyad",
+"division": "Kattakada",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5646",
+"section": "Vellangalloor",
+"subdivision": "Vellangalloor",
+"division": "Irinjalakuda",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "4541",
+"section": "Vellarada",
+"subdivision": "Parassala",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "4507",
+"section": "Vellayambalam",
+"subdivision": "Vellayambalam",
+"division": "Thiruvananthapuram",
+"circle": "Thiruvananthapuram (Urban)",
+"region": "DS"
+},
+{
+"code": "5653",
+"section": "Vellikulangara",
+"subdivision": "Chalakudy",
+"division": "Chalakudy",
+"circle": "Irinjalakuda",
+"region": "DC"
+},
+{
+"code": "6605",
+"section": "Vellimadukunnu",
+"subdivision": "Kakkodi",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+},
+{
+"code": "5595",
+"section": "Velloorkunnam",
+"subdivision": "Velloorkunnam",
+"division": "Muvattupuzha",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "6650",
+"section": "Vellur",
+"subdivision": "Vellur",
+"division": "Payyannur",
+"circle": "Sreekandapuram",
+"region": "DN"
+},
+{
+"code": "6554",
+"section": "Velluvambram",
+"subdivision": "Malappuram",
+"division": "Manjeri",
+"circle": "Manjeri",
+"region": "DN"
+},
+{
+"code": "6678",
+"section": "Vengad",
+"subdivision": "Pinarayi",
+"division": "Thalasseri",
+"circle": "Kannur",
+"region": "DN"
+},
+{
+"code": "6556",
+"section": "Vengara",
+"subdivision": "Kottakkal",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "5690",
+"section": "Vengidange",
+"subdivision": "Kandassankadavu",
+"division": "Thrissur West",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "5585",
+"section": "Vengola",
+"subdivision": "Kizhakkambalam",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "5589",
+"section": "Vengoor",
+"subdivision": "Kuruppampady",
+"division": "Perumbavoor",
+"circle": "Perumbavoor",
+"region": "DC"
+},
+{
+"code": "4555",
+"section": "Venjarammoodu",
+"subdivision": "Venjaramoodu",
+"division": "Nedumangad",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5824",
+"section": "Venmony",
+"subdivision": "Kollakadavu",
+"division": "Chenganoor",
+"circle": "Harippad",
+"region": "DC"
+},
+{
+"code": "5732",
+"section": "Vennala",
+"subdivision": "Palarivattom",
+"division": "Ernakulam",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "4622",
+"section": "Vennikulam",
+"subdivision": "Mallappally",
+"division": "Thiruvalla",
+"circle": "Pathanamthitta",
+"region": "DS"
+},
+{
+"code": "6579",
+"section": "Venniyoor",
+"subdivision": "Thirurangadi",
+"division": "Thirurangadi",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "6730",
+"section": "Vettom",
+"subdivision": "Alathiyur",
+"division": "Tirur",
+"circle": "Tirur",
+"region": "DN"
+},
+{
+"code": "4596",
+"section": "Vilakkudy",
+"subdivision": "Pathanapuram",
+"division": "Punalur",
+"circle": "Kottarakara",
+"region": "DS"
+},
+{
+"code": "6821",
+"section": "Vilayur",
+"subdivision": "Pattambi",
+"division": "Pattambi",
+"circle": "Shornur",
+"region": "DN"
+},
+{
+"code": "4549",
+"section": "Vithura",
+"subdivision": "Palode",
+"division": "Nedumangad",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "5680",
+"section": "Viyyur",
+"subdivision": "Viyyur",
+"division": "Thrissur West",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "4546",
+"section": "Vizhinjam",
+"subdivision": "Vizhinjam",
+"division": "Neyyattinkara",
+"circle": "Kattakkada",
+"region": "DS"
+},
+{
+"code": "6685",
+"section": "Vorkady",
+"subdivision": "Uppala",
+"division": "Kasargod",
+"circle": "Kasargod",
+"region": "DN"
+},
+{
+"code": "5565",
+"section": "Vypin",
+"subdivision": "Vypin",
+"division": "Mattancherry",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "6587",
+"section": "Vythiri",
+"subdivision": "Kalpetta",
+"division": "Kalpetta",
+"circle": "Kalpetta",
+"region": "DN"
+},
+{
+"code": "5556",
+"section": "Vyttila",
+"subdivision": "Vyttila",
+"division": "Tripunithura",
+"circle": "Ernakulam",
+"region": "DC"
+},
+{
+"code": "5683",
+"section": "Wadakkanchery",
+"subdivision": "Wadakkanchery",
+"division": "Wadakkanchery",
+"circle": "Thrissur",
+"region": "DC"
+},
+{
+"code": "6819",
+"section": "Walayar",
+"subdivision": "Kanjikode",
+"division": "Palakkad",
+"circle": "Palakkad",
+"region": "DN"
+},
+{
+"code": "6559",
+"section": "Wandoor",
+"subdivision": "Wandoor",
+"division": "Wandoor",
+"circle": "Nilambur",
+"region": "DN"
+},
+{
+"code": "6604",
+"section": "West Hill",
+"subdivision": "West Hill",
+"division": "Kozhikode",
+"circle": "Kozhikode",
+"region": "DN"
+}
+]

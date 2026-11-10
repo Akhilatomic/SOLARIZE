@@ -681,8 +681,36 @@ function customerModal(id, c = {}) {
   const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} customer</h2><div class="two">${CF.map(f => f.g ? `<div class="full cfg">${f.g}</div>` : fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button>${id && canW('leads') ? '<span class="sp"></span><button class="btn sec" id="rvl" title="Move this customer back to Leads"><i class="i i-refresh"></i> Revert to lead</button>' : ''}</div>`);
   $('#cx', m).onclick = () => m.remove();
+  ksebOfficeFill(m);
   if ($('#rvl', m)) $('#rvl', m).onclick = () => revertToLead(id, c.name, m);
   $('#sv', m).onclick = async () => { const o = { ...c, id, ...collect(m) }; if (!o.name) return alert('Name required'); const r = await api('customers', 'save', o); m.remove(); if (id) route(); else location.hash = '#/customers/' + r.id; };
+}
+/* KSEB office: typing the consumer number (11 + section code + …) or picking the section office fills the electrical
+   sub division, division and circle (and an empty section). A field the user typed stays; one we filled follows the office.
+   The server applies the same rule on save (api/kseb_offices.php), so this is only the live preview of it. */
+let KSEB_SECS = null;
+function ksebOfficeFill(m) {
+  const inp = k => $(`[data-k="${k}"]`, m), sec = inp('kseb_section'), cno = inp('consumer_no');
+  if (!sec || !cno) return;
+  if (!$('#ksebsecs')) { const dl = document.createElement('datalist'); dl.id = 'ksebsecs'; document.body.appendChild(dl); }
+  sec.setAttribute('list', 'ksebsecs'); sec.setAttribute('autocomplete', 'off');
+  (KSEB_SECS = KSEB_SECS || api('kseb', 'offices').catch(() => [])).then(list => { const dl = $('#ksebsecs'); if (dl && !dl.options.length) dl.innerHTML = list.map(s => `<option value="${esc(s)}">`).join(''); });
+  const map = { kseb_subdivision: 'subdivision', kseb_division: 'division', kseb_circle: 'circle' };
+  Object.keys(map).forEach(k => { const el = inp(k); if (el) el.addEventListener('input', () => { delete el.dataset.auto; }); });
+  sec.addEventListener('input', () => { delete sec.dataset.auto; });
+  let seq = 0;
+  const office = async () => { try { return (await api('kseb', 'office', undefined, `&consumer_no=${encodeURIComponent(cno.value.trim())}&section=${encodeURIComponent(sec.value.trim())}`)).office; } catch (e) { return null; } };
+  /* on opening: values that already match the office count as filled by us, so a new consumer number updates them */
+  office().then(o => { if (o) Object.entries(Object.assign({ kseb_section: 'section' }, map)).forEach(([k, f]) => { const el = inp(k); if (el && el.value.trim() && el.value.trim() === o[f]) el.dataset.auto = '1'; }); });
+  const look = debounce(async () => {
+    const n = ++seq, o = await office();
+    if (n !== seq || !o) return;
+    const put = (el, v) => { if (el && v && (!el.value.trim() || el.dataset.auto) && el.value !== v) { el.value = v; el.dataset.auto = '1'; el.classList.add('kfill'); setTimeout(() => el.classList.remove('kfill'), 900); } };
+    if (!sec.value.trim() || sec.dataset.auto) put(sec, o.section);
+    Object.entries(map).forEach(([k, f]) => put(inp(k), o[f]));
+  }, 350);
+  [cno, sec].forEach(el => el.addEventListener('input', look));
+  sec.addEventListener('change', look);
 }
 // Customer → back to Leads. If a project or documents exist, list what will be deleted and ask to type REVERT.
 async function revertToLead(id, name, parent) {
