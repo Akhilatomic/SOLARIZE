@@ -1,6 +1,8 @@
 <?php
 // Quotation maker: catalogue, settings and boot data. api.php?m=qm&a=<action>
 require_once __DIR__ . '/qm_seed.php';
+/* array_is_list is PHP 8.1+; the live server's version is not known */
+if (!function_exists('array_is_list')) { function array_is_list(array $a): bool { return $a === [] || array_keys($a) === range(0, count($a) - 1); } }
 
 // Merge saved settings over the defaults: objects merge key by key, lists are replaced as a whole.
 function qm_merge($def, $saved) {
@@ -203,7 +205,8 @@ function handle_qm($a) {
       if ($id && !$cur) fail('Quotation not found', 404);
       $date = (isset($doc['date']) && is_string($doc['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $doc['date'])) ? $doc['date'] : (($cur['date'] ?? '') ?: date('Y-m-d'));
       $db = db();
-      $db->exec('BEGIN IMMEDIATE');
+      /* $tx tracks the transaction ourselves: PDO's inTransaction() stays false for one started with exec('BEGIN IMMEDIATE') */
+      $db->exec('BEGIN IMMEDIATE'); $tx = true;
       try {
         if ($cur) {
           $number = (string)$cur['number'];
@@ -215,15 +218,15 @@ function handle_qm($a) {
         }
         $doc['number'] = $number; $doc['date'] = $date;
         $json = json_encode($doc, JSON_UNESCAPED_UNICODE);
-        if ($json === false || strlen($json) > 500000) { $db->exec('ROLLBACK'); fail('That quotation is too large'); }
+        if ($json === false || strlen($json) > 500000) { $db->exec('ROLLBACK'); $tx = false; fail('That quotation is too large'); }
         if ($cur) {
           q('UPDATE quotes SET customer_id=?,lead_id=?,date=?,status=?,total=?,subsidy=?,doc=?,updated=CURRENT_TIMESTAMP WHERE id=?', [$cust, $lead, $date, $status, (float)$price, $subsidy, $json, $id]);
         } else {
           q("INSERT INTO quotes(customer_id,lead_id,number,date,items,gst_rate,subsidy,terms,status,total,doc) VALUES(?,?,?,?,'[]',0,?,'',?,?,?)", [$cust, $lead, $number, $date, $subsidy, $status, (float)$price, $json]);
           $id = (int)$db->lastInsertId();
         }
-        $db->exec('COMMIT');
-      } catch (Throwable $e) { if ($db->inTransaction()) $db->exec('ROLLBACK'); throw $e; }
+        $db->exec('COMMIT'); $tx = false;
+      } catch (Throwable $e) { if ($tx) { try { $db->exec('ROLLBACK'); } catch (Throwable $_) { } } throw $e; }
       audit('quote_save', 'quotes', $id, $number);
       out(['id' => $id, 'number' => $number]);
     }

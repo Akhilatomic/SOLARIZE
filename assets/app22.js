@@ -1,7 +1,7 @@
 // Quotation maker screen (#/quotes/new, and quotations saved with the maker): template bar, tabs (customer, one per item
 // category, price & loan), live A4 preview, save and PDF. Needs QM (app20.js) and qmLines / qmPagesHtml / qmMount /
 // qmDownloadPdf (app21.js). UI classes start with .qm (assets/quote.css). Every value shown in HTML goes through esc().
-const QMK = { boot: null, doc: null, tab: 'customer', dirty: false, id: null, status: 'Draft', cust: {}, tpl: '', hash: '', cs: [], ls: [], over: [], stale: true, busy: false, touched: false, snapOld: false, picking: false, t: 0 };
+const QMK = { boot: null, doc: null, tab: 'customer', dirty: false, id: null, status: 'Draft', cust: {}, tpl: '', hash: '', cs: [], ls: [], over: [], stale: true, busy: false, pdf: false, touched: false, snapOld: false, picking: false, t: 0 };
 const QMK_TPL = ['items', 'price', 'subsidy', 'loan', 'title', 'project', 'pill', 'kseb', 'pay', 'terms', 'delivery'];
 const QMK_ST = ['Draft', 'Sent', 'Accepted', 'Rejected'];
 const qmkCopy = o => o == null ? o : JSON.parse(JSON.stringify(o));
@@ -38,9 +38,19 @@ function qmkDefaults() {
   qmkCats().forEach(([c]) => { const p = def(c); if (p && (c !== 'optimiser' || (inv && inv.needs_opt))) items[c] = [{ pid: p.id, qty: p.qty, qty_note: '', over: {} }]; });
   return items;
 }
-const qmkSettings = () => QMK.doc.pill ? Object.assign({}, QMK.boot.settings, { pill: QMK.doc.pill }) : QMK.boot.settings;
+/* the settings this quotation prints with (subsidy rates inside): frozen with a saved quotation's snapshot, else the live ones */
+const qmkSt = () => QM.effectiveSettings(QMK.doc, QMK.boot.settings, S.subsidy_rates);
+const qmkSettings = () => { const st = qmkSt(); return QMK.doc.pill ? Object.assign({}, st, { pill: QMK.doc.pill }) : st; };
 /* the printed lines (saved snapshot until items are edited) and the figures; the same lines go to QM.calc and qmPagesHtml */
-function qmkCalc() { const lines = qmLines(QMK.doc, QMK.boot.products); return { lines, calc: QM.calc(QMK.doc, lines, QMK.boot.settings, S.subsidy_rates) }; }
+function qmkCalc() { const lines = qmLines(QMK.doc, QMK.boot.products), st = qmkSt(); return { lines, calc: QM.calc(QMK.doc, lines, st, st.subsidy_rates) }; }
+/* a saved snapshot whose products or settings differ from today's (the item tabs say so) */
+function qmkSnapOld() {
+  const d = QMK.doc, snap = d.snap, boot = QMK.boot;
+  if (!(snap && typeof snap === 'object' && Object.keys(snap).length)) return false;
+  if (JSON.stringify(snap) !== JSON.stringify(QM.resolve(d, boot.products))) return true;
+  const ss = d.snap_settings;
+  return QM.frozen(d) && JSON.stringify(QM.snapSettings(ss, ss.subsidy_rates)) !== JSON.stringify(QM.snapSettings(boot.settings, S.subsidy_rates));
+}
 const qmkPrintDoc = () => Object.assign({}, QMK.doc, { number: QMK.doc.number || QMK.boot.next_number });
 const qmkMainProd = c => (QMK.doc.items[c] || []).map(x => !x.custom && qmkProd(x.pid)).find(Boolean);
 const qmkPanels = () => (QMK.doc.items.panels || []).reduce((s, x) => s + (+(x.qty != null ? x.qty : (qmkProd(x.pid) || {}).qty) || 0), 0);
@@ -50,7 +60,7 @@ async function pgQuoteMaker(id, q) {
   const [boot, cs, ls, row] = await Promise.all([api('qm', 'boot'), canR('customers') ? list('customers') : [], canR('leads') ? list('leads') : [],
     id && !q ? api('quotes', 'get', undefined, '&id=' + id) : (q || null)]);
   if (nav !== ROUTE_N) return;
-  Object.assign(QMK, { boot, cs, ls, id: id || null, dirty: false, touched: false, over: [], stale: true, busy: false, hash: location.hash, tab: 'customer', status: 'Draft', cust: {}, tpl: '', snapOld: false, picking: false });
+  Object.assign(QMK, { boot, cs, ls, id: id || null, dirty: false, touched: false, over: [], stale: true, busy: false, pdf: false, hash: location.hash, tab: 'customer', status: 'Draft', cust: {}, tpl: '', snapOld: false, picking: false });
   const st = boot.settings, co = st.company || {};
   if (row) {
     let d = {}; try { d = JSON.parse(row.doc || '{}') || {}; } catch (e) { }
@@ -58,8 +68,7 @@ async function pgQuoteMaker(id, q) {
     QMK.status = row.status || 'Draft';
     QMK.cust = { customer_id: row.customer_id || null, lead_id: row.lead_id || null };
     QMK.tpl = qmkTplById(d.template_id) ? d.template_id : '';
-    const snap = QMK.doc.snap;
-    QMK.snapOld = !!(snap && typeof snap === 'object' && Object.keys(snap).length) && JSON.stringify(snap) !== JSON.stringify(QM.resolve(QMK.doc, boot.products));
+    QMK.snapOld = qmkSnapOld();
   } else {
     QMK.doc = qmkNorm(Object.assign(qmkBlank(), { items: qmkDefaults(), template_id: null, number: '', date: today(), valid_days: st.valid_days,
       sales: { name: ME.name || '', phone: co.phone || '', email: co.email || '' } }));
@@ -180,7 +189,7 @@ function qmkTab(t) {
   }
   const strip = $('#qmtabs'), b = $(`#qmtabs [data-qt="${t}"]`), r = strip.getBoundingClientRect();
   if (b && t !== 'preview' && strip.scrollWidth > strip.clientWidth) strip.scrollLeft = b.offsetLeft - strip.clientWidth / 2 + b.offsetWidth / 2;
-  if (r.top < 60) window.scrollTo({ top: scrollY + r.top - 72 });
+  if (moved && r.top < 60) window.scrollTo({ top: scrollY + r.top - 72 }); /* only on a real tab change: a same-tab redraw keeps the scroll */
   if (QMK.stale && qmkPvVisible()) qmkRender(); else if (moved) qmkPvTo(t);
 }
 /* wide screens: the preview follows the tab (customer -> cover, price -> price box, an item tab -> its row) */
@@ -216,7 +225,7 @@ function qmkWhoHtml() {
     ${QMK.picking ? '' : '<button type="button" class="btn sec sm" data-a="whoc">Change</button>'}</div>`;
 }
 function qmkEdCustomer() {
-  const d = QMK.doc, co = QMK.boot.settings.company || {}, has = QMK.cust.customer_id || QMK.cust.lead_id, pick = !has || QMK.picking;
+  const d = QMK.doc, co = qmkSt().company || {}, has = QMK.cust.customer_id || QMK.cust.lead_id, pick = !has || QMK.picking;
   const f = (k, l, o = {}) => `<div class="${o.full ? 'full' : ''}"><label>${esc(l)}</label>${o.ta ? `<textarea rows="2" data-f="${k}">${esc(qmkGet(d, k))}</textarea>`
     : `<input data-f="${k}" type="${o.t || 'text'}" value="${esc(qmkGet(d, k))}"${o.ph ? ` placeholder="${esc(o.ph)}"` : ''}${o.t === 'number' ? ' min="1" step="1"' : ''}>`}</div>`;
   return `<section class="qm-sec"><h3>Customer</h3>${has ? qmkWhoHtml() : ''}
@@ -248,7 +257,7 @@ function qmkEdItems(c) {
       <span class="qm-cp">${u ? `<img src="${esc(u)}" alt="" loading="lazy">` : ''}</span><span class="qm-cb"><b>${esc(qmkLabel(p))}</b><span class="qm-cd">${esc(p.details || p.line || '')}</span>
       ${w ? `<span class="qm-cw"><i class="i i-shield"></i>${esc(w)}</span>` : ''}${fin ? (+p.rate ? `<span class="qm-cr">₹${QM.inr(p.rate)} per ${esc(p.unit === 'no' ? 'unit' : p.unit)}</span>` : '<span class="qm-cr qm-nr">No rate yet</span>') : ''}${p.hidden ? pill('Hidden', 'y') : ''}</span>
       <span class="qm-ck"><i class="i i-check"></i></span></button>`; };
-  const snap = QMK.snapOld ? `<p class="qm-snap"><i class="i i-alert"></i><span>The preview shows the items exactly as they were saved. Products have changed since; changing any item switches the whole quotation to today’s product list.</span></p>` : '';
+  const snap = QMK.snapOld ? `<p class="qm-snap"><i class="i i-alert"></i><span>The preview shows this quotation exactly as it was saved. Products or quotation settings have changed since; changing any item switches the whole quotation to today’s products and settings.</span></p>` : '';
   const add = `<button type="button" class="btn sec sm qm-add" data-a="add" data-k="${c}"><i class="i i-plus"></i> Add another component</button>`;
   return `<section class="qm-sec">${snap}<div class="qm-sh"><h3>${esc(name)}</h3>${its.length ? '' : pill('Not in this quote')}</div>
      ${prods.length ? `<p class="qm-hint qm-top0">${its.length ? 'Tap a product to use it instead.' : 'Tap a product to add it to this quote.'}</p><div class="qm-cards">${prods.map(card).join('')}</div>` : '<p class="qm-hint qm-top0">There are no products in this category yet.</p>'}${its.length ? '' : add}</section>
@@ -319,7 +328,7 @@ function qmkAdd(c, btn) {
 /* ---- price & loan tab ---- */
 const QMK_LISTS = { kseb: 'KSEB charges (included in the price)', pay: 'Payment schedule', delivery: 'Delivery & installation', terms: 'Terms and conditions' };
 function qmkRowsOf(key, calc) {
-  const d = QMK.doc, st = QMK.boot.settings;
+  const d = QMK.doc, st = qmkSt();
   if (key === 'kseb') return (d.kseb ? (Array.isArray(d.kseb) ? d.kseb : d.kseb.rows || []) : calc.kseb.rows).map(r => ({ label: r.label || '', amount: r.amount }));
   return qmkCopy(d[key] || st[key] || []);
 }
@@ -348,7 +357,7 @@ function qmkGuide(lines) {
   return `<i class="i i-coin"></i><span>Items add up to <b>₹${QM.inr(sum)}</b> at your rates${miss ? ` · ${miss} item${miss === 1 ? ' has' : 's have'} no rate yet` : ''}. Only a guide: the package price is what prints.</span>`;
 }
 function qmkEdPrice() {
-  const d = QMK.doc, st = QMK.boot.settings, { lines, calc } = qmkCalc(), auto = QM.calc(Object.assign({}, d, { title: '', project: '' }), lines, st, S.subsidy_rates);
+  const d = QMK.doc, st = qmkSt(), { lines, calc } = qmkCalc(), auto = QM.calc(Object.assign({}, d, { title: '', project: '' }), lines, st, st.subsidy_rates);
   const has = v => v != null && v !== '';
   return `<section class="qm-sec" data-pv=".qp-price"><h3>Price</h3><div class="qm-sum" id="qmsum">${qmkSum(calc)}</div>
     <label for="qmprice">Package price, including KSEB charges</label><div class="qm-rs qm-big"><span>₹</span><input id="qmprice" inputmode="numeric" autocomplete="off" value="${+d.price > 0 ? esc(QM.inr(d.price)) : ''}" placeholder="Type the price, e.g. 1,70,000"></div>
@@ -374,7 +383,7 @@ function qmkChanged(touched, items) {
   if (canW('quotes')) QMK.dirty = true;
   QMK.rev = (QMK.rev || 0) + 1;
   if (touched) QMK.touched = true;
-  if (items && QMK.doc.snap) { delete QMK.doc.snap; QMK.snapOld = false; $$('.qm-snap').forEach(e => e.remove()); }
+  if (items && (QMK.doc.snap || QMK.doc.snap_settings)) { delete QMK.doc.snap; delete QMK.doc.snap_settings; QMK.snapOld = false; $$('.qm-snap').forEach(e => e.remove()); } /* the frozen settings go with the snapshot */
   qmkHead(); clearTimeout(QMK.t); QMK.t = setTimeout(qmkRender, 150);
 }
 function qmkLive(lines, calc) {
@@ -390,7 +399,7 @@ async function qmkRender() {
   if (!qmkOn()) return;
   const { lines, calc } = qmkCalc();
   qmkLive(lines, calc);
-  if (!qmkPvVisible()) { QMK.stale = true; return; }
+  if (QMK.pdf || !qmkPvVisible()) { QMK.stale = true; return; } /* while the PDF is made its pages stay as they are; qmkPdf renders once afterwards */
   QMK.stale = false;
   const box = $('#qmpages'), sc = $('#qmpvsc'), top = sc.scrollTop;
   qmMount(box, qmPagesHtml(qmkPrintDoc(), lines, calc, qmkSettings()));
@@ -431,8 +440,9 @@ async function qmkSave() {
   const d = QMK.doc;
   if (!(QMK.cust.customer_id || QMK.cust.lead_id)) { QMK.picking = false; qmkTab('customer'); toast('Choose a customer or lead first', true); const q = $('#qmcq'); if (q) q.focus(); return false; }
   if (!(+d.price > 0)) { qmkTab('price'); toast('Type the package price first', true); const p = $('#qmprice'); if (p) p.focus(); return false; }
-  const { lines, calc } = qmkCalc(), b = $('#qmsave');
+  const { lines, calc } = qmkCalc(), st = qmkSt(), b = $('#qmsave');
   d.snap = qmkCopy(lines); /* the saved quotation keeps printing exactly these lines, even if products change later */
+  d.snap_settings = QM.snapSettings(st, st.subsidy_rates); /* ...with these settings and subsidy rates (dropped with snap on an item edit) */
   QMK.busy = true; if (b) { b.disabled = true; b.textContent = 'Saving…'; }
   const rev = QMK.rev;
   try {
@@ -457,10 +467,11 @@ async function qmkPdf() {
   QMK.busy = true; b.disabled = true; b.innerHTML = '<i class="i i-download"></i> Making PDF…';
   try {
     await qmkRender();
+    QMK.pdf = true; /* edits made from here on wait (qmkRender would replace the pages being drawn) */
     if ((box._qmOverflow || []).length) throw new Error('Some pages are too long for A4: ' + box._qmOverflow.join('; ') + '. Shorten their text first.');
     await qmDownloadPdf(box, qmkFileName());
   } catch (e) { if (!e || !e.error) toast((e && e.message) || String(e), true); }
-  finally { QMK.busy = false; b.innerHTML = old; b.disabled = !!QMK.over.length; }
+  finally { QMK.busy = false; QMK.pdf = false; b.innerHTML = old; b.disabled = !!QMK.over.length; if (QMK.stale) qmkRender(); }
 }
 function qmkMore(btn) {
   const w = canW('quotes'), c = QMK.cust;
@@ -476,7 +487,7 @@ function qmkMore(btn) {
 async function qmRefresh() {
   if (!qmkOn()) return;
   const b = await api('qm', 'boot'); if (!qmkOn()) return;
-  QMK.boot = b; if (QMK.tpl && !qmkTplById(QMK.tpl)) QMK.tpl = '';
+  QMK.boot = b; QMK.snapOld = qmkSnapOld(); if (QMK.tpl && !qmkTplById(QMK.tpl)) QMK.tpl = '';
   qmkTplSel(); qmkTab(QMK.tab); qmkRender();
 }
 

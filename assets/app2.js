@@ -11,9 +11,12 @@ async function pgQuotes() {
 // New quotations and quotations made with the quotation maker open in the maker (app22.js); older ones keep this simple editor.
 async function pgQuote(id) {
   if (id === 'new') return pgQuoteMaker(null);
+  const nav = ROUTE_N; /* left this page while loading: do not paint over the new one */
   const q = await api('quotes', 'get', undefined, '&id=' + id);
+  if (nav !== ROUTE_N) return;
   if (q.doc) return pgQuoteMaker(id, q);
   const [cs, ls] = await Promise.all([list('customers'), list('leads')]);
+  if (nav !== ROUTE_N) return;
   const w = canW('quotes');
   $('#main').innerHTML = `<p><a href="#/quotes">← Quotations</a></p><div class="card">
    <h2 style="margin-top:0">${q.number ? 'Quotation ' + esc(q.number) : 'New quotation'}</h2>

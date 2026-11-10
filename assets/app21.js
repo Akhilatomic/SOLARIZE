@@ -152,7 +152,7 @@ function qpLoan(calc, st, ctx, fill) {
 
 function qpTerms(doc, calc, st, ctx, fill) {
   const del = doc.delivery || st.delivery || [], terms = doc.terms || st.terms || [], pay = calc.pay || [];
-  const rates = (typeof S !== 'undefined' && S && S.subsidy_rates) || QP_RATES;
+  const rates = st.subsidy_rates || (typeof S !== 'undefined' && S && S.subsidy_rates) || QP_RATES; /* st.subsidy_rates: QM.effectiveSettings (frozen with a saved quotation) */
   /* the "worked out on…" sum is shown only below the cap; a capped subsidy just says how it is paid (as in the 3 kW and 5 kW quotations) */
   const stext = calc.subsidy === calc.subsidyAuto && calc.panelCount && calc.subsidy < (+rates.cap || Infinity) ? QM.subsidyText(calc.panelCount, calc.panelWp, calc.dcKwp, rates)
     : 'Credited directly to the customer’s bank account within 30 working days after commissioning.';

@@ -160,6 +160,32 @@ var QM = (function () {
     return v;
   };
 
+  /* Saved quotations reprint exactly what was sent: saving stores doc.snap_settings (snapSettings: what calc and the
+     pages read, plus the subsidy rates) next to the item snapshot doc.snap. They live and die together: while the
+     snapshot is in force (frozen) the stored settings replace the live ones; an item edit drops both.
+     effectiveSettings returns the settings to print with, subsidy rates inside as subsidy_rates. */
+  Q.SNAP_KEYS = ['company', 'site', 'footer', 'bank', 'pill', 'valid_days', 'delivery', 'pay', 'kseb', 'loan', 'terms'];
+  var isObj = function (v) { return !!v && typeof v === 'object' && !Array.isArray(v); };
+  var copy = function (v) { return v == null ? v : JSON.parse(JSON.stringify(v)); };
+  Q.snapSettings = function (settings, rates) {
+    var o = {}; settings = settings || {};
+    Q.SNAP_KEYS.forEach(function (k) { if (settings[k] !== undefined) o[k] = copy(settings[k]); });
+    o.subsidy_rates = copy(rates || {});
+    return o;
+  };
+  Q.frozen = function (doc) {
+    var s = doc && doc.snap;
+    return isObj(s) && Object.keys(s).length > 0 && isObj(doc.snap_settings);
+  };
+  Q.effectiveSettings = function (doc, live, liveRates) {
+    var o = Object.assign({}, live || {}, { subsidy_rates: liveRates || {} });
+    if (Q.frozen(doc)) {
+      var ss = doc.snap_settings;
+      Object.keys(ss).forEach(function (k) { if (ss[k] != null && (k !== 'subsidy_rates' || isObj(ss[k]))) o[k] = ss[k]; });
+    }
+    return o;
+  };
+
   Q.fill = function (text, vars) {
     return str(text).replace(/\{(\w+)\}/g, function (m, k) { return Object.prototype.hasOwnProperty.call(vars || {}, k) ? vars[k] : m; });
   };

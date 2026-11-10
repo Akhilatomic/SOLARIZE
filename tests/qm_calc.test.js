@@ -190,3 +190,41 @@ test('qtyText', () => {
   assert.deepEqual(QM.qtyText(plain, { dcKwp: 2.4 }), { main: '4 nos', note: '2.4 kWp' });
   assert.equal(QM.qtyText(Object.assign({}, plus, { qty_note: '3 kWp' }), { dcKwp: 2.4 }).note, '3 kWp');
 });
+
+test('snapSettings: only what the quotation prints with, as a copy, with the subsidy rates', () => {
+  const live = Object.assign({ number_format: 'JSS/{NNNN}', site: 'www.x', footer: 'F', pill: 'P', company: { name: 'C' }, bank: { bank: 'B' }, delivery: ['d'], terms: ['t'] }, JSON.parse(JSON.stringify(SET)));
+  const s = QM.snapSettings(live, R);
+  assert.deepEqual(Object.keys(s).sort(), QM.SNAP_KEYS.concat('subsidy_rates').sort());
+  assert.equal(s.number_format, undefined); assert.deepEqual(s.subsidy_rates, R); assert.deepEqual(s.loan, live.loan);
+  s.kseb.reg_per_kw = 5; s.subsidy_rates.cap = 1;
+  assert.equal(live.kseb.reg_per_kw, 1000); assert.equal(R.cap, 78000);
+});
+
+test('effectiveSettings: a saved quotation keeps its frozen settings while its snapshot is in force', () => {
+  const lines = QM.resolve(SETUP2, PRODUCTS);
+  const live = JSON.parse(JSON.stringify(SET)); live.kseb.reg_per_kw = 1200; live.loan.rate = 7; live.pay = [{ amt: '50%', text: 'New' }];
+  const liveR = { per_kw_first2: 25000, third_kw: 15000, cap: 70000 };
+  /* saved: snapshot + settings frozen at save time, through a JSON round trip like the server's */
+  const saved = JSON.parse(JSON.stringify(Object.assign({}, SETUP2, { snap: lines, snap_settings: QM.snapSettings(SET, R) })));
+  assert.equal(QM.frozen(saved), true);
+  const st = QM.effectiveSettings(saved, live, liveR), c = QM.calc(saved, saved.snap, st, st.subsidy_rates);
+  assert.deepEqual(c.kseb.rows.map(r => r.amount), [1000, 2000, 300]); assert.equal(c.subsidy, 67200);
+  assert.deepEqual(c.loan.emis[0], { months: 60, before: 2958, after: 1659 });
+  assert.equal(QM.vars(c, saved, st).rate, '6.00'); assert.deepEqual(c.pay, SET.pay); assert.deepEqual(st.subsidy_rates, R);
+  /* an item edit drops snap and snap_settings: today's settings */
+  const edited = Object.assign({}, saved); delete edited.snap; delete edited.snap_settings;
+  const st2 = QM.effectiveSettings(edited, live, liveR), c2 = QM.calc(edited, lines, st2, st2.subsidy_rates);
+  assert.equal(QM.frozen(edited), false);
+  assert.equal(c2.kseb.rows[1].amount, 2400); assert.equal(QM.vars(c2, edited, st2).rate, '7.00'); assert.equal(c2.subsidy, 56000);
+  assert.equal(c2.loan.emis[0].before, QM.emi(153000, 7, 60)); assert.deepEqual(c2.pay, live.pay);
+  /* saved before snap_settings existed: live settings */
+  const old = Object.assign({}, SETUP2, { snap: lines });
+  assert.equal(QM.frozen(old), false); assert.equal(QM.effectiveSettings(old, live, liveR).kseb.reg_per_kw, 1200);
+  /* snap_settings without a snapshot in force (empty snap; PHP turns {} into []): live settings */
+  assert.equal(QM.frozen(Object.assign({}, saved, { snap: [] })), false);
+  assert.equal(QM.effectiveSettings(Object.assign({}, saved, { snap: {} }), live, liveR).loan.rate, 7);
+  /* keys missing from an older snap_settings fall back to live; the live settings object is not changed */
+  const partial = Object.assign({}, saved, { snap_settings: { kseb: SET.kseb } }), st3 = QM.effectiveSettings(partial, live, liveR);
+  assert.equal(st3.kseb.reg_per_kw, 1000); assert.equal(st3.loan.rate, 7); assert.deepEqual(st3.subsidy_rates, liveR);
+  assert.equal(live.kseb.reg_per_kw, 1200); assert.equal(live.subsidy_rates, undefined);
+});

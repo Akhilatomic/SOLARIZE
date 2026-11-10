@@ -147,6 +147,19 @@ chk(call($sales, 'qm', 'save', ['customer_id' => $cid, 'status' => 'Bogus', 'doc
 call($admin, 'qm', 'product_save', ['id' => $panelId, 'name' => 'Changed name'] + $panel);
 chk(json_decode(call($sales, 'quotes', 'get', null, '&id=' . $q1['id'])['doc'], true)['snap']['panels'][0]['name'] === $panel['name'], 'saved quote keeps its snapshot');
 chk(call($sales, 'quotes', 'list')[0]['total'] == $doc['price'], 'list shows the package price');
+/* the list leaves out the doc (and old-style items/terms); get still has it */
+$ql = array_values(array_filter(call($sales, 'quotes', 'list'), 'is_array'));
+$qr = null; foreach ($ql as $r) if ($r['id'] == $q1['id']) $qr = $r;
+chk(count($ql) >= 2 && $qr && count(array_filter($ql, fn($r) => array_key_exists('doc', $r) || array_key_exists('items', $r) || array_key_exists('terms', $r))) === 0, 'list rows carry no doc, items or terms');
+chk($qr && $qr['number'] === $q1['number'] && $qr['status'] === 'Sent' && $qr['total'] == $doc['price'] && $qr['customer_id'] == $cid && array_key_exists('lead_id', $qr) && !empty($qr['date']), 'list rows keep what the Quotations list shows');
+$gd = call($sales, 'quotes', 'get', null, '&id=' . $q1['id']);
+chk(is_string($gd['doc'] ?? null) && ($gd['doc'] ?? '') !== '' && is_array(json_decode($gd['doc'], true)['snap'] ?? null), 'get still returns the doc');
+chk(count(array_filter(call($sales, 'quotes', 'list', null, '&customer_id=' . $cid), fn($r) => is_array($r) && array_key_exists('doc', $r))) === 0, 'filtered list has no doc either');
+/* the settings frozen with the snapshot are stored as sent */
+$ss = ['kseb' => $b6['settings']['kseb'], 'loan' => $b6['settings']['loan'], 'terms' => $b6['settings']['terms'], 'subsidy_rates' => ['per_kw_first2' => 30000, 'third_kw' => 18000, 'cap' => 78000]];
+$qs = call($sales, 'qm', 'save', ['customer_id' => $cid, 'status' => 'Draft', 'doc' => $doc + ['snap_settings' => $ss]]);
+$gs = json_decode(call($sales, 'quotes', 'get', null, '&id=' . ($qs['id'] ?? 0))['doc'] ?? '{}', true);
+chk(($gs['snap_settings'] ?? null) == $ss && ($gs['snap_settings']['kseb']['reg_per_kw'] ?? 0) === 1000 && ($gs['snap_settings']['loan']['rate'] ?? 0) == 6, 'snap_settings round-trips through save');
 /* consecutive saves; the built-in server handles one request at a time, so the lock test below is the real race check */
 $mh = curl_multi_init(); $chs = [];
 for ($i = 0; $i < 2; $i++) {
