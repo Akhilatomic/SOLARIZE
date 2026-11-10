@@ -71,6 +71,8 @@ main.pg-kseb{max-width:none;padding-left:24px;padding-right:24px}
 .kd-pvs{position:relative;overflow:hidden;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.14)}
 .kd-page{position:absolute;left:0;top:0;background:#fff center/100% 100% no-repeat;transform-origin:0 0}
 .kd-page span{position:absolute;white-space:pre;line-height:1;color:#000}
+.kd-page .kd-ln{position:absolute;background:#000}
+.kd-pvs+.kd-pvs{margin-top:14px}
 .kd-load{position:absolute;left:0;right:0;top:45%;margin:0;padding:0 40px;text-align:center;font-size:15px;color:var(--mut)}
 
 /* phones: the preview sits below the form, behind the Show preview button */

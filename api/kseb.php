@@ -2,7 +2,7 @@
 // KSEB documents (Work Completion Report, Annexures 1-3): customer data for the page, per-customer edits, company defaults.
 // Edits live in gen_docs (kind 'kseb_wcr', 'kseb_an1' … 'kseb_an3', 'kseb_chk'); the PDF itself is built in the browser.
 
-const KSEB_DOCS = ['wcr', 'an1', 'an2', 'an3', 'chk'];
+const KSEB_DOCS = ['wcr', 'an1', 'an2', 'an3', 'doi', 'chk'];
 const KSEB_DEFAULTS = [
   'vendor_name' => 'M/S JASPER SOLAR SOLUTIONS',
   'vendor_address' => 'Jasper Building Anad Bank Junction Nedumangad Thiruvananthapuram',

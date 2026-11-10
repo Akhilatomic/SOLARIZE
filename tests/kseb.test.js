@@ -331,3 +331,84 @@ test('buildPdf draws the underline', async () => {
   const doc = await PDFLib.PDFDocument.load(withU);
   assert.equal(doc.getPageCount(), 1);
 });
+
+
+/* ---- Details of installation & checklist (KSEB, with the request for testing the inverter): two pages ---- */
+const VIMAL = {
+  customer: { name: 'VIMAL RAJ.R', phone: '8089001380', email: '', address: 'SOORYA NAGAR, GREEN APPLE AVENUE, NETTAYAM', district: 'Thiruvananthapuram', pincode: '695013',
+    consumer_no: '1145097032528', kseb_section: 'Vattiyoorkavu', kseb_division: 'Thiruvananthapuram', kseb_subdivision: 'Vattiyoorkavu', tariff: 'LT-1A Domestic', phase: 'Single phase',
+    sanctioned_load: 4.751, bank_name: 'SBI', bank_branch: 'Nettayam', bank_account: '••••4321', bank_holder: 'VIMAL RAJ R', bank_ifsc: 'SBIN0001234' },
+  plant: { capacity: '3', panel_count: '6', panel_wattage: '550', inverter_make: 'SOLAR EDGE', inverter_capacity: '3', inverter_count: '1', system_type: 'On-grid', inverter_dc_voltage: '480',
+    inverters: [{ serial: 'ST3623-07505AD48-6F' }] },
+  project: null,
+  defaults: RAJ.defaults,
+  today: '2026-05-25',
+};
+
+test('details of installation: defaults from the profile and plant', () => {
+  const v = KD.defaults('doi', VIMAL);
+  assert.equal(v.division, 'Thiruvananthapuram / Vattiyoorkavu');
+  assert.equal(v.tariff, 'LT-1A Domestic/Single');
+  assert.equal(v.load, '4.751 kW');
+  assert.equal(v.address, 'SOORYA NAGAR, GREEN APPLE AVENUE, NETTAYAM, Thiruvananthapuram, 695013');
+  assert.equal(v.bank_name, 'SBI, Nettayam');
+  assert.equal(v.bank_account, 'VIMAL RAJ R', 'a masked account number is left out');
+  assert.equal(KD.defaults('doi', Object.assign({}, VIMAL, { customer: Object.assign({}, VIMAL.customer, { bank_account: '30112233445' }) })).bank_account, '30112233445 - VIMAL RAJ R');
+  assert.equal(v.installer, 'M/S JASPER SOLAR SOLUTIONS, Jasper Building Anad Bank Junction Nedumangad Thiruvananthapuram');
+  assert.equal(v.inst_email, 'info@jasper.solar');
+  assert.equal(v.plant_type, 'On grid');
+  assert.equal(v.capacity, '3 KW');
+  assert.equal(v.panel_count, '6');
+  assert.equal(v.panel_watt, '550 Wp');
+  assert.equal(v.inv_serial, 'SOLAR EDGE S/N: ST3623-07505AD48-6F');
+  assert.equal(v.inv_phase, 'Single Phase');
+  assert.equal(v.inv_capacity, '3 KW');
+  assert.equal(v.dc_voltage, '480 Vdc');
+  assert.equal(v.ac_voltage, '230V, 1 Phase');
+  assert.equal(v.energ, 'Not Applicable');
+  assert.deepEqual([v.ov_set, v.uv_set, v.v_time, v.of_set, v.uf_set, v.f_time, v.grid_trip, v.re_delay], ['264', '192', '200ms', '50.5', '47.5', '200ms', '2 seconds', '60 seconds']);
+  assert.equal(v.date, '2026-05-25');
+  for (const g of KD.DOCS.doi.groups) for (const f of g.fields) assert.ok(f.k in v, 'doi.' + f.k);
+  const three = KD.defaults('doi', Object.assign({}, VIMAL, { customer: Object.assign({}, VIMAL.customer, { phase: 'Three phase' }), plant: Object.assign({}, VIMAL.plant, { system_type: 'Hybrid' }) }));
+  assert.equal(three.ac_voltage, '415V, 3 Phase');
+  assert.equal(three.plant_type, 'Hybrid');
+});
+
+test('details of installation: two pages inside the margins', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const r = KD.layout('doi', KD.values('doi', VIMAL, {}), measure);
+  assert.equal(r.overflow, false);
+  assert.ok(r.size >= 8.5, 'readable size ' + r.size);
+  const text = r.ops.filter(o => !o.ln), lines = r.ops.filter(o => o.ln);
+  assert.deepEqual([...new Set(r.ops.map(o => o.p))].sort(), [0, 1]);
+  for (const o of text) {
+    assert.ok(o.x >= 28 && o.x + measure(o.t, o.f, o.s) <= 567, o.t + ' x');
+    assert.ok(o.y > 40 && o.y <= 806, o.t + ' y');
+  }
+  for (const o of lines) for (const n of o.ln) assert.ok(n >= 28 && n <= 806, 'line inside the page');
+  const at = t => text.find(o => o.t === t);
+  assert.equal(at('DETAILS OF INSTALLATION & CHECKLIST TO BE FURNISHED ALONG WITH THE REQUEST FOR TESTING SOLAR INVERTERS').p, 0);
+  assert.equal(at('1145097032528').p, 0);
+  assert.ok(at('1145097032528').x > 318, 'value column');
+  assert.equal(at('SOLAR EDGE S/N: ST3623-07505AD48-6F').p, 0);
+  assert.equal(at('264').p, 1); assert.equal(at('264').u, 1, 'settings underlined');
+  assert.equal(at('Date:   25-05-2026').p, 1);
+  assert.ok(at('Signature of Executive Engineer') && at('Signature of Assistant Engineer'));
+  assert.ok(lines.filter(o => o.p === 0).length > 100 && lines.filter(o => o.p === 1).length > 20, 'table lines on both pages');
+  const v = Object.assign(KD.values('doi', VIMAL, {}), { ov_set: '' });
+  assert.ok(KD.layout('doi', v, measure).ops.some(o => o.t === '________' && o.p === 1), 'an empty setting leaves a blank to fill by hand');
+  const huge = Object.assign(KD.values('doi', VIMAL, {}), { address: 'x '.repeat(3000) });
+  assert.equal(KD.layout('doi', huge, measure).overflow, true);
+});
+
+test('details of installation: a 2-page PDF with the table', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const tpl = fs.readFileSync(path.join(ROOT, 'assets/kseb/blank.pdf'));
+  const { ops } = KD.layout('doi', KD.values('doi', VIMAL, {}), measure);
+  const out = await KD.buildPdf(PDFLib, tpl, ops);
+  const doc = await PDFLib.PDFDocument.load(out);
+  assert.equal(doc.getPageCount(), 2);
+  assert.ok(Math.abs(doc.getPage(1).getWidth() - doc.getPage(0).getWidth()) < 0.01 && Math.abs(doc.getPage(1).getHeight() - doc.getPage(0).getHeight()) < 0.01, 'page 2 is A4 like page 1');
+  const noLines = await KD.buildPdf(PDFLib, tpl, ops.filter(o => !o.ln));
+  assert.ok(out.length > noLines.length, 'the table lines are drawn');
+});

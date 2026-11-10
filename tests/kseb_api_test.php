@@ -60,6 +60,10 @@ chk(call($admin, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'an3', 'data' 
 $g = call($admin, 'kseb', 'get', null, "&customer_id=$cid");
 chk(($g['saved']['an3']['data']['reg_no'] ?? '') === 'REG-9' && array_key_exists('an2', $g['saved'] ?? []) && $g['saved']['an2'] === null, 'get returns saved edits for annexures 2 and 3');
 chk(call($sales, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'an1', 'data' => []])['_code'] === 403, 'sales cannot save');
+chk(array_key_exists('doi', $g['saved'] ?? []) && $g['saved']['doi'] === null, 'details of installation: nothing saved yet');
+chk(call($admin, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'doi', 'data' => ['dc_voltage' => '600 Vdc', 'date' => '2026-11-08']])['_code'] === 200, 'details of installation saves');
+$g = call($admin, 'kseb', 'get', null, "&customer_id=$cid");
+chk(($g['saved']['doi']['data']['dc_voltage'] ?? '') === '600 Vdc' && ($g['saved']['doi']['issued_on'] ?? '') === '2026-11-08', 'details of installation: the saved edit and date come back');
 chk(call($sales, 'kseb', 'defaults_save', ['data' => ['sign_name' => 'X']])['_code'] === 403, 'sales cannot save defaults');
 
 $d = call($admin, 'kseb', 'defaults_save', ['data' => ['sign_name' => 'Er X', 'bogus' => 'y']]);

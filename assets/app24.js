@@ -121,6 +121,74 @@ var KD = (function () {
           { k: 'items', l: 'Documents (one per line)', t: 'area', rows: 12 }
         ] }
       ]
+    },
+    /* Details of installation & checklist, handed in with the request for testing the solar inverter.
+       Two A4 pages; the KSEB table is drawn here (layoutDoi), so long addresses and serial numbers simply make a row taller. */
+    doi: {
+      key: 'doi', tab: 'Details of installation', file: 'Details of Installation', page: 'blank', pages: 2,
+      groups: [
+        { g: 'Consumer', fields: [
+          { k: 'division', l: 'Electrical Division & Sub Division' },
+          { k: 'section', l: 'Electrical Section' },
+          { k: 'consumer_no', l: 'Consumer No' },
+          { k: 'tariff', l: 'Tariff' },
+          { k: 'load', l: 'Connected load' },
+          { k: 'name', l: 'Name of solar plant owner' },
+          { k: 'address', l: 'Address', t: 'area' },
+          { k: 'email', l: 'Email ID' },
+          { k: 'phone', l: 'Phone of consumer' },
+          { k: 'alt_phone', l: 'Alternate contact no.' }
+        ] },
+        { g: 'Bank details', fields: [
+          { k: 'bank_name', l: 'Bank name' },
+          { k: 'bank_account', l: 'Account no. & name' },
+          { k: 'bank_ifsc', l: 'IFSC code' }
+        ] },
+        { g: 'Supplier / installer', fields: [
+          { k: 'installer', l: 'Name & address of supplier / installer', t: 'area' },
+          { k: 'inst_email', l: 'Email ID of installer' },
+          { k: 'inst_phone', l: 'Phone of installer' }
+        ] },
+        { g: 'Plant details', fields: [
+          { k: 'plant_type', l: 'Type of plant' },
+          { k: 'capacity', l: 'Total capacity of solar plant' },
+          { k: 'panel_count', l: 'Number of panels' },
+          { k: 'panel_watt', l: 'Individual capacity' },
+          { k: 'inv_serial', l: 'Make & serial no. of inverters', t: 'area' },
+          { k: 'inv_phase', l: 'Inverter type (single / three phase)' },
+          { k: 'inv_capacity', l: 'Inverter capacity' },
+          { k: 'dc_voltage', l: 'DC input voltage' },
+          { k: 'ac_voltage', l: 'Voltage and number of phase' }
+        ] },
+        { g: 'Checklist', fields: [
+          { k: 'hybrid', l: '6. Hybrid inverter: scheme approved by CE (REES)' },
+          { k: 'completion', l: '7. Completion certificate submitted in the section' },
+          { k: 'energ', l: '8. Energization approval from the Electrical Inspectorate' },
+          { k: 'energ_details', l: '9. Details of the energization approval' },
+          { k: 'dc_isolator', l: '10. DC isolator on the inverter input' },
+          { k: 'visual_isolator', l: '11. Visual isolator before the connectivity point' },
+          { k: 'wiring', l: '12. Wiring as per the approved scheme' },
+          { k: 'earthing', l: '13. Earthing as per standards' },
+          { k: 'protection', l: '14. Inverter protection functions' }
+        ] },
+        { g: 'Inverter protection settings', fields: [
+          { k: 'volt_trip', l: 'a. Over & under voltage trip' },
+          { k: 'ov_set', l: 'Over voltage setting (V)' },
+          { k: 'uv_set', l: 'Under voltage setting (V)' },
+          { k: 'v_time', l: 'Voltage trip time' },
+          { k: 'freq_trip', l: 'b. Over & under frequency trip' },
+          { k: 'of_set', l: 'Over frequency setting (Hz)' },
+          { k: 'uf_set', l: 'Under frequency setting (Hz)' },
+          { k: 'f_time', l: 'Frequency trip time' },
+          { k: 'islanding', l: 'c. Protection against islanding' },
+          { k: 'grid_trip', l: 'd. Grid failure trip delay' },
+          { k: 'reenergise', l: 'e. Time delay for re-energisation' },
+          { k: 're_delay', l: 'Re-energisation delay setting' }
+        ] },
+        { g: 'Declaration', fields: [
+          { k: 'date', l: 'Date', t: 'date' }
+        ] }
+      ]
     }
   };
 
@@ -203,6 +271,39 @@ var KD = (function () {
         inv_make: trim(p.inverter_make), inv_capacity: K.invCapacity(p.inverter_capacity, p.inverter_count),
         inv_serial: serials,
         sign_name: str(sd.sign_name), sign_designation: str(sd.sign_designation), sign_phone: str(sd.sign_phone)
+      };
+    } else if (docKey === 'doi') {
+      var phs = trim(c.phase) || trim(p.inverter_type), one = /single/i.test(phs), three = /three/i.test(phs);
+      var invSerials = (Array.isArray(p.inverters) ? p.inverters : []).map(function (i) { return trim(i && i.serial); }).filter(Boolean);
+      var nPanels = trim(p.panel_count) && !zero(p.panel_count) ? trim(p.panel_count)
+        : String((Array.isArray(p.panels) ? p.panels : []).filter(function (x) { return trim(x && x.serial); }).length || '');
+      var acct = trim(c.bank_account), sys = trim(p.system_type);
+      v = {
+        division: [trim(c.kseb_division), trim(c.kseb_subdivision)].filter(function (x, i, a) { return x && a.indexOf(x) === i; }).join(' / '),
+        section: trim(c.kseb_section), consumer_no: trim(c.consumer_no),
+        tariff: [trim(c.tariff), one ? 'Single' : three ? 'Three' : ''].filter(Boolean).join('/'),
+        load: bare(c.sanctioned_load, 'kW'),
+        name: trim(c.name), address: K.joinAddr(c), email: trim(c.email), phone: trim(c.phone), alt_phone: trim(c.alt_phone),
+        bank_name: [trim(c.bank_name), trim(c.bank_branch)].filter(Boolean).join(', '),
+        /* someone who may not see the full account number gets it masked (••••1234): that is no use on the form */
+        bank_account: [acct.indexOf('•') >= 0 ? '' : acct, trim(c.bank_holder)].filter(Boolean).join(' - '),
+        bank_ifsc: trim(c.bank_ifsc),
+        installer: [trim(sd.vendor_name), trim(sd.vendor_address)].filter(Boolean).join(', '),
+        inst_email: trim(sd.vendor_email), inst_phone: trim(sd.vendor_phone),
+        plant_type: /hybrid/i.test(sys) ? 'Hybrid' : /off/i.test(sys) ? 'Off grid' : 'On grid',
+        capacity: cap('KW'), panel_count: nPanels, panel_watt: bare(p.panel_wattage, 'Wp'),
+        inv_serial: [trim(p.inverter_make), invSerials.length ? 'S/N: ' + invSerials.join(', ') : ''].filter(Boolean).join(' '),
+        inv_phase: one ? 'Single Phase' : three ? 'Three Phase' : '',
+        inv_capacity: K.invCapacity(p.inverter_capacity, p.inverter_count),
+        dc_voltage: bare(p.inverter_dc_voltage, 'Vdc'),
+        ac_voltage: one ? '230V, 1 Phase' : three ? '415V, 3 Phase' : '',
+        /* the checklist answers and inverter settings the office normally gives (as on the KSEB sample) */
+        hybrid: '', completion: '', energ: 'Not Applicable', energ_details: '',
+        dc_isolator: 'Yes', visual_isolator: 'Yes', wiring: 'Yes', earthing: 'Yes', protection: 'Yes',
+        volt_trip: 'Yes', ov_set: '264', uv_set: '192', v_time: '200ms',
+        freq_trip: 'Yes', of_set: '50.5', uf_set: '47.5', f_time: '200ms',
+        islanding: 'Yes', grid_trip: '2 seconds', reenergise: 'Yes', re_delay: '60 seconds',
+        date: today
       };
     } else if (docKey === 'chk') {
       v = {
@@ -465,8 +566,134 @@ var KD = (function () {
     return { ops: ops.concat(best.ops), size: best.size, overflow: !best.fit };
   };
 
+  /* Details of installation: the KSEB table (S.No / item / details) over two A4 pages, as on the KSEB sample.
+     Page 1: consumer, bank, installer and plant details, checklist up to 14 a. Page 2: the inverter settings, the note on
+     proof of settings, the declaration and the signature spaces for the KSEB engineers. One text size for the whole
+     document, the largest from 10 down to 7 pt at which both pages fit. Lines are ops with ln: [x1, y1, x2, y2]. */
+  var DOI = { x0: 28, c1: 82, c2: 318, x1: 567, top: 48, bottom: 806, pad: 2.6, padX: 4, lw: 0.6, max: 10, min: 7 };
+  var DOI_P1 = [
+    { title: 'DETAILS OF INSTALLATION & CHECKLIST TO BE FURNISHED ALONG WITH THE REQUEST FOR TESTING SOLAR INVERTERS' },
+    ['1', 'Name of Electrical Division & Sub Division', 'division'], ['2', 'Name of Electrical Section', 'section'],
+    ['3', 'Consumer No:', 'consumer_no'], ['4', 'Tariff', 'tariff'], ['5', 'Connected load', 'load'],
+    ['6', 'Name of Solar plant Owner', 'name'], ['7', 'Address', 'address'], ['8', 'Email I D', 'email'],
+    ['9', 'Contact Phone no. of Consumer', 'phone'], ['10', 'Alternate Contact no.', 'alt_phone'], ['11', 'Bank Details', ''],
+    ['a', 'Bank Name', 'bank_name'], ['b', 'Account No. & Name', 'bank_account'], ['c', 'IFSC Code', 'bank_ifsc'],
+    ['12', 'Name & Address of Supplier /Installer', 'installer'], ['13', 'Email I D', 'inst_email'], ['14', 'Contact Phone no. of Installer', 'inst_phone'],
+    { head: 'Plant details' },
+    ['1', 'Type of plant', 'plant_type'], ['2', 'Total Capacity of solar plant', 'capacity'], ['', 'Number of panels', 'panel_count'],
+    ['', 'Individual Capacity', 'panel_watt'], ['3', 'Make & Serial No. of Inverters', 'inv_serial'],
+    ['', 'Inverter type single phase/Three phase', 'inv_phase'], ['', 'Inverter capacity', 'inv_capacity'],
+    ['4', 'DC input Voltage', 'dc_voltage'], ['5', 'Voltage and Number of phase', 'ac_voltage'],
+    ['6', 'If the inverter is of hybrid type, whether the scheme confirms to the scheme approved by CE(REES)', 'hybrid'],
+    ['7', 'Whether Completion certificate submitted in Ele.Section', 'completion'],
+    ['8', 'Whether Energization Approval obtained from Electrical Inspectorate', 'energ'],
+    ['9', 'Details of Energization Approval by Electrical Inspectorate', 'energ_details'],
+    ['10', 'Whether DC isolator provided on incoming side of Inverter', 'dc_isolator'],
+    ['11', 'Whether Visual Isolator provided before Connectivity point', 'visual_isolator'],
+    ['12', 'Whether all wiring connection as per the approved scheme are completed', 'wiring'],
+    ['13', 'Whether Earthing provided for Installation as per Standards. (Separate Earthing for AC DB, DC DB, Structure & Panels, LA & body of Inverter, Isolator etc.)', 'earthing'],
+    ['14', 'Whether the inverter is equipped with the following protection functions:', 'protection'],
+    ['a', 'Whether Over & Under voltage Trip function provided?', 'volt_trip']
+  ];
+  var DOI_P2 = [
+    ['', 'Details of Setting provided in the inverter:', { set: [['Over voltage setting : ', 'ov_set', ' V'], ['Under voltage setting : ', 'uv_set', ' V'], ['Trip time setting : ', 'v_time', '']] }],
+    ['b', 'Whether Over & Under frequency Trip function provided?', 'freq_trip'],
+    ['', 'Details of Setting provided in the inverter:', { set: [['Over frequency setting : ', 'of_set', ' Hz'], ['Under frequency setting : ', 'uf_set', ' Hz'], ['Trip time setting : ', 'f_time', '']] }],
+    ['c', 'Whether protection against unintentional islanding provided?', 'islanding'],
+    ['d', 'Grid Failure Trip delay', 'grid_trip'],
+    ['e', 'Whether Time-delay function for re-energisation after resuming stable grid supply provided?', 'reenergise'],
+    ['', 'Details of re-energisation time delay Setting', 're_delay'],
+    { note: [['', 'The supplier /installer shall provide any of the following in proof of settings provided in the inverter for protection/function 14(a) & 14(b) listed above.'],
+      ['(i)', 'Actual setting provided in the inverter, as displayed in the HMI of the inverter or download in to laptop PC/ Mobile Phone which is connected to the device'],
+      ['(ii)', 'Factory Test certificate issued by the Original Equipment manufacturer or a NABL Accredited LAB showing the serial number of the Inverter & protection function setting provided'],
+      ['(iii)', 'Report On site, Testing carried out at site by an authorised testing agency with a calibrated test kit; witnessed by KSEB']] }
+  ];
+
+  /* one page of the table at size s from y = DOI.top; returns its ops and where it ended */
+  var doiTable = function (rows, v, s, page, measure) {
+    var D = DOI, lh = 1.18 * s, ops = [], y = D.top, segs = [];
+    var text = function (t, x, yy, f, u) { if (t) ops.push(Object.assign(op(t, x, yy, f || 'H', s, u), { p: page })); };
+    var wrapIn = function (t, w, f) { return t ? K.wrap(t, w - 2 * D.padX, f || 'H', s, measure) : []; };
+    var base = function (top, i) { return top + D.pad + 0.82 * s + i * lh; };
+    rows.forEach(function (r) {
+      var top = y, n, cols;
+      if (r.title) {
+        var ts = fitOne(r.title, 'HB', s, D.min - 1, D.x1 - D.x0 - 2 * D.padX, measure).s;
+        n = 1;
+        ops.push(Object.assign(op(r.title, (D.x0 + D.x1) / 2 - measure(r.title, 'HB', ts) / 2, top + D.pad + 1.5 + 0.82 * ts, 'HB', ts), { p: page }));
+        y = top + 2 * D.pad + 3 + ts * 1.18; cols = [D.x0, D.x1];
+      } else if (r.head) {
+        text(r.head, D.x0 + D.padX, base(top, 0));
+        y = top + 2 * D.pad + lh; cols = [D.x0, D.c2, D.x1];
+      } else if (r.note) {
+        var ny = 0, w = D.x1 - D.x0 - 2 * D.padX, ind = 30;
+        r.note.forEach(function (it) {
+          var lines = K.wrap(it[1], it[0] ? w - ind : w, 'H', s - 0.5, measure);
+          if (it[0]) ops.push(Object.assign(op(it[0], D.x0 + D.padX, base(top, ny), 'H', s - 0.5), { p: page }));
+          lines.forEach(function (ln, j) { if (ln) ops.push(Object.assign(op(ln, D.x0 + D.padX + (it[0] ? ind : 0), base(top, ny + j), 'H', s - 0.5), { p: page })); });
+          ny += lines.length;
+        });
+        y = top + 2 * D.pad + ny * lh; cols = [D.x0, D.x1];
+      } else {
+        var lab = wrapIn(r[1], D.c2 - D.c1), val = [];
+        if (r[2] && r[2].set) {
+          r[2].set.forEach(function (st, i) {
+            var x = D.c2 + D.padX, yy = base(top, i), got = clean(v[st[1]]);
+            text(st[0], x, yy); x += measure(st[0], 'H', s) + 1.5;
+            text(got || '________', x, yy, 'H', !!got); x += measure(got || '________', 'H', s);
+            text(st[2], x, yy);
+          });
+          val = r[2].set;
+        } else if (r[2]) {
+          val = wrapIn(clean(v[r[2]]), D.x1 - D.c2);
+          val.forEach(function (ln, i) { text(ln, D.c2 + D.padX, base(top, i)); });
+        }
+        text(r[0], D.x0 + D.padX, base(top, 0));
+        lab.forEach(function (ln, i) { text(ln, D.c1 + D.padX, base(top, i)); });
+        n = Math.max(1, lab.length, val.length);
+        y = top + 2 * D.pad + n * lh; cols = [D.x0, D.c1, D.c2, D.x1];
+      }
+      segs.push([top, y, cols]);
+    });
+    var L = function (x1, y1, x2, y2) { ops.push({ ln: [r2(x1), r2(y1), r2(x2), r2(y2)], w: D.lw, p: page }); };
+    segs.forEach(function (sg) { L(D.x0, sg[0], D.x1, sg[0]); sg[2].forEach(function (x) { L(x, sg[0], x, sg[1]); }); });
+    L(D.x0, y, D.x1, y);
+    return { ops: ops, end: y };
+  };
+
+  /* below the table on page 2: declaration, date and the signature spaces (KSEB engineers sign by hand) */
+  var doiTail = function (v, s, y0, measure) {
+    var D = DOI, ops = [], x = D.x0 + 12, xr = D.x1 - 12, ts = s + 0.5, y = y0;
+    var T = function (t, yy) { ops.push(Object.assign(op(t, x, yy, 'H', ts), { p: 1 })); };
+    var R = function (t, yy) { ops.push(Object.assign(op(t, xr - measure(t, 'H', ts), yy, 'H', ts), { p: 1 })); };
+    var date = K.dmy(v.date) || clean(v.date);
+    y += 3.2 * ts; T('All the statements furnished above are true and correct', y);
+    y += 4.2 * ts; T('Date:   ' + date, y); R('Signature of Consumer/ installer', y);
+    y += 4 * ts; T('Remarks of Assistant Engineer:', y);
+    y += 2.6 * ts; T('Installation inspected and found to be in order. Recommended for pre-energisation testing.', y);
+    y += 2.6 * ts; T('Date:', y);
+    y += 2.6 * ts; R('Signature of Assistant Engineer', y);
+    y += 4.4 * ts; T('Recommended for pre-energisation testing.', y);
+    y += 1.6 * ts; R('Signature of Assistant Executive Engineer', y);
+    y += 3.4 * ts; T('Date:', y);
+    y += 2.6 * ts; T('Pre-energisation testing may be scheduled.', y);
+    y += 1.6 * ts; R('Signature of Executive Engineer', y);
+    return { ops: ops, end: y };
+  };
+
+  var layoutDoi = function (v, measure) {
+    var best = null;
+    for (var s = DOI.max; s >= DOI.min; s -= 0.5) {
+      var p1 = doiTable(DOI_P1, v, s, 0, measure), p2 = doiTable(DOI_P2, v, s, 1, measure), tail = doiTail(v, s, p2.end, measure);
+      best = { ops: p1.ops.concat(p2.ops, tail.ops), size: s, overflow: !(p1.end <= DOI.bottom && tail.end <= DOI.bottom) };
+      if (!best.overflow) break;
+    }
+    return best;
+  };
+
   K.layout = function (docKey, values, measure) {
     values = values || {};
+    if (docKey === 'doi') return layoutDoi(values, measure);
     if (docKey === 'wcr') return layoutWcr(values, measure);
     if (docKey === 'chk') return layoutChk(values, measure);
     if (FORMS[docKey]) return layoutForm(docKey, values, measure);
@@ -478,13 +705,19 @@ var KD = (function () {
   K.buildPdf = function (PDFLib, templateBytes, ops) {
     ops = ops || [];
     return PDFLib.PDFDocument.load(templateBytes).then(function (doc) {
-      var page = doc.getPage(0), box = page.getMediaBox(), black = PDFLib.rgb(0, 0, 0), keys = [];
-      ops.forEach(function (o) { if (keys.indexOf(o.f) < 0) keys.push(o.f); });
+      var first = doc.getPage(0).getMediaBox(), black = PDFLib.rgb(0, 0, 0), keys = [];
+      var pageOf = function (i) { while (doc.getPageCount() <= (i || 0)) doc.addPage([first.width, first.height]); return doc.getPage(i || 0); };
+      ops.forEach(function (o) { if (o.f && keys.indexOf(o.f) < 0) keys.push(o.f); });
       return Promise.all(keys.map(function (k) { return doc.embedFont(PDFLib.StandardFonts[K.FONTS[k]]); }))
         .then(function (list) {
           var fonts = {};
           keys.forEach(function (k, i) { fonts[k] = list[i]; });
           ops.forEach(function (o) {
+            var page = pageOf(o.p), box = page.getMediaBox();
+            if (o.ln) {
+              page.drawLine({ start: { x: box.x + o.ln[0], y: box.y + box.height - o.ln[1] }, end: { x: box.x + o.ln[2], y: box.y + box.height - o.ln[3] }, thickness: o.w || 0.5, color: black });
+              return;
+            }
             var t = K.ansi(o.t).replace(/\n/g, ' ');
             if (!t) return;
             page.drawText(t, { x: box.x + o.x, y: box.y + box.height - o.y, size: o.s, font: fonts[o.f], color: black });
