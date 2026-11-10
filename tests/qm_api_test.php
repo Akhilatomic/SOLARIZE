@@ -37,6 +37,7 @@ chk(count($boot['templates'] ?? []) === 14, 'seed: 14 templates');
 chk(count(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'panels')) >= 4, 'seed: panels');
 chk(count($boot['cats'] ?? []) === 14 && ($boot['cats'][0][0] ?? '') === 'panels', 'categories');
 chk(($boot['settings']['kseb']['reg_per_kw'] ?? 0) === 1000 && ($boot['settings']['loan']['rate'] ?? 0) == 6.0, 'defaults');
+chk(($boot['settings']['kseb']['reg_gst'] ?? null) === 18 && ($boot['settings']['kseb']['reg_label'] ?? '') === 'Registration fee (₹1,000 per kW + 18% GST, 80% refundable)', 'registration fee carries 18% GST by default');
 chk(($boot['settings']['valid_days'] ?? 0) === 5 && count($boot['settings']['terms'] ?? []) === 6 && count($boot['settings']['pay'] ?? []) === 3 && count($boot['settings']['delivery'] ?? []) === 3, 'default lists');
 chk(($boot['next_number'] ?? '') === 'JSS/PMSGY/' . date('Y') . '/0144', 'next number');
 chk(($boot['admin'] ?? null) === 1 && ($boot['finance'] ?? null) === 1, 'admin flags');
@@ -83,6 +84,10 @@ chk(($b4['settings']['valid_days'] ?? 0) === 7 && ($b4['settings']['kseb']['stam
 chk(!empty(call($admin, 'qm', 'settings_save', ['settings' => ['loan' => ['tariff' => 7.5, 'margin_pct' => 12.5, 'units_per_kwp' => 1300]]])['ok']), 'save decimal loan numbers');
 $b5 = call($admin, 'qm', 'boot');
 chk(($b5['settings']['loan']['tariff'] ?? 0) === 7.5 && ($b5['settings']['loan']['margin_pct'] ?? 0) === 12.5 && ($b5['settings']['loan']['units_per_kwp'] ?? 0) === 1300, 'decimals survive in int-typed settings');
+/* settings an admin saved before the GST change still carry the old label: boot shows the new one */
+call($admin, 'qm', 'settings_save', ['settings' => ['kseb' => ['reg_label' => 'Registration fee (₹1,000 per kW, 80% refundable)']]]);
+$b6 = call($admin, 'qm', 'boot');
+chk(($b6['settings']['kseb']['reg_label'] ?? '') === 'Registration fee (₹1,000 per kW + 18% GST, 80% refundable)' && ($b6['settings']['kseb']['reg_gst'] ?? null) === 18, 'old registration label upgraded to the GST one');
 $next0 = call($admin, 'qm', 'boot')['next_n'] ?? 144;
 chk(call($sales, 'qm', 'settings_save', ['settings' => ['valid_days' => 7], 'next_number' => 500])['_code'] === 403, 'sales cannot set the next number');
 chk(call($admin, 'qm', 'settings_save', ['settings' => ['valid_days' => 7], 'next_number' => 'abc'])['_code'] === 400, 'bad next number refused');

@@ -97,7 +97,7 @@ function qmkShell() {
     <button type="button" class="btn sec sm" id="qmtupd"><i class="i i-refresh"></i> Update template</button>
     <button type="button" class="btn sec sm qm-ibtn" id="qmtdel" aria-label="Delete template"><i class="i i-trash"></i></button>` : ''}
     <span class="sp"></span><select id="qmst" class="qm-st" aria-label="Status" ${w ? '' : 'disabled'}>${QMK_ST.map(s => `<option ${s === QMK.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
-    ${w ? '<button type="button" class="btn" id="qmsave" title="Save (Ctrl+S)">Save</button>' : ''}<button type="button" class="btn sec" id="qmpdf"><i class="i i-download"></i><span class="qm-wl">Download </span>PDF</button>
+    ${w ? '<button type="button" class="btn" id="qmsave" title="Save (Ctrl+S)">Save</button>' : ''}<button type="button" class="btn sec" id="qmpdf"><i class="i i-download"></i><span class="qm-wl">Download </span>PDF</button><button type="button" class="btn sec" id="qmwa" title="Share on WhatsApp with the quotation details"><i class="i i-whatsapp"></i><span class="qm-wl"> WhatsApp</span></button>
     <button type="button" class="btn sec qm-ibtn" id="qmmore" aria-label="More" title="More" hidden><i class="i i-dots"></i></button>
     ${gear ? '<button type="button" class="btn sec qm-ibtn" id="qmgear" aria-label="Products and rates" title="Products & rates, quotation settings"><i class="i i-gear"></i></button>' : ''}</div>
    <div class="qm-split"><div class="qm-left"><div class="qm-tabs" id="qmtabs" role="tablist"></div><div class="qm-ed" id="qmed"></div></div>
@@ -473,12 +473,48 @@ async function qmkPdf() {
   } catch (e) { if (!e || !e.error) toast((e && e.message) || String(e), true); }
   finally { QMK.busy = false; QMK.pdf = false; b.innerHTML = old; b.disabled = !!QMK.over.length; if (QMK.stale) qmkRender(); }
 }
+/* WhatsApp message with the quotation's details ({name} and {company} are filled in by waOpen) */
+function qmWaText(d, calc, st) {
+  const rs = n => '₹' + QM.inr(n), co = (st && st.company) || {}, L = calc.loan;
+  const dt = d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const days = +d.valid_days || +(st && st.valid_days) || 0;
+  const plant = String(calc.title || '').replace(/\s*Quotation\s*$/i, '');
+  const panels = calc.panelCount ? `, ${calc.panelCount} × ${calc.panelWp} Wp panels (${calc.dcKwp} kWp)` : '';
+  const out = ['Hello {name},', '', 'Thank you for choosing {company}. Here are the details of your rooftop solar quotation:', '',
+    `• Quotation no: ${d.number || '—'}${dt ? ` (${dt}${days ? `, valid for ${days} days` : ''})` : ''}`,
+    `• Plant: ${plant}${panels}`,
+    `• Package price (incl. KSEB charges): ${rs(d.price)}`];
+  if (calc.subsidy > 0) out.push(`• PM Surya Ghar subsidy: ${rs(calc.subsidy)} (credited to your bank account after commissioning)`, `• Cost after subsidy: ${rs(calc.net)}`);
+  if (L && L.emis && L.emis.length) { const e = L.emis[L.emis.length - 1];
+    out.push(`• SBI Surya Ghar loan: pay ${rs(L.margin)} first, EMI about ${rs(e.before)} a month for ${Math.round(e.months / 12)} years (about ${rs(e.after)} once the subsidy is credited)`); }
+  out.push('', `We will share the detailed quotation (PDF) here.${co.phone ? ` For any questions, call ${co.phone}.` : ''}`, '', 'Regards,', '{company}');
+  return out.join('\n');
+}
+async function qmkWa() {
+  if (QMK.busy) return;
+  if (canW('quotes') && (QMK.dirty || !QMK.id)) { if (!await qmkSave()) return; }
+  else if (!QMK.id) { toast('Save the quotation first', true); return; }
+  const d = QMK.doc, c = QMK.cust, { calc } = qmkCalc();
+  waOpen({ name: d.customer.name, phone: d.customer.mobile, customer_id: c.customer_id || null, lead_id: c.lead_id || null, amount: QM.inr(d.price), quote_no: d.number, date: d.date, text: qmWaText(d, calc, qmkSt()) });
+}
+/* Quotations list → WhatsApp: maker quotations get their details; older ones the usual templates */
+let QMB = null; /* catalogue for sharing from the list, loaded once */
+async function qmShareQuote(id, person) {
+  const q = await api('quotes', 'get', undefined, '&id=' + id); person = person || {};
+  let d = null; try { d = q.doc ? JSON.parse(q.doc) : null; } catch (e) { d = null; }
+  const base = { name: person.name || '', phone: person.phone || '', customer_id: q.customer_id || null, lead_id: q.lead_id || null, amount: QM.inr(q.total), quote_no: q.number, date: q.date };
+  if (!d || typeof d !== 'object') return waOpen(base);
+  qmkNorm(d);
+  if (!QMB) QMB = await api('qm', 'boot');
+  const st = QM.effectiveSettings(d, QMB.settings, S.subsidy_rates), lines = qmLines(d, QMB.products), calc = QM.calc(d, lines, st, st.subsidy_rates);
+  waOpen(Object.assign(base, { name: d.customer.name || base.name, phone: d.customer.mobile || base.phone, text: qmWaText(d, calc, st) }));
+}
 function qmkMore(btn) {
   const w = canW('quotes'), c = QMK.cust;
   popMenu(btn, [['wa', 'whatsapp', 'Send on WhatsApp'], w && QMK.status === 'Accepted' && c.customer_id && ['proj', 'project', 'Create project'], w && ['del', 'trash', 'Delete quotation']], qmkTry(async a => {
     if (a !== 'del' && QMK.dirty && w && !(await qmkSave())) return;
     const d = QMK.doc, { calc } = qmkCalc();
-    if (a === 'wa') waOpen({ name: d.customer.name, phone: d.customer.mobile, customer_id: c.customer_id || null, lead_id: c.lead_id || null, amount: QM.inr(d.price), quote_no: d.number });
+    if (a === 'wa') return qmkWa();
     if (a === 'proj') projectModal(0, { customer_id: c.customer_id, title: calc.plantKw + ' kW rooftop solar', cost: Math.round(+d.price || 0), stage: 'Approval' });
     if (a === 'del' && confirm(`Delete quotation ${d.number}?\n\nIt goes to the Recycle bin.`)) { await api('quotes', 'delete', { id: QMK.id }); QMK.dirty = false; location.hash = '#/quotes'; }
   }));
@@ -486,7 +522,7 @@ function qmkMore(btn) {
 /* Products & rates (Task 7) calls this after its dialog closes: fresh catalogue and settings, same quotation */
 async function qmRefresh() {
   if (!qmkOn()) return;
-  const b = await api('qm', 'boot'); if (!qmkOn()) return;
+  const b = await api('qm', 'boot'); QMB = null; /* the list's share cache reloads too */ if (!qmkOn()) return;
   QMK.boot = b; QMK.snapOld = qmkSnapOld(); if (QMK.tpl && !qmkTplById(QMK.tpl)) QMK.tpl = '';
   qmkTplSel(); qmkTab(QMK.tab); qmkRender();
 }
@@ -529,6 +565,7 @@ function qmkOnClick(e) {
   const id = b.id, a = b.dataset.a, k = b.dataset.k || '', d = QMK.doc;
   if (id === 'qmsave') return qmkSaveBtn();
   if (id === 'qmpdf') return qmkPdf();
+  if (id === 'qmwa') return qmkWa();
   if (id === 'qmtnew') return qmkTplNew();
   if (id === 'qmtupd') return qmkTplUpd();
   if (id === 'qmtdel') return qmkTplDel();

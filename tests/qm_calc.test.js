@@ -200,6 +200,19 @@ test('snapSettings: only what the quotation prints with, as a copy, with the sub
   assert.equal(live.kseb.reg_per_kw, 1000); assert.equal(R.cap, 78000);
 });
 
+test('calc: 18% GST on the registration fee; quotations frozen before it keep their amount', () => {
+  const lines = QM.resolve(SETUP2, PRODUCTS);
+  const gst = JSON.parse(JSON.stringify(SET)); gst.kseb.reg_gst = 18;
+  const c = QM.calc(SETUP2, lines, gst, R);
+  assert.deepEqual(c.kseb.rows.map(r => r.amount), [1000, 2360, 300]); assert.equal(c.kseb.total, 3660);
+  const c5 = QM.calc(SETUP5, QM.resolve(SETUP5, PRODUCTS), gst, R);
+  assert.equal(c5.kseb.rows[1].amount, 5900);
+  /* saved before the GST setting existed: its frozen kseb has no reg_gst → no GST, even with today's 18% */
+  const saved = JSON.parse(JSON.stringify(Object.assign({}, SETUP2, { snap: lines, snap_settings: QM.snapSettings(SET, R) })));
+  const st = QM.effectiveSettings(saved, gst, R);
+  assert.equal(QM.calc(saved, saved.snap, st, st.subsidy_rates).kseb.rows[1].amount, 2000);
+});
+
 test('effectiveSettings: a saved quotation keeps its frozen settings while its snapshot is in force', () => {
   const lines = QM.resolve(SETUP2, PRODUCTS);
   const live = JSON.parse(JSON.stringify(SET)); live.kseb.reg_per_kw = 1200; live.loan.rate = 7; live.pay = [{ amt: '50%', text: 'New' }];

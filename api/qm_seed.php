@@ -36,7 +36,7 @@ const QM_DEFAULTS = [
     ['amt' => '70%', 'text' => 'Before material readiness, for dispatch of major components (PV modules, inverter and mounting structure) to site'],
     ['amt' => '30%', 'text' => 'After installation'],
   ],
-  'kseb' => ['feas' => 1000, 'reg_per_kw' => 1000, 'stamp' => 300, 'reg_label' => 'Registration fee (₹1,000 per kW, 80% refundable)', 'feas_label' => 'KSEB Ltd. feasibility charge', 'stamp_label' => 'Stamp paper'],
+  'kseb' => ['feas' => 1000, 'reg_per_kw' => 1000, 'reg_gst' => 18, 'stamp' => 300, 'reg_label' => 'Registration fee (₹1,000 per kW + 18% GST, 80% refundable)', 'feas_label' => 'KSEB Ltd. feasibility charge', 'stamp_label' => 'Stamp paper'],
   'loan' => [
     'margin_pct' => 10, 'rate' => 6.0, 'months' => [60, 84, 120], 'units_per_kwp' => 1300, 'tariff' => 7, 'cap' => 200000,
     'texts' => [

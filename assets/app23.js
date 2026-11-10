@@ -131,7 +131,7 @@ async function qmgSaveProduct() {
 }
 
 /* ================= Quotation settings ================= */
-const QMG_LBL = { line1: 'Name, first line', line2: 'Name, second line', gstin: 'GSTIN line', name: 'Company name', phone: 'Phone', email: 'Email', lines: 'Header lines', footer: 'Footer line', site: 'Website', bank: 'Bank', account: 'Account number', ifsc: 'IFSC', pill: 'Pill text', valid_days: 'Valid for (days)', number_format: 'Number format', feas: 'Feasibility charge (₹)', reg_per_kw: 'Registration (₹ per kW)', stamp: 'Stamp paper (₹)', feas_label: 'Feasibility label', reg_label: 'Registration label', stamp_label: 'Stamp paper label', margin_pct: 'Minimum margin (%)', rate: 'Interest rate (% a year)', months: 'Repayment periods (months)', units_per_kwp: 'Units per kWp a year', tariff: 'Tariff (₹ per unit)', cap: 'Loan cap for this rate (₹)', amt: 'Amount', text: 'Text', label: 'Label', t: 'Step', d: 'Detail' };
+const QMG_LBL = { line1: 'Name, first line', line2: 'Name, second line', gstin: 'GSTIN line', name: 'Company name', phone: 'Phone', email: 'Email', lines: 'Header lines', footer: 'Footer line', site: 'Website', bank: 'Bank', account: 'Account number', ifsc: 'IFSC', pill: 'Pill text', valid_days: 'Valid for (days)', number_format: 'Number format', feas: 'Feasibility charge (₹)', reg_per_kw: 'Registration (₹ per kW)', reg_gst: 'GST on registration (%)', stamp: 'Stamp paper (₹)', feas_label: 'Feasibility label', reg_label: 'Registration label', stamp_label: 'Stamp paper label', margin_pct: 'Minimum margin (%)', rate: 'Interest rate (% a year)', months: 'Repayment periods (months)', units_per_kwp: 'Units per kWp a year', tariff: 'Tariff (₹ per unit)', cap: 'Loan cap for this rate (₹)', amt: 'Amount', text: 'Text', label: 'Label', t: 'Step', d: 'Detail' };
 const QMG_LONG = new Set(['sub', 'margin_note', 'loan_note', 'subsidy_note', 'illustration', 'footnote', 'saving_calc', 'helpline', 'text', 'd']);
 const qmgLbl = k => QMG_LBL[k] || String(k).replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 const qmgGet = path => path.split('.').reduce((o, k) => (o == null ? o : o[k]), QMG.ST);
@@ -164,7 +164,7 @@ function qmgSettings() {
     qmgSec('foot', 'Footer', qmgField('footer', 'Footer line', true)),
     qmgSec('del', 'Delivery and installation', qmgList('delivery', 'Delivery texts'), true),
     qmgSec('pay', 'Payment schedule', qmgList('pay', 'Payment steps (amount and text)', ['amt', 'text']), true),
-    qmgSec('kseb', 'KSEB charges', ['feas', 'reg_per_kw', 'stamp', 'feas_label', 'reg_label', 'stamp_label'].map(k => qmgField('kseb.' + k, qmgLbl(k))).join('')),
+    qmgSec('kseb', 'KSEB charges', ['feas', 'reg_per_kw', 'reg_gst', 'stamp', 'feas_label', 'reg_label', 'stamp_label'].map(k => qmgField('kseb.' + k, qmgLbl(k))).join('')),
     qmgSec('loan', 'Loan figures', ['margin_pct', 'rate', 'units_per_kwp', 'tariff', 'cap'].map(k => qmgField('loan.' + k, qmgLbl(k))).join('') + qmgList('loan.months', 'Repayment periods (months)') + '<p class="qm-hint full">Subsidy rates (₹ per kW and the cap) are set in Settings → Rates and are shared with the rest of the CRM.</p>'),
     qmgSec('lt', 'Loan texts', textKeys.map(k => qmgField('loan.texts.' + k, qmgLbl(k), QMG_LONG.has(k) || String(T[k]).length > 60)).join('')
       + qmgList('loan.texts.terms', 'SBI loan terms (list)') + qmgList('loan.texts.who', 'Who can apply (list)') + qmgList('loan.texts.steps', 'How to apply (steps)', ['t', 'd']), true),

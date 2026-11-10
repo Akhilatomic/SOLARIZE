@@ -170,7 +170,7 @@ function bindNote(entity, id, redo) { const b = $('#an'); if (b) b.onclick = asy
 
 // WhatsApp click-to-chat with template picker; logs the message.
 function waOpen(ctx) {
-  const T = S.wa_templates || [];
+  const T = (ctx.text ? [{ name: ctx.textName || 'Quotation details', text: ctx.text }] : []).concat(S.wa_templates || []); /* ctx.text: a ready message (e.g. a quotation's details), offered first */
   const fill = (txt, c) => txt.replace(/\{name\}/g, c.name || '').replace(/\{company\}/g, S.company.name).replace(/\{amount\}/g, c.amount ?? '').replace(/\{quote_no\}/g, c.quote_no ?? '').replace(/\{date\}/g, c.date ?? '');
   const m = modal(`<h3 style="margin-top:0">WhatsApp → ${esc(ctx.name)} <span class="mut">(${esc(ctx.phone || 'no phone')})</span></h3>
    <label>Template</label><select id="wt">${T.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('')}</select>

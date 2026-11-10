@@ -5,8 +5,12 @@ async function pgQuotes() {
   const [qs, cs, ls] = await Promise.all([list('quotes'), list('customers'), list('leads')]);
   const nm = q => (cs.find(c => c.id === q.customer_id) || ls.find(l => l.id === q.lead_id) || {}).name || '—';
   $('#main').innerHTML = `<div class="bar"><span class="sp"></span>${canW('quotes') ? '<button class="btn" id="qn">+ New quotation</button>' : ''}</div>` +
-    table([['No.', q => `<b>${esc(q.number)}</b>`], ['For', q => esc(nm(q))], ['Date', q => q.date], ['Total (incl. GST)', q => inr(q.total)], ['Status', q => pill(q.status, stageCls(q.status === 'Accepted' ? 'Approved' : q.status === 'Rejected' ? 'Lost' : q.status === 'Sent' ? 'Submitted' : ''))]], qs, id => location.hash = '#/quotes/' + id);
+    table([['No.', q => `<b>${esc(q.number)}</b>`], ['For', q => esc(nm(q))], ['Date', q => q.date], ['Total (incl. GST)', q => inr(q.total)], ['Status', q => pill(q.status, stageCls(q.status === 'Accepted' ? 'Approved' : q.status === 'Rejected' ? 'Lost' : q.status === 'Sent' ? 'Submitted' : ''))],
+      ['Share', q => `<button type="button" class="ib" data-wa="${q.id}" title="Share on WhatsApp with the quotation details" aria-label="Share ${esc(q.number)} on WhatsApp"><i class="i i-whatsapp"></i></button>`]], qs, id => location.hash = '#/quotes/' + id);
   if ($('#qn')) $('#qn').onclick = () => { sessionStorage.removeItem('lead2quote'); location.hash = '#/quotes/new'; };
+  $$('[data-wa]').forEach(b => b.onclick = async e => { e.stopPropagation(); const q = qs.find(x => x.id == b.dataset.wa); if (!q) return;
+    const who = cs.find(c => c.id === q.customer_id) || ls.find(l => l.id === q.lead_id) || {};
+    b.disabled = true; try { await qmShareQuote(q.id, { name: who.name, phone: who.phone }); } catch (x) { } finally { b.disabled = false; } });
 }
 // New quotations and quotations made with the quotation maker open in the maker (app22.js); older ones keep this simple editor.
 async function pgQuote(id) {

@@ -15,7 +15,10 @@ function qm_merge($def, $saved) {
 function qm_settings(): array {
   $r = row("SELECT v FROM settings WHERE k='qm_settings'");
   $saved = $r ? json_decode($r['v'], true) : null;
-  return qm_merge(QM_DEFAULTS, is_array($saved) ? $saved : []);
+  $s = qm_merge(QM_DEFAULTS, is_array($saved) ? $saved : []);
+  /* Nov 2026: 18% GST added to the registration fee — settings saved with the old default label get the new one */
+  if (($s['kseb']['reg_label'] ?? '') === 'Registration fee (₹1,000 per kW, 80% refundable)') $s['kseb']['reg_label'] = QM_DEFAULTS['kseb']['reg_label'];
+  return $s;
 }
 // Force a posted value into the shape of its default (unknown keys dropped, numbers stay numbers, lists keep their item shape).
 function qm_coerce($v, $def, $depth = 0) {

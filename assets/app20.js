@@ -105,7 +105,7 @@ var QM = (function () {
     } else {
       var rows = [
         { label: ks.feas_label || 'KSEB Ltd. feasibility charge', amount: num(ks.feas) },
-        { label: ks.reg_label || 'Registration fee', amount: Math.round(num(ks.reg_per_kw) * plantKw) },
+        { label: ks.reg_label || 'Registration fee', amount: Math.round(num(ks.reg_per_kw) * plantKw * (100 + num(ks.reg_gst)) / 100) }, /* + GST (18% by default; 0 for quotations frozen before it existed) */
         { label: ks.stamp_label || 'Stamp paper', amount: num(ks.stamp) },
       ];
       kseb = { rows: rows, total: rows.reduce(function (s, r) { return s + r.amount; }, 0) };
