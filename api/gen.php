@@ -32,6 +32,16 @@ function gen_next_no($kind, $date, $peek = false) {
   if (!$peek && preg_match('#/' . preg_quote($mid, '#') . '/' . preg_quote($fy, '#') . '/(\d+)$#', $no, $m)) kv_set($k, (int)$m[1]);
   return $no;
 }
+// Payment receipt number: PREFIX/RCPT/FY/NNN by the payment's date; never below one already given (or the counter, so a deleted
+// payment's number is not handed out again).
+function rcpt_next_no($date) {
+  $fy = gen_fy($date); $k = "seq_rcpt_$fy";
+  $raw = (string)(row('SELECT v FROM settings WHERE k=?', [$k])['v'] ?? '0'); $n = (int)(json_decode($raw, true) ?? $raw);
+  foreach (rows('SELECT receipt_no FROM payments WHERE receipt_no LIKE ?', ["%/RCPT/$fy/%"]) as $r) $n = max($n, (int)substr(strrchr($r['receipt_no'], '/'), 1));
+  $n++; kv_set($k, $n);
+  $pre = trim((string)(settings()['company']['quote_prefix'] ?? 'JS')) ?: 'JS';
+  return sprintf('%s/RCPT/%s/%03d', $pre, $fy, $n);
+}
 // The company address, contacts, bank account and KSEB fees set in the Quotation maker — the tax bill prints the same details.
 function gen_qm_info() {
   try { $s = qm_settings(); } catch (Throwable $e) { return null; }
@@ -50,7 +60,7 @@ function gen_clean($v, $depth = 0) { // keep plain text / numbers / small nested
 function gen_acct($cid) {
   $p = row('SELECT id, cost FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid]);
   if (!$p) return ['project_id' => 0, 'cost' => 0, 'payments' => [], 'paid' => 0];
-  $pay = rows('SELECT id, date, amount, mode, note FROM payments WHERE project_id=? ORDER BY date, id', [$p['id']]);
+  $pay = rows('SELECT id, date, amount, mode, note, receipt_no FROM payments WHERE project_id=? ORDER BY date, id', [$p['id']]);
   return ['project_id' => (int)$p['id'], 'cost' => (float)$p['cost'], 'payments' => $pay, 'paid' => array_sum(array_map(fn($x) => (float)$x['amount'], $pay))];
 }
 
@@ -86,6 +96,15 @@ function handle_gen($a) {
         $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Project created from the tax bill'); }
       audit('plant_cost', 'customers', $cid, '₹' . $cost);
       out(['ok' => true, 'acct' => gen_acct($cid)]);
+
+    case 'receipt': // payment receipt for one of this customer's payments: gives it a receipt number the first time
+      if ($kind !== 'tax') fail('Unknown document');
+      $pay = row('SELECT p.* FROM payments p JOIN projects pr ON pr.id=p.project_id WHERE p.id=? AND pr.customer_id=?', [(int)($in['payment_id'] ?? 0), $cid]);
+      if (!$pay) fail('Payment not found', 404);
+      if (($pay['receipt_no'] ?? '') === '') { $pay['receipt_no'] = rcpt_next_no($pay['date'] ?: date('Y-m-d'));
+        q("UPDATE payments SET receipt_no=? WHERE id=? AND COALESCE(receipt_no,'')=''", [$pay['receipt_no'], $pay['id']]);
+        $pay['receipt_no'] = row('SELECT receipt_no FROM payments WHERE id=?', [$pay['id']])['receipt_no']; audit('payment_receipt', 'customers', $cid, $pay['receipt_no'] . ' · ₹' . $pay['amount']); }
+      out(['receipt_no' => $pay['receipt_no']]);
 
     case 'next': // the number the next bill would get on that date (not used up)
       if (GEN_KINDS[$kind] === '') out(['number' => '']);

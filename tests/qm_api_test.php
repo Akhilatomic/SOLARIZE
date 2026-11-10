@@ -376,6 +376,22 @@ chk((call($admin, 'gen', 'save', ['kind' => 'warranty', 'customer_id' => $nc[1],
 $wg2 = call($admin, 'gen', 'get', null, "&kind=warranty&customer_id={$nc[2]}");
 chk(($wg2['mnre']['sign_name'] ?? '') === 'Akhil' && ($wg2['mnre']['sign_desig'] ?? '') === 'Managing Partner' && ($wg2['next_no'] ?? '') === 'JSS/WC/0046', 'warranty card: the signatory is remembered and the series carries on (JSS/WC/0046)');
 
+/* ---- payment receipts: a number the first time, kept after that, one series per financial year ---- */
+$rc = call($admin, 'customers', 'save', ['name' => 'Receipt Test', 'phone' => '9847' . rand(100000, 999999)])['id'] ?? 0;
+$acct = call($admin, 'gen', 'cost', ['kind' => 'tax', 'customer_id' => $rc, 'cost' => 225000])['acct'] ?? [];
+$p1 = call($admin, 'payments', 'save', ['project_id' => $acct['project_id'] ?? 0, 'date' => '2026-11-09', 'amount' => 200000, 'mode' => 'Bank transfer', 'note' => 'UTR 4411'])['id'] ?? 0;
+$p2 = call($admin, 'payments', 'save', ['project_id' => $acct['project_id'] ?? 0, 'date' => '2026-11-12', 'amount' => 25000, 'mode' => 'Cheque', 'note' => ''])['id'] ?? 0;
+$r1 = call($admin, 'gen', 'receipt', ['kind' => 'tax', 'customer_id' => $rc, 'payment_id' => $p1]);
+chk(preg_match('#^JS/RCPT/26-27/\d{3}$#', $r1['receipt_no'] ?? '') === 1, 'receipt: a payment gets a receipt number (' . ($r1['receipt_no'] ?? '') . ')');
+chk((call($admin, 'gen', 'receipt', ['kind' => 'tax', 'customer_id' => $rc, 'payment_id' => $p1])['receipt_no'] ?? '') === ($r1['receipt_no'] ?? 'x'), 'receipt: making it again keeps the same number');
+$r2 = call($admin, 'gen', 'receipt', ['kind' => 'tax', 'customer_id' => $rc, 'payment_id' => $p2])['receipt_no'] ?? '';
+chk($r2 !== '' && (int)substr(strrchr($r2, '/'), 1) === (int)substr(strrchr($r1['receipt_no'] ?? '/0', '/'), 1) + 1, "receipt: the next payment gets the next number ($r2)");
+chk((call($admin, 'gen', 'receipt', ['kind' => 'tax', 'customer_id' => $nc[0], 'payment_id' => $p1])['_code'] ?? 0) === 404, "receipt: another customer's payment is refused");
+$pays = call($admin, 'gen', 'get', null, "&kind=tax&customer_id=$rc")['acct']['payments'] ?? [];
+chk(count($pays) === 2 && ($pays[0]['receipt_no'] ?? '') === ($r1['receipt_no'] ?? 'x') && ($pays[1]['receipt_no'] ?? '') === $r2, 'receipt: the payment list shows the receipt numbers');
+call($admin, 'payments', 'save', ['id' => $p1, 'project_id' => $acct['project_id'] ?? 0, 'date' => '2026-11-09', 'amount' => 200000, 'mode' => 'UPI', 'note' => 'UTR 4411']);
+chk((call($admin, 'gen', 'get', null, "&kind=tax&customer_id=$rc")['acct']['payments'][0]['receipt_no'] ?? '') === ($r1['receipt_no'] ?? 'x'), 'receipt: editing the payment keeps its receipt number');
+
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);

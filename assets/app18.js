@@ -26,6 +26,11 @@ const TAXDOC_CSS = `.dhead{display:flex;justify-content:space-between;align-item
 .dtax .dmeta{grid-template-columns:repeat(3,minmax(0,1fr));gap:3px 14px;margin:8px 0 10px}.dtax .dmeta span{min-width:84px}.dtax .dbox{padding:6px 9px;margin-bottom:8px}
 .dit .dpt{text-transform:none!important}.dit .dpk{margin:0 4px 0 0!important;font-size:9.5px}
 .dit td{font-size:11px}.dit .dsub{font-size:10.5px}.dit .dpt{font-size:11.5px}.dfoot .dtot td{padding:3px 6px}.dfoot .dbox{margin-bottom:8px}.dlbl{color:#6e6e73;font-size:11px}
+.drc{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:20px;align-items:start;margin:22px 0 18px}
+.drc .rf{display:grid;grid-template-columns:150px minmax(0,1fr);gap:9px 12px;align-items:end}.drc .rf span{color:#6e6e73}.drc .rf b{border-bottom:1px solid #e5e5ea;padding-bottom:3px;min-height:1.2em}
+.drbox{background:#6aa84f;color:#fff;border-radius:6px;padding:24px 14px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}.drbox small{display:block;font-size:12.5px}.drbox b{display:block;font-size:22px;font-weight:600;margin-top:2px}
+.drfrom{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:20px;align-items:end;margin:6px 0 18px}.drfrom h4{margin:0 0 4px;font-size:11px;color:#6e6e73;font-weight:600}
+.drcpt h1.drt{text-align:center!important;font-size:17px!important;letter-spacing:.08em;margin:26px 0 0!important;font-weight:600!important}
 .dsrt{margin:0 0 10px!important}.dsrt th{text-align:left!important;font-size:10.5px}.dsrt th.dsrh{background:#fff!important;color:#6e6e73;font-weight:600}.dsrt .dsrw{width:55%}.dsrt td{vertical-align:top}
 .dsrl{margin:0;padding:0 0 0 22px;column-gap:18px;font:10.5px/1.6 ui-monospace,Menlo,Consolas,monospace}.dsrl li{break-inside:avoid}
 .dsign{display:flex;justify-content:flex-end;margin-top:18px;break-inside:avoid}.dstamp{width:260px;text-align:center;font-size:11px}.dstamp .dfor{font-weight:600}
@@ -275,15 +280,42 @@ async function renderTax(box, c, id) {
     $('#tacc', box).innerHTML = `<div class="pfch"><i class="i i-coin"></i><h3>Plant cost & payments</h3>${A.project_id ? `<span class="sp"></span><a class="btn sec sm" href="#/projects/${A.project_id}">Open project</a>` : ''}</div>
       <div class="tbk"><div><small>Plant cost</small><b>${A.cost ? inr2(A.cost) : 'Not set'}</b></div><div><small>Received</small><b>${inr2(A.paid)}</b></div><div class="${bal > 0 ? 'due' : ''}"><small>Balance</small><b>${A.cost ? inr2(bal) : '—'}</b></div></div>
       ${w ? `<div class="tbr"><input id="tcost" inputmode="decimal" placeholder="Total plant cost (₹)" value="${A.cost || ''}"><button class="btn sec" id="tcsv">Save cost</button></div>` : ''}
-      <div class="tbl">${A.payments.map(p => `<div class="tbp"><span>${fdt(p.date)}</span><span>${esc(p.mode || '—')}${p.note ? `<em>${esc(p.note)}</em>` : ''}</span><b>${inr2(p.amount)}</b>${wp ? `<button class="ib" data-pdel="${p.id}" title="Delete payment"><i class="i i-trash"></i></button>` : ''}</div>`).join('') || '<p class="mut" style="margin:6px 0">No payments recorded yet.</p>'}</div>
+      <div class="tbl">${A.payments.map(p => `<div class="tbp"><span>${fdt(p.date)}</span><span>${esc(p.mode || '—')}${p.note ? `<em>${esc(p.note)}</em>` : ''}${p.receipt_no ? `<em>Receipt ${esc(p.receipt_no)}</em>` : ''}</span><b>${inr2(p.amount)}</b><button class="ib" data-prc="${p.id}" title="Payment receipt — print / PDF"><i class="i i-receipt"></i></button>${wp ? `<button class="ib" data-pdel="${p.id}" title="Delete payment"><i class="i i-trash"></i></button>` : ''}</div>`).join('') || '<p class="mut" style="margin:6px 0">No payments recorded yet.</p>'}</div>
       ${wp ? `<div class="tbr tba"><input type="date" id="tpd" value="${today()}"><input id="tpa" inputmode="decimal" placeholder="Amount (₹)"><select id="tpm">${MODES.map(m => `<option>${m}</option>`).join('')}</select><input id="tpn" placeholder="Reference / note"><button class="btn" id="tpadd">Add payment</button></div>` : ''}
       ${!A.project_id && w ? '<p class="mut" style="font-size:12px;margin:6px 0 0">Saving the plant cost also starts this customer\'s project in the pipeline.</p>' : ''}`;
     const reload = async () => { A = (await api('gen', 'get', undefined, `&kind=tax&customer_id=${id}`)).acct; drawAcc(); upd(); };
     if ($('#tcsv', box)) $('#tcsv', box).onclick = async e => { e.currentTarget.disabled = true; try { const r = await api('gen', 'cost', { kind: 'tax', customer_id: id, cost: +$('#tcost', box).value || 0 }); A = r.acct; toast('Plant cost saved'); drawAcc(); upd(); } catch (x) { drawAcc(); } };
     if ($('#tpadd', box)) $('#tpadd', box).onclick = async e => { const amt = +$('#tpa', box).value || 0; if (amt <= 0) return toast('Enter the amount received', true);
       if (!A.project_id) return toast('Save the plant cost first', true); e.currentTarget.disabled = true;
-      try { await api('payments', 'save', { project_id: A.project_id, date: $('#tpd', box).value || today(), amount: amt, mode: $('#tpm', box).value, note: $('#tpn', box).value.trim() }); toast('Payment added'); } catch (x) { } reload(); };
+      let nid = 0; try { nid = (await api('payments', 'save', { project_id: A.project_id, date: $('#tpd', box).value || today(), amount: amt, mode: $('#tpm', box).value, note: $('#tpn', box).value.trim() })).id; toast('Payment added'); } catch (x) { }
+      await reload(); if (nid) openReceipt(nid); };
+    $$('[data-prc]', box).forEach(b => b.onclick = () => openReceipt(b.dataset.prc));
     $$('[data-pdel]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this payment? It goes to the Recycle bin for 72 hours.')) return; try { await api('payments', 'delete', { id: +b.dataset.pdel }); toast('Payment deleted'); } catch (x) { } reload(); }); };
+  // ---- payment receipt
+  const rupeeWords = a => { const r = Math.floor(a + 1e-9), ps = Math.round((a - r) * 100); return `Rupees ${inWords(r)}${ps ? ' and ' + inWords(ps) + ' paise' : ''} only`; };
+  const rcHtml = (p, no) => {
+    const Q = g.qm || {}, v = val(), CN = Q.name || co.name || 'Jasper Solar Solutions', web = Q.site || '', ph = Q.phone || co.phone || '', em = Q.email || co.email || '';
+    const list = A.payments.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id), i = list.findIndex(x => x.id == p.id);
+    const before = list.slice(0, i).reduce((t, x) => t + (+x.amount || 0), 0), amt = +p.amount || 0;
+    const inv = g.doc ? { no: g.doc.number, date: g.doc.issued_on, total: +((g.doc.data || {}).grand) || calc().grand } : null, total = inv ? inv.total : +A.cost || 0, bal = Math.round((total - before - amt) * 100) / 100;
+    return `<div class="dhead"><div class="dhco"><img src="${location.origin}/assets/logo.png" alt=""><div><b>${esc(CN)}</b><div class="dco">${esc(Q.address || co.address || '')}${co.gstin ? '<br>GSTIN ' + esc(co.gstin) : ''}${[ph, em, web].filter(Boolean).length ? '<br>' + [ph, em, web].filter(Boolean).map(esc).join(' · ') : ''}</div></div></div></div>
+      <h1 class="drt">PAYMENT RECEIPT</h1>
+      <div class="drc"><div class="rf"><span>Receipt no.</span><b>${esc(no)}</b><span>Payment date</span><b>${fdt(p.date)}</b><span>Reference number</span><b>${esc(p.note || '')}</b><span>Payment mode</span><b>${esc(p.mode || '')}</b><span>Amount received in words</span><b>${rupeeWords(amt)}</b></div>
+       <div class="drbox"><small>Amount Received</small><b>${inr2(amt)}</b></div></div>
+      <div class="drfrom"><div><h4>Received from</h4><b>${esc(v.bill_name || c.name)}</b><br>${esc(v.bill_address || [c.address, c.district, c.pincode].filter(Boolean).join(', '))}${c.phone ? '<br>Ph: ' + esc(c.phone) : ''}</div>
+       <div class="dstamp"><div class="dfor">For ${esc(CN)}</div><div class="dsp"></div><div class="dsl">Authorised signatory</div><small>Seal &amp; signature</small></div></div>
+      <table class="dt"><thead><tr><th>Payment for</th><th>Date</th><th class="r">Amount</th><th class="r">Received earlier</th><th class="r">This payment</th><th class="r">Balance due</th></tr></thead>
+       <tbody><tr><td>${inv ? 'Tax invoice ' + esc(inv.no) : `Solar power plant${kwTxt ? ' (' + esc(kwTxt) + ' kW)' : ''} — plant cost`}</td><td>${inv ? fdt(inv.date) : '—'}</td><td class="r">${inr2(total)}</td><td class="r">${inr2(before)}</td><td class="r">${inr2(amt)}</td><td class="r"><b>${inr2(Math.max(0, bal))}</b></td></tr></tbody></table>
+      ${bal < 0 ? `<div class="dsmall">Received ${inr2(-bal)} more than the ${inv ? 'invoice amount' : 'plant cost'}.</div>` : ''}`;
+  };
+  const openReceipt = async pid => {
+    const p = A.payments.find(x => x.id == pid); if (!p) return;
+    if (!p.receipt_no) { try { p.receipt_no = (await api('gen', 'receipt', { kind: 'tax', customer_id: id, payment_id: +pid })).receipt_no; drawAcc(); } catch (e) { return; } }
+    const doc = rcHtml(p, p.receipt_no);
+    const m = modal(`<div class="bar" style="margin:0 0 10px"><h3 style="margin:0">Payment receipt ${esc(p.receipt_no)}</h3><span class="sp"></span><button class="btn" id="rcpr"><i class="i i-download"></i> Print / PDF</button><button class="btn sec" id="rcx">Close</button></div><div class="gdp"><div class="doc drcpt">${doc}</div></div>`, true);
+    $('#rcx', m).onclick = () => m.remove();
+    $('#rcpr', m).onclick = () => printDoc(`Payment receipt ${p.receipt_no} — ${c.name}`, `<div class="doc drcpt">${doc}</div>`);
+  };
   // ---- bill details for the warranty card and GST filing
   const sumRows = () => { const v = val(), k = calc(), hs = {};
     k.rows.forEach(x => { const key = (x.hsn || '—') + '|' + (+x.gst); (hs[key] = hs[key] || { hsn: x.hsn || '—', gst: +x.gst, qty: 0, tv: 0, t: 0 }); hs[key].qty += +x.qty || 0; hs[key].tv += x.tv; hs[key].t += x.t; });

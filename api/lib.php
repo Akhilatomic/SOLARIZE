@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 29; // bump when tables/columns change
+const SCHEMA_VERSION = 30; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -195,6 +195,10 @@ function migrate($db) {
   foreach (['callback_at' => "TEXT DEFAULT ''", 'callback_note' => "TEXT DEFAULT ''", 'callback_by' => 'INTEGER', 'callback_sent' => 'INTEGER DEFAULT 0'] as $c => $ty)
     if (!in_array($c, $lc)) { try { $db->exec("ALTER TABLE leads ADD COLUMN $c $ty"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   $db->exec('CREATE INDEX IF NOT EXISTS lead_callback ON leads(callback_sent, callback_at)');
+  /* v30: payment receipts — a payment gets its receipt number (PREFIX/RCPT/FY/NNN) the first time its receipt is made, and keeps it.
+     Not in the payments column list, so editing a payment can't clear it. */
+  $pc = array_column($db->query('PRAGMA table_info(payments)')->fetchAll(), 'name');
+  if ($pc && !in_array('receipt_no', $pc)) { try { $db->exec("ALTER TABLE payments ADD COLUMN receipt_no TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   /* v28: every customer has an owner (the Me / All filter, reassign). Changed only through customers/reassign, never by a save.
      Customers without an owner (all of them the first time): whoever claimed the lead it came from, else the user whose name is in added_by. */
   $cc = array_column($db->query('PRAGMA table_info(customers)')->fetchAll(), 'name');
