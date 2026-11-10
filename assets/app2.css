@@ -421,7 +421,7 @@ body.sbah aside.mini a .nb{position:absolute;top:0;right:-2px;margin:0}
    Applies to every list (Leads, Customers, Quotations, Projects, Finance, Recycle bin, staff lists…).
    Low-specificity :where() so row highlights (live customer, expired fee) and editable cells still win.
    border-collapse:separate so the grid lines travel with the sticky header. ===== */
-:root{--gl:#e5e8ed;--gh:#f2f4f7;--ghl:#d6dbe2;--galt:#f5f8fd;--ghov:#e7f0fe}
+:root{--gl:#e5e7eb;--gh:#eef0f3;--ghl:#d4d8de;--galt:#f5f6f8;--ghov:#e7f0fe}
 .card.tw{padding:0;border:1px solid #dadfe6;border-radius:12px;box-shadow:0 1px 3px rgba(16,24,40,.05)}
 .card.tw>table:not(.stack){border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
 :where(.card.tw>table:not(.stack)) th{background:var(--gh);color:#4a515e;font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;padding:9px 12px;line-height:1.35;vertical-align:middle;white-space:nowrap;border-bottom:1px solid var(--ghl);border-right:1px solid var(--gl)}
