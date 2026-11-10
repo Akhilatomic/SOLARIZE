@@ -6,7 +6,7 @@ const discRank = id => { const x = DISC.sum[id]; return x ? (+x.unread ? 2 : 1) 
 // desktop notifications: ask once on the first click (browsers only allow the prompt after a user action)
 function discDesk(title, body, tgt) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  try { const n = new Notification(title, { body, tag: 'disc-' + Date.now(), icon: 'assets/logo.png' }); n.onclick = () => { window.focus(); n.close(); if (typeof tgt === 'string') location.hash = tgt; else if (tgt) discOpen(tgt); }; } catch (e) { }
+  try { const n = new Notification(title, { body, tag: 'disc-' + Date.now(), icon: 'assets/logo.png' }); n.onclick = () => { window.focus(); n.close(); if (typeof tgt === 'string') location.hash = tgt; else if (typeof tgt === 'function') tgt(); else if (tgt) discOpen(tgt); }; } catch (e) { }
 }
 document.addEventListener('click', function askDesk() { document.removeEventListener('click', askDesk, true);
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().then(p => { if (p === 'granted') toast('Desktop notifications turned on'); }); }, true);
@@ -120,7 +120,8 @@ async function refreshNotifs() {
     fresh.slice(0, 3).forEach(n => toast(n.kind === 'feas' ? n.text : n.kind === 'mention' ? `${n.from_name} tagged you · ${n.customer_name}` : n.text));
     if (fresh.length && typeof SOUND !== 'undefined' && SOUND) try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 990; g.gain.setValueAtTime(.0001, a.currentTime); g.gain.exponentialRampToValueAtTime(.12, a.currentTime + .02); g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + .4); o.start(); o.stop(a.currentTime + .4); } catch (e) { }
     fresh.filter(n => n.kind === 'feas').slice(0, 3).forEach(n => discDesk('Feasibility expiry', n.text, '#/fees/feasibility'));
-    fresh.filter(n => n.kind !== 'feas').slice(0, 3).forEach(n => discDesk(n.kind === 'mention' ? `${n.from_name} tagged you · ${n.customer_name}` : n.kind === 'end' ? `Discussion ended · ${n.customer_name}` : `${n.from_name} · ${n.customer_name}`, n.text.replace(/^.*?:\s/, ''), n.lead_id ? { lead_id: n.lead_id } : { customer_id: n.customer_id })); }
+    fresh.filter(n => n.kind === 'callback').slice(0, 3).forEach(n => discDesk('Call back · ' + (n.customer_name || 'lead'), n.text, () => leadModal(n.lead_id)));
+    fresh.filter(n => n.kind !== 'feas' && n.kind !== 'callback').slice(0, 3).forEach(n => discDesk(n.kind === 'mention' ? `${n.from_name} tagged you · ${n.customer_name}` : n.kind === 'end' ? `Discussion ended · ${n.customer_name}` : `${n.from_name} · ${n.customer_name}`, n.text.replace(/^.*?:\s/, ''), n.lead_id ? { lead_id: n.lead_id } : { customer_id: n.customer_id })); }
   DISC.seen = ids;
   if (typeof drawBell === 'function') drawBell();
   const p = $('#bellp'); if (p && !p.classList.contains('hide') && typeof drawBellPanel === 'function') drawBellPanel();
@@ -129,11 +130,11 @@ function discBellHtml() {
   const N = DISC.notifs; if (!N.length) return '';
   const lbl = { mention: 'tagged you', reply: 'replied', end: 'ended the discussion' };
   return `<div class="bar" style="margin:0 0 4px"><b>Notifications (${DISC.count})</b><span class="sp"></span><button class="btn sec sm" id="dnall">Mark all read</button></div>
-   ${N.slice(0, 8).map(n => n.kind === 'feas' ? `<div class="nl xdnot feasn" data-dn="${n.id}" data-go="#/fees/feasibility"><div class="xdav warn">!</div><div class="nlm"><b>Feasibility</b> <span class="mut">· ${agoStr(n.created)}</span><br><span style="font-size:13px">${esc(n.text)}</span></div></div>` : `<div class="nl xdnot" data-dn="${n.id}" data-dt='${JSON.stringify(n.lead_id ? { lead_id: n.lead_id } : { customer_id: n.customer_id })}'><div class="xdav">${n.from_av ? avImg(n.from_id, n.from_av, n.from_name) : esc((n.from_name || '?').charAt(0).toUpperCase())}</div><div class="nlm"><b>${esc(n.from_name || '')}</b> ${lbl[n.kind] || ''} <span class="mut">· ${agoStr(n.created)}</span><br><span style="font-size:13px"><b>${n.lead_id ? '<span class="pill b">Lead</span> ' : ''}${esc(n.customer_name || '')}</b> — ${esc(n.text.replace(/^.*?:\s/, ''))}</span></div></div>`).join('')}<div class="bsep"></div>`;
+   ${N.slice(0, 8).map(n => n.kind === 'callback' ? `<div class="nl xdnot cbn" data-dn="${n.id}" data-lead="${n.lead_id}"><div class="xdav cbav"><i class="i i-phone"></i></div><div class="nlm"><b>Call back</b> <span class="mut">· ${agoStr(n.created)}</span><br><span style="font-size:13px">${esc(n.text)}</span></div></div>` : n.kind === 'feas' ? `<div class="nl xdnot feasn" data-dn="${n.id}" data-go="#/fees/feasibility"><div class="xdav warn">!</div><div class="nlm"><b>Feasibility</b> <span class="mut">· ${agoStr(n.created)}</span><br><span style="font-size:13px">${esc(n.text)}</span></div></div>` : `<div class="nl xdnot" data-dn="${n.id}" data-dt='${JSON.stringify(n.lead_id ? { lead_id: n.lead_id } : { customer_id: n.customer_id })}'><div class="xdav">${n.from_av ? avImg(n.from_id, n.from_av, n.from_name) : esc((n.from_name || '?').charAt(0).toUpperCase())}</div><div class="nlm"><b>${esc(n.from_name || '')}</b> ${lbl[n.kind] || ''} <span class="mut">· ${agoStr(n.created)}</span><br><span style="font-size:13px"><b>${n.lead_id ? '<span class="pill b">Lead</span> ' : ''}${esc(n.customer_name || '')}</b> — ${esc(n.text.replace(/^.*?:\s/, ''))}</span></div></div>`).join('')}<div class="bsep"></div>`;
 }
 function discBellBind(root) {
   if ($('#dnall', root)) $('#dnall', root).onclick = async e => { e.stopPropagation(); await api('disc', 'seen', { all: 1 }); refreshNotifs(); };
-  $$('[data-dn]', root).forEach(x => x.onclick = async () => { const p = $('#bellp'); if (p) p.classList.add('hide'); api('disc', 'seen', { id: +x.dataset.dn }); if (x.dataset.go) { location.hash = x.dataset.go; refreshNotifs(); } else discOpen(JSON.parse(x.dataset.dt)); });
+  $$('[data-dn]', root).forEach(x => x.onclick = async () => { const p = $('#bellp'); if (p) p.classList.add('hide'); api('disc', 'seen', { id: +x.dataset.dn }); if (x.dataset.lead) { leadModal(+x.dataset.lead); refreshNotifs(); } else if (x.dataset.go) { location.hash = x.dataset.go; refreshNotifs(); } else discOpen(JSON.parse(x.dataset.dt)); });
 }
 function startDisc() {
   if (!canR('customers') && !canR('leads')) return;

@@ -37,6 +37,17 @@ function lead_or_404($id) {
   return $l;
 }
 
+// Call-back reminders that came due → bell + desktop notification for whoever set it and the lead's owner.
+// Runs on every bell poll: one indexed lookup, and it only writes when something is due.
+function callback_alerts() {
+  foreach (rows("SELECT id,name,phone,callback_note,callback_by,assigned_to FROM leads WHERE callback_sent=0 AND callback_at<>'' AND callback_at<=?", [date('Y-m-d H:i')]) as $l) {
+    if (!q('UPDATE leads SET callback_sent=1 WHERE id=? AND callback_sent=0', [$l['id']])->rowCount()) continue; // another poll sent it already
+    $text = 'Call back ' . $l['name'] . ($l['phone'] !== '' ? ' · ' . $l['phone'] : '') . ($l['callback_note'] !== '' ? ' — ' . $l['callback_note'] : '');
+    foreach (array_unique(array_filter([(int)$l['callback_by'], (int)$l['assigned_to']])) as $u)
+      q("INSERT INTO notifs(user_id,kind,lead_id,from_id,text) VALUES(?,'callback',?,NULL,?)", [$u, $l['id'], $text]);
+  }
+}
+
 // Runs before the generic CRUD for leads. Handles list/get/claim/unlock/assign; checks ownership for writes.
 function lead_guard($a, $in) {
   switch ($a) {
@@ -71,6 +82,15 @@ function lead_guard($a, $in) {
       if (!$u) fail('Choose an active user');
       q('UPDATE leads SET assigned_to=?, claimed_at=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$u['id'], gmdate('Y-m-d H:i:s'), $id]);
       audit('assign', 'leads', $id, '→ ' . $u['name']); out(['ok' => true]);
+    case 'callback': // set, move or clear the call-back reminder: {id, at:'Y-m-d H:i' or '', note, done}
+      need('leads', true);
+      $l = lead_or_404($in['id'] ?? 0); lead_need_write($l);
+      $at = trim((string)($in['at'] ?? ''));
+      if ($at !== '') { $d = DateTime::createFromFormat('!Y-m-d H:i', $at); if (!$d || $d->format('Y-m-d H:i') !== $at) fail('Pick a valid date and time'); }
+      $note = $at === '' ? '' : mb_substr(trim((string)($in['note'] ?? '')), 0, 300);
+      q('UPDATE leads SET callback_at=?, callback_note=?, callback_by=?, callback_sent=0, updated=CURRENT_TIMESTAMP WHERE id=?', [$at, $note, $at === '' ? null : uid(), $l['id']]);
+      audit('callback', 'leads', $l['id'], $at === '' ? (!empty($in['done']) ? 'call back done' : 'call back removed') : 'call back ' . $at . ($note !== '' ? ' — ' . $note : ''));
+      out(['ok' => true, 'callback_at' => $at, 'callback_note' => $note]);
     case 'save':
       if (!empty($in['id'])) lead_need_write(lead_or_404($in['id']));
       return; // generic save continues (assigned_to / claimed_at are protected there)

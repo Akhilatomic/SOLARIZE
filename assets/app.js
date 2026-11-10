@@ -308,8 +308,8 @@ function bars(data, order) {
 }
 
 // ---------- Leads ----------
-const LCOLS = [['date', 'Added'], ['name', 'Name'], ['phone', 'Phone'], ['status', 'Status'], ['city', 'Location'], ['owner', 'Claimed by'], ['remark', 'Remark'], ['appt', 'Appt']];
-const LW = { date: 92, phone: 112, status: 96, owner: 124, appt: 128 }; // fixed px; name/location/remark share the rest
+const LCOLS = [['date', 'Added'], ['name', 'Name'], ['phone', 'Phone'], ['status', 'Status'], ['city', 'Location'], ['owner', 'Claimed by'], ['remark', 'Remark'], ['appt', 'Appt'], ['cb', 'Call back']];
+const LW = { date: 92, phone: 112, status: 96, owner: 124, appt: 128, cb: 136 }; // fixed px; name/location/remark share the rest
 let LF = { q: '', status: '', active: 'active', city: '', appt: '', own: '', sort: 'created', dir: -1, edit: false };
 let LHIDE = []; try { LHIDE = JSON.parse(localStorage.lcols || '[]'); } catch (e) { }
 // speed: build each date formatter once (toLocaleDateString with options builds a new one on every call — seconds on a 4,000-row table)
@@ -327,6 +327,54 @@ function apptBadgeOld(l) {
   if (!l.appt) return '<span class="pill" style="color:var(--mut)">● Not Scheduled</span>';
   const od = l.appt < today() && isActiveLead(l), days = Math.round((new Date(today()) - new Date(l.appt)) / 864e5);
   return `<span class="pill g">● ${dmy(l.appt)}</span>${od ? `<br><span class="pill r" style="margin-top:3px"><i class="i i-alert"></i> OVERDUE · ${days}d</span>` : ''}`;
+}
+// ---- call-back reminders: "call me after a few days". Stored as local 'Y-m-d H:i'; the server sends a bell +
+// desktop notification to whoever set it and the lead's owner when it comes due (see callback_alerts in claims.php).
+const cbPad = n => String(n).padStart(2, '0');
+const cbYmd = d => d.getFullYear() + '-' + cbPad(d.getMonth() + 1) + '-' + cbPad(d.getDate());
+const cbNow = () => { const d = new Date(); return cbYmd(d) + ' ' + cbPad(d.getHours()) + ':' + cbPad(d.getMinutes()); };
+const cbT12 = t => { const [h, m] = t.split(':').map(Number); return (h % 12 || 12) + (m ? ':' + cbPad(m) : '') + (h < 12 ? ' AM' : ' PM'); };
+const cbDay = (d, wd) => d === today() ? 'Today' : d === cbYmd(new Date(Date.now() + 864e5)) ? 'Tomorrow' : (wd ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(d + 'T00:00:00').getDay()] + ' ' : '') + dshort(d);
+const cbWhen = at => cbDay(at.slice(0, 10), 1) + ', ' + cbT12(at.slice(11, 16)); // "Tue 12 Nov, 10 AM"
+function cbBadge(l) {
+  if (!l.callback_at) return l.can_edit ? '<span class="mut cbadd"><i class="i i-phone"></i> Set</span>' : '<span class="mut">—</span>';
+  const due = l.callback_at <= cbNow(), td = l.callback_at.slice(0, 10) === today();
+  return `<span class="pill ${due ? 'r' : td ? 'y' : 'b'}" title="${esc('Call back ' + cbWhen(l.callback_at) + (l.callback_note ? ' — ' + l.callback_note : ''))}"><i class="i i-phone"></i> ${due ? 'Due · ' : ''}${esc(cbDay(l.callback_at.slice(0, 10)))}</span>`
+    + `<small class="cbsub">${esc(cbT12(l.callback_at.slice(11, 16)) + (l.callback_note ? ' · ' + l.callback_note : ''))}</small>`;
+}
+const CB_QUICK = [['1h', 'In 1 hour'], ['1d', 'Tomorrow'], ['2d', '2 days'], ['3d', '3 days'], ['1w', '1 week'], ['2w', '2 weeks'], ['1m', '1 month'], ['3m', '3 months']];
+const cbBtnTxt = l => '<i class="i i-phone"></i> ' + (l.callback_at ? 'Call back: ' + esc(cbWhen(l.callback_at)) : 'Call back reminder');
+let LEADCB = null; // the Leads page redraws its row when a reminder changes elsewhere (lead form, bell)
+function callbackBox(l, after) {
+  const cur = l.callback_at || '', tmr = cbYmd(new Date(Date.now() + 864e5));
+  const m = modal(`<h3 style="margin-top:0"><i class="i i-phone"></i> Call back — ${esc(l.name)}</h3>
+   <p class="mut" style="margin:-4px 0 12px;font-size:13px">${cur ? `Reminder set for <b>${esc(cbWhen(cur))}</b>${cur <= cbNow() ? ' — <b style="color:#c4271f">due now</b>' : ''}.` : 'When should we call back? You' + (l.assigned_to && l.assigned_to != ME.id ? ' and the lead’s owner' : '') + ' get a notification at that time.'}</p>
+   <div class="cbq">${CB_QUICK.map(([k, t]) => `<button type="button" class="btn sec sm" data-q="${k}">${t}</button>`).join('')}</div>
+   <div class="cbin"><span>Or in</span><input id="cbn" type="number" min="1" max="365" value="4" inputmode="numeric" aria-label="How many"><select id="cbu" aria-label="Days, weeks or months"><option value="d">days</option><option value="w">weeks</option><option value="m">months</option></select></div>
+   <div class="two"><div><label for="cbd">Date</label><input id="cbd" type="date" min="${today()}" value="${cur ? cur.slice(0, 10) : tmr}"></div><div><label for="cbt">Time</label><input id="cbt" type="time" value="${cur ? cur.slice(11, 16) : '10:00'}"></div></div>
+   <label for="cbnote">Note (optional)</label><input id="cbnote" maxlength="300" ${SPELL} placeholder="e.g. Call after salary day, ask about the subsidy" value="${esc(l.callback_note || '')}">
+   <div class="bar" style="margin-top:14px"><button class="btn" id="cbs"><i class="i i-bell"></i> ${cur ? 'Update reminder' : 'Set reminder'}</button><button class="btn sec" id="cbc">Cancel</button>${cur ? '<span class="sp"></span><button class="btn sec" id="cbdone"><i class="i i-check"></i> Called — done</button><button class="btn sec" id="cbx">Remove</button>' : ''}</div>`);
+  const D = $('#cbd', m), T = $('#cbt', m), mark = k => $$('[data-q]', m).forEach(b => b.classList.toggle('on', b.dataset.q === k));
+  const jump = (n, u) => { const d = new Date(); if (u === 'h') { d.setMinutes(d.getMinutes() + 60 * n + (5 - d.getMinutes() % 5) % 5); T.value = cbPad(d.getHours()) + ':' + cbPad(d.getMinutes()); }
+    else if (u === 'm') { const day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n); d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); } else d.setDate(d.getDate() + n * (u === 'w' ? 7 : 1));
+    D.value = cbYmd(d); };
+  if (!cur) mark('1d');
+  $$('[data-q]', m).forEach(b => b.onclick = () => { jump(+b.dataset.q.slice(0, -1), b.dataset.q.slice(-1)); mark(b.dataset.q); });
+  const custom = () => { const n = Math.max(1, Math.min(365, +$('#cbn', m).value || 1)); jump(n, $('#cbu', m).value); mark(''); };
+  $('#cbn', m).oninput = custom; $('#cbu', m).onchange = custom; D.onchange = T.onchange = () => mark('');
+  const send = async (at, done) => {
+    const note = at ? $('#cbnote', m).value.trim() : '';
+    await api('leads', 'callback', { id: l.id, at, note, done: done ? 1 : 0 });
+    l.callback_at = at; l.callback_note = note; m.remove();
+    toast(at ? 'Call back reminder set — ' + cbWhen(at) : done ? 'Call back done' : 'Call back reminder removed');
+    if (LEADCB) LEADCB(l.id, at, note); if (after) after();
+  };
+  $('#cbs', m).onclick = () => { if (!D.value || !T.value) return alert('Pick a date and a time'); const at = D.value + ' ' + T.value;
+    if (at <= cbNow()) return alert('That time has already passed — pick a later time.'); send(at); };
+  $('#cbc', m).onclick = () => m.remove();
+  if (cur) { $('#cbdone', m).onclick = () => send('', true); $('#cbx', m).onclick = () => send(''); }
+  m.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); m.remove(); } }); /* only this box, not the lead form under it */
+  $('[data-q].on', m)?.focus();
 }
 // ---- claiming: a claimed lead is locked to its owner; only the admin can unlock or reassign ----
 const isAdm = () => ME.role === 'admin';
@@ -354,7 +402,7 @@ async function pgLeads() {
    <select id="ls" title="Status"><option value="">All status</option>${S.lead_statuses.map(s => `<option ${LF.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
    <select id="la">${[['active', 'Active'], ['all', 'All leads'], ['won', 'Won'], ['lost', 'Lost']].map(([v, l]) => `<option value="${v}" ${LF.active === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
    <select id="lc" title="City"><option value="">All cities</option>${cities.map(c => `<option ${LF.city === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
-   <select id="lap">${[['', 'All appts'], ['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['none', 'Not scheduled']].map(([v, l]) => `<option value="${v}" ${LF.appt === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+   <select id="lap" title="Appointments and call backs">${(o => `${o([['', 'All appts']])}<optgroup label="Appointment">${o([['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['none', 'Not scheduled']])}</optgroup><optgroup label="Call back">${o([['cb_due', 'Call back due'], ['cb_today', 'Call back today'], ['cb_set', 'Call back set']])}</optgroup>`)(a => a.map(([v, l]) => `<option value="${v}" ${LF.appt === v ? 'selected' : ''}>${l}</option>`).join(''))}</select>
    <select id="lown" title="Claimed by"><option value="">All owners</option><option value="me" ${LF.own === 'me' ? 'selected' : ''}>My leads</option><option value="none" ${LF.own === 'none' ? 'selected' : ''}>Unclaimed</option>${isAdm() ? [...new Map(leads.filter(l => l.assigned_to).map(l => [l.assigned_to, l.owner_name])).entries()].map(([id, n]) => `<option value="${id}" ${LF.own == id ? 'selected' : ''}>Claimed by ${esc(n)}</option>`).join('') : ''}</select>
    <div style="position:relative"><button class="btn sec" id="lcol"><i class="i i-menu"></i> Columns</button><div id="lcm" class="card hide" style="position:absolute;z-index:9;top:42px;left:0;width:190px;padding:10px">${LCOLS.map(([k, l]) => `<label style="margin:4px 0;display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-col="${k}" ${LHIDE.includes(k) ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
    <span class="sp"></span>${canExport() ? '<button class="btn sec" id="lex" title="Export CSV"><i class="i i-download"></i> Export</button>' : ''}${w ? '<button class="btn sec" id="lim" title="Import CSV"><i class="i i-upload"></i> Import</button>' : ''}</div>
@@ -362,15 +410,17 @@ async function pgLeads() {
    <div class="card tw fitbox" style="padding:0"><table id="ltb" data-min="1000"></table></div>`;
 
   const filtered = () => {
-    const t = LF.q.toLowerCase(), td = today();
+    const t = LF.q.toLowerCase(), td = today(), now = cbNow();
+    if (LF.appt.startsWith('cb_')) { const cb = LF.appt; LF.appt = ''; const r = filtered(); LF.appt = cb; // call-back filters: everything else as usual, then by reminder
+      return r.filter(l => l.callback_at && (cb === 'cb_set' || (cb === 'cb_due' ? l.callback_at <= now : l.callback_at.slice(0, 10) === td))); }
     let r = leads.filter(l => (!LF.status || l.status === LF.status) && (LF.active === 'all' || (LF.active === 'active' ? isActiveLead(l) : l.status === (LF.active === 'won' ? 'Won' : 'Lost')))
       && (!LF.city || l.city === LF.city) && (!t || [l.name, l.phone, l.city, l.location, l.remark, l.address].join(' ').toLowerCase().includes(t))
       && (!LF.own || (LF.own === 'me' ? l.assigned_to == ME.id : LF.own === 'none' ? !l.assigned_to : l.assigned_to == LF.own))
       && (!LF.appt || (LF.appt === 'none' ? !l.appt : LF.appt === 'overdue' ? l.appt && l.appt < td && isActiveLead(l) : LF.appt === 'today' ? l.appt === td : l.appt > td)));
     const key = l => l[LF.sort] ?? '';
-    return r.sort((a, b) => { const x = key(a), y = key(b); if (LF.sort === 'appt') { if (!x) return 1; if (!y) return -1; } return (x > y ? 1 : x < y ? -1 : 0) * LF.dir; });
+    return r.sort((a, b) => { const x = key(a), y = key(b); if (LF.sort === 'appt' || LF.sort === 'callback_at') { if (!x) return 1; if (!y) return -1; } return (x > y ? 1 : x < y ? -1 : 0) * LF.dir; });
   };
-  const sk = k => k === 'date' ? 'created' : k;
+  const sk = k => k === 'date' ? 'created' : k === 'cb' ? 'callback_at' : k;
   let shown = 0; // rows on screen; a redraw after an edit keeps at least this many so the scroll position stays put
   const draw = reset => {
     const rows = filtered(), show = LCOLS.filter(c => !LHIDE.includes(c[0]));
@@ -386,7 +436,8 @@ async function pgLeads() {
       city: l => ed(l, 'city', `<span class="clip">${esc(loc(l))}</span>`, loc(l)),
       owner: l => `<td class="ownc">${ownerCellRow(l)}</td>`,
       remark: l => ed(l, 'remark', l.remark ? `<span class="clamp">${esc(l.remark)}</span>` : (l.can_edit ? '<span class="mut"><i>Add remark</i></span>' : ''), l.remark),
-      appt: l => ed(l, 'appt', apptBadge(l)) };
+      appt: l => ed(l, 'appt', apptBadge(l)),
+      cb: l => `<td data-cb="1" class="cbc${w && l.can_edit ? ' qe' : ''}">${cbBadge(l)}</td>` };
     const acts = l => !l.can_edit ? `<button class="ib" title="View" data-a="vw"><i class="i i-eye"></i></button>`
       : `${discBtn(l.id, 1)}${l.phone ? '<a class="ib" title="Call" href="tel:' + esc(l.phone) + '"><i class="i i-phone"></i></a>' : ''}<button class="ib" title="View / edit" data-a="vw"><i class="i i-eye"></i></button><button class="ib" title="More actions" data-a="more"><i class="i i-dots"></i></button>`;
     const rowHtml = l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}<td class="lact">${acts(l)}</td></tr>`;
@@ -400,6 +451,7 @@ async function pgLeads() {
     const bind = trs => trs.forEach(tr => {
       const l = byId.get(tr.dataset.id); if (!l) return;
       if (w && l.can_edit) $$('td[data-f]', tr).forEach(td => { if (LF.edit || QE.includes(td.dataset.f)) td.onclick = () => startEdit(td, l); });
+      if (w && l.can_edit) $$('td[data-cb]', tr).forEach(td => td.onclick = () => callbackBox(l));
       $$('[data-a]', tr).forEach(b => b.onclick = e => { e.stopPropagation(); act(b.dataset.a, l, b); });
     });
     bind([...tb.tBodies[0].rows]); shown = n;
@@ -418,6 +470,7 @@ async function pgLeads() {
     if (a === 'ds') discOpen({ lead_id: l.id });
     if (a === 'vw' || a === 'ed') leadModal(l.id);
     if (a === 'rm') return remarkBox(l);
+    if (a === 'cb') return callbackBox(l);
     if (a === 'cv') { if (confirm('Convert ' + l.name + ' to a customer?')) { const r = await api('leads', 'convert', { id: l.id }); location.hash = '#/customers/' + r.customer_id; } }
     if (a === 'oc') location.hash = '#/customers/' + l.customer_id;
     if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ lead_id: l.id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; }
@@ -434,7 +487,7 @@ async function pgLeads() {
   const closeMenu = () => { const m = $('#lmenu'); if (m) m.remove(); };
   const moreMenu = (l, btn) => {
     closeMenu();
-    const items = [l.phone ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['ed', 'pencil', 'Edit lead'], l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
+    const items = [l.phone ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['cb', 'phone', l.callback_at ? 'Call back: ' + cbWhen(l.callback_at) : 'Call back reminder'], ['ed', 'pencil', 'Edit lead'], l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
       l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ['unlock', 'lock', l.assigned_to == ME.id ? 'Unclaim (release lead)' : 'Unclaim / unlock (admin)'] : null, isAdm() ? ['assign', 'users', 'Assign to user (admin)'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu';
     m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('');
@@ -458,6 +511,7 @@ async function pgLeads() {
     el.onblur = () => done(true); el.onchange = () => done(true); el.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing && !(f === 'remark' && e.shiftKey)) { e.preventDefault(); done(true); } if (e.key === 'Escape') done(false); };
   };
   const drawSoon = debounce(() => draw(true), 120);
+  LEADCB = (id, at, note) => { const x = leads.find(y => y.id == id); if (x) { x.callback_at = at; x.callback_note = note; } if ($('#ltb')) draw(); };
   $('#lq').oninput = e => { LF.q = e.target.value; drawSoon(); };
   [['ls', 'status'], ['la', 'active'], ['lc', 'city'], ['lap', 'appt'], ['lown', 'own']].forEach(([id, k]) => $('#' + id).onchange = e => { LF[k] = e.target.value; draw(true); });
   $('#lref').onclick = () => route();
@@ -481,7 +535,7 @@ async function leadModal(id) {
   const m = modal(`<div class="lmh"><div class="lmt"><div><small class="mut">${id ? 'Lead' : 'New lead'}${id && l.source ? ' · ' + esc(l.source) : ''}</small><h2>${id ? esc(l.name || 'Lead') : 'Add a new lead'}</h2></div><button class="lvx" id="cx2" title="Close (Esc)"><i class="i i-x"></i></button></div>${lock}${leadTabs(l)}</div>
    <div class="lmb"><div class="ltp ltp-d"><div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2" ${SPELL}>${esc(l.notes || '')}</textarea></div>${leadSitePane(l)}${leadPlantPane(l)}
    ${id ? `<div class="ltp-d"><p class="mut" style="font-size:12px">Added by ${esc(l.added_by || '—')} on ${dmy(l.created)}</p>` + noteBox('leads', id, l.notes_log) + `<div class="card" style="margin-top:10px"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div></div>` : ''}</div>
-   <div class="lmf">${w ? '<button class="btn" id="sv">Save</button>' : ''}<button class="btn sec" id="cx">Close</button>
+   <div class="lmf">${w ? '<button class="btn" id="sv">Save</button>' : ''}<button class="btn sec" id="cx">Close</button>${id && w ? `<button class="btn sec${l.callback_at && l.callback_at <= cbNow() ? ' cbdue' : ''}" id="lcbk">${cbBtnTxt(l)}</button>` : ''}
    ${id && l.can_edit !== 0 ? '<button class="btn sec" id="lds"><i class="i i-chat"></i> Discussion</button>' : ''}${id && l.phone && w ? '<button class="btn ok" id="wa">WhatsApp</button><a class="btn sec" href="tel:' + esc(l.phone) + '">Call</a>' : ''}
    ${id && w && !l.customer_id ? '<button class="btn sec" id="cv">Convert to customer</button>' : ''}${l.customer_id ? `<a class="btn sec" href="#/customers/${l.customer_id}" id="oc">Open customer</a>` : ''}
    ${id && canW('quotes') && w ? '<button class="btn sec" id="qt">Create quotation</button>' : ''}<span class="sp"></span>${id && w ? '<button class="btn bad" id="dl">Delete</button>' : ''}</div>`, 1);
@@ -496,6 +550,7 @@ async function leadModal(id) {
   if ($('#mas', m)) $('#mas', m).onclick = async () => { if (await assignLead(id)) { m.remove(); route(); } };
   if ($('#oc', m)) $('#oc', m).onclick = () => m.remove();
   if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m), ...leadExtra(m) }; if (!o.name) return alert('Name required'); await api('leads', 'save', o); m.remove(); route(); };
+  if ($('#lcbk', m)) $('#lcbk', m).onclick = () => callbackBox(l, () => { const b = $('#lcbk', m); if (b) { b.innerHTML = cbBtnTxt(l); b.classList.toggle('cbdue', !!l.callback_at && l.callback_at <= cbNow()); } });
   if ($('#wa', m)) $('#wa', m).onclick = () => waOpen({ name: l.name, phone: l.phone, lead_id: id });
   if ($('#lds', m)) $('#lds', m).onclick = () => { m.remove(); discOpen({ lead_id: id }); };
   if ($('#cv', m)) $('#cv', m).onclick = async () => { const r = await api('leads', 'convert', { id }); m.remove(); location.hash = '#/customers/' + r.customer_id; };

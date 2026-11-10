@@ -194,6 +194,34 @@ if ($dbPath !== '' && is_file($dbPath)) {
   chk(($j['number'] ?? null) === $before, 'save finishes after the lock is released, with the next number');
 } else echo "  skip lock test (no database path given)\n";
 
+/* ---- lead call-back reminders ---- */
+$lead = call($admin, 'leads', 'save', ['name' => 'Callback Test', 'phone' => '9847000111', 'status' => 'New']);
+$lid = $lead['id'] ?? 0; chk($lid > 0, 'callback: lead created');
+$future = date('Y-m-d', strtotime('+2 days')) . ' 10:00';
+$r = call($admin, 'leads', 'callback', ['id' => $lid, 'at' => $future, 'note' => 'Ask about subsidy']);
+chk(($r['_code'] ?? 0) === 200 && ($r['callback_at'] ?? '') === $future, 'callback: set for later');
+$g = call($admin, 'leads', 'get', null, "&id=$lid");
+chk(($g['callback_at'] ?? '') === $future && ($g['callback_note'] ?? '') === 'Ask about subsidy' && (int)($g['callback_sent'] ?? 1) === 0, 'callback: stored on the lead');
+chk(call($admin, 'leads', 'callback', ['id' => $lid, 'at' => 'tomorrow'])['_code'] === 400, 'callback: rejects text that is not a date');
+chk(call($admin, 'leads', 'callback', ['id' => $lid, 'at' => '2026-02-30 10:00'])['_code'] === 400, 'callback: rejects an impossible date');
+chk(call($sales, 'leads', 'callback', ['id' => $lid, 'at' => $future])['_code'] >= 403, 'callback: someone without the lead cannot set one');
+call($admin, 'leads', 'save', array_merge($g, ['remark' => 'saved from an old copy', 'callback_at' => '', 'callback_note' => '']));
+chk((call($admin, 'leads', 'get', null, "&id=$lid")['callback_at'] ?? '') === $future, 'callback: saving the lead does not wipe the reminder');
+$n0 = count(array_filter(call($admin, 'disc', 'notifs')['rows'] ?? [], fn($n) => $n['kind'] === 'callback'));
+chk($n0 === 0, 'callback: no notification before it is due');
+$sid = $u['id'];
+call($admin, 'leads', 'assign', ['id' => $lid, 'user_id' => $sid]); // owner = the sales user
+$past = date('Y-m-d H:i', time() - 60);
+chk(call($admin, 'leads', 'callback', ['id' => $lid, 'at' => $past, 'note' => 'Due now'])['_code'] === 200, 'callback: moved to a time that has come');
+$an = array_values(array_filter(call($admin, 'disc', 'notifs')['rows'] ?? [], fn($n) => $n['kind'] === 'callback'));
+chk(count($an) === 1 && (int)$an[0]['lead_id'] === $lid && strpos($an[0]['text'], 'Callback Test') !== false && strpos($an[0]['text'], 'Due now') !== false, 'callback: due → bell notification for the person who set it');
+$sn = array_values(array_filter(call($sales, 'disc', 'notifs')['rows'] ?? [], fn($n) => $n['kind'] === 'callback'));
+chk(count($sn) === 1 && (int)$sn[0]['lead_id'] === $lid, 'callback: and for the lead owner');
+call($admin, 'disc', 'notifs');
+chk(count(array_filter(call($admin, 'disc', 'notifs')['rows'] ?? [], fn($n) => $n['kind'] === 'callback')) === 1, 'callback: sent only once');
+chk(call($sales, 'leads', 'callback', ['id' => $lid, 'at' => '', 'done' => 1])['_code'] === 200, 'callback: owner marks it done');
+$g2 = call($admin, 'leads', 'get', null, "&id=$lid");
+chk(($g2['callback_at'] ?? 'x') === '' && ($g2['callback_note'] ?? 'x') === '', 'callback: cleared');
 
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);

@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 26; // bump when tables/columns change
+const SCHEMA_VERSION = 27; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -189,6 +189,12 @@ function migrate($db) {
   $qc = array_column($db->query('PRAGMA table_info(quotes)')->fetchAll(), 'name');
   if (!in_array('doc', $qc)) { try { $db->exec("ALTER TABLE quotes ADD COLUMN doc TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   $db->exec("INSERT OR IGNORE INTO settings(k,v) VALUES('qm_next','144')");
+  /* v27: call-back reminders on leads. Changed only through leads/callback (not the lead save), so saving a lead
+     from an older copy can't wipe one. callback_at is local time 'Y-m-d H:i'; callback_sent = bell notification sent. */
+  $lc = array_column($db->query('PRAGMA table_info(leads)')->fetchAll(), 'name');
+  foreach (['callback_at' => "TEXT DEFAULT ''", 'callback_note' => "TEXT DEFAULT ''", 'callback_by' => 'INTEGER', 'callback_sent' => 'INTEGER DEFAULT 0'] as $c => $ty)
+    if (!in_array($c, $lc)) { try { $db->exec("ALTER TABLE leads ADD COLUMN $c $ty"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  $db->exec('CREATE INDEX IF NOT EXISTS lead_callback ON leads(callback_sent, callback_at)');
   require_once __DIR__ . '/qm_seed.php';
   qm_seed($db); // only fills an empty catalogue
   $db->exec('ANALYZE'); // give the query planner row counts for the new indexes

@@ -106,6 +106,7 @@ function housekeeping($force = false) {
   }
   if ($n) { audit('docs_expired', 'files', null, "$n document(s) older than " . DOC_LIFE_DAYS . ' days moved to the Recycle bin'); }
   try { fee_alerts(); } catch (Throwable $e) { }
+  try { callback_alerts(); } catch (Throwable $e) { } /* also when nobody has the CRM open */
   foreach (rows("SELECT id,data FROM trash WHERE deleted_at < datetime('now', ?)", ['-' . TRASH_HOURS . ' hours']) as $t) trash_purge_row($t);
   try { db()->exec('PRAGMA optimize'); } catch (Throwable $e) { } // keeps the query planner's statistics current (cheap, usually a no-op)
 }
