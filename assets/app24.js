@@ -107,6 +107,20 @@ var KD = (function () {
         ] },
         placeGroup()
       ]
+    },
+    /* cover sheet listing the papers handed in (the KSEB checklist from Settings) */
+    chk: {
+      key: 'chk', tab: 'Checklist sheet', file: 'Checklist', page: 'blank',
+      groups: [
+        { g: 'Consumer', fields: [
+          { k: 'name', l: 'Consumer Name' },
+          { k: 'consumer_no', l: 'Consumer Number' },
+          { k: 'section', l: 'Electrical Section Office' }
+        ] },
+        { g: 'Documents', fields: [
+          { k: 'items', l: 'Documents (one per line)', t: 'area', rows: 12 }
+        ] }
+      ]
     }
   };
 
@@ -190,6 +204,11 @@ var KD = (function () {
         inv_serial: serials,
         sign_name: str(sd.sign_name), sign_designation: str(sd.sign_designation), sign_phone: str(sd.sign_phone)
       };
+    } else if (docKey === 'chk') {
+      v = {
+        name: trim(c.name), consumer_no: trim(c.consumer_no), section: trim(c.kseb_section),
+        items: (Array.isArray(ctx.items) ? ctx.items : []).map(trim).filter(Boolean).join('\n')
+      };
     } else if (K.DOCS[docKey]) {
       v = {
         name: trim(c.name), consumer_no: trim(c.consumer_no), category: trim(c.tariff),
@@ -244,7 +263,8 @@ var KD = (function () {
     letterhead: { pdf: 'assets/kseb/letterhead.pdf', png: 'assets/kseb/letterhead.png', w: 595.92, h: 841.92 },
     an1: { pdf: 'assets/kseb/annexure-1.pdf', png: 'assets/kseb/annexure-1.png', w: 595.32, h: 841.92 },
     an2: { pdf: 'assets/kseb/annexure-2.pdf', png: 'assets/kseb/annexure-2.png', w: 595.32, h: 841.92 },
-    an3: { pdf: 'assets/kseb/annexure-3.pdf', png: 'assets/kseb/annexure-3.png', w: 595.32, h: 841.92 }
+    an3: { pdf: 'assets/kseb/annexure-3.pdf', png: 'assets/kseb/annexure-3.png', w: 595.32, h: 841.92 },
+    blank: { pdf: 'assets/kseb/blank.pdf', png: 'assets/kseb/blank.png', w: 595.28, h: 841.89 }
   };
   K.FONTS = { T: 'TimesRoman', TB: 'TimesRomanBold', H: 'Helvetica', HB: 'HelveticaBold' };
 
@@ -299,7 +319,7 @@ var KD = (function () {
     for (var s = max; s >= min; s -= 0.5) if (measure(t, f, s) <= width) return { s: s, fit: true };
     return { s: min, fit: false };
   };
-  var op = function (t, x, y, f, s) { return { t: t, x: r2(x), y: r2(y), f: f, s: s }; };
+  var op = function (t, x, y, f, s, u) { var o = { t: t, x: r2(x), y: r2(y), f: f, s: s }; if (u) o.u = 1; return o; };
 
   /* Work Completion Report on the letterhead. Ref No. / Date labels end at x 64.2 / 427.3, baseline 185.25;
      footer rule at y 750.8 (measured with PyMuPDF on assets/kseb/letterhead.pdf). */
@@ -412,9 +432,43 @@ var KD = (function () {
     return { ops: ops, size: size, overflow: !ok };
   };
 
+  /* Checklist sheet on a plain A4 page, as the office types it: underlined title, three consumer lines,
+     then the numbered documents in capitals (numbers right-aligned, wrapped lines keep the indent). */
+  var CHK = { left: 50, right: 545, mid: 297.64, titleY: 72, titleS: 13, colon: 185, valX: 300, infoY: 104, infoLh: 22, infoS: 10.5,
+    listY: 186, numR: 66, textX: 72, max: 12, min: 9, bottom: 790 };
+  var layoutChk = function (v, measure) {
+    var ops = [], title = 'CHECKLIST FOR SUBMITTING SOLAR APPLICATION';
+    ops.push(op(title, CHK.mid - measure(title, 'TB', CHK.titleS) / 2, CHK.titleY, 'TB', CHK.titleS, true));
+    ['name', 'consumer_no', 'section'].forEach(function (k, i) {
+      var y = CHK.infoY + i * CHK.infoLh;
+      ops.push(op(labelOf('chk', k), CHK.left, y, 'HB', CHK.infoS));
+      ops.push(op(':', CHK.colon, y, 'HB', CHK.infoS));
+      var val = clean(v[k]);
+      if (val) ops.push(op(val, CHK.valX, y, 'T', CHK.infoS));
+    });
+    var items = clean(v.items).split('\n').map(trim).filter(Boolean).map(function (t) { return t.toUpperCase(); });
+    var best = null;
+    for (var s = CHK.max; s >= CHK.min; s -= 0.5) {
+      var list = [], y = CHK.listY, lh = 1.45 * s;
+      items.forEach(function (t, i) {
+        var num = (i + 1) + '.';
+        list.push(op(num, CHK.numR - measure(num, 'T', s), y, 'T', s));
+        K.wrap(t, CHK.right - CHK.textX, 'T', s, measure).forEach(function (line, j) {
+          if (j) y += lh;
+          if (line) list.push(op(line, CHK.textX, y, 'T', s));
+        });
+        y += lh;
+      });
+      best = { ops: list, size: s, fit: y - lh <= CHK.bottom };
+      if (best.fit) break;
+    }
+    return { ops: ops.concat(best.ops), size: best.size, overflow: !best.fit };
+  };
+
   K.layout = function (docKey, values, measure) {
     values = values || {};
     if (docKey === 'wcr') return layoutWcr(values, measure);
+    if (docKey === 'chk') return layoutChk(values, measure);
     if (FORMS[docKey]) return layoutForm(docKey, values, measure);
     return { ops: [], size: 0, overflow: false };
   };
@@ -432,7 +486,12 @@ var KD = (function () {
           keys.forEach(function (k, i) { fonts[k] = list[i]; });
           ops.forEach(function (o) {
             var t = K.ansi(o.t).replace(/\n/g, ' ');
-            if (t) page.drawText(t, { x: box.x + o.x, y: box.y + box.height - o.y, size: o.s, font: fonts[o.f], color: black });
+            if (!t) return;
+            page.drawText(t, { x: box.x + o.x, y: box.y + box.height - o.y, size: o.s, font: fonts[o.f], color: black });
+            if (o.u) {
+              var uy = box.y + box.height - o.y - 0.12 * o.s;
+              page.drawLine({ start: { x: box.x + o.x, y: uy }, end: { x: box.x + o.x + fonts[o.f].widthOfTextAtSize(t, o.s), y: uy }, thickness: 0.06 * o.s + 0.2, color: black });
+            }
           });
           return doc.save({ useObjectStreams: false });
         });

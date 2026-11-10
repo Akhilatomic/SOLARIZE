@@ -1,17 +1,17 @@
-// KSEB documentation page (#/kseb, #/kseb/<customerId>): tabs Work completion report · Annexure 1 · 2 · 3 · Checklist.
+// KSEB documentation page (#/kseb, #/kseb/<customerId>): tabs Work completion report · Annexure 1 · 2 · 3 · Checklist sheet · Checklist.
 // A document tab: customer picker, the document's fields (KD.DOCS in app24.js) on the left, a live A4 preview on the right,
 // Save and Download PDF. pdf-lib (loaded on first use) writes the text onto the template PDF in the browser.
 // Saving rule: only the fields that differ from the profile are stored (KD.overrides), plus the date, so a corrected
 // profile prints corrected. UI classes start with .kd (assets/kseb.css). Every value shown in HTML goes through esc().
 const KDS = { tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
-const KD_TABS = [['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['list', 'Checklist']];
+const KD_TABS = [['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['chk', 'Checklist sheet'], ['list', 'Checklist']];
 const KD_FONT = { T: "'Times New Roman',Times,serif", TB: "'Times New Roman',Times,serif", H: 'Arial,Helvetica,sans-serif', HB: 'Arial,Helvetica,sans-serif' };
 const kdT = v => String(v ?? '').trim();
 const kdOn = () => !!$('#kd');
 const kdTab = () => KD_TABS.some(t => t[0] === TAB.kseb) ? TAB.kseb : 'wcr';
 const kdDoc = () => { const t = kdTab(); return KD.DOCS[t] ? t : null; }; /* null on the Checklist tab */
 const kdFields = doc => KD.DOCS[doc].groups.flatMap(gr => gr.fields.map(f => Object.assign({ g: gr.g }, f)));
-const kdCtx = g => ({ customer: g.customer || {}, plant: g.plant || {}, project: g.project || null, defaults: g.defaults || {}, today: today() });
+const kdCtx = g => ({ customer: g.customer || {}, plant: g.plant || {}, project: g.project || null, defaults: g.defaults || {}, items: S.kseb_items || [], today: today() });
 /* api() already showed its own errors; anything else becomes a red toast */
 const kdErr = e => { if (!e || !e.error) { console.error(e); toast((e && e.message) || String(e), true); } };
 
@@ -110,7 +110,7 @@ function kdGroup(doc, gr, w) {
 }
 function kdField(doc, f) {
   const v = esc(KDS.vals[doc][f.k] ?? ''), id = 'kdf_' + f.k, a = `id="${id}" data-k="${f.k}"`;
-  const inp = f.t === 'area' ? `<textarea ${a} rows="2">${v}</textarea>`
+  const inp = f.t === 'area' ? `<textarea ${a} rows="${f.rows || 2}">${v}</textarea>`
     : f.t === 'date' ? `<div class="kd-date"><input ${a} type="date" value="${v}"><button type="button" class="btn sec sm" data-a="today">Today</button></div><small class="kd-dh" id="kddh"></small>`
     : `<input ${a} value="${v}">`;
   const mark = f.t === 'date' ? '' : `<span class="kd-mark">edited</span><button type="button" class="kd-rs" data-a="reset" data-k="${f.k}" aria-label="Reset ${esc(f.l)}"><i class="i i-undo"></i></button>`;
@@ -171,7 +171,7 @@ function kdLayout() {
   clearTimeout(KDS.t);
   const doc = kdDoc(), pg = $('#kdpage'); if (!doc || !pg || !KDS.g || !KDS.measure) return;
   const L = KDS.lay[doc] = KD.layout(doc, KDS.vals[doc], KDS.measure);
-  pg.innerHTML = L.ops.map(o => `<span style="left:${o.x}px;top:${+(o.y - 0.8 * o.s).toFixed(2)}px;font:${/B$/.test(o.f) ? '700 ' : ''}${o.s}px ${KD_FONT[o.f]}">${esc(o.t)}</span>`).join('');
+  pg.innerHTML = L.ops.map(o => `<span style="left:${o.x}px;top:${+(o.y - 0.8 * o.s).toFixed(2)}px;font:${/B$/.test(o.f) ? '700 ' : ''}${o.s}px ${KD_FONT[o.f]}${o.u ? ';text-decoration:underline' : ''}">${esc(o.t)}</span>`).join('');
   $('#kdwarn').hidden = !L.overflow;
   const b = $('#kdpdf'); if (b && !KDS.busy) { b.disabled = L.overflow; b.title = L.overflow ? 'Too much text to fit on the page: shorten the longest field first' : ''; }
 }

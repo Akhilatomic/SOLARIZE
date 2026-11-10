@@ -52,6 +52,7 @@ th{color:var(--mut);font-weight:500;font-size:12px;text-transform:uppercase;lett
 .tabs button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .prog{height:6px;background:var(--fill);border-radius:6px;overflow:hidden;min-width:80px}.prog i{display:block;height:100%;background:var(--ok);border-radius:6px}
 .chk{display:grid;grid-template-columns:minmax(160px,2fr) 120px 140px 1fr auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--bd);font-size:14px}
+.chk-other{padding:12px 0 2px;font-size:13px;line-height:1.7}.chk-other>b{font-weight:600}
 .login{max-width:380px;margin:12vh auto;padding:28px}.err{color:var(--bad);font-size:13px;min-height:18px}
 .qtbl input{padding:6px 8px}
 code{background:var(--fill);padding:1px 6px;border-radius:6px;font-size:13px}

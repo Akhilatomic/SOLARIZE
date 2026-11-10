@@ -74,6 +74,32 @@ chk($d['_code'] === 200 && ($d['defaults']['sign_name'] ?? '') === str_repeat('x
 $g = call($admin, 'kseb', 'get', null, "&customer_id=$cid");
 chk(($g['defaults']['sign_name'] ?? '') === str_repeat('x', 200) && ($g['defaults']['sign_designation'] ?? '') === 'MD', 'get returns the defaults without the skipped value');
 
+/* KSEB checklist: a database still on the old list switches to the new 17 items once, carrying matching ticks and files over */
+$st = call($admin, 'settings', 'get');
+chk(count($st['kseb_items'] ?? []) === 17 && ($st['kseb_items'][0] ?? '') === 'Annexure II' && ($st['kseb_items_rev'] ?? 0) === 2, 'settings carry the new 17-item KSEB checklist');
+$dbPath = $argv[2] ?? '';
+if ($dbPath !== '' && is_file($dbPath)) {
+  $pj = call($admin, 'projects', 'save', ['customer_id' => $cid, 'title' => 'Checklist test', 'kw' => 3]);
+  $pid = (int)($pj['id'] ?? 0);
+  $pdo = new PDO('sqlite:' . $dbPath); $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $pdo->exec('PRAGMA busy_timeout=5000');
+  $pdo->prepare("INSERT INTO checklist(project_id,kind,item,status) VALUES(?,'kseb','Single line diagram','Approved')")->execute([$pid]);
+  $pdo->prepare("INSERT INTO checklist(project_id,kind,item,status) VALUES(?,'kseb','Roof ownership / NOC','Approved')")->execute([$pid]);
+  $pdo->prepare("INSERT INTO files(customer_id,project_id,kind,item,name,path,size,user) VALUES(?,?,'kseb','Agreement with KSEB','agreement.pdf','x.pdf',1,'boss')")->execute([$cid, $pid]);
+  $pdo->exec("UPDATE settings SET v='" . json_encode(['Single line diagram', 'Agreement with KSEB', 'Roof ownership / NOC']) . "' WHERE k='kseb_items'");
+  $pdo->exec("UPDATE settings SET v='0' WHERE k='kseb_items_rev'");
+  $pdo = null;
+  $st = call($admin, 'settings', 'get');
+  chk(count($st['kseb_items'] ?? []) === 17 && ($st['kseb_items_rev'] ?? 0) === 2, 'an old saved list is replaced by the new one');
+  $pdo = new PDO('sqlite:' . $dbPath); $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  $items = $pdo->query("SELECT item FROM checklist WHERE kind='kseb' AND project_id=$pid ORDER BY item")->fetchAll(PDO::FETCH_COLUMN);
+  $fitem = $pdo->query("SELECT item FROM files WHERE kind='kseb' AND project_id=$pid")->fetchColumn();
+  $pdo = null;
+  chk($items === ['Roof ownership / NOC', 'Single line drawing'] && $fitem === 'Solar agreement', 'matching ticks and files move to the new item names, others stay as they were');
+  $ov = call($admin, 'checklist', 'list', null, '&kind=kseb');
+  $row = array_values(array_filter(is_array($ov) ? $ov : [], fn($p) => is_array($p) && (int)($p['id'] ?? 0) === $pid))[0] ?? [];
+  chk(($row['total'] ?? 0) === 17 && ($row['approved'] ?? -1) === 1, 'progress counts only items on the new list (1/17)');
+} else echo "  skip checklist carry-over test (no database path given)\n";
+
 /* total reset (keep last: it wipes customers): nothing keyed by customer id may survive into a new customer #1 */
 call($admin, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'wcr', 'data' => ['cust_phone' => '111']]);
 $rs = call($admin, 'reset', 'reset', ['password' => $pw, 'confirm' => 'RESET', 'opts' => []]);

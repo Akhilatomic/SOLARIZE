@@ -279,3 +279,53 @@ for (const [doc, ctx, rows, placeY, expect] of [
     assert.ok(r.ops.some(o => o.t === '10-11-2026' && o.x < 369.5 && o.y > placeY), 'date');
   });
 }
+
+const ITEMS = ['Annexure II', 'Details of installation and checklist', 'Test cum completion certificate', 'Single line drawing',
+  'Panel datasheet', 'Inverter datasheet', 'BIS certificate of panel', 'BIS certificate of inverter', 'Work completion report',
+  'Panel serial number certificate', 'DCR certificate', 'Energy meter calibration report', 'Annexure III', 'Warranty certificate',
+  'Vendor declaration associated with the implementation of ALMM order', 'Inspection report', 'Solar agreement'];
+const RAJ_CHK = Object.assign({}, RAJ, { items: ITEMS });
+
+test('checklist sheet defaults', () => {
+  const v = KD.defaults('chk', RAJ_CHK);
+  assert.equal(v.name, 'RAJKUMAR M');
+  assert.equal(v.consumer_no, '1145389020951');
+  assert.equal(v.section, 'Udiyankulangara');
+  assert.equal(v.items.split('\n').length, 17);
+  assert.equal(KD.defaults('chk', RAJ).items, '');
+  assert.ok(KD.empty('chk', KD.defaults('chk', RAJ)).includes('Documents (one per line)'));
+});
+
+test('checklist sheet layout', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const r = KD.layout('chk', KD.values('chk', RAJ_CHK, {}), measure);
+  assert.equal(r.overflow, false);
+  assert.equal(r.size, 12);
+  const title = r.ops.find(o => o.t === 'CHECKLIST FOR SUBMITTING SOLAR APPLICATION');
+  assert.ok(title && title.u === 1 && title.f === 'TB', 'underlined bold title');
+  assert.ok(r.ops.some(o => o.t === 'Consumer Name' && o.f === 'HB') && r.ops.some(o => o.t === 'Udiyankulangara'));
+  assert.ok(r.ops.some(o => o.t === '17.') && r.ops.some(o => o.t === 'ANNEXURE II') && r.ops.some(o => o.t === 'SOLAR AGREEMENT'));
+  for (const o of r.ops) {
+    assert.ok(o.x >= 50 && o.x + measure(o.t, o.f, o.s) <= 545.5, o.t + ' x');
+    assert.ok(o.y > 40 && o.y <= 790, o.t + ' y');
+  }
+  const n1 = r.ops.find(o => o.t === '1.'), n10 = r.ops.find(o => o.t === '10.');
+  assert.ok(Math.abs(n1.x + measure('1.', 'T', 12) - (n10.x + measure('10.', 'T', 12))) < 0.02, 'numbers right-aligned');
+  const lines = n => Array.from({ length: n }, (_, i) => 'Document ' + i).join('\n');
+  const many = KD.layout('chk', { items: lines(45) }, measure);
+  assert.equal(many.overflow, false);
+  assert.ok(many.size < 12);
+  const tooMany = KD.layout('chk', { items: lines(200) }, measure);
+  assert.equal(tooMany.overflow, true);
+});
+
+test('buildPdf draws the underline', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const tpl = fs.readFileSync(path.join(ROOT, KD.PAGES.blank.pdf));
+  const r = KD.layout('chk', KD.values('chk', RAJ_CHK, {}), measure);
+  const withU = await KD.buildPdf(PDFLib, tpl, r.ops);
+  const noU = await KD.buildPdf(PDFLib, tpl, r.ops.map(o => Object.assign({}, o, { u: 0 })));
+  assert.ok(withU.length > noU.length, 'the underline adds a line to the page');
+  const doc = await PDFLib.PDFDocument.load(withU);
+  assert.equal(doc.getPageCount(), 1);
+});

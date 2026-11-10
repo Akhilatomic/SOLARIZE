@@ -237,7 +237,8 @@ function defaults() {
     'lead_statuses' => ['New','Contacted','Site Visit','Quoted','Won','Lost'],
     'project_stages' => ['Customer','KSEB feasibility check','Loan registration','KSEB feasibility payment','PMSG portal registration','KSEB registration fee payment','Material delivery','Structure installation','Electrical installation','KSEB documents submission','DISCOM inspection','DISCOM net-meter commissioning','Subsidy process','Tax bill generation','Warranty card delivery','Project completed'],
     'subsidy_steps' => ['Registered on PM Surya Ghar portal','Application submitted (consumer no. + bank)','KSEB feasibility approval','Vendor selected on portal','Installation completed','Net-meter installed','Commissioning report submitted','Bank account details verified','Portal inspection done','Subsidy released to customer'],
-    'kseb_items' => ['Urjamithra / Ente Urja application','Feasibility approval letter','Agreement with KSEB','Electrical wiring & test report','Single line diagram','Inverter datasheet & warranty','Panel DCR certificate & warranty card','Net-meter application','Electrical inspectorate (CEI) approval','Meter installation / synchronisation','Customer ID proof & latest electricity bill','Roof ownership / NOC'],
+    'kseb_items' => KSEB_ITEMS,
+    'kseb_items_rev' => 0, // 2 once kseb_items_upgrade() has run on this database
     'subsidy_rates' => ['per_kw_first2' => 30000, 'third_kw' => 18000, 'cap' => 78000],
     'catalog' => [
       ['desc'=>'Solar PV module 550 Wp (DCR) ','rate'=>0],['desc'=>'Grid-tie inverter','rate'=>0],['desc'=>'Mounting structure (GI)','rate'=>0],
@@ -252,11 +253,31 @@ function defaults() {
     ],
   ];
 }
+// KSEB documentation checklist: the list KSEB asks for with every solar application (Nov 2026).
+const KSEB_ITEMS = ['Annexure II', 'Details of installation and checklist', 'Test cum completion certificate', 'Single line drawing',
+  'Panel datasheet', 'Inverter datasheet', 'BIS certificate of panel', 'BIS certificate of inverter', 'Work completion report',
+  'Panel serial number certificate', 'DCR certificate', 'Energy meter calibration report', 'Annexure III', 'Warranty certificate',
+  'Vendor declaration associated with the implementation of ALMM order', 'Inspection report', 'Solar agreement'];
+// old checklist items whose ticks and uploaded files carry over to the new list
+const KSEB_ITEMS_MAP = ['Single line diagram' => 'Single line drawing', 'Inverter datasheet & warranty' => 'Inverter datasheet',
+  'Panel DCR certificate & warranty card' => 'DCR certificate', 'Agreement with KSEB' => 'Solar agreement'];
+// once per database (no schema bump): switch to KSEB_ITEMS, carry matching ticks and files over, remember it in kseb_items_rev
+function kseb_items_upgrade(&$s) {
+  foreach (KSEB_ITEMS_MAP as $old => $new) {
+    q("UPDATE OR IGNORE checklist SET item=? WHERE kind='kseb' AND item=?", [$new, $old]);
+    q("UPDATE files SET item=? WHERE kind='kseb' AND item=?", [$new, $old]);
+  }
+  foreach (['kseb_items' => KSEB_ITEMS, 'kseb_items_rev' => 2] as $k => $v)
+    q('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', [$k, json_encode($v, JSON_UNESCAPED_UNICODE)]);
+  $s['kseb_items'] = KSEB_ITEMS; $s['kseb_items_rev'] = 2;
+}
+
 function settings($fresh = false) { // read once per request; only the keys we use (skips big blobs such as mail / Meta state)
   static $s = null;
   if ($s !== null && !$fresh) return $s;
   $s = defaults(); $keys = array_keys($s);
   foreach (rows('SELECT k,v FROM settings WHERE k IN (' . implode(',', array_fill(0, count($keys), '?')) . ')', $keys) as $r) $s[$r['k']] = json_decode($r['v'], true);
+  if ((int)($s['kseb_items_rev'] ?? 0) < 2) kseb_items_upgrade($s);
   return $s;
 }
 

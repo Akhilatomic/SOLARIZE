@@ -10,6 +10,9 @@ Then checks that nothing but those two annotations was removed.
 Blank forms with nothing typed on them (Annexure 2, 3):
   python -I tools/kseb_templates.py --copy <form.pdf> annexure-2 <outdir>
 copies the PDF unchanged and renders its PNG.
+
+  python -I tools/kseb_templates.py --blank <outdir>
+writes blank.pdf / blank.png, a plain A4 page for the checklist sheet.
 """
 import sys, os, shutil
 import pymupdf
@@ -77,8 +80,20 @@ def copy_blank(form, name, outdir):
     d.close()
 
 
+def blank(outdir):
+    """A plain white A4 page (595.28 x 841.89 pt) for documents with no letterhead, e.g. the checklist sheet."""
+    os.makedirs(outdir, exist_ok=True)
+    d = pymupdf.open()
+    d.new_page(width=595.28, height=841.89)
+    d.save(os.path.join(outdir, 'blank.pdf'), garbage=3, deflate=True)
+    d[0].get_pixmap(dpi=36).save(os.path.join(outdir, 'blank.png'))
+    print('blank', tuple(round(v, 2) for v in d[0].rect[2:]))
+
+
 if __name__ == '__main__':
-    if len(sys.argv) == 5 and sys.argv[1] == '--copy':
+    if len(sys.argv) == 3 and sys.argv[1] == '--blank':
+        blank(sys.argv[2])  # python -I tools/kseb_templates.py --blank assets/kseb
+    elif len(sys.argv) == 5 and sys.argv[1] == '--copy':
         copy_blank(*sys.argv[2:])  # python -I tools/kseb_templates.py --copy <form.pdf> annexure-2 assets/kseb
     elif len(sys.argv) == 4:
         main(*sys.argv[1:])

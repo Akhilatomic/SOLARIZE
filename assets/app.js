@@ -771,7 +771,12 @@ function checklistHtml(kind, items, files, wc) {
      <select data-f="status" ${wc ? '' : 'disabled'}>${['Pending', 'Submitted', 'Approved', 'NA'].map(s => `<option ${i.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
      <input type="date" data-f="date" value="${esc(i.date)}" ${wc ? '' : 'disabled'}><input data-f="notes" placeholder="Notes" value="${esc(i.notes)}" ${wc ? '' : 'disabled'}>
      ${canW('files') ? `<button class="btn sec sm" data-up="${kind}|${n}"><i class="i i-clip"></i> Upload</button>` : '<span></span>'}</div>`;
-  }).join('');
+  }).join('') + otherChkFiles(kind, items, files);
+}
+/* files uploaded against a checklist item that is no longer on the list (the list was changed in Settings) */
+function otherChkFiles(kind, items, files) {
+  const fs = files.filter(f => f.kind === kind && !items.some(i => i.item === f.item));
+  return fs.length ? `<div class="chk-other"><b>Other ${kind === 'kseb' ? 'KSEB' : 'subsidy'} files</b><small class="mut"> · uploaded for items no longer on the checklist</small>${fs.map(f => `<div>${esc(f.item || '—')}: ${fileLink(f)}</div>`).join('')}</div>` : '';
 }
 function bindChecklist(pid, p) {
   $$('.chk').forEach(row => {
