@@ -219,8 +219,8 @@ function userModal(u) {
 }
 
 // ---------- Settings → User access (role × module matrix) ----------
-const MOD_LABELS = { email: 'Email — each person’s own mailboxes (Edit = send, move, delete)', fees: 'Finance — feasibility, registration, stamp paper', recycle: 'Recycle bin (Edit = restore)', dashboard: 'Dashboard', calendar: 'Calendar', attendance: 'Attendance (Edit = manage team)', leaves: 'Leaves (Edit = approve team)', leads: 'Leads', customers: 'Customers', projects: 'Project pipeline', checklist: 'Subsidy & KSEB checklists', files: 'Files & documents', folder: 'Folder (datasheets)', whatsapp: 'WhatsApp', quotes: 'Quotations', payments: 'Payments', ads: 'Meta Ads & ad spend', finance: 'Finance figures (values, balances, costs)', settings: 'Settings (view)' };
-const FIN_MODS = ['quotes', 'payments', 'ads', 'finance'];
+const MOD_LABELS = { email: 'Email — each person’s own mailboxes (Edit = send, move, delete)', fees: 'Finance — feasibility, registration, stamp paper', recycle: 'Recycle bin (Edit = restore)', dashboard: 'Dashboard', calendar: 'Calendar', attendance: 'Attendance (Edit = manage team)', leaves: 'Leaves (Edit = approve team)', leads: 'Leads', customers: 'Customers', projects: 'Project pipeline', checklist: 'Subsidy & KSEB checklists', loans: 'Bank documentation (loan papers: feasibility report, agreement)', files: 'Files & documents', folder: 'Folder (datasheets)', whatsapp: 'WhatsApp', quotes: 'Quotations', payments: 'Payments', ads: 'Meta Ads & ad spend', finance: 'Finance figures (values, balances, costs)', settings: 'Settings (view)' };
+const FIN_MODS = ['quotes', 'payments', 'loans', 'ads', 'finance'];
 function drawAccess() {
   const box = $('#uacc'); if (!box) return;
   const roles = Object.keys(S.role_names).filter(r => r !== 'admin'), now = JSON.parse(JSON.stringify(S.roles_now));

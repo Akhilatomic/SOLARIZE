@@ -243,6 +243,75 @@ var KD = (function () {
         ] }
       ]
     }
+    ,
+    /* ---- Bank documentation (assets/app25.js, #/bank): the papers for a customer's solar loan ---- */
+    /* Vendor Feasibility Report for the bank / Jan Samarth: the official form as it is (plain page, no branding) */
+    bfr: {
+      key: 'bfr', tab: 'Feasibility report', file: 'Vendor Feasibility Report', page: 'blank',
+      groups: [
+        { g: 'Consumer', fields: [
+          { k: 'name', l: 'Name of the consumer' },
+          { k: 'consumer_no', l: 'Discom consumer ID' },
+          { k: 'discom_id', l: 'Discom ID' },
+          { k: 'portal_id', l: 'PM Surya Ghar portal ID (NP-KLSEB…)' },
+          { k: 'jansamarth_id', l: 'Jan Samarth ID (ANS-SOLAR-…)' },
+          { k: 'address', l: 'Address for installation', t: 'area' },
+          { k: 'district', l: 'District' },
+          { k: 'state', l: 'State' },
+          { k: 'pincode', l: 'PIN code' }
+        ] },
+        { g: 'Vendor', fields: [
+          { k: 'oem', l: 'OEM name' },
+          { k: 'channel', l: 'Channel partner, if any' },
+          { k: 'epc_address', l: 'EPC contractor address', t: 'area' },
+          { k: 'epc_bank', l: 'Bank' },
+          { k: 'epc_acname', l: 'Account name' },
+          { k: 'epc_acno', l: 'Account no.' },
+          { k: 'epc_ifsc', l: 'IFSC code' },
+          { k: 'mnre', l: 'Registered in MNRE portal' }
+        ] },
+        { g: 'Plant', fields: [
+          { k: 'cap_applied', l: 'RTS capacity applied (kW)' },
+          { k: 'cap_actual', l: 'Actual RTS capacity to be installed (kW)' },
+          { k: 'status', l: 'Feasibility report status', t: 'opts', opts: ['Feasible', 'Not Feasible'] },
+          { k: 'cost', l: 'Project cost (all inclusive)' }
+        ] }
+      ]
+    },
+    /* Agreement between the applicant and the empanelled vendor (the MNRE model, PM Surya Ghar). Printed on ₹50 stamp paper:
+       page 1 starts below the stamp, no letterhead. The wording is fixed (K.AGR); only these fields are filled in. */
+    bag: {
+      key: 'bag', tab: 'Vendor–customer agreement', file: 'Vendor Customer Agreement', page: 'blank', flow: true,
+      groups: [
+        { g: 'Agreement', fields: [
+          { k: 'date', l: 'Executed on', t: 'date' }
+        ] },
+        { g: 'Applicant', fields: [
+          { k: 'name', l: 'Name' },
+          { k: 'consumer_no', l: 'Consumer number' },
+          { k: 'address', l: 'Residing at', t: 'area' }
+        ] },
+        { g: 'Vendor', fields: [
+          { k: 'vendor_name', l: 'Name' },
+          { k: 'vendor_address', l: 'Registered / functional office', t: 'area' }
+        ] },
+        { g: 'RTS system', fields: [
+          { k: 'capacity', l: 'Minimum capacity (kWp)' },
+          { k: 'module_make', l: 'Module make' },
+          { k: 'module_model', l: 'Module model' },
+          { k: 'module_wp', l: 'Module capacity each (Wp)' },
+          { k: 'module_eff', l: 'Module efficiency (%)' },
+          { k: 'inv_make', l: 'Inverter make' },
+          { k: 'inv_kw', l: 'Inverter combined output (kW)' }
+        ] },
+        { g: 'Price and payment', fields: [
+          { k: 'cost', l: 'Cost of the RTS system' },
+          { k: 'pay1', l: 'Advance on order (%)' },
+          { k: 'pay2', l: 'Against proforma invoice (%)' },
+          { k: 'pay3', l: 'After commissioning (%)' }
+        ] }
+      ]
+    }
   };
 
   var fieldsOf = function (docKey) {
@@ -339,6 +408,33 @@ var KD = (function () {
         inv_serial: serials,
         sign_name: str(sd.sign_name), sign_designation: str(sd.sign_designation), sign_phone: str(sd.sign_phone)
       };
+    } else if (docKey === 'bfr' || docKey === 'bag') {
+      /* bank papers: plant cost = the tax bill total, else the project cost; the company and its bank from the quotation maker */
+      var co = ctx.company || {}, bk = co.bank || {}, bill = ctx.bill || {};
+      var kwN = trim(p.capacity) && !zero(p.capacity) ? trim(p.capacity) : (+pr.kw > 0 ? String(pr.kw) : '');
+      var amt = +bill.grand > 0 ? +bill.grand : (+pr.cost > 0 ? +pr.cost : 0);
+      var inrS = function (n) { return Math.round(n).toLocaleString('en-IN'); };
+      if (docKey === 'bfr') {
+        v = {
+          name: trim(c.name), consumer_no: trim(c.consumer_no), discom_id: 'KSEBL', portal_id: trim(p.application_no), jansamarth_id: trim(c.jansamarth_id),
+          address: trim(c.address), district: trim(c.district), state: 'KERALA', pincode: trim(c.pincode),
+          oem: 'NA', channel: 'NA', epc_address: trim(co.address) || trim(sd.vendor_address),
+          epc_bank: trim(bk.bank), epc_acname: trim(bk.name) || trim(co.name), epc_acno: trim(bk.account), epc_ifsc: trim(bk.ifsc), mnre: 'Yes',
+          cap_applied: kwN, cap_actual: kwN, status: 'Feasible', cost: amt ? inrS(amt) + '/-' : ''
+        };
+      } else {
+        var binv = Array.isArray(p.inverters) ? p.inverters : [];
+        var ikw = binv.reduce(function (t, i) { return t + (isNum(i && i.capacity) ? +i.capacity : 0); }, 0);
+        if (!(ikw > 0) && isNum(p.inverter_capacity)) ikw = +p.inverter_capacity * Math.max(1, parseInt(trim(p.inverter_count), 10) || 1);
+        v = {
+          date: today, name: trim(c.name), consumer_no: trim(c.consumer_no), address: K.joinAddr(c),
+          vendor_name: trim(co.name) || 'JASPER SOLAR SOLUTIONS', vendor_address: trim(co.address) || trim(sd.vendor_address),
+          capacity: kwN, module_make: trim(p.panel_make), module_model: trim(p.panel_model),
+          module_wp: zero(p.panel_wattage) ? '' : trim(p.panel_wattage), module_eff: zero(p.panel_efficiency) ? '' : trim(p.panel_efficiency).replace(/\s*%$/, ''),
+          inv_make: trim(p.inverter_make), inv_kw: ikw > 0 ? String(Math.round(ikw * 1000) / 1000) : '',
+          cost: amt ? 'Rs.' + inrS(amt) + ' + KSEB Charges.' : '', pay1: '60', pay2: '30', pay3: '10'
+        };
+      }
     } else if (docKey === 'cov') {
       var cph = trim(c.phase) || trim(p.inverter_type), csg = /single/i.test(cph), cth = /three/i.test(cph), cip = K.invPhase(p, c);
       var cinv = Array.isArray(p.inverters) ? p.inverters : [], cpan = Array.isArray(p.panels) ? p.panels : [];
@@ -893,8 +989,229 @@ var KD = (function () {
     return { ops: head.concat(res.ops), size: s < COV.min ? COV.min : s, overflow: !(ok && res.end <= COV.bottom) };
   };
 
+  /* ---- Bank: Vendor Feasibility Report: the official form as it is (the bank's Word / PDF form), plain A4, no branding ----
+     Page 1 copies the form line for line: 14 pt bold centred title, 12 pt lines 19.8 pt apart from a 1-inch margin
+     (Helvetica for the form's Calibri), the label and its value on one line, an empty value as a line of underscores,
+     item 13 as a neat block (Bank / Account name / Account No. / IFSC Code with their colons in one column), 17 with a box
+     after each answer and a tick in the chosen one, item 19 as a line (the images go up to the portal), then the signature. */
+  var BFR = { x0: 72, x1: 523.3, titleY: 84, top: 122, pitch: 19.8, s: 12, blank: '____________________' };
+  var BFR_ROWS = [
+    ['1. Name of the Consumer: ', 'name'], ['2. Discom Consumer ID: ', 'consumer_no'], ['3. Discom ID: ', 'discom_id'],
+    ['4. PM Surya Shakti Portal ID: ', 'portal_id'], ['5. Jan Samarth ID: ', 'jansamarth_id'], ['6. Address for Installation: ', 'address', 11],
+    ['7. District of Installation: ', 'district'], ['8. State of Installation: ', 'state'], ['9. Pin Code of Installation: ', 'pincode'],
+    ['10. OEM Name: ', 'oem'], ['11. Channel Partner, if any: ', 'channel'], ['12. EPC Contractor Address: ', 'epc_address'],
+    ['13. EPC Contractor Bank Details: ', '#bank'], ['14.RTS Capacity in KW Applied:', 'cap_applied'],
+    ['15. Actual RTS Capacity to be installed:', 'cap_actual'], ['16. Is the vendor registered in MNRE Portal: ', 'mnre'],
+    ['(Note: Only vendors registered in MNRE portal will be allowed)', '#note'],
+    ['17. Feasibility Report Status:', '#status'], ['18. Project Cost (all inclusive):', 'cost'],
+    ['19. Site Layout - Images (2-4 images to be uploaded):', '#photos']
+  ];
+  var layoutBfr = function (v, measure) {
+    var D = BFR, s = D.s, ops = [], y = D.top, w = D.x1 - D.x0;
+    var T = function (t, x, yy, f, sz, pg) { if (t) ops.push(Object.assign(op(t, x, yy, f || 'H', sz || s), pg ? { p: pg } : {})); };
+    var L = function (x1, y1, x2, y2, wd) { ops.push({ ln: [r2(x1), r2(y1), r2(x2), r2(y2)], w: wd || 0.6 }); };
+    var val = function (k) { return clean(v[k]).replace(/\n+/g, ', ') || D.blank; };
+    /* a label and its value on one line; a long value carries on from the left margin, as Word wraps it */
+    var line = function (label, value, vs, vf) {
+      vs = vs || s;
+      var x = D.x0 + measure(label, 'H', s) + (/ $/.test(label) ? 1.5 : 0.5);
+      T(label, D.x0, y, 'H');
+      var first = K.wrap(value, D.x1 - x, vf || 'H', vs, measure)[0] || '', rest = value.slice(first.length).trim();
+      T(first, x, y, vf || 'H', vs);
+      if (rest) K.wrap(rest, w, vf || 'H', vs, measure).forEach(function (ln) { y += 0.85 * D.pitch; T(ln, D.x0, y, vf || 'H', vs); });
+      y += D.pitch;
+    };
+    var t1 = 'Residential Roof Top Solar Installation', t2 = 'Vendor Feasibility Report Format';
+    T(t1, 297.64 - measure(t1, 'HB', 14) / 2, D.titleY, 'HB', 14);
+    T(t2, 297.64 - measure(t2, 'HB', 14) / 2, D.titleY + 19.7, 'HB', 14);
+    BFR_ROWS.forEach(function (r) {
+      if (r[1] === '#note') { T(r[0], D.x0, y, 'H'); y += D.pitch; return; }
+      if (r[1] === '#bank') {
+        /* the company's account for the loan disbursement: one detail per line, the colons in one column */
+        T(r[0].trim(), D.x0, y, 'H'); y += D.pitch;
+        var bk = [['Bank', 'epc_bank', 'H'], ['Account name', 'epc_acname', 'HB'], ['Account No.', 'epc_acno', 'HB'], ['IFSC Code', 'epc_ifsc', 'HB']];
+        var lx = D.x0 + 26, cx = lx + Math.max.apply(null, bk.map(function (b) { return measure(b[0], 'H', s); })) + 10;
+        bk.forEach(function (b) { T(b[0], lx, y, 'H'); T(':', cx, y, 'H'); T(val(b[1]), cx + 10, y, b[2]); y += D.pitch; });
+        return;
+      }
+      if (r[1] === '#status') {
+        /* "Feasible [box]" and "Not Feasible [box]" as on the form; a tick in the chosen box */
+        T(r[0], D.x0, y, 'H'); y += D.pitch;
+        var no = /^not/i.test(clean(v.status)) ? 1 : 0, bw = 64, bh = 15;
+        [['Feasible', D.x0 + 27], ['Not Feasible', D.x1 - bw - 8 - measure('Not Feasible', 'H', s)]].forEach(function (o, i) {
+          T(o[0], o[1], y, 'H');
+          var bx = o[1] + measure(o[0], 'H', s) + 8, by = y - 11.5;
+          L(bx, by, bx + bw, by); L(bx + bw, by, bx + bw, by + bh); L(bx + bw, by + bh, bx, by + bh); L(bx, by + bh, bx, by);
+          if (i === no) { L(bx + 18, by + 6, bx + 26, by + 12.5, 2.2); L(bx + 26, by + 12.5, bx + 42, by - 3, 2.2); }
+        });
+        y += 1.85 * D.pitch; return;
+      }
+      if (r[1] === '#photos') { T(r[0], D.x0, y, 'H'); y += 0.85 * D.pitch; return; }
+      line(r[0], val(r[1]), r[2]);
+    });
+    T('Authorised Signatory of the vendor with Stamp', D.x1 - measure('Authorised Signatory of the vendor with Stamp', 'H', s), y + 67, 'H');
+    return { ops: ops, size: s, overflow: y + 67 > 800 };
+  };
+
+  /* ---- Bank: Agreement between the applicant and the vendor (MNRE model for PM Surya Ghar) ----
+     Text flows over as many pages as it needs in Times; page 1 is the ₹50 e-Stamp paper (see FLOW).
+     A clause number hangs in the margin; a heading never ends a page; the signatures stay together on the last page.
+     {field} in the wording is filled from the document's fields; an empty one prints a blank line to fill by hand. */
+  K.AGR = [
+    ['t', '', 'Agreement Between Applicant and the registered/empanelled Vendor for installation of rooftop solar system in residential house of the Applicant under simplified procedure of Rooftop Solar Programme PMSGMBY'],
+    ['p', '', 'This agreement is executed on {date} for design, installation, commissioning and five years comprehensive maintenance of rooftop solar system to be installed under simplified procedure of Rooftop Solar Programme Ph-II.'],
+    ['c', '', 'Between'],
+    ['p', '', '{name} having residential electricity connection with consumer number {consumer_no} from DISCOM residing at {address} (hereinafter referred as Applicant).'],
+    ['c', '', 'And'],
+    ['p', '', '{vendor_name} is registered/ empanelled with The MNRE/KSEBL (hereinafter referred as DISCOM) and is having registered/functional office at {vendor_address} (hereinafter referred as Vendor). Both Applicant and the Vendor are jointly referred as Parties.'],
+    ['h', '', 'Whereas'],
+    ['n', '-', 'The Applicant intends to install rooftop solar system under simplified procedure of Rooftop Solar Programme Ph-II of the MNRE.'],
+    ['n', '-', 'The Vendor is registered/empanelled vendor with DISCOM for installation of rooftop solar under MNRE Schemes. The Vendor satisfies all the existing regulation pertaining to electrical safety and license in the respective state and it is not debarred or blacklisted from undertaking any such installations by any state/central Government agency.'],
+    ['n', '-', 'Both the parties are mutually agreed and understand their roles and responsibilities and have no liability to any other agency/firm/stakeholder especially to DISCOM and MNRE.'],
+    ['h', '1.', 'GENERAL TERMS:'],
+    ['n', '1.1.', 'The Applicant hereby represents and warrants that the Applicant has the sole legal capacity to enter into this Agreement and authorise the construction, installation and commissioning of the Rooftop Solar System (“RTS System”) which is inclusive of Balance of System (“BoS”) on the Applicant’s premises (“Applicant Site”). The Vendor reserves its right to verify ownership of the Applicant Site and Applicant covenants to co-operate and provide all information and documentation required by the Vendor for the same.'],
+    ['n', '1.2.', 'Vendor may propose changes to the scope, nature and or schedule of the services being performed under this Agreement. All proposed changes must be mutually agreed between the Parties. If Parties fail to agree on the variation proposed, either Party may terminate this Agreement by serving notice as per Clause 13.'],
+    ['n', '1.3.', 'The Applicant understands and agrees that future changes in load, electricity usage patterns and/or electricity tariffs may affect the economics of the RTS System and these factors have not been and cannot be considered in any analysis or quotation provided by Vendor or its Authorized Persons (defined below).'],
+    ['h', '2.', 'RTS System'],
+    ['n', '2.1.', 'Total capacity of RTS System will be minimum {capacity}kWp.'],
+    ['n', '2.2.', 'The Solar modules, inverters and BoS will confirm to minimum specifications and DCR requirement of MNRE.'],
+    ['n', '2.3.', 'Solar modules of {module_make} make, {module_model} model, {module_wp}Wp capacity each and {module_eff}% efficiency will be procured and installed by the Vendor'],
+    ['n', '2.4.', 'Solar inverter of {inv_make} make, {inv_kw} kW Combined rated output capacity will be procured and installed by the Vendor'],
+    ['n', '2.5.', 'Module mounting structure has to withstand minimum wind load pressure as specified by MNRE.'],
+    ['n', '2.6.', 'Other BoS installations shall be as per best industry practice with all safety and protection gears installed by the vendor.'],
+    ['h', '3.', 'PRICE AND PAYMENT TERMS'],
+    ['n', '3.1.', 'The cost of RTS System will be {cost} The Applicant shall pay the total cost to the Vendor as under:'],
+    ['s', '(i)', '{pay1}% as an advance on confirmation of the order;'],
+    ['s', '(ii)', '{pay2}% against Proforma Invoice (PI) before dispatch of solar panels, inverters and other BoS items to be delivered;'],
+    ['s', '(iii)', '{pay3}% after installation and commissioning of the RTS System.'],
+    ['n', '3.2.', 'The order value and payment terms are fixed and will not be subject to any adjustment except as approved in writing by Vendor. The payment shall be made only through bankers’ cheque / NEFT / RTGS / online payment portal as intimated by Vendor. No cash payments shall be accepted by Vendor or its Authorised Person.'],
+    ['h', '4.', 'REPRESENTATIONS MADE BY THE APPLICANT:'],
+    ['p', '', 'The Applicant acknowledges and agrees that:'],
+    ['n', '4.1.', 'any timeline or schedule shared by Vendor for the provision of services and delivery of the RTS System is only an estimate and Vendor will not be liable for any delay that is not attributable to Vendor;'],
+    ['n', '4.2.', 'all information disclosed by the Applicant to Vendor in connection with the supply of the RTS System (or any part thereof), services and generation estimation (including, without limitation, the load profile and power bill) are true and accurate, and acknowledges that Vendor has relied on the information produced by the Applicant to customise the RTS System layout and BoS design for the purposes of this Agreement;'],
+    ['n', '4.3.', 'all descriptive specifications, illustrations, drawings, data, dimensions, quotation, fact sheets, price lists and any advertising material circulated/published/provided by Vendor are approximate only;'],
+    ['n', '4.4.', 'any drawings, pre-feasibility report, specifications and plans composed by Vendor shall require the Applicant’s approval within 5 (five) days of its receipt by electronic mail to Vendor and if the Applicant does not respond within this period, the drawings, specifications or plans shall be final and deemed to have been approved by the Applicant;'],
+    ['n', '4.5.', 'the Applicant shall not use the RTS System or any part thereof, other than in accordance with the product manufacturer’s specifications, and covenants that any risk arising from misuse or/and misappropriate use shall be to the account of the Applicant alone.'],
+    ['n', '4.6.', 'The Applicant acknowledges that shading from trees, buildings, or any other obstruction can significantly reduce the performance of the Rooftop Solar System (“RTS System”).'],
+    ['n', '4.7.', 'The Applicant shall be solely responsible for ensuring that the Applicant Site remains shadow-free during the lifetime of the RTS System.'],
+    ['n', '4.8.', 'The Applicant shall, at their own cost and effort, regularly monitor and remove any shading sources, including trimming of trees, removal of temporary structures, or other obstructions that may arise.'],
+    ['n', '4.9.', 'The Vendor shall not be liable for any performance loss, warranty claims, or maintenance issues arising due to shading or failure of the Applicant to remove such obstructions.'],
+    ['n', '4.10.', 'The Applicant represents, warrants and covenants that:'],
+    ['s', '(i)', 'all electrical and plumbing infrastructure at the Applicant Site are in conformity with applicable laws;'],
+    ['s', '(ii)', 'the Applicant has the legal capacity to permit unfettered access to Vendor and its Authorized Persons for the purposes of execution and performance of this Agreement;'],
+    ['s', '(iii)', 'the Applicant has and will provide requisite power, water and other requisite resources and storage facilities for construction, installation, operation and maintenance of the RTS System;'],
+    ['s', '(iv)', 'the Applicant will provide support for site fabrication of structure, assembly and fitting of module mounting structure at Applicant Site;'],
+    ['s', '(v)', 'the Applicant will ensure that the Applicant Site is shadow free and free of all encumbrances during the lifetime of the RTS System;'],
+    ['s', '(vi)', 'Applicant should ensure that the Applicant regularly cleans and ensures accessibility and safety to the RTS System, as required by Vendor and dusting frequency in the premises.'],
+    ['s', '(vii)', 'Vendor is entitled to permit geo-tagging of the Applicant Site as a Vendor installation site;'],
+    ['s', '(viii)', 'Unless otherwise intimated by the Applicant in writing, Vendor is entitled to take photographs, videos and testimonials of the Applicant and the Applicant Site, and to create content which will become the property of Vendor and the same can be freely used by Vendor as part of its promotional and marketing activities across all platforms as it deems fit;'],
+    ['s', '(ix)', 'the Applicant validates the stability of the Applicant Site for the installation of the RTS System.'],
+    ['h', '5.', 'MAINTENANCE:'],
+    ['n', '5.1.', 'Vendor shall provide five-year free workmanship maintenance. Vendor shall visit the Applicant’s premises at least once every quarter after commissioning of the RTS System for maintenance purposes.'],
+    ['n', '5.2.', 'During such maintenance visit, Vendor shall check all nuts and bolts, fuses, earth resistance and other consumables in respect of the RTS System to ensure that it is in good working condition.'],
+    ['n', '5.3.', 'Cleaning requirement/expectation from the Applicant side – Applicant responsibility, minimum expectation from Applicant that it will be cleaned regularly as per the dusting frequency.'],
+    ['h', '6.', 'ACCESS AND RIGHT OF ENTRY:'],
+    ['n', '6.1.', 'The Applicant hereby grants permission to Vendor and its authorized personnel, representatives, associates, officers, employees, financing agents, subcontractors (“Authorized Persons”) to enter the Applicant Site for the purposes of:'],
+    ['s', '(a)', 'conducting feasibility study;'],
+    ['s', '(b)', 'storing the RTS System/any part thereof;'],
+    ['s', '(c)', 'installing the RTS System;'],
+    ['s', '(d)', 'inspecting the RTS System;'],
+    ['s', '(e)', 'conducting repairs and maintenance to the RTS System;'],
+    ['s', '(f)', 'removing the RTS System (or any part thereof), if necessary for any reason whatsoever;'],
+    ['s', '(g)', 'Such other matters as necessary to execute and perform its rights and obligations under this Agreement.'],
+    ['n', '6.2.', 'The Applicant shall ensure that third-party consents necessary for the Authorized Persons to access the Applicant Site are obtained prior to commencement of services under this Agreement.'],
+    ['h', '7.', 'WARRANTIES:'],
+    ['n', '7.1.', 'Product Warranty: The Applicant shall be entitled to manufacturers’ warranty. Any warranty in relation to RTS System supplied to the Applicant by Vendor under this Agreement is limited to the warranty given by the manufacturer of the RTS System (or any part thereof) to Vendor.'],
+    ['n', '7.2.', 'Installation Warranty: Vendor warrants that all installations shall be free from workmanship defects or BOS defects for a period of five years from the date of installation of the RTS System. The warranty is limited to Vendor rectifying the workmanship or BOS defects at Vendor’s expense in respect of those defects reported by the Applicant, in writing. The Applicant is obliged and liable to report such defects within 15 (fifteen) days of occurrence of such defect.'],
+    ['n', '7.3.', 'Subject to manufacturer warranty, Vendor warrants that the solar modules supplied herein shall have tolerance within a five percentage range (+/-5%). The peak-power point voltage and the peak-power point current of any supplied solar module and/or any module string (series connected modules) shall not vary by more than 5% (five percent) from the respective arithmetic means for all modules and/or for all module strings, as the case may be, provided the RTS System is properly maintained and the Applicant Site is free from shadow at the time of operation of the RTS System.'],
+    ['n', '7.4.', 'Exceptions for warranty:'],
+    ['s', '(a)', 'Any attempt by any person other than Vendor or its Authorised Persons to adjust, modify, repair or provide maintenance to the RTS System, shall disentitle the Applicant of the warranty provided by Vendor hereunder.'],
+    ['s', '(b)', 'Vendor shall not be liable for any degeneration or damage to the RTS System due to any action or inaction on the part of the Applicant.'],
+    ['s', '(c)', 'Vendor shall not be bound or liable to remedy any damage, fault, failure or malfunction of the RTS System owing to external causes, including but not limited to accidents, misuse, neglect, if usage and/or storage and/or installation are non-confirming to product instructions, modifications by the Applicant leading to shading or accessibility issues, failure to perform required maintenance, normal wear and tear, Force Majeure Event, or negligence or default attributable to the Applicant.'],
+    ['s', '(d)', 'Vendor shall not be liable to repair or remedy any accessories or parts added to the RTS System that were not originally sourced by Vendor to the Applicant.'],
+    ['h', '8.', 'PERFORMANCE GUARANTEE'],
+    ['n', '8.1.', 'Vendor guarantees minimum system performance ratio of 75% as per performance ratio test carried out in adherence to IEC 61724 or equivalent BIS for a period of five years.'],
+    ['h', '9.', 'INSURANCE:'],
+    ['n', '9.1.', 'Vendor may, at its sole discretion, obtain insurance covering risks of loss/damage to the RTS System (any part thereof) during transit from Vendor’s warehouse until delivery to the Applicant Site and until installation and commissioning.'],
+    ['n', '9.2.', 'Thereafter, all risk shall pass on to the Applicant and the Applicant may accordingly procure relevant insurances.'],
+    ['h', '10.', 'CANCELLATION:'],
+    ['n', '10.1.', 'The Applicant may cancel the order placed on Vendor within 7 (seven) days from the date of remittance of advance money or the date of order acceptance, whichever is earlier (“Order Confirmation”) by serving notice as per Clause 13.'],
+    ['n', '10.2.', 'If the Applicant cancels the order after the expiry of 7 (seven) days from the date of Order Form, the Applicant shall be liable to pay Vendor, a cancellation fee of 20% of the total order value plus costs and expenses incurred by Vendor, including, costs for labour, design, return of products, administrative costs, subvention costs.'],
+    ['n', '10.3.', 'Notwithstanding the aforesaid, the Applicant shall not be entitled to cancel the Order Form after Vendor has dispatched the RTS System (or any part thereof, including BOS) to the Applicant Site. If Applicant chooses to terminate the Order Form after dispatch, the entire amount paid by the Applicant till date, shall be forfeited by Vendor.'],
+    ['h', '11.', 'LIMITATION OF LIABILITY AND INDEMNITY:'],
+    ['n', '11.1.', 'To the extent that terms implied by law apply to the RTS System and the services rendered under this Agreement, Vendor’s liability for any breach of those terms is limited to:'],
+    ['s', '(a)', 'repairing or replacing the RTS System/any part thereof, as applicable; or'],
+    ['s', '(b)', 'Refund of the moneys paid by the Applicant to Vendor, if Vendor cannot fulfil the order.'],
+    ['h', '12.', 'SUSPENSION AND TERMINATION:'],
+    ['n', '12.1.', 'If the Applicant fails to pay any sum due under this Agreement on the due date, Vendor may, in addition to its other rights under this Agreement, suspend its obligations under this Agreement until all outstanding amounts (including interest due) are paid.'],
+    ['h', '13.', 'NOTICES:'],
+    ['p', '', 'Any notice or other communication under this Agreement to Vendor and or to the Applicant, shall be in writing, in English language and shall be delivered or sent: (a) by electronic mail and/or (b) by hand delivery or registered post/courier, at the registered address of Applicant/Vendor.'],
+    ['h', '14.', 'FORCE MAJEURE EVENT:'],
+    ['n', '14.1.', 'Neither Party shall be in default due to any delay or failure to perform its/his/her/their obligations under this Agreement which arises from or is a consequence of occurrence of an event which is beyond the reasonable control of such Party, and which makes performance of its/his/her/their obligations under this Agreement impossible or so impractical as reasonably to be considered impossible in the circumstances, and includes, but is not limited to, war, riot, civil disorder, earthquake, fire, explosion, storm, flood or other adverse weather conditions, pandemic, epidemic, embargo, strikes, lockouts, labour difficulties, other industrial action, acts of government, unavailability of equipment from vendor, changes requested by the Applicant (“Force Majeure Event”).'],
+    ['h', '15.', 'GOVERNING LAW AND DISPUTE RESOLUTION:'],
+    ['n', '15.1.', 'The interpretation and enforcement of this Agreement shall be governed by the laws of India'],
+    ['n', '15.2.', 'In the event of any dispute, controversy or difference between the Parties arising out of, or relating to this Agreement (“Dispute”), both Parties shall make an effort to resolve the Dispute in good faith, failing which, any Party to the Dispute shall be entitled to refer the Dispute to arbitration to resolve the Dispute in the manner set out in this Clause. The rights and obligations of the Parties under this Agreement shall remain in full force and effect pending the award in such arbitration proceeding.'],
+    ['n', '15.3.', 'The arbitration proceeding shall be governed by the provisions of the Arbitration and Conciliation Act, 1996 and shall be settled by a sole arbitrator mutually appointed by the Parties.'],
+    ['sig', '', '']
+  ];
+  /* Page 1 is a Kerala e-Stamp paper: its stamp block fills the top down to "Please write or type below this line" (y ~495)
+     and its verification footer (QR code, seal) the bottom from y ~712. So page 1 holds only the opening (title, date,
+     the two parties) inside y 500-706, at the largest size from 10.5 down to 8 pt that fits; "Whereas" starts page 2,
+     which is plain A4 like the rest. */
+  var FLOW = { x0: 66, x1: 529, top: 64, bottom: 780, first: 500, firstBottom: 706, num: 30, sub: 26, maxPages: 10 };
+  var layoutBag = function (v, measure) {
+    var D = FLOW, w = D.x1 - D.x0, ops = [], p = 0, y = D.first, s = 10.5, lh = 1.3 * s, ok = true;
+    var bottom = function () { return p === 0 ? D.firstBottom : D.bottom; };
+    var fill = function (t) { return t.replace(/\{(\w+)\}/g, function (m, k) { return clean(v[k] === undefined ? '' : (k === 'date' ? (K.dmy(v.date) || v.date) : v[k])).replace(/\n+/g, ', ') || '__________'; }); };
+    var room = function (h) { if (y + h > bottom()) { if (p === 0) ok = false; p++; y = D.top; } };
+    var put = function (t, x, f) { if (t) ops.push(Object.assign(op(t, x, y, f || 'T', s), p ? { p: p } : {})); };
+    var para = function (text, x, f, label, lx, center) {
+      K.wrap(fill(text), D.x1 - x, f || 'T', s, measure).forEach(function (ln, i) {
+        room(lh);
+        y += lh;
+        if (i === 0 && label) put(label, lx, 'T');
+        put(ln, center ? (D.x0 + D.x1) / 2 - measure(ln, f || 'T', s) / 2 : x, f);
+      });
+    };
+    var block = function (b) {
+      var kind = b[0];
+      if (kind === 't') { para(b[2], D.x0, 'TB'); y += 0.5 * lh; return; }
+      if (kind === 'c') { y += 0.25 * lh; para(b[2], D.x0, 'TB', '', 0, true); y += 0.25 * lh; return; }
+      if (kind === 'h') { y += 0.6 * lh; if (y + 3 * lh > bottom()) { p++; y = D.top; } para((b[1] ? b[1] + ' ' : '') + b[2], D.x0, 'TB'); y += 0.15 * lh; return; }
+      if (kind === 'p') { para(b[2], D.x0); y += 0.3 * lh; return; }
+      if (kind === 'n') { para(b[2], D.x0 + D.num, 'T', b[1], D.x0); y += 0.3 * lh; return; }
+      if (kind === 's') { para(b[2], D.x0 + D.num + D.sub, 'T', b[1], D.x0 + D.num); y += 0.15 * lh; return; }
+      if (kind === 'sig') {
+        /* Applicant and Vendor side by side, then two witnesses: kept together on one page */
+        if (y + 12 * lh > bottom()) { p++; y = D.top; }
+        var col = D.x0 + w / 2 + 10, line = function (x, len) { ops.push(Object.assign({ ln: [r2(x), r2(y), r2(x + len), r2(y)], w: 0.4, c: [0.45, 0.45, 0.48] }, p ? { p: p } : {})); };
+        y += 3.2 * lh; line(D.x0, 170); line(col, 170);
+        y += lh; put('(Applicant)', D.x0, 'TB'); put('(Vendor)', col, 'TB');
+        y += lh; put(fill('{name}'), D.x0); put(fill('For {vendor_name}'), col);
+        y += 2 * lh; put('Witness', D.x0, 'TB');
+        y += 2.6 * lh; line(D.x0 + 14, 156); line(col + 14, 156);
+        y += 0.05 * lh; put('1.', D.x0); put('2.', col);
+      }
+    };
+    var cut = K.AGR.findIndex(function (b) { return b[0] === 'h' && b[2] === 'Whereas'; });
+    /* page 1: the opening at the largest size that stays inside the stamp paper's writing band */
+    var s1;
+    for (s1 = 10.5; s1 >= 8; s1 -= 0.5) {
+      ops = []; p = 0; y = D.first; s = s1; lh = 1.3 * s; ok = true;
+      K.AGR.slice(0, cut).forEach(block);
+      if (ok && p === 0) break;
+    }
+    var fit1 = ok && p === 0;
+    /* page 2 onwards: the rest at 10.5 pt */
+    p = 1; y = D.top; s = 10.5; lh = 1.3 * s;
+    K.AGR.slice(cut).forEach(function (b, i) { if (i === 0 && b[0] === 'h') { para(b[2], D.x0, 'TB'); y += 0.15 * lh; return; } block(b); });
+    return { ops: ops, size: Math.max(s1, 8), overflow: !fit1 || p + 1 > D.maxPages, pages: p + 1 };
+  };
+
   K.layout = function (docKey, values, measure) {
     values = values || {};
+    if (docKey === 'bfr') return layoutBfr(values, measure);
+    if (docKey === 'bag') return layoutBag(values, measure);
     if (docKey === 'cov') return layoutCov(values, measure);
     if (docKey === 'doi') return layoutDoi(values, measure);
     if (docKey === 'wcr') return layoutWcr(values, measure);

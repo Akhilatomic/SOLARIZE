@@ -1,17 +1,24 @@
-// KSEB documentation page (#/kseb, #/kseb/<customerId>): tabs Work completion report · Annexure 1 · 2 · 3 · Checklist sheet · MNRE warranty card.
+// Two pages on this code ("books", KD_BOOKS): KSEB documentation (#/kseb, #/kseb/<customerId>) and Bank documentation
+// (#/bank/<customerId>: the loan papers, feasibility report and vendor–customer agreement).
 // A document tab: customer picker, the document's fields (KD.DOCS in app24.js) on the left, a live A4 preview on the right,
 // Save and Download PDF. pdf-lib (loaded on first use) writes the text onto the template PDF in the browser.
 // Saving rule: only the fields that differ from the profile are stored (KD.overrides), plus the date, so a corrected
 // profile prints corrected. UI classes start with .kd (assets/kseb.css). Every value shown in HTML goes through esc().
-const KDS = { tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
+const KDS = { book: 'kseb', tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
 const KD_TABS = [['cov', 'Cover page'], ['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['doi', 'Details of installation'], ['chk', 'Checklist sheet'], ['mnre', 'MNRE warranty card']];
+const BK_TABS = [['bfr', 'Feasibility report'], ['bag', 'Vendor–customer agreement']];
+const KD_BOOKS = {
+  kseb: { tabs: KD_TABS, def: 'wcr', api: 'kseb', perm: 'checklist', hash: '#/kseb/', what: 'profile and plant details' },
+  bank: { tabs: BK_TABS, def: 'bfr', api: 'bank', perm: 'loans', hash: '#/bank/', what: 'profile, plant details and tax bill' }
+};
+const KB = () => KD_BOOKS[KDS.book] || KD_BOOKS.kseb;
 const KD_FONT = { T: "'Times New Roman',Times,serif", TB: "'Times New Roman',Times,serif", H: 'Arial,Helvetica,sans-serif', HB: 'Arial,Helvetica,sans-serif' };
 const kdT = v => String(v ?? '').trim();
 const kdOn = () => !!$('#kd');
-const kdTab = () => KD_TABS.some(t => t[0] === TAB.kseb) ? TAB.kseb : 'wcr';
+const kdTab = () => { const B = KB(); return B.tabs.some(t => t[0] === TAB[KDS.book]) ? TAB[KDS.book] : B.def; };
 const kdDoc = () => { const t = kdTab(); return KD.DOCS[t] ? t : null; }; /* null on the MNRE warranty card tab */
 const kdFields = doc => KD.DOCS[doc].groups.flatMap(gr => gr.fields.map(f => Object.assign({ g: gr.g }, f)));
-const kdCtx = g => ({ customer: g.customer || {}, plant: g.plant || {}, project: g.project || null, defaults: g.defaults || {}, items: S.kseb_items || [], today: today() });
+const kdCtx = g => ({ customer: g.customer || {}, plant: g.plant || {}, project: g.project || null, defaults: g.defaults || {}, items: S.kseb_items || [], bill: g.bill || null, company: g.company || null, today: today() });
 /* api() already showed its own errors; anything else becomes a red toast */
 const kdErr = e => { if (!e || !e.error) { console.error(e); toast((e && e.message) || String(e), true); } };
 
@@ -26,17 +33,19 @@ const kdTpl = page => KD_TPL[page] = KD_TPL[page] || fetch(KD.PAGES[page].pdf, {
   .then(r => { if (!r.ok) throw new Error('Could not load the document template'); return r.arrayBuffer(); })
   .catch(e => { delete KD_TPL[page]; throw e; });
 
-async function pgKseb(id) {
+const pgKseb = id => kdOpen('kseb', id);
+const pgBank = id => kdOpen('bank', id);
+async function kdOpen(book, id) {
   /* each load gets a token: the answer for a customer you already switched away from (or a page you left) is dropped */
-  const nav = ROUTE_N, tok = ++KDS.tok, within = KDS.nav === nav - 1; /* within: the last navigation was this page too (a customer switch) */
-  KDS.nav = nav; KDS.hash = location.hash;
+  const nav = ROUTE_N, tok = ++KDS.tok, within = KDS.nav === nav - 1 && KDS.book === book; /* within: the last navigation was this page too (a customer switch) */
+  KDS.nav = nav; KDS.hash = location.hash; KDS.book = book;
   id = Number.isInteger(id) && id > 0 ? id : null;
   const cust = canR('customers');
   if (cust && (!within || !KDS.csP)) { KDS.cs = null; KDS.csP = list('customers').then(r => (KDS.cs = Array.isArray(r) ? r : []), () => (KDS.cs = [])); }
   if (cust) kdMeasure().then(() => { if (kdOn()) kdLayout(); }, e => { const p = $('#kdpage'); if (p) p.innerHTML = `<p class="kd-load">${esc(e.message || 'Could not load the PDF library')}. Check the connection and reload the page.</p>`; });
   let g = null, err = '';
   if (id && cust) {
-    try { g = await api('kseb', 'get', undefined, '&customer_id=' + id); }
+    try { g = await api(KB().api, 'get', undefined, '&customer_id=' + id); }
     catch (e) { err = (e && (e.error || e.message)) || 'Could not load this customer'; if (!e || !e.error) console.error(e); }
     if (tok !== KDS.tok || nav !== ROUTE_N) return;
   }
@@ -47,7 +56,7 @@ async function pgKseb(id) {
 /* per document: the profile defaults, the values the saved copy prints (base), and the values on screen (kept when present) */
 function kdPrep() {
   const g = KDS.g, ctx = kdCtx(g);
-  Object.keys(KD.DOCS).forEach(d => {
+  KB().tabs.map(t => t[0]).filter(d => KD.DOCS[d]).forEach(d => {
     const sv = (g.saved || {})[d];
     KDS.defs[d] = KD.defaults(d, ctx);
     KDS.base[d] = KD.values(d, ctx, sv && sv.data);
@@ -59,8 +68,8 @@ function kdDraw() {
   if (KDS.ro) { KDS.ro.disconnect(); KDS.ro = null; }
   clearTimeout(KDS.t);
   const main = $('#main'), tab = kdTab();
-  main.innerHTML = `<div class="kd${KDS.pv ? ' kd-onpv' : ''}" id="kd">${tabsBar('kseb', KD_TABS, 'wcr')}<div id="kdbody"></div></div>`;
-  bindTabs('kseb', kdDraw);
+  main.innerHTML = `<div class="kd${KDS.pv ? ' kd-onpv' : ''}" id="kd">${tabsBar(KDS.book, KB().tabs, KB().def)}<div id="kdbody"></div></div>`;
+  bindTabs(KDS.book, kdDraw);
   const body = $('#kdbody');
   /* MNRE warranty card: the same certificate as the customer profile's tab (renderMnre, app18.js) for the customer picked here */
   body.innerHTML = tab === 'mnre' ? kdMnreHtml() : kdDocHtml(tab);
@@ -91,7 +100,7 @@ function kdMnreHtml() {
   return bar + '<div id="kdmnre"><p class="mut">Loading…</p></div>';
 }
 function kdDocHtml(doc) {
-  const D = KD.DOCS[doc], g = KDS.g, w = canW('checklist');
+  const D = KD.DOCS[doc], g = KDS.g, w = canW(KB().perm);
   if (!canR('customers')) return '<div class="card kd-hint"><i class="i i-lock"></i><div><b>No access to customers</b><p>These documents are filled from the customer profile. Ask an admin for access to Customers.</p></div></div>';
   const c = g ? g.customer || {} : null;
   const bar = `<div class="kd-bar card">
@@ -103,13 +112,18 @@ function kdDocHtml(doc) {
     <button type="button" class="btn sec kd-pvt" id="kdpvt"><i class="i i-eye"></i><span>${KDS.pv ? 'Hide' : 'Show'} preview</span></button>
     ${w ? '<button type="button" class="btn sec" id="kdsave">Save</button>' : ''}
     <button type="button" class="btn" id="kdpdf"><i class="i i-download"></i>Download PDF</button>` : ''}</div>`;
-  if (!g) return bar + `<div class="card kd-hint"><i class="i i-search"></i><div><b>Pick a customer</b><p>${KDS.err ? esc(KDS.err) + '. ' : ''}Search by name, phone or consumer number above. Their profile and plant details fill in the ${esc(D.tab.toLowerCase())}.</p></div></div>`;
-  const P = KD.PAGES[D.page], np = D.pages || 1;
-  const pages = Array.from({ length: np }, (_, i) => `<div class="kd-pvs"${i ? '' : ' id="kdpvs"'} style="aspect-ratio:${P.w}/${P.h}"><div class="kd-page"${i ? '' : ' id="kdpage"'} style="width:${P.w}px;height:${P.h}px;background-image:url('${P.png}')">${i ? '' : '<p class="kd-load">Loading preview…</p>'}</div></div>`).join('');
+  if (!g) return bar + `<div class="card kd-hint"><i class="i i-search"></i><div><b>Pick a customer</b><p>${KDS.err ? esc(KDS.err) + '. ' : ''}Search by name, phone or consumer number above. Their ${KB().what} fill in the ${esc(D.tab.toLowerCase())}.</p></div></div>`;
+  const np = kdPageCount(doc);
   return bar + `<div class="kd-split"><div class="kd-left"><p class="kd-empty" id="kdempty" hidden></p>${D.groups.map(gr => kdGroup(doc, gr, w)).join('')}</div>
-    <div class="kd-pv" id="kdpv"><div class="kd-pvh"><b>Preview</b><span class="mut">A4${np > 1 ? ' · ' + np + ' pages' : ''} · ${esc(D.file)}</span></div>
+    <div class="kd-pv" id="kdpv"><div class="kd-pvh"><b>Preview</b><span class="mut" id="kdpvn">${kdPvLabel(doc, np)}</span></div>
      <div class="kd-warn" id="kdwarn" hidden><i class="i i-alert"></i><span>Too much text to fit — shorten the longest field</span></div>
-     <div class="kd-pvsc" id="kdpvsc">${pages}</div></div></div>`;
+     <div class="kd-pvsc" id="kdpvsc">${kdPagesHtml(doc, np)}</div></div></div>`;
+}
+const kdPageCount = doc => (KDS.lay[doc] && KDS.lay[doc].pages) || KD.DOCS[doc].pages || 1;
+const kdPvLabel = (doc, n) => `A4${n > 1 ? ' · ' + n + ' pages' : ''} · ${esc(KD.DOCS[doc].file)}`;
+function kdPagesHtml(doc, n) {
+  const P = KD.PAGES[KD.DOCS[doc].page];
+  return Array.from({ length: n }, (_, i) => `<div class="kd-pvs"${i ? '' : ' id="kdpvs"'} style="aspect-ratio:${P.w}/${P.h}"><div class="kd-page"${i ? '' : ' id="kdpage"'} style="width:${P.w}px;height:${P.h}px;background-image:url('${P.png}')">${i ? '' : '<p class="kd-load">Loading preview…</p>'}</div></div>`).join('');
 }
 function kdGroup(doc, gr, w) {
   const share = gr.fields.some(f => f.share);
@@ -119,6 +133,7 @@ function kdGroup(doc, gr, w) {
 function kdField(doc, f) {
   const v = esc(KDS.vals[doc][f.k] ?? ''), id = 'kdf_' + f.k, a = `id="${id}" data-k="${f.k}"`;
   const inp = f.t === 'area' ? `<textarea ${a} rows="${f.rows || 2}">${v}</textarea>`
+    : f.t === 'opts' ? `<select ${a}>${f.opts.map(o => `<option${o === KDS.vals[doc][f.k] ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`
     : f.t === 'date' ? `<div class="kd-date"><input ${a} type="date" value="${v}"><button type="button" class="btn sec sm" data-a="today">Today</button></div><small class="kd-dh" id="kddh"></small>`
     : `<input ${a} value="${v}">`;
   const mark = f.t === 'date' ? '' : `<span class="kd-mark">edited</span><button type="button" class="kd-rs" data-a="reset" data-k="${f.k}" aria-label="Reset ${esc(f.l)}"><i class="i i-undo"></i></button>`;
@@ -168,7 +183,7 @@ const kdWhen = sv => { const d = new Date(String(sv.updated || '').replace(' ', 
   return (isNaN(d) ? '' : d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + (sv.updated_by ? ' by ' + sv.updated_by : ''); };
 function kdState() {
   const s = $('#kdstate'), doc = kdDoc(); if (!s || !doc || !KDS.g) return;
-  const w = canW('checklist'), sv = (KDS.g.saved || {})[doc], v = KDS.vals[doc], base = KDS.base[doc];
+  const w = canW(KB().perm), sv = (KDS.g.saved || {})[doc], v = KDS.vals[doc], base = KDS.base[doc];
   const dirty = w && kdFields(doc).some(f => kdT(v[f.k]) !== kdT(base[f.k]));
   s.textContent = dirty ? 'Unsaved changes' : sv ? 'Saved ' + kdWhen(sv) : w ? 'Not saved yet' : '';
   s.classList.toggle('kd-dirty', dirty);
@@ -181,8 +196,15 @@ function kdLayout() {
   const L = KDS.lay[doc] = KD.layout(doc, KDS.vals[doc], KDS.measure);
   const rgb = c => c ? `rgb(${c.map(x => Math.round(x * 255)).join(',')})` : '#000';
   const opHtml = o => o.rc ? `<i class="kd-ln" style="left:${o.rc[0]}px;top:${o.rc[1]}px;width:${o.rc[2]}px;height:${o.rc[3]}px;background:${rgb(o.fill)}"></i>`
+    : o.ln && o.ln[0] !== o.ln[2] && o.ln[1] !== o.ln[3] /* a slanted line (the tick in a box): a thin bar turned to its angle */
+      ? `<i class="kd-ln" style="left:${o.ln[0]}px;top:${o.ln[1] - (o.w || .5) / 2}px;width:${Math.hypot(o.ln[2] - o.ln[0], o.ln[3] - o.ln[1])}px;height:${o.w || .5}px;transform-origin:0 50%;transform:rotate(${Math.atan2(o.ln[3] - o.ln[1], o.ln[2] - o.ln[0])}rad);background:${rgb(o.c)}"></i>`
     : o.ln ? `<i class="kd-ln" style="left:${Math.min(o.ln[0], o.ln[2]) - (o.w || .5) / 2}px;top:${Math.min(o.ln[1], o.ln[3]) - (o.w || .5) / 2}px;width:${Math.abs(o.ln[2] - o.ln[0]) + (o.w || .5)}px;height:${Math.abs(o.ln[3] - o.ln[1]) + (o.w || .5)}px;background:${rgb(o.c)}"></i>`
     : `<span style="left:${o.x}px;top:${+(o.y - 0.8 * o.s).toFixed(2)}px;font:${/B$/.test(o.f) ? '700 ' : ''}${o.s}px ${KD_FONT[o.f]}${o.u ? ';text-decoration:underline' : ''}${o.c ? ';color:' + rgb(o.c) : ''}">${esc(o.t)}</span>`;
+  const n = Math.max(1, ...L.ops.map(o => (o.p || 0) + 1));
+  if ($$('#kdpv .kd-page').length !== n) { /* the agreement grew or shrank by a page */
+    $('#kdpvsc').innerHTML = kdPagesHtml(doc, n); $('#kdpvn').innerHTML = kdPvLabel(doc, n); kdScale();
+    if (KDS.ro) { KDS.ro.disconnect(); KDS.ro.observe($('#kdpvs')); }
+  }
   $$('#kdpv .kd-page').forEach((el, i) => { el.innerHTML = L.ops.filter(o => (o.p || 0) === i).map(opHtml).join(''); });
   $('#kdwarn').hidden = !L.overflow;
   const b = $('#kdpdf'); if (b && !KDS.busy) { b.disabled = L.overflow; b.title = L.overflow ? 'Too much text to fit on the page: shorten the longest field first' : ''; }
@@ -217,7 +239,7 @@ function kdFind() {
 function kdFindClose() { const r = $('#kdres'); if (r) { r.hidden = true; r.innerHTML = ''; } }
 function kdPick(id) {
   const q = $('#kdq'); kdFindClose(); if (q) { q.value = ''; q.blur(); }
-  if (id > 0 && id !== KDS.id) location.hash = '#/kseb/' + id;
+  if (id > 0 && id !== KDS.id) location.hash = KB().hash + id;
 }
 function kdOnKey(e) {
   const res = $('#kdres'), q = $('#kdq'); if (!res || !q) return;
@@ -248,7 +270,7 @@ function kdOnClick(e) {
 /* what a save or a PDF uses, taken when the button is pressed: a customer switch meanwhile cannot mix two customers */
 const kdSnap = doc => ({ doc, g: KDS.g, id: KDS.id, vals: Object.assign({}, KDS.vals[doc]), defs: KDS.defs[doc] });
 async function kdSaveDoc(s) {
-  const r = await api('kseb', 'save', { customer_id: s.id, doc: s.doc, data: KD.overrides(s.doc, s.vals, s.defs) });
+  const r = await api(KB().api, 'save', { customer_id: s.id, doc: s.doc, data: KD.overrides(s.doc, s.vals, s.defs) });
   (s.g.saved = s.g.saved || {})[s.doc] = r.saved;
   if (KDS.g === s.g) { KDS.base[s.doc] = KD.values(s.doc, kdCtx(s.g), r.saved && r.saved.data); kdMarks(); }
   return r;
@@ -280,7 +302,7 @@ async function kdPdf() {
   KDS.busy = true; b.disabled = true; b.innerHTML = '<i class="i i-download"></i>Making PDF…';
   try {
     const bytes = await kdBuild(doc, s.vals); /* build first (it refuses overflow): a failed template fetch or build stores nothing */
-    if (canW('checklist')) await kdSaveDoc(s);
+    if (canW(KB().perm)) await kdSaveDoc(s);
     kdSaveFile(bytes, name);
     toast(name + ' downloaded');
   } catch (e) { kdErr(e); }
@@ -303,7 +325,7 @@ async function kdDefaults() {
 }
 
 /* ---- leaving with unsaved edits (same pattern as the quotation maker in app22.js): switching customer, or leaving the page ---- */
-const kdDirty = () => canW('checklist') && !!KDS.g && Object.keys(KDS.vals).some(d => KD.DOCS[d] && kdFields(d).some(f => kdT(KDS.vals[d][f.k]) !== kdT((KDS.base[d] || {})[f.k])));
+const kdDirty = () => canW(KB().perm) && !!KDS.g && Object.keys(KDS.vals).some(d => KD.DOCS[d] && kdFields(d).some(f => kdT(KDS.vals[d][f.k]) !== kdT((KDS.base[d] || {})[f.k])));
 (() => {
   const prev = window.onhashchange;
   window.onhashchange = e => {

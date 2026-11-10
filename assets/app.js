@@ -24,7 +24,7 @@ const SUB_STATUS = ['Not applied', 'Applied', 'Under review', 'Approved', 'Relea
 const MODS = [ // id, label, icon, perm
   ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['calendar', 'Calendar', '<i class="i i-calendar"></i>', 'calendar'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
   ['projects', 'Project pipeline', '<i class="i i-project"></i>', 'projects'], ['folder', 'Folder', '<i class="i i-file"></i>', 'folder'], ['quotes', 'Quotations', '<i class="i i-receipt"></i>', 'quotes'],
-  ['subsidy', 'Subsidy (PM Surya Ghar)', '<i class="i i-coin"></i>', 'checklist'], ['kseb', 'KSEB documentation', '<i class="i i-folder"></i>', 'checklist'],
+  ['subsidy', 'Subsidy (PM Surya Ghar)', '<i class="i i-coin"></i>', 'checklist'], ['kseb', 'KSEB documentation', '<i class="i i-folder"></i>', 'checklist'], ['bank', 'Bank documentation', '<i class="i i-bank"></i>', 'loans'],
   ['fees', 'Finance', '<i class="i i-coin"></i>', 'fees'], ['whatsapp', 'WhatsApp', '<i class="i i-whatsapp"></i>', 'whatsapp'], ['email', 'Email', '<i class="i i-mail"></i>', 'email'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['attendance', 'Attendance', '<i class="i i-clock"></i>', 'attendance'], ['leaves', 'Leaves', '<i class="i i-leave"></i>', 'leaves'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['recycle', 'Recycle bin', '<i class="i i-trash"></i>', 'recycle'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
 const canW = m => ME && (ME.write === '*' || ME.write.includes(m));
 const FIN = () => canR('finance');
@@ -125,7 +125,7 @@ async function route() {
   const t = MODS.find(m => m[0] === mod);
   $('#title').innerHTML = t ? `<span class="ft t-${t[0]}">${t[2]}</span><span class="ttl">${esc(t[1])}</span>` : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
-  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, subsidy: () => pgOverview('subsidy'), kseb: pgKseb, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
+  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, subsidy: () => pgOverview('subsidy'), kseb: pgKseb, bank: pgBank, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
   try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { if (nav === ROUTE_N) main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
@@ -609,7 +609,7 @@ async function pgCustomers() {
     const fin = canR('fees');
     const ACTS = c => { const p = !!c.project_id, wl = w && canW('leads') && !BA();
       const list = [['ed', 'pencil', 'Edit customer', w], ['pj', 'project', p ? 'Open project' : 'Start a project', p || canW('projects')], ['docs', 'file', 'Documents', canR('files')], ['pay', 'card', 'Payments', canR('payments'), p], ['fees', 'coin', 'Finance — feasibility, registration, stamp paper', fin],
-        ['kseb', 'folder', 'KSEB documents', 1, p], ['kdoc', 'clipboard', 'KSEB documentation — work completion report, annexures, MNRE warranty card', canR('checklist')], ['sub', 'sun', 'Subsidy (PM Surya Ghar)', 1, p], ['tl', 'clock', 'Timeline & profile', true], ['rv', 'undo', 'Revert to lead', wl]].filter(x => x[3]);
+        ['kseb', 'folder', 'KSEB documents', 1, p], ['kdoc', 'clipboard', 'KSEB documentation — work completion report, annexures, MNRE warranty card', canR('checklist')], ['bdoc', 'bank', 'Bank documentation — feasibility report, vendor–customer agreement', canR('loans')], ['sub', 'sun', 'Subsidy (PM Surya Ghar)', 1, p], ['tl', 'clock', 'Timeline & profile', true], ['rv', 'undo', 'Revert to lead', wl]].filter(x => x[3]);
       return full ? list : list.filter(x => ['ed', 'pj', 'docs'].includes(x[0])); };
     const cell = (k, c) => ({ name: `<td class="cnm"><b class="clip">${esc(c.name)}</b>${feasChip(c.id)}${!COLS.some(x => x[0] === 'cno') && c.consumer_no ? `<small class="mono mut">${esc(c.consumer_no)}</small>` : ''}</td>`,
       status: `<td><span class="pill ${c.status === 'New' ? 'b' : (typeof stepCls === 'function' && PIPE ? stepCls(c.status) : STC[c.status]) || ''}">${esc(c.status)}</span></td>`,
@@ -639,6 +639,7 @@ async function pgCustomers() {
         if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ customer_id: c.id, name: c.name }); location.hash = '#/quotes/new'; }
         if (a === 'pay') proj('overview'); if (a === 'kseb') proj('kseb'); if (a === 'sub') proj('subsidy');
         if (a === 'kdoc') location.hash = '#/kseb/' + c.id; /* KSEB documentation page, filled in for this customer */
+        if (a === 'bdoc') location.hash = '#/bank/' + c.id; /* Bank documentation page (loan papers), filled in for this customer */
         if (a === 'op') location.hash = '#/customers/' + c.id;
         if (a === 'sp') startModal({ customer_id: c.id });
         if (a === 'docs') { PFT = 'docs'; PFT_ID = c.id; location.hash = '#/customers/' + c.id; }
@@ -650,7 +651,7 @@ async function pgCustomers() {
         if (a === 'fees') return popMenu(b, feeMenuItems(c.id), run);
         if (a !== 'more') return run(a);
         const shown = new Set($$('[data-a]', tr).map(x => x.dataset.a));
-        popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id && canR('payments')], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['kdoc', 'clipboard', 'KSEB documentation', canR('checklist')], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner', w && OWN.canReassign(c.owner_id, ME)], ['rv', 'undo', 'Revert to lead', w && canW('leads') && !BA()]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
+        popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id && canR('payments')], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['kdoc', 'clipboard', 'KSEB documentation', canR('checklist')], ['bdoc', 'bank', 'Bank documentation', canR('loans')], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner', w && OWN.canReassign(c.owner_id, ME)], ['rv', 'undo', 'Revert to lead', w && canW('leads') && !BA()]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
       });
     });
     bind([...tb.tBodies[0].rows]); onScreen = n;
@@ -674,7 +675,7 @@ const CF = [{ g: 'Basic details' }, { k: 'name', l: 'Name' }, { k: 'phone', l: '
   { k: 'roof_type', l: 'Roof type', opts: ['', 'RCC flat', 'Sheet / tin', 'Tile', 'Other'] }, { k: 'gst_no', l: 'GST no. (if business)' },
   { g: 'KSEB details' }, { k: 'consumer_no', l: 'KSEB consumer no.' }, { k: 'kseb_section', l: 'KSEB section office' }, { k: 'sanctioned_load', l: 'Sanctioned load (kW)', t: 'number' }, { k: 'phase', l: 'Connection', opts: ['', 'Single phase', 'Three phase'] }, { k: 'tariff', l: 'Tariff', opts: ['', 'LT-1A Domestic', 'LT-6 Non-domestic', 'LT-7 Commercial', 'LT-4 Industrial', 'Other'] }, { k: 'meter_no', l: 'Meter no.' },
   { k: 'kseb_circle', l: 'Electrical circle', ph: 'e.g. Electrical Circle (Rural) Kattakada' }, { k: 'kseb_division', l: 'Electrical division', ph: 'e.g. Electrical Division Neyyattinkara' }, { k: 'kseb_subdivision', l: 'Electrical sub division' },
-  { k: 'local_body', l: 'Panchayath / Municipality / Corporation' }, { k: 'village_survey', l: 'Village & survey no.' },
+  { k: 'local_body', l: 'Panchayath / Municipality / Corporation' }, { k: 'village_survey', l: 'Village & survey no.' }, { k: 'jansamarth_id', l: 'Jan Samarth loan ID', ph: 'ANS-SOLAR-…' },
   { g: 'Bank details (for subsidy)' }, { k: 'bank_holder', l: 'Account holder name' }, { k: 'bank_name', l: 'Bank name' }, { k: 'bank_branch', l: 'Branch' }, { k: 'bank_account', l: 'Account number' }, { k: 'bank_ifsc', l: 'IFSC code' },
   { g: 'Location' }, { k: 'landmark', l: 'Landmark', full: 1 }];
 function customerModal(id, c = {}) {

@@ -2,7 +2,7 @@
 const PF_GROUPS = [
   ['basic', 'Basic details', 'user', [['name', 'Name'], ['phone', 'Phone', 'tel'], ['alt_phone', 'Alternate phone', 'tel'], ['email', 'Email', 'mail'], ['address', 'Address'], ['district', 'District'], ['pincode', 'PIN code'], ['roof_type', 'Roof type'], ['gst_no', 'GST no.'], ['owner_name', 'Owner'], ['added_by', 'Added by'], ['created', 'Customer since', 'date']]],
   ['kseb', 'KSEB details', 'sun', [['consumer_no', 'Consumer no.'], ['kseb_section', 'Section office'], ['sanctioned_load', 'Sanctioned load (kW)'], ['phase', 'Connection'], ['tariff', 'Tariff'], ['meter_no', 'Meter no.'],
-    ['kseb_circle', 'Electrical circle'], ['kseb_division', 'Electrical division'], ['kseb_subdivision', 'Electrical sub division'], ['local_body', 'Panchayath / Municipality'], ['village_survey', 'Village & survey no.']]],
+    ['kseb_circle', 'Electrical circle'], ['kseb_division', 'Electrical division'], ['kseb_subdivision', 'Electrical sub division'], ['local_body', 'Panchayath / Municipality'], ['village_survey', 'Village & survey no.'], ['jansamarth_id', 'Jan Samarth loan ID']]],
   ['bank', 'Bank details', 'card', [['bank_holder', 'Account holder'], ['bank_name', 'Bank'], ['bank_branch', 'Branch'], ['bank_account', 'Account no.'], ['bank_ifsc', 'IFSC']]],
 ];
 const TL_ICON = { lead: 'target', convert: 'userplus', customer: 'user', edit: 'pencil', project: 'project', stage: 'check', receipt: 'receipt', payment: 'coin', service: 'gear', quote: 'receipt', file: 'file', note: 'note', wa: 'whatsapp', disc: 'chat', event: 'calendar' };

@@ -26,6 +26,7 @@ require __DIR__ . '/api/user.php';
 require __DIR__ . '/api/gen.php';
 require __DIR__ . '/api/kseb.php';
 require_once __DIR__ . '/api/kseb_offices.php';
+require __DIR__ . '/api/bank.php';
 require __DIR__ . '/api/mail.php';
 require __DIR__ . '/api/quotemaker.php';
 
@@ -71,6 +72,7 @@ try {
     case 'user': handle_user($a);
     case 'gen': handle_gen($a);
     case 'kseb': handle_kseb($a);
+    case 'bank': handle_bank($a);
     case 'mail': handle_mail($a);
     case 'qm': handle_qm($a);
   }

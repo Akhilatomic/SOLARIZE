@@ -501,3 +501,76 @@ test('inverter phase comes from the inverter, not the KSEB connection', () => {
   assert.equal(KD.defaults('cov', ctx({ inverter_type: '', inverters: [] }, 'Three phase')).inv_phase, 'Three');
   assert.equal(KD.invPhase({ inverter_type: 'Hybrid' }, {}), '');
 });
+
+
+/* ---- Bank documentation: the official Vendor Feasibility Report and the vendor–customer agreement ---- */
+const LOAN = {
+  customer: { name: 'Sreelatha K', consumer_no: '1146530000001', address: 'Lakshmi Bhavan, TC 12/345, Panavoor PO', district: 'Thiruvananthapuram', pincode: '695568',
+    jansamarth_id: 'ANS-SOLAR-10000001-0000001', bank_account: '••••5678' },
+  plant: { capacity: '3', panel_make: 'ReNew', panel_model: 'RPS2MH72BD550', panel_wattage: '550', panel_efficiency: '21.29', inverter_make: 'Solar Edge',
+    inverter_capacity: '3', inverter_count: '1', application_no: 'NP-KLSEB26-10000001' },
+  project: { kw: 3, cost: 220000 }, bill: { grand: 222223 },
+  company: { name: 'JASPER SOLAR SOLUTIONS', address: 'Jasper Building, Anad Bank Junction, Nedumangad 695541',
+    bank: { bank: 'State Bank of India', name: 'JASPER SOLAR SOLUTIONS', account: '00000012345678', ifsc: 'SBIN0000001' } },
+  defaults: {}, today: '2026-11-10',
+};
+
+test('feasibility report: defaults from the profile, plant, tax bill and company bank', () => {
+  const v = KD.defaults('bfr', LOAN);
+  assert.deepEqual([v.discom_id, v.portal_id, v.jansamarth_id, v.state, v.oem, v.channel, v.mnre, v.status],
+    ['KSEBL', 'NP-KLSEB26-10000001', 'ANS-SOLAR-10000001-0000001', 'KERALA', 'NA', 'NA', 'Yes', 'Feasible']);
+  assert.deepEqual([v.epc_bank, v.epc_acname, v.epc_acno, v.epc_ifsc], ['State Bank of India', 'JASPER SOLAR SOLUTIONS', '00000012345678', 'SBIN0000001']);
+  assert.deepEqual([v.cap_applied, v.cap_actual, v.cost], ['3', '3', '2,22,223/-'], 'the tax bill total, in Indian digit groups');
+  assert.equal(KD.defaults('bfr', Object.assign({}, LOAN, { bill: null })).cost, '2,20,000/-', 'no tax bill: the project cost');
+  for (const g of KD.DOCS.bfr.groups) for (const f of g.fields) assert.ok(f.k in v, 'bfr.' + f.k);
+  assert.ok(!KD.DOCS.bfr.groups.some(g => g.fields.some(f => f.k === 'photos')), 'no photo field');
+});
+
+test('feasibility report: the official form on one plain page', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const v = KD.values('bfr', LOAN, {});
+  const r = KD.layout('bfr', v, measure);
+  assert.equal(r.overflow, false);
+  assert.equal(KD.DOCS.bfr.page, 'blank', 'no branding: a plain page');
+  const text = r.ops.filter(o => o.t), at = t => text.find(o => o.t === t);
+  for (const o of r.ops) assert.ok(!o.p && !o.img, 'one page, no pictures');
+  for (const o of text) assert.ok(o.x >= 72 && o.x + measure(o.t, o.f, o.s) <= 523.5 && o.y > 60 && o.y < 800, o.t);
+  assert.ok(at('Residential Roof Top Solar Installation') && at('Vendor Feasibility Report Format'));
+  for (const l of ['1. Name of the Consumer:', '13. EPC Contractor Bank Details:', '14.RTS Capacity in KW Applied:', '17. Feasibility Report Status:', '19. Site Layout - Images (2-4 images to be uploaded):'])
+    assert.ok(text.some(o => o.t === l || o.t === l + ' '), l);
+  /* the bank account as a neat block: four labels, one colon column, the details in bold */
+  const colons = text.filter(o => o.t === ':');
+  assert.equal(colons.length, 4); assert.ok(colons.every(o => o.x === colons[0].x), 'colons line up');
+  for (const t of ['JASPER SOLAR SOLUTIONS', '00000012345678', 'SBIN0000001']) assert.equal(at(t).f, 'HB', t + ' bold');
+  assert.equal(at('Feasible').f, 'H'); assert.equal(at('Not Feasible').f, 'H');
+  const blank = KD.layout('bfr', Object.assign({}, v, { jansamarth_id: '' }), measure);
+  assert.ok(blank.ops.some(o => o.t === '____________________'), 'an empty value leaves a line to write on');
+  const out = await KD.buildPdf(PDFLib, fs.readFileSync(path.join(ROOT, 'assets/kseb/blank.pdf')), r.ops);
+  assert.equal((await PDFLib.PDFDocument.load(out)).getPageCount(), 1);
+});
+
+test('agreement: the MNRE wording filled in, below the stamp, signatures together', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const v = KD.values('bag', LOAN, {});
+  assert.deepEqual([v.capacity, v.module_make, v.module_model, v.module_wp, v.module_eff, v.inv_make, v.inv_kw, v.cost, v.pay1, v.pay2, v.pay3],
+    ['3', 'ReNew', 'RPS2MH72BD550', '550', '21.29', 'Solar Edge', '3', 'Rs.2,22,223 + KSEB Charges.', '60', '30', '10']);
+  const r = KD.layout('bag', v, measure), text = r.ops.filter(o => o.t);
+  assert.equal(r.overflow, false);
+  assert.ok(r.pages >= 5 && r.pages <= 7, r.pages + ' pages');
+  /* page 1 is the Kerala e-Stamp paper: text only in its writing band, below the stamp block and above the QR footer */
+  assert.ok(text.filter(o => !o.p).every(o => o.y >= 500 && o.y <= 706), 'page 1 inside the stamp paper band');
+  assert.equal(text.find(o => o.t === 'Whereas').p, 1, 'Whereas starts page 2');
+  const long = KD.layout('bag', Object.assign({}, v, { address: 'PICHIMANGALATHU VEEDU PICHIMANGALAM VENJARAMOODU PULLAMPARA THIRUVANANTHAPURAM KERALA 695607 NEAR THE OLD TEMPLE ROAD JUNCTION' }), measure);
+  assert.equal(long.overflow, false);
+  assert.ok(long.ops.filter(o => o.t && !o.p).every(o => o.y >= 500 && o.y <= 706), 'a long address still fits the band (smaller text)');
+  for (const o of text) assert.ok(o.x >= 66 && o.x + measure(o.t, o.f, o.s) <= 529.5 && o.y <= 780, o.t);
+  const all = text.map(o => o.t).join(' ');
+  for (const t of ['executed on 10-11-2026', 'Sreelatha K having residential electricity connection with consumer number 1146530000001', 'minimum 3kWp', 'ReNew make, RPS2MH72BD550 model, 550Wp capacity each and 21.29% efficiency', 'Solar Edge make, 3 kW', 'Rs.2,22,223 + KSEB Charges.', '60% as an advance'])
+    assert.ok(all.includes(t), t);
+  const last = Math.max(...r.ops.map(o => o.p || 0));
+  for (const t of ['(Applicant)', '(Vendor)', 'Witness', 'For JASPER SOLAR SOLUTIONS']) assert.equal((text.find(o => o.t === t) || {}).p || 0, last, t + ' on the last page');
+  const empty = KD.layout('bag', Object.assign({}, v, { module_model: '' }), measure).ops.map(o => o.t || '').join(' ');
+  assert.ok(empty.includes('make, __________ model'), 'an empty field prints a blank to fill by hand');
+  const out = await KD.buildPdf(PDFLib, fs.readFileSync(path.join(ROOT, 'assets/kseb/blank.pdf')), r.ops);
+  assert.equal((await PDFLib.PDFDocument.load(out)).getPageCount(), r.pages);
+});

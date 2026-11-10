@@ -523,6 +523,25 @@ if ($dbPath !== '' && is_file($dbPath)) {
   chk($ko($kc($kid)) === ['Chullimanoor', 'Nedumangad', 'Kept Division', 'Kattakkada'], 'KSEB office: the database upgrade fills existing customers (empty fields only)');
 } else chk(true, 'KSEB office: backfill check skipped (no database path)');
 
+/* ---- Bank documentation (loan papers): who may open it, saving, the Jan Samarth ID ---- */
+$bkc = (int)(call($admin, 'customers', 'save', ['name' => 'Loan Test', 'phone' => '9800000201', 'consumer_no' => '1146530000201', 'jansamarth_id' => 'ANS-SOLAR-20000001-0000001'])['id'] ?? 0);
+chk(($kc($bkc)['jansamarth_id'] ?? '') === 'ANS-SOLAR-20000001-0000001', 'bank docs: the customer keeps the Jan Samarth ID');
+$bg = call($admin, 'bank', 'get', null, "&customer_id=$bkc");
+chk(($bg['_code'] ?? 0) === 200 && ($bg['customer']['jansamarth_id'] ?? '') === 'ANS-SOLAR-20000001-0000001' && array_key_exists('bfr', $bg['saved'] ?? []) && $bg['saved']['bfr'] === null, 'bank docs: get as admin');
+chk(isset($bg['company']['bank']['account']) && ($bg['company']['bank']['ifsc'] ?? '') !== '', 'bank docs: the company bank account comes with it');
+chk(($sales_bank = call($sales, 'bank', 'get', null, "&customer_id=$bkc")['_code'] ?? 0) === 200, 'bank docs: sales can open them');
+chk((call($admin, 'bank', 'save', ['customer_id' => $bkc, 'doc' => 'bfr', 'data' => ['status' => 'Not Feasible', 'cost' => '2,30,000/-']])['_code'] ?? 0) === 200, 'bank docs: the feasibility report saves');
+chk((call($admin, 'bank', 'save', ['customer_id' => $bkc, 'doc' => 'bag', 'data' => ['pay1' => '50', 'date' => '2026-11-05']])['_code'] ?? 0) === 200, 'bank docs: the agreement saves');
+$bg = call($admin, 'bank', 'get', null, "&customer_id=$bkc");
+chk(($bg['saved']['bfr']['data']['status'] ?? '') === 'Not Feasible' && ($bg['saved']['bag']['data']['pay1'] ?? '') === '50' && ($bg['saved']['bag']['issued_on'] ?? '') === '2026-11-05', 'bank docs: the saved edits come back');
+chk((call($admin, 'bank', 'save', ['customer_id' => $bkc, 'doc' => 'wcr', 'data' => []])['_code'] ?? 0) === 400, 'bank docs: a KSEB document cannot be saved here');
+$bau = call($admin, 'admin', 'user_save', ['name' => 'Bank BA', 'username' => 'bankba', 'role' => 'ba', 'active' => 1, 'can_claim' => 0, 'password' => $pw]);
+$bba = actor('bankba'); call($bba, 'auth', 'login', ['username' => 'bankba', 'password' => $pw]);
+chk(in_array(call($bba, 'bank', 'get', null, "&customer_id=$bkc")['_code'] ?? 0, [403, 404], true), 'bank docs: a Business Associate (no money) cannot open them (refused: 403, or 404 for a customer not theirs)');
+$sbm = call($sales, 'auth', 'status')['user'] ?? [];
+chk(in_array('loans', (array)($sbm['read'] ?? [])) && in_array('loans', (array)($sbm['write'] ?? [])), 'bank docs: the sales role can view and edit loan papers by default');
+@unlink($bba['jar']);
+
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);

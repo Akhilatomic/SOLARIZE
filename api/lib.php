@@ -1,13 +1,13 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 33; // bump when tables/columns change
+const SCHEMA_VERSION = 34; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
 // entity => [module, columns]
 $E = [
   'leads' => ['leads', ['name','phone','email','address','city','location','remark','appt','added_by','source','campaign_id','status','assigned_to','followup','kw','budget','customer_id','notes','meta_id','meta_form','meta_ad','meta_campaign','notify','claimed_at','site','plant']],
-  'customers' => ['customers', ['name','phone','email','address','district','consumer_no','kseb_section','sanctioned_load','roof_type','gst_no','notes','added_by','alt_phone','pincode','phase','tariff','meter_no','bank_holder','bank_name','bank_branch','bank_account','bank_ifsc','lat','lng','landmark','kseb_circle','kseb_division','kseb_subdivision','local_body','village_survey']],
+  'customers' => ['customers', ['name','phone','email','address','district','consumer_no','kseb_section','sanctioned_load','roof_type','gst_no','notes','added_by','alt_phone','pincode','phase','tariff','meter_no','bank_holder','bank_name','bank_branch','bank_account','bank_ifsc','lat','lng','landmark','kseb_circle','kseb_division','kseb_subdivision','local_body','village_survey','jansamarth_id']],
   'projects' => ['projects', ['customer_id','title','kw','panel','inverter','stage','engineer','start','end','cost','application_no','subsidy_status','subsidy_amount','notes','loan','amc_start','amc_end','amc_interval']],
   'quotes' => ['quotes', ['customer_id','lead_id','number','date','items','gst_rate','subsidy','terms','status','total']],
   'campaigns' => ['ads', ['name','platform','objective','start','end','budget','status']],
@@ -17,15 +17,15 @@ $E = [
 
 // role => [read modules, write modules]; '*' = everything
 // Permission modules. 'finance' = every money figure (project values, payments, balances, ad spend, dashboard money cards).
-const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email'];
+const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','loans','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email'];
 const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts', 'ba' => 'Business Associate (BA)'];
 // role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
 const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
-  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','settings','recycle','fees','email'], ['attendance','leaves','calendar','leads','customers','projects','checklist','files','folder','whatsapp','recycle','fees','email']],
-  'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings','email'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects','email']],
-  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings','fees','email'], ['projects','checklist','files','customers','folder','calendar','email']],
-  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings','finance','fees','email'], ['quotes','payments','ads','calendar','fees','email']],
+  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','settings','recycle','fees','email'], ['attendance','leaves','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','recycle','fees','email']],
+  'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','whatsapp','ads','settings','email'], ['leads','customers','quotes','loans','whatsapp','files','folder','calendar','projects','email']],
+  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','settings','fees','email'], ['projects','checklist','files','customers','folder','calendar','email']],
+  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','ads','whatsapp','settings','finance','fees','email'], ['quotes','payments','loans','ads','calendar','fees','email']],
   // Business Associate: their own leads and customers, their customers' projects (view only), no money. Rows are limited in claims.php (ba_gate, cust_scope).
   'ba' => [['dashboard','leads','customers','projects'], ['leads','customers']],
 ];
@@ -211,6 +211,7 @@ function migrate($db) {
   $db->exec('CREATE INDEX IF NOT EXISTS cust_owner ON customers(owner_id)');
   $db->exec('UPDATE customers SET owner_id=(SELECT l.assigned_to FROM leads l WHERE l.customer_id=customers.id AND l.assigned_to>0 ORDER BY l.id DESC LIMIT 1) WHERE owner_id IS NULL');
   $db->exec("UPDATE customers SET owner_id=(SELECT u.id FROM users u WHERE lower(trim(u.name))=lower(trim(customers.added_by)) ORDER BY u.active DESC, u.id LIMIT 1) WHERE owner_id IS NULL AND trim(COALESCE(added_by,''))<>''");
+  /* v34: customers.jansamarth_id (the Jan Samarth solar loan application ID, ANS-SOLAR-…) comes from the column list above */
   /* v33: every customer's empty KSEB sub division / division / circle (and section) filled from the consumer number or section */
   require_once __DIR__ . '/kseb_offices.php';
   kseb_backfill($db);
