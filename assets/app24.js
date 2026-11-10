@@ -24,6 +24,59 @@ var KD = (function () {
   };
 
   K.DOCS = {
+    /* Cover page for the KSEB file: every detail of the project on one page; letterhead footer, hairline header (layoutCov) */
+    cov: {
+      key: 'cov', tab: 'Cover page', file: 'Cover Page', page: 'cover',
+      groups: [
+        { g: 'Letterhead', fields: [
+          { k: 'ref', l: 'Ref No.' },
+          { k: 'date', l: 'Date', t: 'date' }
+        ] },
+        { g: 'Consumer', fields: [
+          { k: 'state', l: 'Name of State' },
+          { k: 'district', l: 'Name of District' },
+          { k: 'discom', l: 'Name of DISCOM' },
+          { k: 'division', l: 'Electrical Division & Sub Division' },
+          { k: 'section', l: 'Electrical Section' },
+          { k: 'consumer_no', l: 'Consumer No.' },
+          { k: 'tariff', l: 'Tariff' },
+          { k: 'load', l: 'Connected load (KW)' },
+          { k: 'name', l: 'Name of solar plant owner' },
+          { k: 'address', l: 'Address', t: 'area' },
+          { k: 'email', l: 'Email ID' },
+          { k: 'phone', l: 'Phone of consumer' },
+          { k: 'alt_phone', l: 'Alternate contact no.' }
+        ] },
+        { g: 'Bank details', fields: [
+          { k: 'bank_name', l: 'Bank name' },
+          { k: 'bank_account', l: 'Account no. & name' },
+          { k: 'bank_ifsc', l: 'IFSC code' }
+        ] },
+        { g: 'Plant details', fields: [
+          { k: 'capacity', l: 'Total capacity of solar plant' },
+          { k: 'panel_make', l: 'Make of panel' },
+          { k: 'panel_type', l: 'Type' },
+          { k: 'panel_watt', l: 'Each panel watt' },
+          { k: 'panel_count', l: 'Number of panels' },
+          { k: 'panel_total', l: 'Total panel capacity' },
+          { k: 'panel_serials', l: 'Panel serial numbers (one per line)', t: 'area', rows: 6 }
+        ] },
+        { g: 'Inverter', fields: [
+          { k: 'inv_make', l: 'Make of inverters' },
+          { k: 'inv_serials', l: 'Serial number of inverters', t: 'area' },
+          { k: 'inv_phase', l: 'Inverter type (single / three phase)' },
+          { k: 'inv_capacity', l: 'Inverter capacity' }
+        ] },
+        { g: 'Application & documents', fields: [
+          { k: 'cell_invoice', l: 'Cell GST invoice no.' },
+          { k: 'app_no', l: 'Application number' },
+          { k: 'app_date', l: 'Application date' },
+          { k: 'kseb_reg', l: 'KSEB registration no. (printed when filled)', opt: true },
+          { k: 'meter', l: 'Energy meter make & serial (printed when filled)', opt: true },
+          { k: 'installed', l: 'Date of installation (printed when filled)', opt: true }
+        ] }
+      ]
+    },
     wcr: {
       key: 'wcr', tab: 'Work completion report', file: 'Work Completion Report', page: 'letterhead',
       groups: [
@@ -272,6 +325,39 @@ var KD = (function () {
         inv_serial: serials,
         sign_name: str(sd.sign_name), sign_designation: str(sd.sign_designation), sign_phone: str(sd.sign_phone)
       };
+    } else if (docKey === 'cov') {
+      var cph = trim(c.phase) || trim(p.inverter_type), csg = /single/i.test(cph), cth = /three/i.test(cph);
+      var cinv = Array.isArray(p.inverters) ? p.inverters : [], cpan = Array.isArray(p.panels) ? p.panels : [];
+      var uniq = function (a) { return a.map(trim).filter(function (x, i, l) { return x && l.indexOf(x) === i; }); };
+      var dot = function (d) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trim(d)); return m ? m[3] + '.' + m[2] + '.' + m[1] : trim(d); };
+      var pcnt = trim(p.panel_count) && !zero(p.panel_count) ? trim(p.panel_count) : String(cpan.filter(function (x) { return trim(x && x.serial); }).length || '');
+      var pwat = trim(p.panel_wattage), caps = cinv.map(function (i) { return trim(i && i.capacity); }).filter(Boolean);
+      var cacct = trim(c.bank_account);
+      v = {
+        ref: '', date: today,
+        state: 'Kerala', district: trim(c.district), discom: 'Kerala State Electricity Board Ltd',
+        division: [trim(c.kseb_division), trim(c.kseb_subdivision)].filter(Boolean).join(', '),
+        section: trim(c.kseb_section), consumer_no: trim(c.consumer_no),
+        tariff: [trim(c.tariff), csg ? 'Single' : cth ? 'Three' : ''].filter(Boolean).join('/'),
+        load: bare(c.sanctioned_load, 'KW'),
+        name: trim(c.name), address: K.joinAddr(c), email: trim(c.email), phone: trim(c.phone), alt_phone: trim(c.alt_phone),
+        bank_name: trim(c.bank_name),
+        bank_account: [cacct.indexOf('•') >= 0 ? '' : cacct, trim(c.bank_holder)].filter(Boolean).join(', '),
+        bank_ifsc: trim(c.bank_ifsc),
+        capacity: cap('KW'),
+        panel_make: trim(p.panel_make) || uniq(cpan.map(function (x) { return x && x.make; })).join(', '),
+        panel_type: trim(p.panel_type), panel_watt: bare(pwat, 'Wp'), panel_count: pcnt,
+        panel_total: isNum(pcnt) && isNum(pwat) && +pwat > 0 ? Math.round(+pcnt * +pwat) / 1000 + ' KW' : '',
+        panel_serials: cpan.map(function (x) { return trim(x && x.serial); }).filter(Boolean).join('\n'),
+        inv_make: trim(p.inverter_make) || uniq(cinv.map(function (i) { return i && i.make; })).join(', '),
+        inv_serials: cinv.map(function (i) { return trim(i && i.serial); }).filter(Boolean).join(', '),
+        inv_phase: csg ? 'Single' : cth ? 'Three' : '',
+        inv_capacity: caps.length > 1 ? caps.map(function (x) { return isNum(x) ? x + ' KW' : x; }).join(', ') : K.invCapacity(p.inverter_capacity, p.inverter_count),
+        cell_invoice: trim(p.cell_invoice_no), app_no: trim(p.application_no), app_date: dot(p.application_date),
+        kseb_reg: trim(p.kseb_reg_no),
+        meter: [trim(p.meter_make), trim(p.meter_serial) ? 'S/N: ' + trim(p.meter_serial) : ''].filter(Boolean).join(' '),
+        installed: dot(trim(p.installed_on) || trim(p.commissioned_on))
+      };
     } else if (docKey === 'doi') {
       var phs = trim(c.phase) || trim(p.inverter_type), one = /single/i.test(phs), three = /three/i.test(phs);
       var invSerials = (Array.isArray(p.inverters) ? p.inverters : []).map(function (i) { return trim(i && i.serial); }).filter(Boolean);
@@ -354,7 +440,7 @@ var KD = (function () {
   /* labels of empty fields, excluding ref */
   K.empty = function (docKey, values) {
     values = values || {};
-    return fieldsOf(docKey).filter(function (f) { return f.k !== 'ref' && !trim(values[f.k]); })
+    return fieldsOf(docKey).filter(function (f) { return f.k !== 'ref' && !f.opt && !trim(values[f.k]); })
       .map(function (f) { return f.l; });
   };
 
@@ -362,6 +448,7 @@ var KD = (function () {
   /* the template files are cached for 30 days: a replaced template must get a new file name */
   K.PAGES = {
     letterhead: { pdf: 'assets/kseb/letterhead.pdf', png: 'assets/kseb/letterhead.png', w: 595.92, h: 841.92 },
+    cover: { pdf: 'assets/kseb/cover.pdf', png: 'assets/kseb/cover.png', w: 595.92, h: 841.92 }, /* letterhead footer, hairline header */
     an1: { pdf: 'assets/kseb/annexure-1.pdf', png: 'assets/kseb/annexure-1.png', w: 595.32, h: 841.92 },
     an2: { pdf: 'assets/kseb/annexure-2.pdf', png: 'assets/kseb/annexure-2.png', w: 595.32, h: 841.92 },
     an3: { pdf: 'assets/kseb/annexure-3.pdf', png: 'assets/kseb/annexure-3.png', w: 595.32, h: 841.92 },
@@ -691,8 +778,110 @@ var KD = (function () {
     return best;
   };
 
+  /* Cover page on assets/kseb/cover.pdf: the letterhead's footer, with a hairline header (outline mark + name) instead of
+     its solid red one (tools/kseb_cover_template.py). Drawn as a ledger to save ink: no filled bands, no frames.
+     The template carries the title line (PROJECT DETAILS, REF NO. / DATE over fine lines); the app writes the Ref No. and
+     the date on those lines, then the KSEB rows in order. Each section starts with a small red
+     heading and a 0.5 pt red rule; rows are split by 0.3 pt grey hairlines; numbers in red, item names in small grey
+     capitals, details in near-black. Panel serials sit in a numbered grid. One size from 10 down to 6.5 pt so it all
+     fits between the title line (y 130) and the footer rule (y 750.8), with a clear gap above the footer. Ops may carry a colour c. */
+  var BRAND = { red: [0.843, 0.231, 0.243], ink: [0.11, 0.11, 0.118], grey: [0.373, 0.376, 0.392], hair: [0.80, 0.80, 0.82] };
+  var COV = { x0: 34, nr: 52, c1: 58, c2: 250, x1: 561.5, headY: 127, refX: 338, refW: 112, dateX: 496, dateW: 64, top: 142, bottom: 728, pad: 2.5, max: 10, min: 6.5 };
+  var COV_ROWS = [
+    { band: 'CONSUMER DETAILS' },
+    ['1', 'NAME OF STATE', 'state'], ['2', 'NAME OF DISTRICT', 'district'], ['3', 'NAME OF DISCOM', 'discom'],
+    ['4', 'NAME OF ELECTRICAL DIVISION & SUB DIVISION', 'division'], ['5', 'NAME OF ELECTRICAL SECTION', 'section'],
+    ['6', 'CONSUMER NO.', 'consumer_no'], ['7', 'TARIFF', 'tariff'], ['8', 'CONNECTED LOAD (KW)', 'load'],
+    ['9', 'NAME OF SOLAR PLANT OWNER', 'name'], ['10', 'ADDRESS', 'address'], ['11', 'EMAIL ID', 'email'],
+    ['12', 'CONTACT PHONE NO. OF CONSUMER', 'phone'], ['13', 'ALTERNATE CONTACT NO.', 'alt_phone'],
+    ['14', 'BANK DETAILS', ''], ['a', 'BANK NAME', 'bank_name'], ['b', 'ACCOUNT NO & NAME', 'bank_account'], ['c', 'IFSC CODE', 'bank_ifsc'],
+    { band: 'PLANT DETAILS' },
+    ['15', 'TOTAL CAPACITY OF SOLAR PLANT', 'capacity'], ['16', 'MAKE OF PANEL', 'panel_make'], ['17', 'TYPE', 'panel_type'],
+    ['18', 'EACH PANEL WATT', 'panel_watt'], ['19', 'NUMBER OF PANELS', 'panel_count'], ['20', 'TOTAL PANEL CAPACITY', 'panel_total'],
+    { serials: true },
+    { band: 'INVERTER DETAILS' },
+    ['21', 'MAKE OF INVERTERS', 'inv_make'], ['22', 'SERIAL NUMBER OF INVERTERS', 'inv_serials'],
+    ['23', 'INVERTER TYPE SINGLE PHASE/THREE PHASE', 'inv_phase'], ['24', 'INVERTER CAPACITY', 'inv_capacity'],
+    { band: 'APPLICATION & DOCUMENTS' },
+    ['25', 'CELL GST INVOICE NO.', 'cell_invoice'], ['26', 'APPLICATION NUMBER', 'app_no'], ['27', 'APPLICATION DATE', 'app_date'],
+    ['28', 'KSEB REGISTRATION NO.', 'kseb_reg', 1], ['29', 'ENERGY METER (MAKE & SERIAL NO.)', 'meter', 1], ['30', 'DATE OF INSTALLATION', 'installed', 1]
+  ];
+  /* the panel serials: one per line (commas also split); empty slots up to the number of panels are left to fill by hand */
+  K.serials = function (v) {
+    var list = clean(v.panel_serials).split(/[\n,]+/).map(trim).filter(Boolean), n = parseInt(trim(v.panel_count), 10);
+    while (n > list.length && list.length < 60) list.push('');
+    return list;
+  };
+
+  var covAt = function (v, s, measure) {
+    var D = COV, lh = 1.16 * s, ls = s - 1.2, ops = [], y = D.top;
+    var T = function (t, x, yy, f, c, sz) { if (t) ops.push(Object.assign(op(t, x, yy, f || 'H', sz || s), { c: c || BRAND.ink })); };
+    var R = function (t, xr, yy, f, c, sz) { if (t) T(t, xr - measure(t, f || 'H', sz || s), yy, f, c, sz); };
+    var L = function (x1, y1, x2, y2, c, w) { ops.push({ ln: [r2(x1), r2(y1), r2(x2), r2(y2)], w: w || 0.3, c: c || BRAND.hair }); };
+    var base = function (top, i) { return top + D.pad + 0.78 * s + i * lh; };
+    var extra = function (r) { return r[3] && !clean(v[r[2]]); }; /* rows added to the KSEB list print only when filled */
+    var first = true;
+    COV_ROWS.forEach(function (r) {
+      if (r.band || r.serials) {
+        var list = r.serials ? K.serials(v) : null, filled = list ? list.filter(Boolean).length : 0;
+        var top = y + (first ? 0 : 0.9 * s);
+        first = false;
+        var hy = top + 0.95 * s;
+        T(r.band || 'PANEL SERIAL NUMBERS', D.x0, hy, 'HB', BRAND.red, s - 1.5);
+        if (r.serials && filled) R(filled + ' NOS', D.x1, hy, 'H', BRAND.grey, s - 1.5);
+        y = hy + 0.45 * s;
+        L(D.x0, y, D.x1, y, BRAND.red, 0.5);
+        if (!r.serials) return;
+        if (!list.length) list = ['', '', ''];
+        var cols = list.length > 24 ? 4 : 3, cw = (D.x1 - D.x0) / cols, rows = Math.ceil(list.length / cols);
+        for (var i = 0; i < rows; i++) {
+          var rt = y;
+          for (var j = 0; j < cols; j++) {
+            var k = i * cols + j; if (k >= list.length) break;
+            var cx = D.x0 + j * cw, yy = base(rt, 0);
+            R((k + 1) + '', cx + 15, yy, 'H', BRAND.red, ls);
+            var sr = list[k], fs = s;
+            while (sr && fs > 5 && measure(sr, 'H', fs) > cw - 30) fs -= 0.5;
+            T(sr, cx + 21, yy, 'H', BRAND.ink, fs);
+            if (!sr) L(cx + 21, yy + 1.5, cx + cw - 12, yy + 1.5); /* a line to write the serial by hand */
+          }
+          y = rt + 2 * D.pad + lh;
+          if (i < rows - 1) L(D.x0, y, D.x1, y);
+        }
+        return;
+      }
+      if (extra(r)) return;
+      var top2 = y;
+      var lab = K.wrap(r[1], D.c2 - D.c1 - 10, 'H', ls, measure);
+      var val = r[2] ? K.wrap(clean(v[r[2]]), D.x1 - D.c2, 'H', s, measure) : [];
+      var n = Math.max(1, lab.length, val.length);
+      R(r[0], D.nr, base(top2, 0), 'H', BRAND.red, ls);
+      lab.forEach(function (ln, i) { T(ln, D.c1, base(top2, i), 'H', BRAND.grey, ls); });
+      var strong = r[2] === 'name' || r[2] === 'consumer_no';
+      val.forEach(function (ln, i) { T(ln, D.c2, base(top2, i), strong ? 'HB' : 'H', BRAND.ink); });
+      y = top2 + 2 * D.pad + n * lh;
+      L(D.x0, y, D.x1, y);
+    });
+    return { ops: ops, end: y };
+  };
+
+  var layoutCov = function (v, measure) {
+    var head = [], ok = true;
+    /* Ref No. and date on the template's lines; a long Ref No. shrinks to fit (down to 6 pt) */
+    [[clean(v.ref), COV.refX, COV.refW], [K.dmy(v.date) || clean(v.date), COV.dateX, COV.dateW]].forEach(function (f) {
+      if (!f[0]) return;
+      var r = fitOne(f[0], 'H', 9.5, 6, f[2], measure);
+      ok = ok && r.fit;
+      head.push(Object.assign(op(f[0], f[1], COV.headY, 'H', r.s), { c: BRAND.ink }));
+    });
+    var res;
+    for (var s = COV.max; s >= COV.min; s -= 0.5) { res = covAt(v, s, measure); if (res.end <= COV.bottom) break; }
+    return { ops: head.concat(res.ops), size: s < COV.min ? COV.min : s, overflow: !(ok && res.end <= COV.bottom) };
+  };
+
   K.layout = function (docKey, values, measure) {
     values = values || {};
+    if (docKey === 'cov') return layoutCov(values, measure);
     if (docKey === 'doi') return layoutDoi(values, measure);
     if (docKey === 'wcr') return layoutWcr(values, measure);
     if (docKey === 'chk') return layoutChk(values, measure);
@@ -706,6 +895,7 @@ var KD = (function () {
     ops = ops || [];
     return PDFLib.PDFDocument.load(templateBytes).then(function (doc) {
       var first = doc.getPage(0).getMediaBox(), black = PDFLib.rgb(0, 0, 0), keys = [];
+      var col = function (c) { return c ? PDFLib.rgb(c[0], c[1], c[2]) : black; };
       var pageOf = function (i) { while (doc.getPageCount() <= (i || 0)) doc.addPage([first.width, first.height]); return doc.getPage(i || 0); };
       ops.forEach(function (o) { if (o.f && keys.indexOf(o.f) < 0) keys.push(o.f); });
       return Promise.all(keys.map(function (k) { return doc.embedFont(PDFLib.StandardFonts[K.FONTS[k]]); }))
@@ -714,16 +904,20 @@ var KD = (function () {
           keys.forEach(function (k, i) { fonts[k] = list[i]; });
           ops.forEach(function (o) {
             var page = pageOf(o.p), box = page.getMediaBox();
+            if (o.rc) {
+              page.drawRectangle({ x: box.x + o.rc[0], y: box.y + box.height - o.rc[1] - o.rc[3], width: o.rc[2], height: o.rc[3], color: col(o.fill) });
+              return;
+            }
             if (o.ln) {
-              page.drawLine({ start: { x: box.x + o.ln[0], y: box.y + box.height - o.ln[1] }, end: { x: box.x + o.ln[2], y: box.y + box.height - o.ln[3] }, thickness: o.w || 0.5, color: black });
+              page.drawLine({ start: { x: box.x + o.ln[0], y: box.y + box.height - o.ln[1] }, end: { x: box.x + o.ln[2], y: box.y + box.height - o.ln[3] }, thickness: o.w || 0.5, color: col(o.c) });
               return;
             }
             var t = K.ansi(o.t).replace(/\n/g, ' ');
             if (!t) return;
-            page.drawText(t, { x: box.x + o.x, y: box.y + box.height - o.y, size: o.s, font: fonts[o.f], color: black });
+            page.drawText(t, { x: box.x + o.x, y: box.y + box.height - o.y, size: o.s, font: fonts[o.f], color: col(o.c) });
             if (o.u) {
               var uy = box.y + box.height - o.y - 0.12 * o.s;
-              page.drawLine({ start: { x: box.x + o.x, y: uy }, end: { x: box.x + o.x + fonts[o.f].widthOfTextAtSize(t, o.s), y: uy }, thickness: 0.06 * o.s + 0.2, color: black });
+              page.drawLine({ start: { x: box.x + o.x, y: uy }, end: { x: box.x + o.x + fonts[o.f].widthOfTextAtSize(t, o.s), y: uy }, thickness: 0.06 * o.s + 0.2, color: col(o.c) });
             }
           });
           return doc.save({ useObjectStreams: false });

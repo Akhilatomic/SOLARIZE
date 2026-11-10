@@ -4,7 +4,7 @@
 // Saving rule: only the fields that differ from the profile are stored (KD.overrides), plus the date, so a corrected
 // profile prints corrected. UI classes start with .kd (assets/kseb.css). Every value shown in HTML goes through esc().
 const KDS = { tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
-const KD_TABS = [['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['doi', 'Details of installation'], ['chk', 'Checklist sheet'], ['mnre', 'MNRE warranty card']];
+const KD_TABS = [['cov', 'Cover page'], ['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['doi', 'Details of installation'], ['chk', 'Checklist sheet'], ['mnre', 'MNRE warranty card']];
 const KD_FONT = { T: "'Times New Roman',Times,serif", TB: "'Times New Roman',Times,serif", H: 'Arial,Helvetica,sans-serif', HB: 'Arial,Helvetica,sans-serif' };
 const kdT = v => String(v ?? '').trim();
 const kdOn = () => !!$('#kd');
@@ -179,8 +179,10 @@ function kdLayout() {
   clearTimeout(KDS.t);
   const doc = kdDoc(), pg = $('#kdpage'); if (!doc || !pg || !KDS.g || !KDS.measure) return;
   const L = KDS.lay[doc] = KD.layout(doc, KDS.vals[doc], KDS.measure);
-  const opHtml = o => o.ln ? `<i class="kd-ln" style="left:${Math.min(o.ln[0], o.ln[2]) - (o.w || .5) / 2}px;top:${Math.min(o.ln[1], o.ln[3]) - (o.w || .5) / 2}px;width:${Math.abs(o.ln[2] - o.ln[0]) + (o.w || .5)}px;height:${Math.abs(o.ln[3] - o.ln[1]) + (o.w || .5)}px"></i>`
-    : `<span style="left:${o.x}px;top:${+(o.y - 0.8 * o.s).toFixed(2)}px;font:${/B$/.test(o.f) ? '700 ' : ''}${o.s}px ${KD_FONT[o.f]}${o.u ? ';text-decoration:underline' : ''}">${esc(o.t)}</span>`;
+  const rgb = c => c ? `rgb(${c.map(x => Math.round(x * 255)).join(',')})` : '#000';
+  const opHtml = o => o.rc ? `<i class="kd-ln" style="left:${o.rc[0]}px;top:${o.rc[1]}px;width:${o.rc[2]}px;height:${o.rc[3]}px;background:${rgb(o.fill)}"></i>`
+    : o.ln ? `<i class="kd-ln" style="left:${Math.min(o.ln[0], o.ln[2]) - (o.w || .5) / 2}px;top:${Math.min(o.ln[1], o.ln[3]) - (o.w || .5) / 2}px;width:${Math.abs(o.ln[2] - o.ln[0]) + (o.w || .5)}px;height:${Math.abs(o.ln[3] - o.ln[1]) + (o.w || .5)}px;background:${rgb(o.c)}"></i>`
+    : `<span style="left:${o.x}px;top:${+(o.y - 0.8 * o.s).toFixed(2)}px;font:${/B$/.test(o.f) ? '700 ' : ''}${o.s}px ${KD_FONT[o.f]}${o.u ? ';text-decoration:underline' : ''}${o.c ? ';color:' + rgb(o.c) : ''}">${esc(o.t)}</span>`;
   $$('#kdpv .kd-page').forEach((el, i) => { el.innerHTML = L.ops.filter(o => (o.p || 0) === i).map(opHtml).join(''); });
   $('#kdwarn').hidden = !L.overflow;
   const b = $('#kdpdf'); if (b && !KDS.busy) { b.disabled = L.overflow; b.title = L.overflow ? 'Too much text to fit on the page: shorten the longest field first' : ''; }
