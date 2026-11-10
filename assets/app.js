@@ -65,7 +65,7 @@ function loginView(setup, brand) {
 }
 function shell() {
   const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : canR(m[3]));
-  app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span></h1>
+  app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span><button type="button" class="sbpin" id="sbpin" aria-pressed="false"><i class="i i-pin"></i></button></h1>
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}${m[0] === 'fees' ? feesNav() : `<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}"><span class="ft t-${m[0]}">${m[2]}</span><span class="lbl">${m[1]}</span></a>`}`).join('')}
    </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2>
    <div id="pwb" class="acctw"><button class="acct" id="acct" title="Account"><span class="acav">${avImg(ME.id, ME.avatar, ME.name)}</span><span class="acn">${esc(ME.name)}<small>${esc(ME.role_name || ME.role)}</small></span></button>
@@ -79,6 +79,37 @@ function shell() {
   $('#pdp').onclick = () => { $('#acm').classList.add('hide'); pickAvatar(0, ME.name, setMyAvatar); };
   $('#pdr').onclick = () => { $('#acm').classList.add('hide'); removeAvatar(0, setMyAvatar); };
   $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
+  sideAuto();
+}
+/* Desktop sidebar: shrinks to an icon rail 2 seconds after it was last used and opens over the page
+   when the mouse rests on it, so pages get the full width. The pin keeps it open (remembered per
+   browser). Phones keep the slide-in drawer. */
+function sideAuto() {
+  const s = $('#side'), b = document.body, mq = matchMedia('(min-width:821px)'), pin = $('#sbpin');
+  let tOpen = 0, tHide = 0;
+  const pinned = () => { try { return localStorage.sidePin === '1'; } catch (e) { return false; } };
+  const on = () => b.classList.contains('sbah');
+  const hide = () => { clearTimeout(tOpen); clearTimeout(tHide); if (on()) s.classList.add('mini'); };
+  const show = () => { clearTimeout(tOpen); clearTimeout(tHide); s.classList.remove('mini'); };
+  const later = () => { clearTimeout(tHide); tHide = setTimeout(hide, 2000); };
+  const mode = () => {
+    const p = pinned(), auto = mq.matches && !p;
+    b.classList.toggle('sbah', auto); b.classList.toggle('sbpinned', p);
+    pin.setAttribute('aria-pressed', p); pin.title = p ? 'Auto-hide the sidebar' : 'Keep the sidebar open';
+    show(); if (auto && !s.matches(':hover')) later();
+  };
+  pin.onclick = () => { try { localStorage.sidePin = pinned() ? '0' : '1'; } catch (e) { } mode(); };
+  const drawer = $('#bg').onclick; /* the menu button opens the rail too: the only way in on a touch screen */
+  $('#bg').onclick = e => on() ? (s.classList.contains('mini') ? show() : hide()) : drawer(e);
+  s.addEventListener('pointerenter', e => { if (e.pointerType !== 'mouse' || !on()) return; clearTimeout(tHide); if (s.classList.contains('mini')) tOpen = setTimeout(show, 120); });
+  s.addEventListener('pointerleave', e => { if (e.pointerType !== 'mouse' || !on()) return; clearTimeout(tOpen); if (!s.classList.contains('mini')) later(); });
+  s.addEventListener('click', e => { const a = e.target.closest('a'); if (!a || !on()) return; if (a.classList.contains('sgh') && location.hash.startsWith('#/fees')) return; hide(); });
+  s.addEventListener('focusin', e => { if (on() && e.target.matches(':focus-visible')) show(); });
+  s.addEventListener('focusout', e => { if (on() && !s.contains(e.relatedTarget) && !s.matches(':hover')) later(); });
+  document.addEventListener('pointerdown', e => { if (on() && !s.contains(e.target) && !e.target.closest('#bg') && !s.classList.contains('mini')) hide(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && on() && !s.classList.contains('mini')) hide(); });
+  mq.addEventListener('change', mode);
+  mode();
 }
 window.onhashchange = () => ME && route();
 let ROUTE_N = 0; // each navigation gets a number, so a slow page you already left can't paint its error over the page you are on

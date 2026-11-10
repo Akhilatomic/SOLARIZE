@@ -250,11 +250,6 @@ main.pg-leads .tw{overflow:auto}
 #ltb td input,#ltb td select{width:100%;min-width:0;padding:6px 8px;font-size:14px}
 .menu{position:fixed;z-index:70;padding:6px;min-width:210px;box-shadow:0 14px 40px rgba(0,0,0,.18)}
 .menu button{display:flex;gap:10px;align-items:center;width:100%;background:none;border:0;padding:9px 10px;border-radius:8px;font:inherit;font-size:14px;color:var(--tx);cursor:pointer;text-align:left}.menu button:hover{background:var(--fill)}.menu .i{width:16px;height:16px;color:var(--mut)}
-/* narrower desktops: icon-only sidebar to give tables the room */
-@media(min-width:821px) and (max-width:1440px){
-  aside{width:68px;padding:16px 10px}aside h1.brand{justify-content:center;margin:0 0 14px}aside h1.brand .bt,aside .lbl{display:none}aside h1.brand img{width:42px;height:42px}
-  aside a{justify-content:center;padding:10px 0}aside a .i{width:19px;height:19px}aside .sep{height:1px;background:var(--bd);margin:10px 8px;font-size:0}
-}
 @media(max-width:1100px){#ltb td.lact{min-width:0}}
 #ltb td[data-f=city],#ltb td[data-f=location]{min-width:0}
 /* leads toolbar: always one line — filters share the space */
@@ -394,7 +389,6 @@ table.acc td{vertical-align:middle;padding:8px}table.acc tr.finrow td{background
 
 /* ===== WhatsApp inbox ===== */
 aside a .nb{margin-left:auto;background:#25d366;color:#fff;font-size:11px;font-weight:700;border-radius:9px;min-width:18px;height:18px;display:grid;place-items:center;padding:0 5px}
-@media(min-width:821px) and (max-width:1440px){aside a{position:relative}aside a .nb{position:absolute;top:2px;right:6px}}
 .steps{margin:0;padding-left:20px;line-height:1.6;font-size:14px}.steps li{margin-bottom:6px}
 .wai{display:grid;grid-template-columns:320px minmax(0,1fr) 280px;background:var(--card);border:1px solid rgba(0,0,0,.05);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;min-height:420px}
 .wai.noinfo{grid-template-columns:320px minmax(0,1fr) 0}.wai.noinfo .wi{display:none}

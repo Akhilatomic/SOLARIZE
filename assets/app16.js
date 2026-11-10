@@ -3,7 +3,7 @@
   if (matchMedia('(hover: none)').matches) return;
   const tip = document.createElement('div'); tip.id = 'tip'; tip.setAttribute('role', 'tooltip');
   let cur = null, tm = null;
-  const iconOnly = el => el.matches('.ib,.xdb,.fchk,.dcth,[data-tip]') || (el.closest('aside') && ($('aside') || {}).offsetWidth < 120) || !el.textContent.trim();
+  const iconOnly = el => el.matches('.ib,.xdb,.fchk,.dcth,[data-tip]') || (el.closest('aside') && ($('aside') || {}).offsetWidth < 120 && !document.body.classList.contains('sbah')) || !el.textContent.trim();
   const hide = () => { clearTimeout(tm); tip.classList.remove('on'); if (cur && cur.dataset.tipT && !cur.hasAttribute('title')) cur.setAttribute('title', cur.dataset.tipT); cur = null; };
   document.addEventListener('mouseover', e => {
     const el = e.target.closest('[title],[data-tip-t]'); if (el === cur) return; hide();
