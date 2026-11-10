@@ -70,6 +70,16 @@ chk(!empty(call($admin, 'qm', 'settings_save', ['settings' => ['valid_days' => 7
 $b4 = call($admin, 'qm', 'boot');
 chk(($b4['settings']['valid_days'] ?? 0) === 7 && ($b4['settings']['kseb']['stamp'] ?? 0) === 350 && ($b4['settings']['kseb']['reg_per_kw'] ?? 0) === 1000 && ($b4['settings']['terms'] ?? []) === ['One', 'Two'], 'saved settings merge over defaults');
 
+chk(!empty(call($admin, 'qm', 'settings_save', ['settings' => ['loan' => ['tariff' => 7.5, 'margin_pct' => 12.5, 'units_per_kwp' => 1300]]])['ok']), 'save decimal loan numbers');
+$b5 = call($admin, 'qm', 'boot');
+chk(($b5['settings']['loan']['tariff'] ?? 0) === 7.5 && ($b5['settings']['loan']['margin_pct'] ?? 0) === 12.5 && ($b5['settings']['loan']['units_per_kwp'] ?? 0) === 1300, 'decimals survive in int-typed settings');
+$seen = []; $nolabel = 0; $dup = 0;
+foreach ($boot['products'] ?? [] as $p) { if (trim($p['label'] ?? '') === '') $nolabel++; $k = $p['cat'] . '|' . ($p['label'] ?? ''); if (isset($seen[$k])) $dup++; $seen[$k] = 1; }
+chk($nolabel === 0 && $dup === 0, 'every seeded product has a label, unique within its category');
+call($admin, 'qm', 'product_save', ['id' => $new['id'] ?? 0, 'label' => '  Waaree 585 Wp mono  ']);
+$b6 = call($admin, 'qm', 'boot'); $lp = null; foreach ($b6['products'] ?? [] as $p) if ($p['id'] == ($new['id'] ?? -1)) $lp = $p;
+chk($lp && $lp['label'] === 'Waaree 585 Wp mono' && $lp['name'] === 'Waaree 585 Wp', 'product_save round-trips label');
+
 /* uploads and images */
 $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
 $tmpf = sys_get_temp_dir() . '/qm_test_' . getmypid() . '.png'; file_put_contents($tmpf, $png);

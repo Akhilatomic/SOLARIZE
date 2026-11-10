@@ -200,11 +200,45 @@ function qm_seed(PDO $db): void {
       ['unit' => 'plant', 'is_default' => 1, 'picture' => $pic('install'), 'brands' => [$br('', 'assets/quote/jasper-logo.png')]]],
   ];
 
+  $labels = [
+    'pan-premier-600' => 'Premier NeoBlack 600+ Wp TOPCon',
+    'pan-premier-600-mnre' => 'Premier NeoBlack 600 Wp (MNRE wording)',
+    'pan-renew-550' => 'ReNew 550+ Wp mono PERC',
+    'pan-renew-550-dg' => 'ReNew RPS2MH72BD 550 Wp dual-glass',
+    'inv-tsun-2' => 'TSUN TSOL-MS2000 2 kW',
+    'inv-tsun-3' => 'TSUN TSOL-MS3000 3 kW',
+    'inv-tsun-deye-2' => 'TSUN or Deye 2 kW (choice)',
+    'inv-deye-2' => 'Deye SUN-M200G4 2 kW',
+    'inv-deye-1' => 'Deye micro 2+2+1 kW three-phase',
+    'inv-se-3' => 'SolarEdge SE3000H 3 kW',
+    'inv-se-5-3ph' => 'SolarEdge SE5K 5 kW three-phase',
+    'inv-premier-3' => 'Premier PEI 3 kW string',
+    'opt-se-s' => 'SolarEdge S-Series optimizer',
+    'acdb-1ph' => 'ACDB 1-phase',
+    'acdb-3ph' => 'ACDB 3-phase',
+    'dcdb' => 'DCDB 1-phase',
+    'dcdb-3ph' => 'DCDB (3-phase plant)',
+    'dccable' => 'DC cable 4 sq mm',
+    'accable' => 'AC cable 1-phase',
+    'accable-3ph' => 'AC cable 3-phase',
+    'iso-2p' => 'Isolator 32 A 2-pole',
+    'iso-4p' => 'Isolator 32 A 4-pole',
+    'meter-1ph' => 'Energy meter 1-phase',
+    'meter-3ph' => 'Energy meter 3-phase',
+    'parts' => 'Other electrical parts',
+    'earthing' => 'Earthing (3 pits)',
+    'la' => 'Lightning arrester',
+    'str-hdg' => 'HDG structure (StormShield)',
+    'str-gi' => 'GI structure',
+    'str-gi-weld' => 'GI spot-welded (4 blocks)',
+    'str-apollo' => 'Apollo GI 330 GSM',
+    'install' => 'Installation',
+  ];
   $db->beginTransaction();
-  $ins = $db->prepare('INSERT INTO qm_products(code,cat,name,line,details,title,unit,qty,qty_note,wp,kw,needs_opt,warranty,brands,picture,page,rate,is_default,hidden,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,0,?)');
+  $ins = $db->prepare('INSERT INTO qm_products(code,label,cat,name,line,details,title,unit,qty,qty_note,wp,kw,needs_opt,warranty,brands,picture,page,rate,is_default,hidden,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,0,?)');
   $byCode = [];
   foreach ($P as $i => [$code, $cat, $name, $line, $details, $f]) {
-    $ins->execute([$code, $cat, $name, $line, $details, $f['title'] ?? '', $f['unit'] ?? 'no', $f['qty'] ?? 1, $f['qty_note'] ?? '', $f['wp'] ?? 0, $f['kw'] ?? 0, $f['needs_opt'] ?? 0,
+    $ins->execute([$code, $labels[$code], $cat, $name, $line, $details, $f['title'] ?? '', $f['unit'] ?? 'no', $f['qty'] ?? 1, $f['qty_note'] ?? '', $f['wp'] ?? 0, $f['kw'] ?? 0, $f['needs_opt'] ?? 0,
       json_encode($f['warranty'] ?? [], JSON_UNESCAPED_UNICODE), json_encode($f['brands'] ?? [], JSON_UNESCAPED_UNICODE), $f['picture'] ?? '', $f['page'] ?? '', $f['is_default'] ?? 0, ($i + 1) * 10]);
     $byCode[$code] = ['id' => (int)$db->lastInsertId(), 'cat' => $cat];
   }

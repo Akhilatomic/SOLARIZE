@@ -29,7 +29,7 @@ function qm_coerce($v, $def, $depth = 0) {
     foreach ($def as $k => $d) $o[$k] = qm_coerce($v[$k] ?? $d, $d, $depth + 1);
     return $o;
   }
-  if (is_int($def)) return is_numeric($v) ? (int)round((float)$v) : $def;
+  if (is_int($def)) { if (!is_numeric($v)) return $def; $f = (float)$v; return floor($f) == $f ? (int)$f : $f; }
   if (is_float($def)) return is_numeric($v) ? (float)$v : $def;
   return is_scalar($v) ? mb_substr(trim((string)$v), 0, 2000) : $def;
 }
@@ -103,18 +103,18 @@ function handle_qm($a) {
       $pic = (string)$get('picture', ''); $page = (string)$get('page', '');
       if ($pic !== '' && !qm_img_ok($pic)) fail('That picture is not valid');
       if ($page !== '' && !qm_img_ok($page)) fail('That page image is not valid');
-      $vals = [$cat, $name, $txt('line', 300), $txt('details', 2000), $txt('title', 80), $txt('unit', 30) ?: 'no', $num('qty', 1), $txt('qty_note', 80), $num('wp', 0), $num('kw', 0), (int)(!empty($get('needs_opt', 0))),
+      $vals = [$txt('label', 80), $cat, $name, $txt('line', 300), $txt('details', 2000), $txt('title', 80), $txt('unit', 30) ?: 'no', $num('qty', 1), $txt('qty_note', 80), $num('wp', 0), $num('kw', 0), (int)(!empty($get('needs_opt', 0))),
         json_encode($warranty, JSON_UNESCAPED_UNICODE), json_encode($brands, JSON_UNESCAPED_UNICODE), $pic, $page, $num('rate', 0), (int)(!empty($get('is_default', 0))), (int)(!empty($get('hidden', 0)))];
       $db = db(); $db->beginTransaction();
       try {
         if ($cur) {
-          q("UPDATE qm_products SET cat=?,name=?,line=?,details=?,title=?,unit=?,qty=?,qty_note=?,wp=?,kw=?,needs_opt=?,warranty=?,brands=?,picture=?,page=?,rate=?,is_default=?,hidden=?,updated=CURRENT_TIMESTAMP WHERE id=?", array_merge($vals, [$id]));
+          q("UPDATE qm_products SET label=?,cat=?,name=?,line=?,details=?,title=?,unit=?,qty=?,qty_note=?,wp=?,kw=?,needs_opt=?,warranty=?,brands=?,picture=?,page=?,rate=?,is_default=?,hidden=?,updated=CURRENT_TIMESTAMP WHERE id=?", array_merge($vals, [$id]));
         } else {
           $sort = (int)row('SELECT COALESCE(MAX(sort),0)+10 s FROM qm_products')['s'];
-          q('INSERT INTO qm_products(cat,name,line,details,title,unit,qty,qty_note,wp,kw,needs_opt,warranty,brands,picture,page,rate,is_default,hidden,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', array_merge($vals, [$sort]));
+          q('INSERT INTO qm_products(label,cat,name,line,details,title,unit,qty,qty_note,wp,kw,needs_opt,warranty,brands,picture,page,rate,is_default,hidden,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', array_merge($vals, [$sort]));
           $id = (int)$db->lastInsertId();
         }
-        if ($vals[16]) q('UPDATE qm_products SET is_default=0 WHERE cat=? AND id<>?', [$cat, $id]);
+        if ($vals[17]) q('UPDATE qm_products SET is_default=0 WHERE cat=? AND id<>?', [$cat, $id]);
         $db->commit();
       } catch (Throwable $e) { if ($db->inTransaction()) $db->rollBack(); throw $e; }
       audit('qm_product_save', 'qm_products', $id, $name);
