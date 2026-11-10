@@ -49,10 +49,11 @@ function handle_crud($t, $a) {
   $in = body();
   need($mod, in_array($a, ['save', 'delete', 'convert', 'revert']));
   if ($t === 'leads') lead_guard($a, $in);
+  if ($t === 'customers') cust_guard($a, $in);
   switch ($a) {
     case 'list':
-      if ($t === 'customers') out(array_map(fn($r) => mask_customer(strip_fin($r)), rows("SELECT c.*, lp.id project_id, lp.stage, lp.kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects
-        FROM customers c LEFT JOIN projects lp ON lp.id=(SELECT id FROM projects WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) ORDER BY c.created DESC, c.id DESC")));
+      if ($t === 'customers') out(array_map(fn($r) => mask_customer(strip_fin($r)), rows("SELECT c.*, lp.id project_id, lp.stage, lp.kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects, ou.name owner_name
+        FROM customers c LEFT JOIN projects lp ON lp.id=(SELECT id FROM projects WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) LEFT JOIN users ou ON ou.id=c.owner_id ORDER BY c.created DESC, c.id DESC")));
       if ($t === 'projects') out(array_map('strip_fin', rows('SELECT p.*, c.name customer, c.phone, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p LEFT JOIN customers c ON c.id=p.customer_id ORDER BY p.updated DESC')));
       $w = []; $args = [];
       foreach (['customer_id','project_id','campaign_id','lead_id','status','stage','source','assigned_to'] as $f)
@@ -63,6 +64,7 @@ function handle_crud($t, $a) {
     case 'get':
       $r = row("SELECT * FROM $t WHERE id=?", [(int)($_GET['id'] ?? 0)]); if (!$r) fail('Not found', 404);
       $r = in_array($t, ['projects', 'customers', 'leads']) ? strip_fin(detail($t, $r)) : detail($t, $r);
+      if ($t === 'customers') $r['owner_name'] = owner_name($r['owner_id'] ?? 0);
       out($t === 'customers' ? mask_customer($r) : $r);
     case 'save':
       $v = pick($in, $cols);
@@ -90,6 +92,7 @@ function handle_crud($t, $a) {
           if (!is_admin()) { $v['assigned_to'] = uid(); $v['claimed_at'] = gmdate('Y-m-d H:i:s'); } else { $v['assigned_to'] = (int)($in['assigned_to'] ?? 0) ?: null; $v['claimed_at'] = $v['assigned_to'] ? gmdate('Y-m-d H:i:s') : ''; } }
         q("INSERT INTO $t(" . implode(',', $cols) . ') VALUES(' . implode(',', array_map(fn($c) => ":$c", $cols)) . ')', $v);
         $id = (int)db()->lastInsertId(); audit('create', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
+        if ($t === 'customers') q('UPDATE customers SET owner_id=? WHERE id=?', [uid(), $id]); // whoever adds a customer owns it
         if ($t === 'projects') step_log($id, 'Customer', 'Project created');
         if ($t === 'quotes' && $v['number'] === '') {
           $c = settings()['company'];
@@ -158,7 +161,7 @@ function handle_crud($t, $a) {
       if ($t !== 'leads') fail('Unknown action', 404);
       $l = row('SELECT * FROM leads WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$l) fail('Not found', 404);
       if ($l['customer_id']) out(['customer_id' => $l['customer_id']]);
-      q('INSERT INTO customers(name,phone,email,address,district,notes,added_by) VALUES(?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '']);
+      q('INSERT INTO customers(name,phone,email,address,district,notes,added_by,owner_id) VALUES(?,?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '', (int)$l['assigned_to'] ?: uid()]); // the lead's owner keeps the customer
       $cid = (int)db()->lastInsertId();
       q("UPDATE leads SET customer_id=?, status='Won', updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
       lead_to_customer_plant($l, $cid); // site condition + proposed plant → customer's Plant details

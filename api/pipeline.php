@@ -30,7 +30,7 @@ function handle_pipeline($a) {
   switch ($a) {
     case 'board':
       need('projects');
-      $ps = rows("SELECT p.id,p.title,p.kw,p.stage,p.cost,p.loan,p.engineer,p.customer_id,p.amc_start,p.amc_end,p.amc_interval,p.updated,c.name customer,c.phone,c.district,
+      $ps = rows("SELECT p.id,p.title,p.kw,p.stage,p.cost,p.loan,p.engineer,p.customer_id,p.amc_start,p.amc_end,p.amc_interval,p.updated,c.name customer,c.phone,c.district,c.owner_id,
         (SELECT MAX(created) FROM project_steps s WHERE s.project_id=p.id) since FROM projects p LEFT JOIN customers c ON c.id=p.customer_id ORDER BY p.updated DESC");
       $rec = []; foreach (rows("SELECT project_id,stage FROM stage_data WHERE file_id IS NOT NULL") as $r) $rec[$r['project_id']][$r['stage']] = true;
       $svc = []; foreach (rows("SELECT project_id, MAX(CASE WHEN status='Done' THEN date END) last_done, MIN(CASE WHEN status='Scheduled' THEN date END) next_sched, COUNT(*) n FROM services GROUP BY project_id") as $r) $svc[$r['project_id']] = $r;
@@ -52,7 +52,7 @@ function handle_pipeline($a) {
         $l = lead_or_404($in['lead_id']); lead_need_write($l);
         if ($l['customer_id']) $cid = (int)$l['customer_id'];
         else {
-          q('INSERT INTO customers(name,phone,email,address,district,notes,added_by) VALUES(?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '']);
+          q('INSERT INTO customers(name,phone,email,address,district,notes,added_by,owner_id) VALUES(?,?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '', (int)$l['assigned_to'] ?: uid()]);
           $cid = (int)db()->lastInsertId();
           q("UPDATE leads SET customer_id=?, status='Won', notify=0, updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
           audit('convert', 'leads', $l['id'], "→ customer $cid");

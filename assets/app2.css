@@ -445,3 +445,12 @@ body.sbah aside.mini a .nb{position:absolute;top:0;right:-2px;margin:0}
 .btn.cbdue{color:#c4271f;box-shadow:inset 0 0 0 1px #f3b1ab}
 .xdav.cbav{background:#30a14e;color:#fff}.xdav.cbav .i{width:15px;height:15px;background:#fff}
 .cbsub{display:block;margin-top:2px;font-size:11.5px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Me / All switch (Leads, Customers, Project pipeline) and the owner chip + Reassign link on the customer page */
+.tabs.owsw{margin:0;flex:0 0 auto;flex-wrap:nowrap;align-self:center}
+.tabs.owsw button{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;white-space:nowrap}
+.tabs.owsw .i{width:13px;height:13px}
+.tabs.owsw button:not(.on){color:var(--mut)}
+.pfht .own{vertical-align:middle}
+.owbtn{background:none;border:0;padding:2px 4px;margin:0;font:inherit;font-size:13px;font-weight:600;color:var(--pri);cursor:pointer;border-radius:6px}
+.owbtn:hover{background:rgba(0,122,255,.08)}.owbtn:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(0,122,255,.38)}
+#ctb .own{max-width:100%;overflow:hidden}#ctb .own .clip{min-width:0}

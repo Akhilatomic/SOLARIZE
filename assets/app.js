@@ -379,29 +379,23 @@ function callbackBox(l, after) {
   m.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); m.remove(); } }); /* only this box, not the lead form under it */
   $('[data-q].on', m)?.focus();
 }
-// ---- claiming: a claimed lead is locked to its owner; only the admin can unlock or reassign ----
+// ---- claiming: a claimed lead is locked to its owner; owner/admin can unclaim, owner/admin/assistant manager can reassign ----
 const isAdm = () => ME.role === 'admin';
 const ownerCellRow = l => ownerCell(l) + (l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ' <button class="ib unc" data-a="unlock" title="Unclaim — release this lead"><i class="i i-x"></i></button>' : '');
 const ownerCell = l => l.assigned_to ? `<span class="own${l.assigned_to == ME.id ? ' me' : ''}" title="Claimed${l.claimed_at ? ' ' + agoStr(l.claimed_at) : ''}"><i class="i i-lock"></i>${esc(l.assigned_to == ME.id ? 'You' : (l.owner_name || 'Claimed'))}</span>`
   : (ME.can_claim && canW('leads') ? '<button class="btn sm claim" data-a="claim"><i class="i i-userplus"></i> Claim</button>' : '<span class="mut">Unclaimed</span>');
 async function claimLead(id, name) { try { await api('leads', 'claim', { id }); toast('Claimed' + (name ? ': ' + name : '') + ' — locked to you'); return true; } catch (e) { return false; } }
 async function unlockLead(id, mine) { if (!confirm(mine ? 'Unclaim this lead? It goes back to the unclaimed pool and anyone allowed can claim it.' : 'Unclaim (unlock) this lead? It goes back to the unclaimed pool.')) return false; await api('leads', 'unclaim', { id }); toast('Lead unclaimed — back in the pool'); return true; }
-async function assignLead(id) {
-  const us = (await api('admin', 'users')).filter(u => u.active);
-  return new Promise(res => {
-    const m = modal(`<h3 style="margin-top:0">Assign lead</h3><label>Lock this lead to</label><select id="au">${us.map(u => `<option value="${u.id}">${esc(u.name)} (${u.role})</option>`).join('')}</select>
-     <div class="bar" style="margin-top:12px"><button class="btn" id="aok">Assign</button><button class="btn sec" id="acx">Cancel</button></div>`);
-    $('#acx', m).onclick = () => { m.remove(); res(false); };
-    $('#aok', m).onclick = async () => { await api('leads', 'assign', { id, user_id: +$('#au', m).value }); m.remove(); toast('Lead assigned'); res(true); };
-  });
-}
+const canReassignLead = l => canW('leads') && OWN.canReassign(l.assigned_to, ME);
+async function assignLead(l) { return !!(await reassignBox('leads', l)); } // picker in app26.js
 async function pgLeads() {
   const [leads, camps] = await Promise.all([list('leads'), canR('ads') ? list('campaigns') : [], discSummary()]);
   CACHE.leads = leads; CACHE.camps = camps; const w = canW('leads');
+  if (LF.ownFor !== ME.id) { LF.ownFor = ME.id; LF.own = ownView('leads') === 'me' ? 'me' : ''; } // Me / All remembered per person
   const cities = [...new Set(leads.map(l => l.city).filter(Boolean))].sort();
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Leads</h2><div class="mut" id="lcount"></div></div><span class="sp"></span>
    <button class="btn sec" id="lref"><i class="i i-refresh"></i> Refresh</button>${w ? `<button class="btn sec" id="ledit"><i class="i i-pencil"></i> Edit ${LF.edit ? 'ON' : 'OFF'}</button><button class="btn" id="lnew"><i class="i i-plus"></i> Add Lead</button>` : ''}</div>
-   <div class="bar lbar" style="margin-top:12px"><input id="lq" placeholder="Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">
+   <div class="bar lbar" style="margin-top:12px">${ownSwitch('leads', LF.own === 'me' ? 'me' : 'all')}<input id="lq" placeholder="Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">
    <select id="ls" title="Status"><option value="">All status</option>${S.lead_statuses.map(s => `<option ${LF.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
    <select id="la">${[['active', 'Active'], ['all', 'All leads'], ['won', 'Won'], ['lost', 'Lost']].map(([v, l]) => `<option value="${v}" ${LF.active === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
    <select id="lc" title="City"><option value="">All cities</option>${cities.map(c => `<option ${LF.city === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
@@ -468,7 +462,7 @@ async function pgLeads() {
     closeMenu();
     if (a === 'claim') { if (await claimLead(l.id, l.name)) route(); return; }
     if (a === 'unlock') { if (await unlockLead(l.id, l.assigned_to == ME.id)) route(); return; }
-    if (a === 'assign') { if (await assignLead(l.id)) route(); return; }
+    if (a === 'assign') { if (await assignLead(l)) route(); return; }
     if (a === 'wa') waOpen({ name: l.name, phone: l.phone, lead_id: l.id });
     if (a === 'ds') discOpen({ lead_id: l.id });
     if (a === 'vw' || a === 'ed') leadModal(l.id);
@@ -491,7 +485,7 @@ async function pgLeads() {
   const moreMenu = (l, btn) => {
     closeMenu();
     const items = [l.phone ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['cb', 'phone', l.callback_at ? 'Call back: ' + cbWhen(l.callback_at) : 'Call back reminder'], ['ed', 'pencil', 'Edit lead'], l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
-      l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ['unlock', 'lock', l.assigned_to == ME.id ? 'Unclaim (release lead)' : 'Unclaim / unlock (admin)'] : null, isAdm() ? ['assign', 'users', 'Assign to user (admin)'] : null].filter(Boolean);
+      l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ['unlock', 'lock', l.assigned_to == ME.id ? 'Unclaim (release lead)' : 'Unclaim / unlock (admin)'] : null, canReassignLead(l) ? ['assign', 'users', l.assigned_to ? 'Reassign to…' : 'Assign to…'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu';
     m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('');
     document.body.appendChild(m);
@@ -517,6 +511,9 @@ async function pgLeads() {
   LEADCB = (id, at, note) => { const x = leads.find(y => y.id == id); if (x) { x.callback_at = at; x.callback_note = note; } if ($('#ltb')) draw(); };
   $('#lq').oninput = e => { LF.q = e.target.value; drawSoon(); };
   [['ls', 'status'], ['la', 'active'], ['lc', 'city'], ['lap', 'appt'], ['lown', 'own']].forEach(([id, k]) => $('#' + id).onchange = e => { LF[k] = e.target.value; draw(true); });
+  /* Me / All and the owner list stay in step: Me = "My leads"; any other owner choice is part of All */
+  $('#lown').addEventListener('change', () => { const v = LF.own === 'me' ? 'me' : 'all'; ownSave('leads', v); ownMark($('.lbar'), v); });
+  ownBind($('.lbar'), 'leads', v => { LF.own = v === 'me' ? 'me' : ''; $('#lown').value = LF.own; draw(true); });
   $('#lref').onclick = () => route();
   if ($('#ledit')) $('#ledit').onclick = () => { LF.edit = !LF.edit; route(); };
   if ($('#lnew')) $('#lnew').onclick = () => leadModal(0);
@@ -534,7 +531,7 @@ async function leadModal(id) {
     { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'appt', l: 'Appointment date', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, ...(FIN() ? [{ k: 'budget', l: 'Budget (₹)', t: 'number' }] : []), { k: 'remark', l: 'Remark', full: 1, t: 'textarea', rows: 2, spell: 1 }];
   if ((CACHE.camps || []).length) F.splice(4, 0, { k: 'campaign_id', l: 'Meta campaign', opts: opt(CACHE.camps.map(c => [c.id, c.name]), '— none —') });
   const w = canW('leads') && (!id || !!l.can_edit);
-  const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}</span>` : '<span class="mut">Not claimed yet. Claim it to see the full number and start working on it.</span>'}<span class="sp"></span>${l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? '<button class="btn sm sec" id="mul"><i class="i i-lock"></i> Unclaim</button>' : ''}${isAdm() ? '<button class="btn sm sec" id="mas"><i class="i i-users"></i> Assign</button>' : ''}</div>` : '';
+  const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}</span>` : '<span class="mut">Not claimed yet. Claim it to see the full number and start working on it.</span>'}<span class="sp"></span>${l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? '<button class="btn sm sec" id="mul"><i class="i i-lock"></i> Unclaim</button>' : ''}${canReassignLead(l) ? `<button class="btn sm sec" id="mas"><i class="i i-users"></i> ${l.assigned_to ? 'Reassign' : 'Assign'}</button>` : ''}</div>` : '';
   const m = modal(`<div class="lmh"><div class="lmt"><div><small class="mut">${id ? 'Lead' : 'New lead'}${id && l.source ? ' · ' + esc(l.source) : ''}</small><h2>${id ? esc(l.name || 'Lead') : 'Add a new lead'}</h2></div><button class="lvx" id="cx2" title="Close (Esc)"><i class="i i-x"></i></button></div>${lock}${leadTabs(l)}</div>
    <div class="lmb"><div class="ltp ltp-d"><div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2" ${SPELL}>${esc(l.notes || '')}</textarea></div>${leadSitePane(l)}${leadPlantPane(l)}
    ${id ? `<div class="ltp-d"><p class="mut" style="font-size:12px">Added by ${esc(l.added_by || '—')} on ${dmy(l.created)}</p>` + noteBox('leads', id, l.notes_log) + `<div class="card" style="margin-top:10px"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div></div>` : ''}</div>
@@ -550,7 +547,7 @@ async function leadModal(id) {
   bindLeadTabs(m, l, w);
   const cl = $('.lockbar .claim', m); if (cl) cl.onclick = async () => { if (await claimLead(id, l.name)) { m.remove(); leadModal(id); if (location.hash.startsWith('#/leads')) route(); } };
   if ($('#mul', m)) $('#mul', m).onclick = async () => { if (await unlockLead(id, l.assigned_to == ME.id)) { m.remove(); route(); } };
-  if ($('#mas', m)) $('#mas', m).onclick = async () => { if (await assignLead(id)) { m.remove(); route(); } };
+  if ($('#mas', m)) $('#mas', m).onclick = async () => { if (await assignLead(l)) { m.remove(); route(); } };
   if ($('#oc', m)) $('#oc', m).onclick = () => m.remove();
   if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m), ...leadExtra(m) }; if (!o.name) return alert('Name required'); await api('leads', 'save', o); m.remove(); route(); };
   if ($('#lcbk', m)) $('#lcbk', m).onclick = () => callbackBox(l, () => { const b = $('#lcbk', m); if (b) { b.innerHTML = cbBtnTxt(l); b.classList.toggle('cbdue', !!l.callback_at && l.callback_at <= cbNow()); } });
@@ -582,9 +579,10 @@ async function pgCustomers() {
   if (!PIPE && canR('projects')) { try { PIPE = (await api('pipeline', 'board')).stages; } catch (e) { } }
   const [cs] = await Promise.all([list('customers'), discSummary(), feeMembers()]); cs.forEach(c => c.status = c.stage || 'New');
   const w = canW('customers');
+  if (CUF.ownFor !== ME.id) { CUF.ownFor = ME.id; CUF.own = ownView('customers'); } // Me / All remembered per person
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Customers</h2><div class="mut" id="ccount"></div></div><span class="sp"></span>
    <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${canW('leads') ? '<button class="btn sec" id="cconv"><i class="i i-userplus"></i> Convert lead</button>' : ''}${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
-   <div class="bar cbar" style="margin-top:12px"><input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">
+   <div class="bar cbar" style="margin-top:12px">${ownSwitch('customers', CUF.own)}<input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
    <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity'], ...(canR('fees') ? [['feas', 'Feasibility expiry']] : [])].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
    <label class="hsw" title="Show status, next step and feasibility when you point at a customer"><input type="checkbox" id="chov" ${hoverOn() ? 'checked' : ''}><span class="hswt"></span>Hover info</label><span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex">Export CSV</button>' : ''}${w ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
@@ -593,17 +591,17 @@ async function pgCustomers() {
   let onScreen = 0; // rows on screen; a refresh (resize, discussion update) keeps at least this many
   const draw = reset => {
     const t = CUF.q.toLowerCase();
-    const rows = cs.filter(c => (!CUF.st || c.status === CUF.st) && (!t || [c.name, c.phone, c.consumer_no, c.district, c.address, c.email].join(' ').toLowerCase().includes(t)))
+    const rows = cs.filter(c => (CUF.own !== 'me' || OWN.mine.customers(c, ME)) && (!CUF.st || c.status === CUF.st) && (!t || [c.name, c.phone, c.consumer_no, c.district, c.address, c.email].join(' ').toLowerCase().includes(t)))
       .sort((a, b) => CUF.sort === 'name' ? a.name.localeCompare(b.name) : CUF.sort === 'kw' ? (b.kw || 0) - (a.kw || 0) : CUF.sort === 'oldest' ? (a.created > b.created ? 1 : -1) : (a.created < b.created ? 1 : -1))
       .sort((a, b) => CUF.sort === 'feas' ? feasRank(a.id) - feasRank(b.id) : 0)
       .sort((a, b) => CUF.sort === 'feas' ? 0 : discRank(b.id) - discRank(a.id) || (DISC.sum[a.id] && DISC.sum[b.id] ? String(DISC.sum[b.id].last_at).localeCompare(String(DISC.sum[a.id].last_at)) : 0)); // live discussions first
     const nLive = rows.filter(c => DISC.sum[c.id]).length; $('#ccount').innerHTML = rows.length + ' records' + (nLive ? ` · <span class="xdlive"><span class="xddot"></span>${nLive} live discussion${nLive === 1 ? '' : 's'}</span>` : '');
     const W = ($('#ctb').parentElement || {}).clientWidth || 1200;
     // fit to the window: drop the least important columns first, then fold the action icons into ⋯, then consumer no. / phone
-    let COLS = [['name', 'Name', 0], ['status', 'Status', 140], ['cno', 'Consumer no.', 128], ['dist', 'District', 130], ['phone', 'Phone', 138], ['kw', 'Capacity', 78], ['by', 'Added by', 120], ['date', 'Date', 92]], full = true;
+    let COLS = [['name', 'Name', 0], ['status', 'Status', 140], ['cno', 'Consumer no.', 128], ['dist', 'District', 130], ['phone', 'Phone', 138], ['kw', 'Capacity', 78], ['by', 'Owner', 120], ['date', 'Date', 92]], full = true;
     const need = () => COLS.reduce((s, c) => s + c[2], 0) + (full ? 330 : 172) + 170;
-    if (W < 680) { COLS = COLS.filter(c => !['by', 'date'].includes(c[0])); full = false; } // phones: card view has room for the key details
-    else for (const k of ['by', 'dist', 'date', 'kw', '#compact', 'cno', 'phone']) { if (need() <= W) break; if (k === '#compact') full = false; else COLS = COLS.filter(c => c[0] !== k); }
+    if (W < 680) { COLS = COLS.filter(c => c[0] !== 'date'); full = false; } // phones: card view has room for the key details (owner included)
+    else for (const k of ['date', 'by', 'dist', 'kw', '#compact', 'cno', 'phone']) { /* Owner outlasts Date: Me / All needs it */ if (need() <= W) break; if (k === '#compact') full = false; else COLS = COLS.filter(c => c[0] !== k); }
     const fin = canR('fees');
     const ACTS = c => { const p = !!c.project_id, wl = w && canW('leads');
       const list = [['ed', 'pencil', 'Edit customer', w], ['pj', 'project', p ? 'Open project' : 'Start a project', p || canW('projects')], ['docs', 'file', 'Documents', true], ['pay', 'card', 'Payments', 1, p], ['fees', 'coin', 'Finance — feasibility, registration, stamp paper', fin],
@@ -613,7 +611,7 @@ async function pgCustomers() {
       status: `<td><span class="pill ${c.status === 'New' ? 'b' : (typeof stepCls === 'function' && PIPE ? stepCls(c.status) : STC[c.status]) || ''}">${esc(c.status)}</span></td>`,
       cno: `<td class="mono">${esc(c.consumer_no) || '<span class="mut">—</span>'}</td>`, dist: `<td title="${esc(c.district)}"><span class="clip">${esc(c.district) || '<span class="mut">—</span>'}</span></td>`,
       phone: `<td>${c.phone ? `<a href="tel:${esc(c.phone)}" class="tel"><i class="i i-phone"></i> ${esc(c.phone)}</a>` : '<span class="mut">—</span>'}</td>`, kw: `<td>${c.kw ? c.kw + ' kWp' : '<span class="mut">—</span>'}</td>`,
-      by: `<td title="${esc(c.added_by)}"><span class="clip mut2">${esc(c.added_by) || '<span class="mut">—</span>'}</span></td>`, date: `<td class="mut">${dt(c.created)}</td>` })[k];
+      by: `<td title="${esc((c.owner_name ? 'Owner: ' + c.owner_name : 'No owner') + (c.added_by ? ' · added by ' + c.added_by : ''))}">${+c.owner_id ? `<span class="own${+c.owner_id === +ME.id ? ' me' : ''}"><i class="i i-user"></i><span class="clip">${esc(ownLabel(c.owner_id, c.owner_name))}</span></span>` : '<span class="mut">—</span>'}</td>`, date: `<td class="mut">${dt(c.created)}</td>` })[k];
     const nA = rows.length ? Math.max(...rows.slice(0, 50).map(c => ACTS(c).length)) + 2 : 4;
     const rowHtml = c => `<tr class="row ${DISC.sum[c.id] ? 'live' : ''}" data-id="${c.id}">${COLS.map(k => cell(k[0], c)).join('')}
         <td class="cact">${discBtn(c.id)}${ACTS(c).map(([k, i, t, , on]) => on === false ? `<button class="ib off" aria-disabled="true" title="${t} — start a project first"><i class="i i-${i}"></i></button>` : ic(k, i, t)).join('')}${ic('more', 'dots', 'More actions')}</td></tr>`;
@@ -641,12 +639,13 @@ async function pgCustomers() {
         if (a === 'docs') { PFT = 'docs'; PFT_ID = c.id; location.hash = '#/customers/' + c.id; }
         if (a === 'tl') { PFT = 'overview'; PFT_ID = c.id; location.hash = '#/customers/' + c.id; }
         if (a === 'rv') revertToLead(c.id, c.name);
+        if (a === 'own') { const r = await reassignBox('customers', c); if (r) { c.owner_id = r.owner_id; c.owner_name = r.owner_name; draw(); } }
       };
       $$('[data-a]', tr).forEach(b => b.onclick = e => { e.stopPropagation(); const a = b.dataset.a;
         if (a === 'fees') return popMenu(b, feeMenuItems(c.id), run);
         if (a !== 'more') return run(a);
         const shown = new Set($$('[data-a]', tr).map(x => x.dataset.a));
-        popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['rv', 'undo', 'Revert to lead', w && canW('leads')]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
+        popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner', w && OWN.canReassign(c.owner_id, ME)], ['rv', 'undo', 'Revert to lead', w && canW('leads')]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
       });
     });
     bind([...tb.tBodies[0].rows]); onScreen = n;
@@ -656,10 +655,11 @@ async function pgCustomers() {
   const drawSoon = debounce(() => draw(true), 120);
   $('#cq').oninput = e => { CUF.q = e.target.value; drawSoon(); };
   $('#cst').onchange = e => { CUF.st = e.target.value; draw(true); }; $('#csort').onchange = e => { CUF.sort = e.target.value; draw(true); };
+  ownBind($('.cbar'), 'customers', v => { CUF.own = v; draw(true); });
   $('#cref').onclick = () => route();
   $('#chov').onchange = e => { try { localStorage.custHover = e.target.checked ? '1' : '0'; } catch (x) { } if (FH) FH.classList.remove('on'); toast('Hover info ' + (e.target.checked ? 'on' : 'off')); };
   if ($('#cconv')) $('#cconv').onclick = convertLeadModal;
-  if ($('#cex')) $('#cex').onclick = () => csvDownload('customers-' + today() + '.csv', ['name', 'phone', 'email', 'address', 'district', 'consumer_no', 'kseb_section', 'sanctioned_load', 'roof_type', 'gst_no', 'status', 'kw', 'added_by', 'created', 'notes'], cs);
+  if ($('#cex')) $('#cex').onclick = () => csvDownload('customers-' + today() + '.csv', ['name', 'phone', 'email', 'address', 'district', 'consumer_no', 'kseb_section', 'sanctioned_load', 'roof_type', 'gst_no', 'status', 'kw', 'owner_name', 'added_by', 'created', 'notes'], cs);
   if ($('#cnew')) $('#cnew').onclick = () => customerModal(0);
   if ($('#cim')) $('#cim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; let n = 0; for (const r of csvObjs(await f.text())) { if (!r.name) continue; await api('customers', 'save', r); n++; } toast('Imported ' + n + ' customers'); route(); };
   draw(); DISC.redraw = draw;

@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 27; // bump when tables/columns change
+const SCHEMA_VERSION = 28; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -195,6 +195,13 @@ function migrate($db) {
   foreach (['callback_at' => "TEXT DEFAULT ''", 'callback_note' => "TEXT DEFAULT ''", 'callback_by' => 'INTEGER', 'callback_sent' => 'INTEGER DEFAULT 0'] as $c => $ty)
     if (!in_array($c, $lc)) { try { $db->exec("ALTER TABLE leads ADD COLUMN $c $ty"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   $db->exec('CREATE INDEX IF NOT EXISTS lead_callback ON leads(callback_sent, callback_at)');
+  /* v28: every customer has an owner (the Me / All filter, reassign). Changed only through customers/reassign, never by a save.
+     Customers without an owner (all of them the first time): whoever claimed the lead it came from, else the user whose name is in added_by. */
+  $cc = array_column($db->query('PRAGMA table_info(customers)')->fetchAll(), 'name');
+  if (!in_array('owner_id', $cc)) { try { $db->exec('ALTER TABLE customers ADD COLUMN owner_id INTEGER'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  $db->exec('CREATE INDEX IF NOT EXISTS cust_owner ON customers(owner_id)');
+  $db->exec('UPDATE customers SET owner_id=(SELECT l.assigned_to FROM leads l WHERE l.customer_id=customers.id AND l.assigned_to>0 ORDER BY l.id DESC LIMIT 1) WHERE owner_id IS NULL');
+  $db->exec("UPDATE customers SET owner_id=(SELECT u.id FROM users u WHERE lower(trim(u.name))=lower(trim(customers.added_by)) ORDER BY u.active DESC, u.id LIMIT 1) WHERE owner_id IS NULL AND trim(COALESCE(added_by,''))<>''");
   require_once __DIR__ . '/qm_seed.php';
   qm_seed($db); // only fills an empty catalogue
   $db->exec('ANALYZE'); // give the query planner row counts for the new indexes

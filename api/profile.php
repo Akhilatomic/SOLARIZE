@@ -14,11 +14,11 @@ function handle_profile($a) {
   foreach (rows('SELECT * FROM leads WHERE customer_id=?', [$cid]) as $l) {
     $add($l['created'], 'lead', 'Lead added', trim(($l['source'] ?: '') . ($l['meta_campaign'] ? ' · ' . $l['meta_campaign'] : '') . ($l['city'] ? ' · ' . $l['city'] : ''), ' ·'), $l['added_by']);
     foreach (rows("SELECT * FROM audit_log WHERE entity='leads' AND entity_id=? AND action IN ('convert','claim','unclaim','assign')", [$l['id']]) as $a2)
-      $add($a2['created'], $a2['action'] === 'convert' ? 'convert' : 'lead', ['convert' => 'Converted to customer', 'claim' => 'Lead claimed', 'unclaim' => 'Lead released', 'assign' => 'Lead assigned'][$a2['action']], '', $a2['user']);
+      $add($a2['created'], $a2['action'] === 'convert' ? 'convert' : 'lead', ['convert' => 'Converted to customer', 'claim' => 'Lead claimed', 'unclaim' => 'Lead released', 'assign' => 'Lead reassigned'][$a2['action']], $a2['action'] === 'assign' ? $a2['detail'] : '', $a2['user']);
   }
   $add($c['created'], 'customer', 'Customer created', $c['district'] ?? '', $c['added_by']);
-  foreach (rows("SELECT * FROM audit_log WHERE entity='customers' AND entity_id=? AND action IN ('update','plant','download_all','fees_paid','fees_unpaid','fees_demanded','tax_bill','warranty_card') ORDER BY id", [$cid]) as $a2)
-    $add($a2['created'], in_array($a2['action'], ['fees_paid', 'fees_unpaid', 'fees_demanded', 'tax_bill']) ? 'payment' : ($a2['action'] === 'warranty_card' ? 'file' : ($a2['action'] === 'plant' ? 'project' : 'edit')), ['update' => 'Profile updated', 'plant' => 'Plant details updated', 'download_all' => 'All documents downloaded', 'fees_paid' => 'Fee paid', 'fees_unpaid' => 'Fee marked unpaid', 'fees_demanded' => 'Fee demanded', 'tax_bill' => 'Tax bill saved', 'warranty_card' => 'Warranty card saved'][$a2['action']], $a2['action'] === 'update' ? '' : $a2['detail'], $a2['user']);
+  foreach (rows("SELECT * FROM audit_log WHERE entity='customers' AND entity_id=? AND action IN ('update','plant','download_all','fees_paid','fees_unpaid','fees_demanded','tax_bill','warranty_card','reassign') ORDER BY id", [$cid]) as $a2)
+    $add($a2['created'], in_array($a2['action'], ['fees_paid', 'fees_unpaid', 'fees_demanded', 'tax_bill']) ? 'payment' : ($a2['action'] === 'warranty_card' ? 'file' : ($a2['action'] === 'plant' ? 'project' : 'edit')), ['update' => 'Profile updated', 'plant' => 'Plant details updated', 'download_all' => 'All documents downloaded', 'fees_paid' => 'Fee paid', 'fees_unpaid' => 'Fee marked unpaid', 'fees_demanded' => 'Fee demanded', 'tax_bill' => 'Tax bill saved', 'warranty_card' => 'Warranty card saved', 'reassign' => 'Owner changed'][$a2['action']], $a2['action'] === 'update' ? '' : $a2['detail'], $a2['user']);
 
   // projects and pipeline
   $S = settings(); $labels = function_exists('pipe_labels') ? pipe_labels() : ($S['project_stages'] ?? []);

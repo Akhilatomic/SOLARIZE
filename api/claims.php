@@ -1,6 +1,7 @@
 <?php
 // Lead claiming: only users the admin enables can see & claim unclaimed leads.
-// A claimed lead is locked to its owner (others can't see, edit or contact it); only the admin can unlock or reassign.
+// A claimed lead is locked to its owner (others can't see, edit or contact it). The owner or the admin can unclaim it;
+// the owner, the admin or the assistant manager can reassign it (customers too — see cust_guard).
 
 function is_admin() { return ($_SESSION['role'] ?? '') === 'admin'; }
 function uid() { return (int)($_SESSION['uid'] ?? 0); }
@@ -35,6 +36,47 @@ function lead_or_404($id) {
   $l = row('SELECT * FROM leads WHERE id=?', [(int)$id]);
   if (!$l || !lead_can_read($l)) fail('Not found', 404);
   return $l;
+}
+
+// ---- owners: reassigning a lead or a customer ----
+// Who may hand a record to someone else: its current owner, the admin and the assistant manager.
+function can_reassign($owner_id) { return is_admin() || ($_SESSION['role'] ?? '') === 'assistant_manager' || ((int)$owner_id > 0 && (int)$owner_id === uid()); }
+// Who can receive it: an active user whose access lets them work that list (for leads also anyone with "Can see & claim leads").
+function user_can_work($u, $mod) {
+  if (($u['role'] ?? '') === 'admin') return true;
+  $r = roles()[$u['role'] ?? ''] ?? null; if (!$r) return false;
+  return $r[1] === '*' || in_array($mod, (array)$r[1]) || (in_array($mod, CLAIM_GRANTS) && (int)($u['can_claim'] ?? 0) === 1);
+}
+function owner_candidates($mod) {
+  $ok = array_filter(rows('SELECT id,name,role,can_claim,avatar FROM users WHERE active=1 ORDER BY name'), fn($u) => user_can_work($u, $mod));
+  return array_values(array_map(fn($u) => ['id' => (int)$u['id'], 'name' => $u['name'], 'role' => $u['role'], 'role_name' => ROLE_NAMES[$u['role']] ?? $u['role'], 'avatar' => (string)$u['avatar']], $ok));
+}
+function owner_target($in, $mod) {
+  $u = row('SELECT id,name,role,can_claim FROM users WHERE id=? AND active=1', [(int)($in['user_id'] ?? 0)]);
+  if (!$u) fail('Choose an active user');
+  if (!user_can_work($u, $mod)) fail($u['name'] . ' has no access to work on ' . $mod . '. Change their access in Settings first.');
+  return $u;
+}
+// bell + desktop notification for the new owner (not when you hand it to yourself)
+function owner_notify($to, $col, $id, $text) {
+  if ((int)$to && (int)$to !== uid()) q("INSERT INTO notifs(user_id,kind,$col,from_id,text) VALUES(?,'assign',?,?,?)", [(int)$to, (int)$id, uid(), mb_substr($text, 0, 200)]);
+}
+// Runs before the generic CRUD for customers: owner list and reassign. Owning a customer does not hide it from anyone.
+function cust_guard($a, $in) {
+  switch ($a) {
+    case 'owners':
+      out(owner_candidates('customers'));
+    case 'reassign':
+      need('customers', true);
+      $c = row('SELECT id,name,owner_id FROM customers WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$c) fail('Customer not found', 404);
+      if (!can_reassign($c['owner_id'])) fail('Only the customer owner, an admin or the assistant manager can reassign this customer', 403);
+      $u = owner_target($in, 'customers');
+      if ((int)$c['owner_id'] === (int)$u['id']) out(['ok' => true, 'unchanged' => 1, 'owner_id' => (int)$u['id'], 'owner_name' => $u['name']]);
+      q('UPDATE customers SET owner_id=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$u['id'], $c['id']]);
+      audit('reassign', 'customers', $c['id'], (owner_name($c['owner_id']) ?: 'No owner') . ' → ' . $u['name']);
+      owner_notify($u['id'], 'customer_id', $c['id'], ($_SESSION['name'] ?? 'Someone') . ' made you the owner of customer ' . $c['name']);
+      out(['ok' => true, 'owner_id' => (int)$u['id'], 'owner_name' => $u['name']]);
+  }
 }
 
 // Call-back reminders that came due → bell + desktop notification for whoever set it and the lead's owner.
@@ -76,12 +118,18 @@ function lead_guard($a, $in) {
       $prev = owner_name($l['assigned_to']);
       q("UPDATE leads SET assigned_to=NULL, claimed_at='', updated=CURRENT_TIMESTAMP WHERE id=?", [$id]);
       audit('unclaim', 'leads', $id, 'released by ' . ($_SESSION['name'] ?? '') . ' (was ' . $prev . ')'); out(['ok' => true]);
-    case 'assign':
-      if (!is_admin()) fail('Only the admin can assign a lead', 403);
-      $id = (int)($in['id'] ?? 0); $u = row('SELECT id,name FROM users WHERE id=? AND active=1', [(int)($in['user_id'] ?? 0)]);
-      if (!$u) fail('Choose an active user');
-      q('UPDATE leads SET assigned_to=?, claimed_at=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$u['id'], gmdate('Y-m-d H:i:s'), $id]);
-      audit('assign', 'leads', $id, '→ ' . $u['name']); out(['ok' => true]);
+    case 'owners': // who this user may hand a lead to
+      need('leads'); out(owner_candidates('leads'));
+    case 'assign': // reassign: the lead's owner, the admin or the assistant manager hands it to another user (it stays locked, now to them)
+      need('leads', true);
+      $l = lead_or_404($in['id'] ?? 0);
+      if (!can_reassign($l['assigned_to'])) fail('Only the lead owner, an admin or the assistant manager can reassign this lead', 403);
+      $u = owner_target($in, 'leads');
+      if ((int)$l['assigned_to'] === (int)$u['id']) out(['ok' => true, 'unchanged' => 1, 'owner_id' => (int)$u['id'], 'owner_name' => $u['name']]);
+      q('UPDATE leads SET assigned_to=?, claimed_at=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$u['id'], gmdate('Y-m-d H:i:s'), $l['id']]);
+      audit('assign', 'leads', $l['id'], ($l['assigned_to'] ? owner_name($l['assigned_to']) . ' ' : '') . '→ ' . $u['name']);
+      owner_notify($u['id'], 'lead_id', $l['id'], ($_SESSION['name'] ?? 'Someone') . ' assigned you the lead ' . $l['name']);
+      out(['ok' => true, 'owner_id' => (int)$u['id'], 'owner_name' => $u['name']]);
     case 'callback': // set, move or clear the call-back reminder: {id, at:'Y-m-d H:i' or '', note, done}
       need('leads', true);
       $l = lead_or_404($in['id'] ?? 0); lead_need_write($l);

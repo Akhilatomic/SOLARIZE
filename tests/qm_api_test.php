@@ -248,6 +248,92 @@ if ($dbPath !== '' && is_file($dbPath)) {
   chk(($feed['count'] ?? 0) === 2 && ($feed['day'] ?? -1) === 1, 'dashboard feed: 2 waiting, 1 from the last 24 hours');
 } else echo "  skip dashboard feed test (no database path given)\n";
 
+/* ---- owners: Me / All data and reassigning customers and leads ---- */
+$mk = function ($name, $user, $role, $claim) use ($admin, $pw) {
+  $r = call($admin, 'admin', 'user_save', ['name' => $name, 'username' => $user, 'role' => $role, 'active' => 1, 'can_claim' => $claim, 'password' => $pw]);
+  $a = actor($user); call($a, 'auth', 'login', ['username' => $user, 'password' => $pw]); $a['id'] = (int)($r['id'] ?? 0); return $a;
+};
+$asha = $mk('Asha', 'asha', 'sales', 1); $ravi = $mk('Ravi', 'ravi', 'sales', 1); $mira = $mk('Mira', 'mira', 'assistant_manager', 0);
+$eli = $mk('Eli', 'eli', 'engineer', 0); $acc = $mk('Acco', 'acco', 'accounts', 0);
+chk($asha['id'] && $ravi['id'] && $mira['id'] && $eli['id'] && $acc['id'], 'owners: users created');
+$ownerOf = fn($cid) => (int)(call($admin, 'customers', 'get', null, "&id=$cid")['owner_id'] ?? 0);
+
+$c1 = (int)(call($asha, 'customers', 'save', ['name' => 'Owner Test One', 'phone' => '9847100001'])['id'] ?? 0);
+chk($c1 > 0 && $ownerOf($c1) === $asha['id'], 'owners: whoever adds a customer owns it');
+$row = array_values(array_filter(call($ravi, 'customers', 'list'), fn($c) => is_array($c) && (int)($c['id'] ?? 0) === $c1))[0] ?? [];
+chk((int)($row['owner_id'] ?? 0) === $asha['id'] && ($row['owner_name'] ?? '') === 'Asha', 'owners: the list carries owner_id and owner_name, and others still see the customer');
+$cand = array_column(call($asha, 'customers', 'owners'), 'name');
+chk(in_array('Ravi', $cand) && in_array('Mira', $cand) && in_array('Eli', $cand) && in_array('Boss', $cand) && !in_array('Acco', $cand), 'owners: customer candidates = users who can edit customers (not Accounts)');
+chk(call($asha, 'customers', 'owners', null, '', true)['_code'] === 200, 'owners: candidate list is a GET');
+
+chk(call($ravi, 'customers', 'reassign', ['id' => $c1, 'user_id' => $ravi['id']])['_code'] === 403, 'reassign customer: another sales user cannot');
+chk(call($eli, 'customers', 'reassign', ['id' => $c1, 'user_id' => $eli['id']])['_code'] === 403, 'reassign customer: an engineer who is not the owner cannot');
+chk(call($acc, 'customers', 'reassign', ['id' => $c1, 'user_id' => $acc['id']])['_code'] === 403, 'reassign customer: a role without customer edit cannot');
+$r = call($asha, 'customers', 'reassign', ['id' => $c1, 'user_id' => $ravi['id']]);
+chk(($r['_code'] ?? 0) === 200 && ($r['owner_name'] ?? '') === 'Ravi' && $ownerOf($c1) === $ravi['id'], 'reassign customer: the owner hands it to Ravi');
+chk(call($asha, 'customers', 'reassign', ['id' => $c1, 'user_id' => $asha['id']])['_code'] === 403, 'reassign customer: the old owner cannot take it back');
+$rn = array_values(array_filter(call($ravi, 'disc', 'notifs')['rows'] ?? [], fn($n) => $n['kind'] === 'assign' && (int)$n['customer_id'] === $c1));
+chk(count($rn) === 1 && (int)$rn[0]['from_id'] === $asha['id'] && strpos($rn[0]['text'], 'Owner Test One') !== false, 'reassign customer: the new owner gets a notification');
+chk(!array_filter(call($asha, 'disc', 'notifs')['rows'] ?? [], fn($n) => $n['kind'] === 'assign'), 'reassign customer: no notification for the person who did it');
+chk(call($mira, 'customers', 'reassign', ['id' => $c1, 'user_id' => $asha['id']])['_code'] === 200 && $ownerOf($c1) === $asha['id'], 'reassign customer: the assistant manager can reassign anyone\'s');
+chk(call($admin, 'customers', 'reassign', ['id' => $c1, 'user_id' => $eli['id']])['_code'] === 200 && $ownerOf($c1) === $eli['id'], 'reassign customer: the admin can reassign anyone\'s');
+chk(call($admin, 'customers', 'reassign', ['id' => $c1, 'user_id' => $acc['id']])['_code'] === 400 && $ownerOf($c1) === $eli['id'], 'reassign customer: not to a user who cannot work on customers');
+chk(call($admin, 'customers', 'reassign', ['id' => $c1, 'user_id' => 99999])['_code'] === 400, 'reassign customer: not to an unknown user');
+chk(call($admin, 'customers', 'reassign', ['id' => 99999, 'user_id' => $asha['id']])['_code'] === 404, 'reassign customer: unknown customer');
+$aud = array_values(array_filter(call($admin, 'admin', 'audit'), fn($a) => is_array($a) && ($a['action'] ?? '') === 'reassign' && (int)$a['entity_id'] === $c1));
+chk(count($aud) === 3 && ($aud[2]['detail'] ?? '') === 'Asha → Ravi' && ($aud[2]['user'] ?? '') === 'asha', 'reassign customer: every change is in the audit log');
+$tl = call($admin, 'profile', 'timeline', null, "&customer_id=$c1");
+chk(count(array_filter($tl['events'] ?? [], fn($e) => $e['title'] === 'Owner changed')) === 3, 'reassign customer: shows on the customer timeline');
+$full = call($admin, 'customers', 'get', null, "&id=$c1");
+call($eli, 'customers', 'save', array_merge($full, ['notes' => 'edited', 'owner_id' => $asha['id']]));
+chk($ownerOf($c1) === $eli['id'], 'owners: saving a customer cannot change its owner');
+chk(($full['owner_name'] ?? '') === 'Eli', 'owners: customers/get carries owner_name');
+
+// leads: the claimer, the admin or the assistant manager reassigns; the lead stays locked, now to the new owner
+$l1 = (int)(call($admin, 'leads', 'save', ['name' => 'Owner Lead', 'phone' => '9847100002', 'status' => 'New'])['id'] ?? 0);
+chk(call($asha, 'leads', 'claim', ['id' => $l1])['_code'] === 200, 'reassign lead: Asha claims it');
+$lc = array_column(call($asha, 'leads', 'owners'), 'name');
+chk(in_array('Ravi', $lc) && in_array('Mira', $lc) && in_array('Seller', $lc) && !in_array('Eli', $lc) && !in_array('Acco', $lc), 'reassign lead: candidates = users who can work leads or claim them');
+chk(call($ravi, 'leads', 'assign', ['id' => $l1, 'user_id' => $ravi['id']])['_code'] >= 403, 'reassign lead: someone else cannot take it');
+chk(call($asha, 'leads', 'assign', ['id' => $l1, 'user_id' => $acc['id']])['_code'] === 400, 'reassign lead: not to a user who cannot work leads');
+$r = call($asha, 'leads', 'assign', ['id' => $l1, 'user_id' => $ravi['id']]);
+chk(($r['_code'] ?? 0) === 200 && ($r['owner_name'] ?? '') === 'Ravi', 'reassign lead: the claimer hands it to Ravi');
+$seen = fn($who, $id) => (bool)array_filter(call($who, 'leads', 'list'), fn($l) => is_array($l) && (int)($l['id'] ?? 0) === $id);
+chk($seen($ravi, $l1) && !$seen($asha, $l1), 'reassign lead: now locked to Ravi, gone from Asha\'s list');
+chk(count(array_filter(call($ravi, 'disc', 'notifs')['rows'] ?? [], fn($n) => $n['kind'] === 'assign' && (int)$n['lead_id'] === $l1)) === 1, 'reassign lead: Ravi gets a notification');
+chk(call($asha, 'leads', 'assign', ['id' => $l1, 'user_id' => $asha['id']])['_code'] >= 403, 'reassign lead: the old owner cannot take it back');
+$l2 = (int)(call($admin, 'leads', 'save', ['name' => 'Pool Lead', 'phone' => '9847100003', 'status' => 'New'])['id'] ?? 0);
+chk(call($asha, 'leads', 'assign', ['id' => $l2, 'user_id' => $asha['id']])['_code'] === 403, 'reassign lead: a sales user cannot hand out an unclaimed lead (claim it instead)');
+$miraC = $mk('Mira Claims', 'mira2', 'assistant_manager', 1);
+chk(call($miraC, 'leads', 'assign', ['id' => $l2, 'user_id' => $asha['id']])['_code'] === 200 && $seen($asha, $l2), 'reassign lead: the assistant manager assigns an unclaimed lead');
+chk(call($admin, 'leads', 'assign', ['id' => $l2, 'user_id' => $ravi['id']])['_code'] === 200 && $seen($ravi, $l2) && !$seen($asha, $l2), 'reassign lead: the admin reassigns anyone\'s lead');
+$la = array_values(array_filter(call($admin, 'admin', 'audit'), fn($a) => is_array($a) && ($a['action'] ?? '') === 'assign' && (int)$a['entity_id'] === $l1));
+chk(count($la) === 1 && ($la[0]['detail'] ?? '') === 'Asha → Ravi', 'reassign lead: audit says from whom to whom');
+
+// converting a claimed lead: the customer belongs to the lead's owner, not whoever clicked Convert
+$cv = call($admin, 'leads', 'convert', ['id' => $l1]);
+chk(($cv['customer_id'] ?? 0) > 0 && $ownerOf($cv['customer_id']) === $ravi['id'], 'owners: a converted lead\'s customer belongs to the lead owner');
+$l3 = (int)(call($asha, 'leads', 'save', ['name' => 'Start Lead', 'phone' => '9847100004', 'status' => 'New'])['id'] ?? 0);
+$st = call($asha, 'pipeline', 'start', ['lead_id' => $l3, 'kw' => 3]);
+chk(($st['customer_id'] ?? 0) > 0 && $ownerOf($st['customer_id']) === $asha['id'], 'owners: starting a project from a lead keeps the lead owner');
+$bp = array_values(array_filter(call($eli, 'pipeline', 'board')['projects'] ?? [], fn($p) => (int)$p['id'] === (int)($st['id'] ?? -1)))[0] ?? [];
+chk((int)($bp['owner_id'] ?? 0) === $asha['id'], 'owners: the pipeline board carries the customer owner for Me');
+
+// one-time fill of customers without an owner: the lead's claimer, else the user named in added_by
+if ($dbPath !== '' && is_file($dbPath)) {
+  $pdo = new PDO('sqlite:' . $dbPath); $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $pdo->exec('PRAGMA busy_timeout=5000');
+  $ins = $pdo->prepare('INSERT INTO customers(name,added_by) VALUES(?,?)');
+  $ins->execute(['Old From Lead', 'Boss']); $o1 = (int)$pdo->lastInsertId();
+  $ins->execute(['Old By Name', ' asha ']); $o2 = (int)$pdo->lastInsertId();
+  $ins->execute(['Old Nobody', 'Someone Gone']); $o3 = (int)$pdo->lastInsertId();
+  $pdo->prepare('INSERT INTO leads(name,status,assigned_to,customer_id) VALUES(?,?,?,?)')->execute(['Old Lead', 'Won', $ravi['id'], $o1]);
+  $pdo->exec('PRAGMA user_version=27'); $pdo = null;
+  call($admin, 'auth', 'status'); // first request after the "upgrade" runs the migration
+  chk($ownerOf($o1) === $ravi['id'] && $ownerOf($o2) === $asha['id'] && $ownerOf($o3) === 0, 'owners: upgrade fills owners from the lead, then from added_by');
+  chk($ownerOf($c1) === $eli['id'], 'owners: upgrade leaves owners that are already set');
+} else echo "  skip owner backfill test (no database path given)\n";
+foreach ([$asha, $ravi, $mira, $eli, $acc, $miraC] as $a) @unlink($a['jar']);
+
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);

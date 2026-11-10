@@ -15,17 +15,19 @@ function nextService(p) {
 async function pgPipeline() {
   const B = await api('pipeline', 'board'); PIPE = B.stages;
   const w = canW('projects'), t = PL.q.toLowerCase();
-  const match = p => !t || [p.customer, p.title, p.phone, p.district].join(' ').toLowerCase().includes(t);
+  if (PL.ownFor !== ME.id) { PL.ownFor = ME.id; PL.own = ownView('projects'); } // Me / All remembered per person
+  const match = p => (PL.own !== 'me' || OWN.mine.projects(p, ME)) && (!t || [p.customer, p.title, p.phone, p.district].join(' ').toLowerCase().includes(t));
   const ps = B.projects.filter(match);
   const done = ps.filter(p => p.stage === 'Project completed');
   const counts = { 1: ps.filter(p => stepOf(p.stage) === 1).length, 2: ps.filter(p => stepOf(p.stage) === 2).length, 3: ps.filter(p => stepOf(p.stage) === 3 && p.stage !== 'Project completed').length, 4: done.length };
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:8px"><div><h2 style="margin:0;font-size:26px">Project pipeline</h2><div class="mut">${B.projects.length} projects · ${B.projects.filter(p => p.stage !== 'Project completed').length} in progress</div></div><span class="sp"></span>
-    <input id="plq" placeholder="Search customer, phone…" value="${esc(PL.q)}" style="max-width:260px">${PL.step < 4 ? `<div class="tabs" style="margin:0"><button data-pv="list" class="${PL.view === 'list' ? 'on' : ''}">List</button><button data-pv="board" class="${PL.view === 'board' ? 'on' : ''}">Board</button></div>` : ''}
+    ${ownSwitch('projects', PL.own)}<input id="plq" placeholder="Search customer, phone…" value="${esc(PL.q)}" style="max-width:260px">${PL.step < 4 ? `<div class="tabs" style="margin:0"><button data-pv="list" class="${PL.view === 'list' ? 'on' : ''}">List</button><button data-pv="board" class="${PL.view === 'board' ? 'on' : ''}">Board</button></div>` : ''}
     ${w ? '<button class="btn" id="pnew"><i class="i i-plus"></i> Start project</button>' : ''}</div>
    <div class="stepper-tabs">${STEPS.map(([n, a, b]) => `<button data-step="${n}" class="${PL.step === n ? 'on' : ''}"><span class="sn">${n}</span><span><b>${b}</b><small>${a} · ${counts[n]} ${n === 4 ? 'completed' : 'active'}</small></span></button>`).join('')}</div>
    <div id="pbody"></div>`;
   $$('[data-step]').forEach(b => b.onclick = () => { PL.step = +b.dataset.step; pgPipeline(); });
   $$('[data-pv]').forEach(b => b.onclick = () => { PL.view = b.dataset.pv; pgPipeline(); });
+  ownBind($('#main'), 'projects', v => { PL.own = v; pgPipeline(); });
   $('#plq').oninput = e => { PL.q = e.target.value; clearTimeout(window._plt); window._plt = setTimeout(pgPipeline, 250); };
   if ($('#pnew')) $('#pnew').onclick = () => startModal({});
   const body = $('#pbody');

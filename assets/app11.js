@@ -1,6 +1,6 @@
 // Customer profile: 2 columns — left: progress + timeline (timestamps); right: organised details with click-to-copy and location sharing.
 const PF_GROUPS = [
-  ['basic', 'Basic details', 'user', [['name', 'Name'], ['phone', 'Phone', 'tel'], ['alt_phone', 'Alternate phone', 'tel'], ['email', 'Email', 'mail'], ['address', 'Address'], ['district', 'District'], ['pincode', 'PIN code'], ['roof_type', 'Roof type'], ['gst_no', 'GST no.'], ['added_by', 'Added by'], ['created', 'Customer since', 'date']]],
+  ['basic', 'Basic details', 'user', [['name', 'Name'], ['phone', 'Phone', 'tel'], ['alt_phone', 'Alternate phone', 'tel'], ['email', 'Email', 'mail'], ['address', 'Address'], ['district', 'District'], ['pincode', 'PIN code'], ['roof_type', 'Roof type'], ['gst_no', 'GST no.'], ['owner_name', 'Owner'], ['added_by', 'Added by'], ['created', 'Customer since', 'date']]],
   ['kseb', 'KSEB details', 'sun', [['consumer_no', 'Consumer no.'], ['kseb_section', 'Section office'], ['sanctioned_load', 'Sanctioned load (kW)'], ['phase', 'Connection'], ['tariff', 'Tariff'], ['meter_no', 'Meter no.']]],
   ['bank', 'Bank details', 'card', [['bank_holder', 'Account holder'], ['bank_name', 'Bank'], ['bank_branch', 'Branch'], ['bank_account', 'Account no.'], ['bank_ifsc', 'IFSC']]],
 ];
@@ -39,8 +39,10 @@ async function pgCustomer(id) {
   const tline = tl.events.map(e => { const t = tlTime(e.ts, e.local), head = t.day !== lastDay ? `<div class="tlday">${t.day}</div>` : ''; lastDay = t.day;
     return `${head}<div class="tle k-${e.kind}"><div class="tlt">${t.time}</div><div class="tld"><i class="i i-${TL_ICON[e.kind] || 'dots'}"></i></div><div class="tlb"><b>${e.link ? `<a href="${e.link}">${esc(e.title)}</a>` : e.file ? `<a href="api.php?m=files&a=get&id=${e.file}" target="_blank">${esc(e.title)}</a>` : esc(e.title)}</b>${e.detail ? `<div class="tlx">${esc(e.detail)}</div>` : ''}${e.user ? `<small class="mut">by ${esc(e.user)}</small>` : ''}</div></div>`; }).join('');
   const initials = (c.name || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase();
+  const canOwn = w && OWN.canReassign(c.owner_id, ME); // owner chip; the owner, admin or assistant manager can reassign
+  const ownHtml = ` · Owner <span class="own${+c.owner_id === +ME.id ? ' me' : ''}" title="Customer owner"><i class="i i-user"></i>${+c.owner_id ? esc(ownLabel(c.owner_id, c.owner_name)) : 'No owner'}</span>${canOwn ? ` <button class="owbtn" id="pfown">${+c.owner_id ? 'Reassign' : 'Set owner'}</button>` : ''}`;
   $('#main').innerHTML = `<p style="margin:0 0 8px"><a href="#/customers">← Customers</a></p>
-   <div class="card pfhead"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="mut">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') + ' ' : ''}${c.phone ? `<button class="pfv inl" data-cp="${esc(c.phone)}" data-l="phone">${esc(c.phone)}<i class="i i-copy"></i></button>` : ''}${c.consumer_no ? ` · Consumer no. <button class="pfv inl" data-cp="${esc(c.consumer_no)}" data-l="consumer no.">${esc(c.consumer_no)}<i class="i i-copy"></i></button>` : ''}</div></div>
+   <div class="card pfhead"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="mut">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') + ' ' : ''}${c.phone ? `<button class="pfv inl" data-cp="${esc(c.phone)}" data-l="phone">${esc(c.phone)}<i class="i i-copy"></i></button>` : ''}${c.consumer_no ? ` · Consumer no. <button class="pfv inl" data-cp="${esc(c.consumer_no)}" data-l="consumer no.">${esc(c.consumer_no)}<i class="i i-copy"></i></button>` : ''}${ownHtml}</div></div>
     <div class="pfact"><button class="btn sec" id="dsc">${discBtnLabel(id)}</button>${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a><button class="btn ok" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>` : ''}
      ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}<button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
    <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ['plant', 'Plant details', 'sun'], ['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file'], ['warranty', 'Warranty card', 'shield'], ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : [])].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${l}</button>`).join('')}</div>
@@ -80,12 +82,14 @@ async function pgCustomer(id) {
   $$('[data-goto]').forEach(b => b.onclick = () => { showTab(b.dataset.goto); scrollTo({ top: 0, behavior: 'smooth' }); });
   if (PFT !== 'overview') showTab(PFT);
   feeMembers(id);
+  if ($('#pfown')) $('#pfown').onclick = async () => { if (await reassignBox('customers', c)) route(); };
   $('#pfmore').onclick = e => { e.stopPropagation(); const old = $('#lmenu'); if (old) { old.remove(); return; }
-    const items = [canW('projects') && tl.progress.length ? ['np2', 'project', '+ New project'] : null, w && canW('leads') ? ['rv', 'refresh', 'Revert to lead'] : null, ...feeMenuItems(id), w ? ['dl', 'trash', 'Delete customer'] : null].filter(Boolean);
+    const items = [canW('projects') && tl.progress.length ? ['np2', 'project', '+ New project'] : null, canOwn ? ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner'] : null, w && canW('leads') ? ['rv', 'refresh', 'Revert to lead'] : null, ...feeMenuItems(id), w ? ['dl', 'trash', 'Delete customer'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu'; m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('') || '<p class="mut" style="margin:6px">No actions</p>';
     document.body.appendChild(m); const r = e.currentTarget.getBoundingClientRect(); m.style.top = (r.bottom + 6 + scrollY) + 'px'; m.style.left = Math.max(8, r.right - m.offsetWidth) + 'px';
     $$('[data-m]', m).forEach(b => b.onclick = async () => { m.remove(); const a = b.dataset.m; if (await feeMenuRun(a, { id, name: c.name })) return;
       if (a === 'np2') startModal({ customer_id: id });
+      if (a === 'own' && await reassignBox('customers', c)) route();
       if (a === 'rv') revertToLead(id, c.name);
       if (a === 'dl' && confirm('Delete this customer and all their projects, quotes and files?\n\nIt goes to the Recycle bin and can be restored for 72 hours.')) { await api('customers', 'delete', { id }); toast('Moved to Recycle bin'); location.hash = '#/customers'; } });
     setTimeout(() => document.addEventListener('click', () => m.remove(), { once: true }));
