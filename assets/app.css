@@ -554,7 +554,7 @@ button.ac:not([disabled]){cursor:pointer}button.ac:not([disabled]):hover{outline
 .k-stage .tld,.k-convert .tld{background:#e8f7ec}.k-stage .tld .i,.k-convert .tld .i{background:#1e7a37}
 .k-payment .tld,.k-receipt .tld{background:#fff4e0}.k-payment .tld .i,.k-receipt .tld .i{background:#a05a00}
 .k-disc .tld,.k-wa .tld{background:#f1e9ff}.k-disc .tld .i,.k-wa .tld .i{background:#6b2bbf}
-@media(max-width:1250px){.pfgrid{grid-template-columns:minmax(0,1fr) minmax(300px,380px)}.pfr{grid-template-columns:118px minmax(0,1fr)}}@media(max-width:880px){.pfgrid{grid-template-columns:minmax(0,1fr)}.pfright{order:-1}}
+@media(max-width:1250px){.pfgrid{grid-template-columns:minmax(0,1fr) minmax(300px,380px)}.pfr{grid-template-columns:118px minmax(0,1fr)}}@media(max-width:880px){.pfgrid{grid-template-columns:minmax(0,1fr)}.pfleft>.pfcols{order:-1}}
 @media(max-width:600px){.pfr{grid-template-columns:110px minmax(0,1fr)}.tle{grid-template-columns:40px 26px minmax(0,1fr)}.tle::before{left:52px}}
 .pfch .sp{flex:1}.tlb small{display:block;margin-top:1px}.pfch h3 a{color:inherit}
 

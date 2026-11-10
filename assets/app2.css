@@ -454,3 +454,7 @@ body.sbah aside.mini a .nb{position:absolute;top:0;right:-2px;margin:0}
 .owbtn{background:none;border:0;padding:2px 4px;margin:0;font:inherit;font-size:13px;font-weight:600;color:var(--pri);cursor:pointer;border-radius:6px}
 .owbtn:hover{background:rgba(0,122,255,.08)}.owbtn:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(0,122,255,.38)}
 #ctb .own{max-width:100%;overflow:hidden}#ctb .own .clip{min-width:0}
+
+/* ===== Customer profile Overview: Progress + detail cards on the left (cards in two columns when there is room), Timeline on the right ===== */
+.pfcols{columns:2 340px;column-gap:14px;margin-bottom:-14px}
+.pfcols>*{break-inside:avoid;margin:0 0 14px;width:100%}
