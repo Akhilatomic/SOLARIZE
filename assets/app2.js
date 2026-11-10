@@ -66,9 +66,10 @@ function printQuote(q, p, who, c) {
 }
 
 // ---------- Subsidy / KSEB overview ----------
-async function pgOverview(kind) {
+// box: where the table goes (the KSEB documentation page shows it in its Checklist tab)
+async function pgOverview(kind, box = $('#main')) {
   const rows = await api('checklist', 'list', undefined, '&kind=' + kind);
-  $('#main').innerHTML = `<p class="mut">${kind === 'subsidy' ? 'PM Surya Ghar subsidy steps per project. Click a project to update steps.' : 'KSEB / Urjamithra document checklist per project. Click a project to upload and track documents.'}</p>` +
+  box.innerHTML = `<p class="mut">${kind === 'subsidy' ? 'PM Surya Ghar subsidy steps per project. Click a project to update steps.' : 'KSEB / Urjamithra document checklist per project. Click a project to upload and track documents.'}</p>` +
     table([['Customer', p => `<b>${esc(p.customer || '—')}</b><br><small class="mut">${esc(p.title)}</small>`], ['Stage', p => pill(p.stage, stageCls(p.stage))], kind === 'subsidy' ? ['Application / status', p => `${esc(p.application_no) || '—'}<br>${pill(p.subsidy_status || 'Not applied', stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}`] : ['kW', p => p.kw, 'num'],
       ['Progress', p => `<div class="prog"><i style="width:${p.total ? p.approved / p.total * 100 : 0}%"></i></div><small>${p.approved}/${p.total} done${p.submitted ? ' · ' + p.submitted + ' submitted' : ''}</small>`]], rows, id => { TAB.proj = kind; location.hash = '#/projects/' + id; });
 }
