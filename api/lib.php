@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 25; // bump when tables/columns change
+const SCHEMA_VERSION = 26; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -179,6 +179,15 @@ function migrate($db) {
     $db->exec("DELETE FROM settings WHERE k='mail_unread'");
     $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('mail_v25','1')");
   }
+  // Quotation maker (v26): product catalogue, saved templates, and the maker's document on each quotation
+  $db->exec("CREATE TABLE IF NOT EXISTS qm_products(id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT UNIQUE, cat TEXT, name TEXT DEFAULT '', line TEXT DEFAULT '', details TEXT DEFAULT '', title TEXT DEFAULT '', unit TEXT DEFAULT 'no', qty REAL DEFAULT 1, qty_note TEXT DEFAULT '', wp REAL DEFAULT 0, kw REAL DEFAULT 0, needs_opt INTEGER DEFAULT 0, warranty TEXT DEFAULT '[]', brands TEXT DEFAULT '[]', picture TEXT DEFAULT '', page TEXT DEFAULT '', rate REAL DEFAULT 0, is_default INTEGER DEFAULT 0, hidden INTEGER DEFAULT 0, sort INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE INDEX IF NOT EXISTS qmp_cat ON qm_products(cat, sort)');
+  $db->exec("CREATE TABLE IF NOT EXISTS qm_templates(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, data TEXT, created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $qc = array_column($db->query('PRAGMA table_info(quotes)')->fetchAll(), 'name');
+  if (!in_array('doc', $qc)) { try { $db->exec("ALTER TABLE quotes ADD COLUMN doc TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  $db->exec("INSERT OR IGNORE INTO settings(k,v) VALUES('qm_next','144')");
+  require_once __DIR__ . '/qm_seed.php';
+  qm_seed($db); // only fills an empty catalogue
   $db->exec('ANALYZE'); // give the query planner row counts for the new indexes
 }
 

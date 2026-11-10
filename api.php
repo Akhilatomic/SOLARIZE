@@ -25,6 +25,7 @@ require __DIR__ . '/api/fees.php';
 require __DIR__ . '/api/user.php';
 require __DIR__ . '/api/gen.php';
 require __DIR__ . '/api/mail.php';
+require __DIR__ . '/api/quotemaker.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';
@@ -40,7 +41,7 @@ try {
   session_write_close();
   try { housekeeping(); } catch (Throwable $e) { } // hourly: expire 200-day documents, purge the 72-hour recycle bin
   // CSRF-light: state-changing calls must be POST
-  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status', 'me', 'today', 'month', 'range', 'pending', 'summary', 'notifs', 'timeline', 'serial', 'zip', 'candidates', 'member', 'avatar', 'leaves', 'balances', 'days', 'folders', 'att', 'admin_list']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
+  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status', 'me', 'today', 'month', 'range', 'pending', 'summary', 'notifs', 'timeline', 'serial', 'zip', 'candidates', 'member', 'avatar', 'leaves', 'balances', 'days', 'folders', 'att', 'admin_list', 'boot', 'img']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
   if (isset($E[$m])) handle_crud($m, $a);
   switch ($m) {
     case 'dashboard': handle_dashboard();
@@ -67,6 +68,7 @@ try {
     case 'user': handle_user($a);
     case 'gen': handle_gen($a);
     case 'mail': handle_mail($a);
+    case 'qm': handle_qm($a);
   }
   fail('Unknown module', 404);
 } catch (Throwable $e) {
