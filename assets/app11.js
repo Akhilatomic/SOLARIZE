@@ -54,7 +54,6 @@ async function pgCustomer(id) {
       <div class="tladd"><input id="tln" placeholder="Add an update or note… (Enter to save)"><button class="btn sm" id="tlnb">Add</button></div>
       <div class="tl">${tline || '<p class="mut">Nothing yet.</p>'}</div></div></div>
     <div class="pfright">${PF_GROUPS.map(group).join('')}${locCard}
-     <div class="card pfc"><div class="pfch"><i class="i i-file"></i><h3>Documents</h3><span class="sp"></span><button class="btn sec sm" data-goto="docs">Open</button>${canW('files') ? '<button class="btn sec sm" id="up"><i class="i i-upload"></i> Add</button>' : ''}</div>${c.files.slice(0, 6).map(f => `<div class="pfdoc">${fileLink(f)}${f.item ? '<br><small class="mut">' + esc(f.item) + '</small>' : ''}</div>`).join('') || '<p class="mut" style="margin:0;font-size:13px">No documents</p>'}</div>
      <div class="card pfc"><div class="pfch"><i class="i i-receipt"></i><h3>Quotations</h3><span class="sp"></span>${canW('quotes') ? '<button class="btn sec sm" id="nq">+ New</button>' : ''}</div>${c.quotes.map(q => `<div class="pfdoc"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${q.total != null ? inr(q.total) : ''}<br><small class="mut">${q.date}</small></div>`).join('') || '<p class="mut" style="margin:0;font-size:13px">No quotations</p>'}</div>
      ${c.notes ? `<div class="card pfc"><div class="pfch"><i class="i i-note"></i><h3>Notes</h3></div><div style="font-size:14px;white-space:pre-wrap">${esc(c.notes)}</div></div>` : ''}
     </div></div>`;
