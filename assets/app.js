@@ -312,7 +312,7 @@ function bars(data, order) {
 
 // ---------- Leads ----------
 const LCOLS = [['date', 'Added'], ['name', 'Name'], ['phone', 'Phone'], ['status', 'Status'], ['city', 'Location'], ['owner', 'Claimed by'], ['remark', 'Remark'], ['appt', 'Appt'], ['cb', 'Call back']];
-const LW = { date: 92, phone: 112, status: 96, owner: 124, appt: 128, cb: 136 }; // fixed px; name/location/remark share the rest
+const LW = { date: 92, phone: 112, status: 96, owner: 96, appt: 128, cb: 136 }; // fixed px; name/location/remark share the rest
 let LF = { q: '', status: '', active: 'active', city: '', appt: '', own: '', sort: 'created', dir: -1, edit: false };
 let LHIDE = []; try { LHIDE = JSON.parse(localStorage.lcols || '[]'); } catch (e) { }
 // speed: build each date formatter once (toLocaleDateString with options builds a new one on every call — seconds on a 4,000-row table)
@@ -381,7 +381,10 @@ function callbackBox(l, after) {
 }
 // ---- claiming: a claimed lead is locked to its owner; owner/admin can unclaim, owner/admin/assistant manager can reassign ----
 const isAdm = () => ME.role === 'admin';
-const ownerCellRow = l => ownerCell(l) + (l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ' <button class="ib unc" data-a="unlock" title="Unclaim — release this lead"><i class="i i-x"></i></button>' : '');
+/* Leads list: the owner's display picture (initials when there is none) with a lock badge; the name shows on hover */
+const ownerDp = l => { const me = l.assigned_to == ME.id, who = me ? 'You' + (ME.name ? ' (' + ME.name + ')' : '') : (l.owner_name || 'another user'), tip = esc('Claimed by ' + who + (l.claimed_at ? ' · ' + agoStr(l.claimed_at) : ''));
+  return `<span class="owndp${me ? ' me' : ''}" title="${tip}" data-tip="${tip}" aria-label="${tip}"><span class="dp">${avImg(l.assigned_to, me ? ME.avatar || l.owner_av : l.owner_av, me ? ME.name : l.owner_name)}</span><span class="lk"><i class="i i-lock"></i></span></span>`; };
+const ownerCellRow = l => (l.assigned_to ? ownerDp(l) : ownerCell(l)) + (l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ' <button class="ib unc" data-a="unlock" title="Unclaim — release this lead"><i class="i i-x"></i></button>' : '');
 const ownerCell = l => l.assigned_to ? `<span class="own${l.assigned_to == ME.id ? ' me' : ''}" title="Claimed${l.claimed_at ? ' ' + agoStr(l.claimed_at) : ''}"><i class="i i-lock"></i>${esc(l.assigned_to == ME.id ? 'You' : (l.owner_name || 'Claimed'))}</span>`
   : (ME.can_claim && canW('leads') ? '<button class="btn sm claim" data-a="claim"><i class="i i-userplus"></i> Claim</button>' : '<span class="mut">Unclaimed</span>');
 async function claimLead(id, name) { try { await api('leads', 'claim', { id }); toast('Claimed' + (name ? ': ' + name : '') + ' — locked to you'); return true; } catch (e) { return false; } }
@@ -605,7 +608,7 @@ async function pgCustomers() {
     const fin = canR('fees');
     const ACTS = c => { const p = !!c.project_id, wl = w && canW('leads');
       const list = [['ed', 'pencil', 'Edit customer', w], ['pj', 'project', p ? 'Open project' : 'Start a project', p || canW('projects')], ['docs', 'file', 'Documents', true], ['pay', 'card', 'Payments', 1, p], ['fees', 'coin', 'Finance — feasibility, registration, stamp paper', fin],
-        ['kseb', 'folder', 'KSEB documents', 1, p], ['sub', 'sun', 'Subsidy (PM Surya Ghar)', 1, p], ['tl', 'clock', 'Timeline & profile', true], ['rv', 'undo', 'Revert to lead', wl]].filter(x => x[3]);
+        ['kseb', 'folder', 'KSEB documents', 1, p], ['kdoc', 'clipboard', 'KSEB documentation — work completion report, annexures, MNRE warranty card', canR('checklist')], ['sub', 'sun', 'Subsidy (PM Surya Ghar)', 1, p], ['tl', 'clock', 'Timeline & profile', true], ['rv', 'undo', 'Revert to lead', wl]].filter(x => x[3]);
       return full ? list : list.filter(x => ['ed', 'pj', 'docs'].includes(x[0])); };
     const cell = (k, c) => ({ name: `<td class="cnm"><b class="clip">${esc(c.name)}</b>${feasChip(c.id)}${!COLS.some(x => x[0] === 'cno') && c.consumer_no ? `<small class="mono mut">${esc(c.consumer_no)}</small>` : ''}</td>`,
       status: `<td><span class="pill ${c.status === 'New' ? 'b' : (typeof stepCls === 'function' && PIPE ? stepCls(c.status) : STC[c.status]) || ''}">${esc(c.status)}</span></td>`,
@@ -634,6 +637,7 @@ async function pgCustomers() {
         if (a === 'pj') { if (c.project_id) { TAB.proj = 'overview'; location.hash = '#/projects/' + c.project_id; } else if (canW('projects')) startModal({ customer_id: c.id }); else toast('No project yet', true); }
         if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ customer_id: c.id, name: c.name }); location.hash = '#/quotes/new'; }
         if (a === 'pay') proj('overview'); if (a === 'kseb') proj('kseb'); if (a === 'sub') proj('subsidy');
+        if (a === 'kdoc') location.hash = '#/kseb/' + c.id; /* KSEB documentation page, filled in for this customer */
         if (a === 'op') location.hash = '#/customers/' + c.id;
         if (a === 'sp') startModal({ customer_id: c.id });
         if (a === 'docs') { PFT = 'docs'; PFT_ID = c.id; location.hash = '#/customers/' + c.id; }
@@ -645,7 +649,7 @@ async function pgCustomers() {
         if (a === 'fees') return popMenu(b, feeMenuItems(c.id), run);
         if (a !== 'more') return run(a);
         const shown = new Set($$('[data-a]', tr).map(x => x.dataset.a));
-        popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner', w && OWN.canReassign(c.owner_id, ME)], ['rv', 'undo', 'Revert to lead', w && canW('leads')]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
+        popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['kdoc', 'clipboard', 'KSEB documentation', canR('checklist')], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner', w && OWN.canReassign(c.owner_id, ME)], ['rv', 'undo', 'Revert to lead', w && canW('leads')]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
       });
     });
     bind([...tb.tBodies[0].rows]); onScreen = n;
