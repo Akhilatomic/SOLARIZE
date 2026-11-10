@@ -467,7 +467,7 @@ async function renderMnre(box, c, id) {
   $('#mdate', box).addEventListener('change', async () => { if (!g.doc && noAuto) { try { $('#mref', box).value = (await api('gen', 'next', undefined, `&kind=warranty&customer_id=${id}&date=${$('#mdate', box).value}`)).number; } catch (e) { } } upd(); });
   if ($('#mrefauto', box)) $('#mrefauto', box).onclick = async () => { if (g.doc && !confirm('Give this certificate the next number in the series?')) return; noAuto = !g.doc;
     try { $('#mref', box).value = (await api('gen', 'next', undefined, `&kind=warranty&customer_id=${id}&date=${$('#mdate', box).value}`)).number; } catch (e) { } hint(); upd(); };
-  $('#mgoplant', box).onclick = () => { const t = document.querySelector('[data-pt="plant"]'); if (t) { t.click(); scrollTo({ top: 0, behavior: 'smooth' }); } };
+  $('#mgoplant', box).onclick = () => { const t = document.querySelector('[data-pt="plant"]'); if (t) { t.click(); scrollTo({ top: 0, behavior: 'smooth' }); } else { PFT = 'plant'; PFT_ID = id; location.hash = '#/customers/' + id; } };
   $('#mpr', box).onclick = () => printLetter(`Warranty certificate — ${c.name}`, page());
   if ($('#msv', box)) $('#msv', box).onclick = async e => { const b = e.currentTarget; b.disabled = true;
     try { const r = await api('gen', 'save', { kind: 'warranty', customer_id: id, issued_on: $('#mdate', box).value || today(), number: !g.doc && noAuto ? '' : ref(), data: D }); toast(`Warranty card ${r.number} saved`); renderMnre(box, c, id); } catch (x) { b.disabled = false; } };

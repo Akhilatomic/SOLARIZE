@@ -1,15 +1,15 @@
-// KSEB documentation page (#/kseb, #/kseb/<customerId>): tabs Work completion report · Annexure 1 · 2 · 3 · Checklist sheet · Checklist.
+// KSEB documentation page (#/kseb, #/kseb/<customerId>): tabs Work completion report · Annexure 1 · 2 · 3 · Checklist sheet · MNRE warranty card.
 // A document tab: customer picker, the document's fields (KD.DOCS in app24.js) on the left, a live A4 preview on the right,
 // Save and Download PDF. pdf-lib (loaded on first use) writes the text onto the template PDF in the browser.
 // Saving rule: only the fields that differ from the profile are stored (KD.overrides), plus the date, so a corrected
 // profile prints corrected. UI classes start with .kd (assets/kseb.css). Every value shown in HTML goes through esc().
 const KDS = { tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
-const KD_TABS = [['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['chk', 'Checklist sheet'], ['list', 'Checklist']];
+const KD_TABS = [['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['chk', 'Checklist sheet'], ['mnre', 'MNRE warranty card']];
 const KD_FONT = { T: "'Times New Roman',Times,serif", TB: "'Times New Roman',Times,serif", H: 'Arial,Helvetica,sans-serif', HB: 'Arial,Helvetica,sans-serif' };
 const kdT = v => String(v ?? '').trim();
 const kdOn = () => !!$('#kd');
 const kdTab = () => KD_TABS.some(t => t[0] === TAB.kseb) ? TAB.kseb : 'wcr';
-const kdDoc = () => { const t = kdTab(); return KD.DOCS[t] ? t : null; }; /* null on the Checklist tab */
+const kdDoc = () => { const t = kdTab(); return KD.DOCS[t] ? t : null; }; /* null on the MNRE warranty card tab */
 const kdFields = doc => KD.DOCS[doc].groups.flatMap(gr => gr.fields.map(f => Object.assign({ g: gr.g }, f)));
 const kdCtx = g => ({ customer: g.customer || {}, plant: g.plant || {}, project: g.project || null, defaults: g.defaults || {}, items: S.kseb_items || [], today: today() });
 /* api() already showed its own errors; anything else becomes a red toast */
@@ -62,12 +62,8 @@ function kdDraw() {
   main.innerHTML = `<div class="kd${KDS.pv ? ' kd-onpv' : ''}" id="kd">${tabsBar('kseb', KD_TABS, 'wcr')}<div id="kdbody"></div></div>`;
   bindTabs('kseb', kdDraw);
   const body = $('#kdbody');
-  if (tab === 'list') { /* the per-project checklist, as the page was before; a fresh box, so a late answer never lands on another tab */
-    const box = document.createElement('div'); box.innerHTML = '<p class="mut">Loading…</p>'; body.appendChild(box);
-    pgOverview('kseb', box).catch(e => { if (!e || !e.error) { console.error(e); box.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; } });
-    return;
-  }
-  body.innerHTML = kdDocHtml(tab);
+  /* MNRE warranty card: the same certificate as the customer profile's tab (renderMnre, app18.js) for the customer picked here */
+  body.innerHTML = tab === 'mnre' ? kdMnreHtml() : kdDocHtml(tab);
   const root = $('#kd'), find = $('#kdfind'), res = $('#kdres'), q = $('#kdq');
   root.addEventListener('input', kdOnInput); root.addEventListener('change', kdOnInput);
   root.addEventListener('click', kdOnClick); root.addEventListener('keydown', kdOnKey);
@@ -78,11 +74,22 @@ function kdDraw() {
     if (!KDS.g && matchMedia('(min-width:821px)').matches) q.focus();
   }
   if (!KDS.g) return;
+  if (tab === 'mnre') { renderMnre($('#kdmnre'), Object.assign({}, KDS.g.customer || {}, { id: KDS.id }), KDS.id).catch(kdErr); return; }
   kdMarks(); kdLayout(); kdScale();
   const wr = $('#kdpvs');
   if ('ResizeObserver' in window) { KDS.ro = new ResizeObserver(kdScale); KDS.ro.observe(wr); }
 }
 
+function kdMnreHtml() {
+  if (!canR('customers')) return '<div class="card kd-hint"><i class="i i-lock"></i><div><b>No access to customers</b><p>The warranty card is filled from the customer profile. Ask an admin for access to Customers.</p></div></div>';
+  const g = KDS.g, c = g ? g.customer || {} : null;
+  const bar = `<div class="kd-bar card">
+    <div class="kd-find" id="kdfind"><i class="i i-search"></i><input id="kdq" type="search" placeholder="Search customer: name, phone or consumer no." autocomplete="off" aria-label="Search customers"><div class="kd-res" id="kdres" hidden></div></div>
+    ${g ? `<div class="kd-who"><b>${esc(c.name || 'Customer')}</b><small>${esc([c.phone, c.consumer_no && 'Consumer no. ' + c.consumer_no].filter(Boolean).join(' · '))}</small></div>
+    <a class="kd-prof" href="#/customers/${KDS.id}"><i class="i i-user"></i>Open customer profile</a>` : ''}<span class="sp"></span></div>`;
+  if (!g) return bar + `<div class="card kd-hint"><i class="i i-search"></i><div><b>Pick a customer</b><p>${KDS.err ? esc(KDS.err) + '. ' : ''}Search by name, phone or consumer number above. Their profile and plant details fill in the MNRE warranty card.</p></div></div>`;
+  return bar + '<div id="kdmnre"><p class="mut">Loading…</p></div>';
+}
 function kdDocHtml(doc) {
   const D = KD.DOCS[doc], g = KDS.g, w = canW('checklist');
   if (!canR('customers')) return '<div class="card kd-hint"><i class="i i-lock"></i><div><b>No access to customers</b><p>These documents are filled from the customer profile. Ask an admin for access to Customers.</p></div></div>';
