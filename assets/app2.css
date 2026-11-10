@@ -85,7 +85,7 @@ input[type=checkbox],input[type=radio]{box-shadow:none;accent-color:#007aff}
 /* tables: quiet sentence-case headers */
 th{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:#86868b}
 th,td{border-bottom:.5px solid rgba(0,0,0,.08)}
-tr.row:hover,#ltb tbody tr:hover{background:rgba(0,122,255,.045)}
+tr.row:hover,#ltb tbody tr:hover{background:#f0f1f4}
 table.stack td[data-label]:not([data-label=""])::before{text-transform:none;letter-spacing:0;font-size:11.5px;color:#86868b}
 
 /* section labels everywhere: sentence case like macOS, not shouting caps */
@@ -421,7 +421,7 @@ body.sbah aside.mini a .nb{position:absolute;top:0;right:-2px;margin:0}
    Applies to every list (Leads, Customers, Quotations, Projects, Finance, Recycle bin, staff lists…).
    Low-specificity :where() so row highlights (live customer, expired fee) and editable cells still win.
    border-collapse:separate so the grid lines travel with the sticky header. ===== */
-:root{--gl:#e5e7eb;--gh:#eef0f3;--ghl:#d4d8de;--galt:#f5f6f8;--ghov:#e7f0fe}
+:root{--gl:#e5e7eb;--gh:#eef0f3;--ghl:#d4d8de;--galt:#f5f6f8;--ghov:#ebedf0}
 .card.tw{padding:0;border:1px solid #dadfe6;border-radius:12px;box-shadow:0 1px 3px rgba(16,24,40,.05)}
 .card.tw>table:not(.stack){border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
 :where(.card.tw>table:not(.stack)) th{background:var(--gh);color:#4a515e;font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;padding:9px 12px;line-height:1.35;vertical-align:middle;white-space:nowrap;border-bottom:1px solid var(--ghl);border-right:1px solid var(--gl)}
