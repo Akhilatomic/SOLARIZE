@@ -175,7 +175,8 @@ const opt = (arr, blank) => (blank ? [['', blank]] : []).concat(arr);
 function table(cols, rows, onRow) {
   const id = 't' + Math.random().toString(36).slice(2);
   setTimeout(() => $$(`#${id} tr.row`).forEach(r => r.onclick = e => { if (!e.target.closest('a,button,select,input')) onRow(r.dataset.id); }));
-  return `<div class="card tw" id="${id}"><table><thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr class="row" data-id="${r.id}">${cols.map(c => `<td>${c[1](r)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="mut">Nothing here yet</td></tr>`}</tbody></table></div>`;
+  const cl = c => c[2] ? ` class="${c[2]}"` : ''; /* optional 3rd item: a cell class, e.g. 'num' for right-aligned numbers */
+  return `<div class="card tw" id="${id}"><table><thead><tr>${cols.map(c => `<th${cl(c)}>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr class="row" data-id="${r.id}">${cols.map(c => `<td${cl(c)}>${c[1](r)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="mut">Nothing here yet</td></tr>`}</tbody></table></div>`;
 }
 function tabsBar(key, names, def) {
   const cur = TAB[key] || def;
@@ -636,7 +637,7 @@ async function pgProjects() {
       $('#pv').innerHTML = `<div class="board">${S.project_stages.map(s => { const cs = ps.filter(p => p.stage === s); return `<div class="col" data-s="${esc(s)}"><h4><span>${esc(s)}</span><span>${cs.length} · ${inr(cs.reduce((a, p) => a + p.cost, 0))}</span></h4>${cs.map(p => `<div class="k" draggable="true" data-id="${p.id}"><b>${esc(p.customer || '—')}</b><small>${esc(p.title)}</small><small>${p.kw} kW · ${inr(p.cost)}</small></div>`).join('')}</div>`; }).join('')}</div>`;
       $$('.k').forEach(k => { k.ondragstart = e => e.dataTransfer.setData('id', k.dataset.id); k.onclick = () => location.hash = '#/projects/' + k.dataset.id; });
       if (canW('projects')) $$('.col').forEach(c => { c.ondragover = e => e.preventDefault(); c.ondrop = async e => { e.preventDefault(); const p = ps.find(x => x.id == e.dataTransfer.getData('id')); if (p && p.stage !== c.dataset.s) { await api('projects', 'save', { ...p, stage: c.dataset.s }); route(); } }; });
-    } else $('#pv').innerHTML = table([['Customer', p => `<b>${esc(p.customer)}</b>`], ['Project', p => esc(p.title)], ['kW', p => p.kw], ['Stage', p => pill(p.stage, stageCls(p.stage))], ['Value', p => inr(p.cost)], ['Balance', p => inr(p.cost - p.paid)], ['Engineer', p => esc(p.engineer)]], ps, id => location.hash = '#/projects/' + id);
+    } else $('#pv').innerHTML = table([['Customer', p => `<b>${esc(p.customer)}</b>`], ['Project', p => esc(p.title)], ['kW', p => p.kw, 'num'], ['Stage', p => pill(p.stage, stageCls(p.stage))], ['Value', p => inr(p.cost), 'num'], ['Balance', p => inr(p.cost - p.paid), 'num'], ['Engineer', p => esc(p.engineer)]], ps, id => location.hash = '#/projects/' + id);
   };
   $('#main').innerHTML = `<div class="bar"><div class="tabs" style="margin:0"><button data-v="board" class="${PV === 'board' ? 'on' : ''}">Board</button><button data-v="list" class="${PV === 'list' ? 'on' : ''}">List</button></div><span class="sp"></span>${canW('projects') ? '<button class="btn" id="pn">+ New project</button>' : ''}</div><div id="pv"></div>`;
   $$('[data-v]').forEach(b => b.onclick = () => { PV = b.dataset.v; route(); });

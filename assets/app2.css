@@ -158,10 +158,8 @@ table.stack.ftb td:first-child{display:none}table.stack.ftb td:nth-child(2){grid
 .cbar{flex-wrap:nowrap}.cbar #cq{flex:1 1 240px;max-width:none}.cbar select{flex:0 1 170px}
 @media(max-width:820px){.cbar{flex-wrap:wrap}}
 .ctb2:not(.stack){table-layout:fixed}
-.ctb2:not(.stack) td{vertical-align:middle;padding:11px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ctb2:not(.stack) th{padding:10px;white-space:nowrap}
-.ctb2:not(.stack) tbody tr:nth-child(even) td{background:rgba(0,0,0,.018)}
-.ctb2:not(.stack) tbody tr:hover td{background:rgba(0,122,255,.05)}
+.ctb2:not(.stack) td{vertical-align:middle;padding:8px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctb2:not(.stack) th{padding:9px 10px;white-space:nowrap}
 .ctb2 .cnm b{font-weight:600;font-size:14px}.ctb2 .cnm small{display:block;font-size:11.5px;margin-top:1px}
 .ctb2 td.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;color:#3a3a3c;letter-spacing:0}
 .ctb2 .mut2{color:#48484a}.ctb2 .tel{white-space:nowrap}
@@ -418,3 +416,20 @@ body.sbah aside.mini .sgc a{padding-left:13px}
 body.sbah aside.mini a .nb{position:absolute;top:0;right:-2px;margin:0}
 @media print{body.sbah #shell{padding-left:0}}
 @media(min-width:821px){.btn.burger{display:none}body.sbah .btn.burger{display:inline-block}}
+
+/* ===== List tables: spreadsheet look — grey header band, thin grid lines, alternate row colour.
+   Applies to every list (Leads, Customers, Quotations, Projects, Finance, Recycle bin, staff lists…).
+   Low-specificity :where() so row highlights (live customer, expired fee) and editable cells still win.
+   border-collapse:separate so the grid lines travel with the sticky header. ===== */
+:root{--gl:#e5e8ed;--gh:#f2f4f7;--ghl:#d6dbe2;--galt:#f5f8fd;--ghov:#e7f0fe}
+.card.tw{padding:0;border:1px solid #dadfe6;border-radius:12px;box-shadow:0 1px 3px rgba(16,24,40,.05)}
+.card.tw>table:not(.stack){border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+:where(.card.tw>table:not(.stack)) th{background:var(--gh);color:#4a515e;font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;padding:9px 12px;line-height:1.35;vertical-align:middle;white-space:nowrap;border-bottom:1px solid var(--ghl);border-right:1px solid var(--gl)}
+:where(.card.tw>table:not(.stack)) td{padding:8px 12px;font-size:13.5px;line-height:1.4;vertical-align:middle;border-bottom:1px solid var(--gl);border-right:1px solid var(--gl)}
+:where(.card.tw>table:not(.stack)) :is(th,td):last-child{border-right:0}
+:where(.card.tw>table:not(.stack)>tbody>tr:last-child)>td{border-bottom:0}
+:where(.card.tw>table:not(.stack)>tbody>tr:nth-child(even))>td{background:var(--galt)}
+:where(.card.tw>table:not(.stack)>tbody>tr:hover)>td{background:var(--ghov)}
+:where(.card.tw>table:not(.stack)) td.mut[colspan]{text-align:center;padding:28px 12px;background:#fff}
+.card.tw>table.stack>tbody>tr:nth-child(even){background:var(--galt)}
+:where(.card.tw>table:not(.stack)) :is(th,td).num{text-align:right;white-space:nowrap}

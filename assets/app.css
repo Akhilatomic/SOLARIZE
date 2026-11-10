@@ -22,7 +22,7 @@ h2,h3{letter-spacing:-.02em}
 .btn.bad{background:#fff1f0;color:var(--bad)}.btn.bad:hover{background:#ffe3e0}
 .btn.ok{background:var(--ok)}.btn.ok:hover{background:#278a42}
 .btn.sm{padding:4px 12px;font-size:13px}
-#ltb td,#ltb th{padding:9px 8px}#ltb .btn.sm{padding:3px 8px;border-radius:8px;font-size:13px;line-height:1.3}
+#ltb td,#ltb th{padding:7px 9px}#ltb .btn.sm{padding:3px 8px;border-radius:8px;font-size:13px;line-height:1.3}
 input,select,textarea{width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:10px;background:#fff;color:var(--tx);font:inherit;transition:border-color .15s,box-shadow .15s}
 input:focus,select:focus,textarea:focus{outline:0;border-color:var(--pri);box-shadow:0 0 0 4px rgba(0,113,227,.15)}
 input:disabled,select:disabled,textarea:disabled{background:var(--fill);color:var(--mut)}
@@ -190,7 +190,7 @@ main.pg-leads{max-width:none;padding-left:28px;padding-right:28px}
 #ltb td:first-child{white-space:nowrap}
 @media(max-width:1100px){#ltb td.lact{white-space:normal;min-width:150px}#ltb td[data-f=name]{white-space:normal}main.pg-leads{padding-left:14px;padding-right:14px}}
 main.pg-leads .bar select{max-width:200px}main.pg-leads #lq{max-width:320px!important}
-#ltb td.qe{cursor:text;border-radius:8px;transition:background .12s}#ltb td.qe:hover{background:var(--fill);box-shadow:inset 0 0 0 1px var(--bd)}
+#ltb td.qe{cursor:text;transition:background .12s}#ltb td.qe:hover{background:#fff;box-shadow:inset 0 0 0 1.5px #7fb0f5}
 #ltb td input,#ltb td select{padding:6px 8px;font-size:14px;min-width:140px}
 
 /* dashboard: full width, 12-column grid, equal-height rows */
@@ -221,7 +221,7 @@ main.pg-leads .bar select{max-width:175px}main.pg-leads #lq{max-width:290px!impo
 main.pg-customers{max-width:none;padding-left:28px;padding-right:28px}
 main.pg-customers .bar select{max-width:180px}
 #ctb th{white-space:nowrap}#ctb th .i{width:13px;height:13px;margin-right:3px;opacity:.7}
-#ctb td{white-space:nowrap;vertical-align:middle;padding:12px 10px}#ctb td:first-child{white-space:normal;min-width:160px}
+#ctb td{white-space:nowrap;vertical-align:middle;padding:8px 10px}#ctb td:first-child{white-space:normal;min-width:160px}
 #ctb .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
 #ctb .tel{display:inline-flex;align-items:center;gap:5px}#ctb .tel .i{width:13px;height:13px}
 #ctb td.cact{text-align:right;width:1%}
@@ -233,9 +233,9 @@ main.pg-customers .bar select{max-width:180px}
 /* leads table: fits the window — fixed layout, merged columns, clipped text, sticky header */
 main.pg-leads .tw{overflow:auto}
 #ltb{table-layout:fixed;width:100%}
-#ltb th{position:sticky;top:0;z-index:2;background:var(--card);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:inset 0 -1px 0 var(--bd)}
+#ltb th{position:sticky;top:0;z-index:2;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #ltb th .so{margin-left:4px;opacity:.45;font-size:11px}
-#ltb td{overflow:hidden;text-overflow:ellipsis;vertical-align:middle;padding:9px 8px}
+#ltb td{overflow:hidden;text-overflow:ellipsis;vertical-align:middle;padding:7px 9px}
 #ltb td.dt{white-space:nowrap;color:var(--mut);font-size:13px;line-height:1.25}#ltb td.dt small{display:block;font-size:11px;overflow:hidden;text-overflow:ellipsis}
 #ltb .nm{display:flex;align-items:center;gap:6px;min-width:0}#ltb .nm b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#ltb .nm .ndot{flex-shrink:0;margin:0}
 #ltb .pill.mt{font-size:10px;padding:1px 6px;flex-shrink:0}
@@ -265,7 +265,7 @@ main.pg-leads .lbar select{font-size:14px;padding-right:6px}main.pg-leads .lbar 
 main{max-width:none;padding-left:28px;padding-right:28px}
 .tw{overflow-x:hidden;overflow-y:auto}
 table td,table th{overflow-wrap:anywhere}
-.fitbox thead th{position:sticky;top:0;z-index:2;background:var(--card);box-shadow:inset 0 -1px 0 var(--bd)}
+.fitbox thead th{position:sticky;top:0;z-index:2}
 /* customers fixed layout */
 #ctb{table-layout:fixed;width:100%}#ctb td{overflow:hidden;text-overflow:ellipsis}#ctb td:first-child{min-width:0}#ctb .clip{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #ctb td.cact{width:auto;white-space:nowrap}
