@@ -351,6 +351,20 @@ if ($dbPath !== '' && is_file($dbPath)) { // a counter left stuck by the old bug
   chk($n3 !== '' && !in_array($n3, [$n1, $n2], true), "tax bill: a stuck counter does not reuse an issued number ($n3)");
 }
 
+/* ---- tax bill invoice number: shown before issuing, can be typed, carries on from the last one, never repeats ---- */
+$nc = []; foreach (['No One', 'No Two', 'No Three', 'No Four'] as $nm) $nc[] = call($admin, 'customers', 'save', ['name' => $nm, 'phone' => '9847' . rand(100000, 999999)])['id'] ?? 0;
+$save = fn($cid, $no = '') => call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $cid, 'issued_on' => '2026-11-12', 'number' => $no, 'data' => ['bill_name' => 'X', 'items' => [], 'parts' => $parts]]);
+$peek = call($admin, 'gen', 'get', null, "&kind=tax&customer_id={$nc[0]}")['next_no'] ?? '';
+$a1 = $save($nc[0])['number'] ?? '';
+chk($peek !== '' && $a1 === $peek, "invoice no.: a new bill shows the number it will get ($peek)");
+$m1 = $save($nc[1], '59');
+chk(($m1['number'] ?? '') === '59', 'invoice no.: a typed number is used');
+chk((call($admin, 'gen', 'next', null, "&kind=tax&customer_id={$nc[2]}&date=2026-11-12")['number'] ?? '') === '60', 'invoice no.: the next one carries on from the typed number (60)');
+chk(($save($nc[2])['number'] ?? '') === '60', 'invoice no.: issuing without typing gives 60');
+chk(($save($nc[3], '60')['_code'] ?? 0) === 409, 'invoice no.: a number already used is refused');
+chk(($save($nc[0], '61')['number'] ?? '') === '61' && ($save($nc[0], '59')['_code'] ?? 0) === 409, 'invoice no.: an issued bill can be renumbered, but not to a used number');
+chk((call($admin, 'gen', 'next', null, "&kind=tax&customer_id={$nc[3]}&date=2027-04-05")['number'] ?? '') === 'JS/INV/27-28/001', 'invoice no.: a new financial year starts its own series');
+
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);

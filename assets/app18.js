@@ -189,7 +189,8 @@ async function renderTax(box, c, id) {
   const issued = (g.doc || {}).issued_on || today();
   box.innerHTML = `<div class="gdl"><div class="card gdf"><div class="pfch"><i class="i i-receipt"></i><h3>Tax bill</h3><span class="sp"></span><span class="pill ${g.doc ? 'g' : ''}">${g.doc ? esc(g.doc.number) : 'Not issued yet'}</span></div>
       ${g.quote && g.quote.items.length && !g.doc && !PT ? `<p class="mut" style="font-size:12.5px;margin:0 0 6px">Items copied from quotation ${esc(g.quote.number)} — check HSN codes and GST rates before issuing.</p>` : ''}
-      <div class="two"><div><label>Invoice date</label><input type="date" id="tdate" value="${issued}" ${w ? '' : 'disabled'}></div>
+      <div class="two"><div class="full"><label for="tno">Invoice no.</label><div class="tbr"><input id="tno" maxlength="40" autocomplete="off" value="${esc(g.doc ? g.doc.number : (g.next_no || ''))}" ${w ? '' : 'disabled'}>${w ? '<button class="btn sec sm" id="tnoauto" type="button" title="Put the next number in the series">Auto</button>' : ''}</div><small class="mut" id="tnoh"></small></div>
+       <div><label>Invoice date</label><input type="date" id="tdate" value="${issued}" ${w ? '' : 'disabled'}></div>
        <div><label>Supply</label><select id="tinter" ${w ? '' : 'disabled'}><option value="0" ${+D.interstate ? '' : 'selected'}>Within Kerala — CGST + SGST</option><option value="1" ${+D.interstate ? 'selected' : ''}>Outside Kerala — IGST</option></select></div>
        <div><label>Bill to (name)</label><input data-t="bill_name" value="${esc(D.bill_name || '')}" ${w ? '' : 'disabled'}></div><div><label>Customer GSTIN (if any)</label><input data-t="cust_gstin" value="${esc(D.cust_gstin || '')}" maxlength="15" ${w ? '' : 'disabled'}></div>
        <div class="full"><label>Billing address</label><input data-t="bill_address" value="${esc(D.bill_address || '')}" ${w ? '' : 'disabled'}></div>
@@ -234,7 +235,7 @@ async function renderTax(box, c, id) {
   const val = () => { const o = { items: PT ? [] : I, ...(PT ? { parts: PT } : {}), interstate: +$('#tinter', box).value, ser: {}, show_paid: 0 }; $$('[data-t]', box).forEach(e => o[e.dataset.t] = e.value); $$('[data-o]', box).forEach(e => { if (e.dataset.o === 'paid') o.show_paid = e.checked ? 1 : 0; else o.ser[e.dataset.o] = e.checked ? 1 : 0; }); return o; };
   const html = () => { const v = val(), k = calc(), Q = g.qm || {}, inter = k.inter, date = $('#tdate', box).value;
     const CN = Q.name || co.name || 'Jasper Solar Solutions', web = Q.site || '', ph = Q.phone || co.phone || '', em = Q.email || co.email || '';
-    const meta = [['Invoice no.', `<b>${esc(g.doc ? g.doc.number : '(issued on save)')}</b>`], ['Invoice date', fdt(date)], ...(v.terms ? [['Terms', esc(v.terms)]] : []), ['Due date', fdt(v.due_on || date)],
+    const meta = [['Invoice no.', `<b>${esc(($('#tno', box) || {}).value || (g.doc ? g.doc.number : '(issued on save)'))}</b>`], ['Invoice date', fdt(date)], ...(v.terms ? [['Terms', esc(v.terms)]] : []), ['Due date', fdt(v.due_on || date)],
       ['Place of supply', inter ? 'Outside Kerala (IGST)' : 'Kerala (32)'], ['Consumer no.', esc(c.consumer_no || '—')]];
     const nb = x => inr2(x).replace('₹', ''), taxTd = x => inter ? `<td class="r">${+x.gst}%</td><td class="r">${nb(x.t)}</td>` : `<td class="r">${+x.gst / 2}%</td><td class="r">${nb(x.t / 2)}</td><td class="r">${+x.gst / 2}%</td><td class="r">${nb(x.t / 2)}</td>`;
     const colg = `<colgroup><col style="width:20px"><col><col style="width:62px"><col style="width:28px"><col style="width:74px">${inter ? '<col style="width:34px"><col style="width:64px">' : '<col style="width:34px"><col style="width:62px"><col style="width:34px"><col style="width:62px">'}<col style="width:76px"></colgroup>`;
@@ -286,7 +287,7 @@ async function renderTax(box, c, id) {
   // ---- bill details for the warranty card and GST filing
   const sumRows = () => { const v = val(), k = calc(), hs = {};
     k.rows.forEach(x => { const key = (x.hsn || '—') + '|' + (+x.gst); (hs[key] = hs[key] || { hsn: x.hsn || '—', gst: +x.gst, qty: 0, tv: 0, t: 0 }); hs[key].qty += +x.qty || 0; hs[key].tv += x.tv; hs[key].t += x.t; });
-    return { v, k, hs: Object.values(hs), info: [['Invoice no.', g.doc ? g.doc.number : 'Not issued yet'], ['Invoice date', fdt($('#tdate', box).value)], ['Customer', v.bill_name], ['Customer GSTIN', v.cust_gstin || 'Unregistered (B2C)'], ['Place of supply', k.inter ? 'Outside Kerala (IGST)' : '32 — Kerala'], ['Supplier GSTIN', co.gstin || '—'],
+    return { v, k, hs: Object.values(hs), info: [['Invoice no.', ($('#tno', box) || {}).value || (g.doc ? g.doc.number : 'Not issued yet')], ['Invoice date', fdt($('#tdate', box).value)], ['Customer', v.bill_name], ['Customer GSTIN', v.cust_gstin || 'Unregistered (B2C)'], ['Place of supply', k.inter ? 'Outside Kerala (IGST)' : '32 — Kerala'], ['Supplier GSTIN', co.gstin || '—'],
       ['Taxable value', inr2(k.tx)], ...(k.inter ? [['IGST', inr2(k.tt)]] : [['CGST', inr2(k.tt / 2)], ['SGST', inr2(k.tt / 2)]]), ['Invoice total', inr2(k.grand)], ['Plant cost', A.cost ? inr2(A.cost) : 'Not set'], ['Payments received', inr2(A.paid)], ['Balance due', inr2(Math.max(0, k.grand - A.paid))]] }; };
   const drawSum = () => { const { k, hs, info } = sumRows(), diff = A.cost && Math.abs(A.cost - k.grand) >= 1;
     $('#tsum', box).innerHTML = `<div class="pfch"><i class="i i-file"></i><h3>Bill details</h3><span class="sp"></span><button class="btn sec sm" id="tscp"><i class="i i-copy"></i> Copy</button><button class="btn sec sm" id="tscsv"><i class="i i-download"></i> CSV</button></div>
@@ -310,9 +311,16 @@ async function renderTax(box, c, id) {
     if (e.target.dataset.i !== undefined) { const x = I[+e.target.dataset.i]; x[e.target.dataset.f] = e.target.dataset.f === 'desc' || e.target.dataset.f === 'hsn' ? e.target.value : +e.target.value || 0;
       if (e.target.dataset.f === 'desc' && !x.hsn) { const h = guessHsn(x.desc); if (h[1]) { x.hsn = h[1]; x.gst = h[2]; drawItems(); } } } upd(); });
   box.addEventListener('change', e => { if (e.target.dataset.f === 'gst') { I[+e.target.dataset.i].gst = +e.target.value; } upd(); });
+  let noAuto = !g.doc;
+  const noHint = () => { const h = $('#tnoh', box); if (h) h.textContent = g.doc ? 'Change it only to correct a mistake. A number can be on one bill only.' : noAuto ? 'Next number in the series. Type your own to change it — the series then carries on from it.' : 'Your own number. It must not be on any other bill.'; };
+  const nextNo = async () => { try { const r = await api('gen', 'next', undefined, `&kind=tax&customer_id=${id}&date=${$('#tdate', box).value}`); $('#tno', box).value = r.number; } catch (e) { } upd(); };
+  if ($('#tno', box)) $('#tno', box).addEventListener('input', () => { if (!g.doc) noAuto = false; noHint(); });
+  if ($('#tnoauto', box)) $('#tnoauto', box).onclick = async () => { if (g.doc && !confirm('Give this bill the next number in the series? The old number will no longer be on it.')) return; noAuto = !g.doc; await nextNo(); noHint(); };
+  $('#tdate', box).addEventListener('change', () => { if (!g.doc && noAuto) nextNo(); });
+  noHint();
   if ($('#tgoplant', box)) $('#tgoplant', box).onclick = () => { const t = document.querySelector('[data-pt="plant"]'); if (t) { t.click(); scrollTo({ top: 0, behavior: 'smooth' }); } };
   $('#tpr', box).onclick = () => printDoc(`Tax invoice — ${c.name}`, `<div class="doc dtax">${html()}</div>`);
   if ($('#tsv', box)) $('#tsv', box).onclick = async () => { const v = val(), k = calc(); if (!k.rows.length) return toast(PT ? 'Enter the total amount (incl. GST)' : 'Add at least one item', true);
     v.grand = k.grand; v.taxable = Math.round(k.tx * 100) / 100; v.tax = Math.round(k.tt * 100) / 100; const b = $('#tsv', box); b.disabled = true;
-    try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, data: v }); toast(`Tax bill ${r.number} saved`); renderTax(box, c, id); } catch (e) { b.disabled = false; } };
+    try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: !g.doc && noAuto ? '' : $('#tno', box).value.trim(), data: v }); toast(`Tax bill ${r.number} saved`); renderTax(box, c, id); } catch (e) { b.disabled = false; } };
 }

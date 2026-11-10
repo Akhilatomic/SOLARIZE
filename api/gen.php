@@ -5,15 +5,32 @@
 const GEN_KINDS = ['warranty' => 'WC', 'tax' => 'INV', 'mfr' => '', 'wcs' => '']; // mfr = panel manufacturer warranty form, wcs = warranty card handover status (no number)
 
 function gen_fy($date) { $t = strtotime($date ?: 'now'); $y = (int)date('Y', $t); $s = (int)date('n', $t) >= 4 ? $y : $y - 1; return sprintf('%02d-%02d', $s % 100, ($s + 1) % 100); }
-function gen_next_no($kind, $date) {
+// "JS/INV/26-27/007" → "JS/INV/26-27/008", "59" → "60", "A-099" → "A-100" (keeps the zero padding); null when there is no number at the end
+function gen_bump($no) {
+  if (!preg_match('/^(.*?)(\d+)(\D*)$/', (string)$no, $m)) return null;
+  $n = (string)((int)$m[2] + 1); if (strlen($n) < strlen($m[2])) $n = str_pad($n, strlen($m[2]), '0', STR_PAD_LEFT);
+  return $m[1] . $n . $m[3];
+}
+function gen_no_taken($kind, $no, $except_cid = 0) {
+  return (bool)row('SELECT 1 FROM gen_docs WHERE kind=? AND lower(trim(number))=lower(trim(?)) AND customer_id<>?', [$kind, $no, (int)$except_cid]);
+}
+// Next number: carry on from the last bill issued this financial year — typed numbers included, so after a manual "59" comes "60" —
+// else the standard series PREFIX/INV/FY/001. Never a number already used. $peek: show it without using it up.
+function gen_next_no($kind, $date, $peek = false) {
   $fy = gen_fy($date); $k = "seq_{$kind}_{$fy}"; $mid = GEN_KINDS[$kind];
-  /* kv_set stores JSON, so the counter reads back as "1" with quotes; (int) of that was 0 and every bill got number 001.
-     Decode it, and never go below a number already issued this year (repairs counters left stuck by that bug). */
-  $raw = (string)(row('SELECT v FROM settings WHERE k=?', [$k])['v'] ?? '0'); $n = (int)(json_decode($raw, true) ?? $raw);
-  foreach (rows('SELECT number FROM gen_docs WHERE kind=? AND number LIKE ?', [$kind, "%/$mid/$fy/%"]) as $r) $n = max($n, (int)substr(strrchr($r['number'], '/'), 1));
-  $n++; kv_set($k, $n);
-  $pre = trim((string)(settings()['company']['quote_prefix'] ?? 'JS')) ?: 'JS';
-  return sprintf('%s/%s/%s/%03d', $pre, $mid, $fy, $n);
+  $last = row("SELECT number, issued_on FROM gen_docs WHERE kind=? AND number<>'' ORDER BY id DESC LIMIT 1", [$kind]);
+  $no = $last && gen_fy($last['issued_on']) === $fy ? gen_bump($last['number']) : null;
+  if ($no === null) {
+    /* kv_set stores JSON, so the counter reads back as "1" with quotes; (int) of that was 0 and every bill got number 001.
+       Decode it, and never go below a number already issued this year (repairs counters left stuck by that bug). */
+    $raw = (string)(row('SELECT v FROM settings WHERE k=?', [$k])['v'] ?? '0'); $n = (int)(json_decode($raw, true) ?? $raw);
+    foreach (rows('SELECT number FROM gen_docs WHERE kind=? AND number LIKE ?', [$kind, "%/$mid/$fy/%"]) as $r) $n = max($n, (int)substr(strrchr($r['number'], '/'), 1));
+    $pre = trim((string)(settings()['company']['quote_prefix'] ?? 'JS')) ?: 'JS';
+    $no = sprintf('%s/%s/%s/%03d', $pre, $mid, $fy, $n + 1);
+  }
+  for ($i = 0; $i < 1000 && gen_no_taken($kind, $no); $i++) $no = gen_bump($no);
+  if (!$peek && preg_match('#/' . preg_quote($mid, '#') . '/' . preg_quote($fy, '#') . '/(\d+)$#', $no, $m)) kv_set($k, (int)$m[1]);
+  return $no;
 }
 // The company address, contacts, bank account and KSEB fees set in the Quotation maker — the tax bill prints the same details.
 function gen_qm_info() {
@@ -55,6 +72,7 @@ function handle_gen($a) {
         'company' => settings()['company'] ?? [],
         'mfr_defaults' => json_decode((string)(row("SELECT v FROM settings WHERE k='mfr_defaults'")['v'] ?? ''), true) ?: ['distributor' => 'Southern Power Source Pvt Ltd', 'email' => ''],
         'tax' => row("SELECT number, issued_on FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid]) ?: null, // bill no. also prints on the warranty card
+        'next_no' => !$r && GEN_KINDS[$kind] !== '' ? gen_next_no($kind, date('Y-m-d'), true) : null, // what a new bill will get (the editor shows it)
         'acct' => $kind === 'tax' ? gen_acct($cid) : null,
         'qm' => $kind === 'tax' ? gen_qm_info() : null]);
 
@@ -68,12 +86,22 @@ function handle_gen($a) {
       audit('plant_cost', 'customers', $cid, '₹' . $cost);
       out(['ok' => true, 'acct' => gen_acct($cid)]);
 
+    case 'next': // the number the next bill would get on that date (not used up)
+      if (GEN_KINDS[$kind] === '') out(['number' => '']);
+      out(['number' => gen_next_no($kind, preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['date'] ?? '')) ? $_GET['date'] : date('Y-m-d'), true)]);
+
     case 'save':
       need('customers', true); if ($kind === 'tax') need('finance');
       $data = gen_clean((array)($in['data'] ?? []));
       $issued = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['issued_on'] ?? '')) ? $in['issued_on'] : date('Y-m-d');
       $r = row('SELECT * FROM gen_docs WHERE customer_id=? AND kind=?', [$cid, $kind]);
-      if ($r) { q('UPDATE gen_docs SET data=?, issued_on=?, updated=CURRENT_TIMESTAMP, updated_by=? WHERE id=?', [json_encode($data, JSON_UNESCAPED_UNICODE), $issued, $_SESSION['name'] ?? '', $r['id']]); $no = $r['number']; }
+      /* a typed invoice number (tax bill): any text, but never one another bill already has */
+      $man = $kind === 'tax' ? preg_replace('/\s+/', ' ', trim((string)($in['number'] ?? ''))) : '';
+      if ($man !== '') { if (mb_strlen($man) > 40) fail('The invoice number is too long (40 characters at most)');
+        if (gen_no_taken($kind, $man, $cid)) fail("Invoice number $man is already used on another bill", 409); }
+      if ($r) { q('UPDATE gen_docs SET data=?, issued_on=?, updated=CURRENT_TIMESTAMP, updated_by=? WHERE id=?', [json_encode($data, JSON_UNESCAPED_UNICODE), $issued, $_SESSION['name'] ?? '', $r['id']]); $no = $r['number'];
+        if ($man !== '' && $man !== $no) { q('UPDATE gen_docs SET number=? WHERE id=?', [$man, $r['id']]); audit('tax_bill_number', 'customers', $cid, "$no → $man"); $no = $man; } }
+      elseif ($man !== '') { $no = $man; q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, $no, $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
       elseif (GEN_KINDS[$kind] === '') { $no = ''; q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, '', $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
       else { $no = gen_next_no($kind, $issued); q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, $no, $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
       if ($kind === 'tax' && $no !== '') { [$pl] = plant_get($cid); if (($pl['gst_invoice_no'] ?? '') !== $no) { $pl['gst_invoice_no'] = $no; $pl['panels'] = $pl['panels'] ?? []; $pl['inverters'] = $pl['inverters'] ?? [];
