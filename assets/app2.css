@@ -478,7 +478,12 @@ label.msec{margin-top:14px;font-size:12px;font-weight:600;color:#1d1d1f;text-tra
 /* ===== Leads list: claimed-by display picture ===== */
 .owndp{display:inline-flex;align-items:flex-end;vertical-align:middle;position:relative}
 .owndp .dp{width:28px;height:28px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:linear-gradient(135deg,#0a84ff,#5e5ce6);color:#fff;font-size:11px;font-weight:700;box-shadow:0 0 0 2px #fff,0 0 0 3px #d5d9df}
-.owndp.me .dp{box-shadow:0 0 0 2px #fff,0 0 0 3.5px #34c759}
 .owndp .lk{width:14px;height:14px;margin-left:-9px;border-radius:50%;background:#fff;display:grid;place-items:center;box-shadow:0 0 0 1px #d5d9df}
 .owndp .lk .i{width:9px;height:9px;color:#6e6e73}
 #ltb td.ownc .ib.unc{vertical-align:middle;margin-left:2px}
+
+/* ===== Presence ring on pictures (data-pres): green online · yellow idle / checked in · red offline ===== */
+[data-pres]{transition:box-shadow .25s}
+.pres-on{box-shadow:0 0 0 1.5px #fff,0 0 0 3.5px #34c759!important}
+.pres-away{box-shadow:0 0 0 1.5px #fff,0 0 0 3.5px #ffc400!important}
+.pres-off{box-shadow:0 0 0 1.5px #fff,0 0 0 3.5px #ff3b30!important}

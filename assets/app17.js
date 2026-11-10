@@ -36,3 +36,29 @@ function setMyAvatar(av) {
   const rm = $('#pdr'); if (rm) rm.hidden = !ME.avatar;
 }
 async function removeAvatar(userId, done) { if (!confirm('Remove this photo?')) return; await api('user', 'avatar_remove', { user_id: userId || 0 }); toast('Photo removed'); done && done(''); }
+
+/* ---- Presence: a coloured ring on people's pictures.
+   Green: using the CRM now (mouse / keyboard in the last 5 minutes) · Yellow: CRM open but idle, or checked in for attendance
+   today · Red: offline. Each open tab sends a heartbeat every minute (and when it comes back into view); the server keeps
+   seen_at / active_at per user (user/presence). Any element with data-pres="<user id>" gets the ring and a hover label. ---- */
+const PRES = { map: {}, used: Date.now(), t: 0, on: false };
+const presAgo = s => s < 90 ? 'a minute' : s < 3600 ? Math.round(s / 60) + ' min' : s < 172800 ? Math.round(s / 3600) + ' h' : Math.round(s / 86400) + ' days';
+const presLabel = u => !u ? 'Offline' : u.st === 'on' ? 'Online'
+  : u.st === 'away' ? (u.open ? 'Idle' + (u.idle != null ? ' for ' + presAgo(u.idle) : '') + (u.in ? ' · checked in at ' + u.in : '') : 'Present — checked in at ' + u.in)
+  : 'Offline' + (u.seen != null ? ' · last seen ' + presAgo(u.seen) + ' ago' : '');
+function presPaint() {
+  $$('[data-pres]').forEach(el => { const u = PRES.map[el.dataset.pres], st = u ? u.st : 'off', lb = presLabel(u);
+    if (el.dataset.pst !== st) { el.classList.remove('pres-on', 'pres-away', 'pres-off'); el.classList.add('pres-' + st); el.dataset.pst = st; }
+    if (el.title !== lb) el.title = lb; });
+}
+async function presBeat() {
+  try { const r = await fetch(`api.php?m=user&a=presence&act=${Date.now() - PRES.used < 3e5 ? 1 : 0}`, { credentials: 'same-origin' }); if (!r.ok) return;
+    const j = await r.json(); PRES.map = Object.fromEntries((j.users || []).map(u => [u.id, u])); presPaint(); } catch (e) { }
+}
+function startPresence() {
+  if (!PRES.on) { PRES.on = true; const mark = () => { PRES.used = Date.now(); };
+    ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'].forEach(ev => addEventListener(ev, mark, { passive: true, capture: true }));
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { mark(); presBeat(); } });
+    new MutationObserver(debounce(presPaint, 200)).observe(document.body, { childList: true, subtree: true }); } /* pictures drawn later get their ring too */
+  clearInterval(PRES.t); PRES.t = setInterval(presBeat, 60000); presBeat();
+}

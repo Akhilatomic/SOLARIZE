@@ -25,6 +25,21 @@ function handle_user($a) {
       q('UPDATE users SET avatar=? WHERE id=?', [$name, $uid]);
       audit('avatar', 'users', $uid, $uid === uid() ? 'own photo' : 'photo for ' . $u['name']); out(['ok' => true, 'avatar' => $name]);
 
+    case 'presence': // GET heartbeat from an open CRM tab (act=1: used in the last 5 minutes) → everyone's status
+      /* on: using the CRM now · away: CRM open but idle, or checked in for attendance today (not out) · off: neither */
+      $now = time(); $act = !empty($_GET['act']); $me = uid();
+      $u0 = row('SELECT seen_at, active_at FROM users WHERE id=?', [$me]);
+      if ($u0 && ($now - (int)$u0['seen_at'] >= 40 || ($act && $now - (int)$u0['active_at'] >= 40))) /* at most one write a minute per tab */
+        q('UPDATE users SET seen_at=?' . ($act ? ', active_at=?' : '') . ' WHERE id=?', $act ? [$now, $now, $me] : [$now, $me]);
+      $in = []; foreach (rows("SELECT user_id, check_in FROM attendance WHERE date=? AND COALESCE(check_in,'')<>'' AND COALESCE(check_out,'')=''", [date('Y-m-d')]) as $r) $in[(int)$r['user_id']] = $r['check_in'];
+      $list = [];
+      foreach (rows('SELECT id, seen_at, active_at FROM users WHERE active=1') as $u) {
+        $id = (int)$u['id']; $seen = $id === $me ? $now : (int)$u['seen_at']; $used = $id === $me && $act ? $now : (int)$u['active_at'];
+        $open = $seen && $now - $seen <= 150; $busy = $open && $used && $now - $used <= 300;
+        $list[] = ['id' => $id, 'st' => $busy ? 'on' : ($open || isset($in[$id]) ? 'away' : 'off'), 'open' => $open ? 1 : 0,
+          'seen' => $seen ? $now - $seen : null, 'idle' => $used ? $now - $used : null, 'in' => $in[$id] ?? null];
+      }
+      out(['users' => $list]);
     case 'avatar_remove':
       $in = body(); $uid = (int)($in['user_id'] ?? 0) ?: uid();
       if ($uid !== uid() && !is_admin()) fail('Only an admin can change another user’s photo', 403);

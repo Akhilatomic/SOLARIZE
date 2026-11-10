@@ -399,6 +399,21 @@ chk(($pl[1]['ref_no'] ?? '') === 'CHQ 004512' && ($pl[1]['note'] ?? '') === 'Bal
 $p3 = call($admin, 'payments', 'save', ['project_id' => $acct['project_id'] ?? 0, 'date' => '2026-11-12', 'amount' => 500, 'mode' => 'Cash', 'ref_no' => '', 'note' => ''])['id'] ?? 0;
 chk(preg_match('#/RCPT/#', call($admin, 'gen', 'receipt', ['kind' => 'tax', 'customer_id' => $rc, 'payment_id' => $p3])['receipt_no'] ?? '') === 1, 'receipt: a cash payment needs no reference number');
 
+/* ---- presence: green (using the CRM), yellow (open but idle, or checked in today), red (offline) ---- */
+$stOf = fn($resp, $id) => (array_values(array_filter($resp['users'] ?? [], fn($x) => (int)$x['id'] === (int)$id))[0] ?? [])['st'] ?? 'missing';
+$me1 = call($admin, 'auth', 'status')['user']['id'] ?? 0;
+$pa = call($admin, 'user', 'presence', null, '&act=1');
+chk($stOf($pa, $me1) === 'on', 'presence: someone using the CRM is online (green)');
+chk($stOf($pa, $u['id']) === 'off', 'presence: someone who has not opened the CRM is offline (red)');
+call($sales, 'user', 'presence', null, '&act=0');
+chk($stOf(call($admin, 'user', 'presence', null, '&act=1'), $u['id']) === 'away', 'presence: CRM open but idle shows as present (yellow)');
+$pl = actor('presin'); call($pl, 'auth', 'login', ['username' => 'Lockme', 'password' => $pw]);
+$pin = call($pl, 'hr', 'punch', ['kind' => 'in']);
+$pb = call($admin, 'user', 'presence', null, '&act=1'); $lkr = array_values(array_filter($pb['users'] ?? [], fn($x) => (int)$x['id'] === (int)($lu['id'] ?? 0)))[0] ?? [];
+chk(!empty($pin['ok']) ? (($lkr['st'] ?? '') === 'away' && !empty($lkr['in'])) : true, 'presence: checked in for attendance today shows as present (yellow)' . (empty($pin['ok']) ? ' — skipped: ' . ($pin['error'] ?? 'no check-in') : ''));
+chk((call($anon, 'user', 'presence', null, '&act=1')['_code'] ?? 0) === 401, 'presence: needs sign-in');
+@unlink($pl['jar']);
+
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);

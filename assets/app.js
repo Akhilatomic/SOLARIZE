@@ -51,7 +51,7 @@ async function boot() {
   const s = await api('auth', 'status');
   if (!s.auth) return loginView(s.setup, s.brand || {});
   ME = s.user; S = await api('settings', 'get');
-  shell(); mountBell(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
+  shell(); mountBell(); if (typeof startPresence === 'function') startPresence(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
 }
 function loginView(setup, brand) {
   const bg = brand.bg ? `url('${brand.bg}') center/cover no-repeat` : '';
@@ -71,7 +71,7 @@ function shell() {
   app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span><button type="button" class="sbpin" id="sbpin" aria-pressed="false"><i class="i i-pin"></i></button></h1>
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}${m[0] === 'fees' ? feesNav() : `<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}"><span class="ft t-${m[0]}">${m[2]}</span><span class="lbl">${m[1]}</span></a>`}`).join('')}
    </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2>
-   <div id="pwb" class="acctw"><button class="acct" id="acct" title="Account"><span class="acav">${avImg(ME.id, ME.avatar, ME.name)}</span><span class="acn">${esc(ME.name)}<small>${esc(ME.role_name || ME.role)}</small></span></button>
+   <div id="pwb" class="acctw"><button class="acct" id="acct" title="Account"><span class="acav" data-pres="${ME.id}">${avImg(ME.id, ME.avatar, ME.name)}</span><span class="acn">${esc(ME.name)}<small>${esc(ME.role_name || ME.role)}</small></span></button>
     <div class="card menu acm hide" id="acm"><div class="acmh"><span class="acav big">${avImg(ME.id, ME.avatar, ME.name)}</span><div><b>${esc(ME.name)}</b><small class="mut">${esc(ME.role_name || ME.role)} · @${esc(ME.username || '')}</small></div></div><button id="pdp"><i class="i i-user"></i>Change photo</button><button id="pdr" ${ME.avatar ? '' : 'hidden'}><i class="i i-x"></i>Remove photo</button><button id="pwc"><i class="i i-lock"></i>Change password</button><button id="lo"><i class="i i-x"></i>Sign out</button></div></div></div><main id="main"></main></div><div id="scrim"></div></div>`;
   $('#bg').onclick = () => { $('#side').classList.toggle('open'); document.body.classList.toggle('drawer', $('#side').classList.contains('open')); };
   $('#scrim').onclick = () => { $('#side').classList.remove('open'); document.body.classList.remove('drawer'); };
@@ -383,7 +383,7 @@ function callbackBox(l, after) {
 const isAdm = () => ME.role === 'admin';
 /* Leads list: the owner's display picture (initials when there is none) with a lock badge; the name shows on hover */
 const ownerDp = l => { const me = l.assigned_to == ME.id, who = me ? 'You' + (ME.name ? ' (' + ME.name + ')' : '') : (l.owner_name || 'another user'), tip = esc('Claimed by ' + who + (l.claimed_at ? ' · ' + agoStr(l.claimed_at) : ''));
-  return `<span class="owndp${me ? ' me' : ''}" title="${tip}" data-tip="${tip}" aria-label="${tip}"><span class="dp">${avImg(l.assigned_to, me ? ME.avatar || l.owner_av : l.owner_av, me ? ME.name : l.owner_name)}</span><span class="lk"><i class="i i-lock"></i></span></span>`; };
+  return `<span class="owndp${me ? ' me' : ''}" title="${tip}" data-tip="${tip}" aria-label="${tip}"><span class="dp" data-pres="${l.assigned_to}">${avImg(l.assigned_to, me ? ME.avatar || l.owner_av : l.owner_av, me ? ME.name : l.owner_name)}</span><span class="lk"><i class="i i-lock"></i></span></span>`; };
 const ownerCellRow = l => (l.assigned_to ? ownerDp(l) : ownerCell(l)) + (l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ' <button class="ib unc" data-a="unlock" title="Unclaim — release this lead"><i class="i i-x"></i></button>' : '');
 const ownerCell = l => l.assigned_to ? `<span class="own${l.assigned_to == ME.id ? ' me' : ''}" title="Claimed${l.claimed_at ? ' ' + agoStr(l.claimed_at) : ''}"><i class="i i-lock"></i>${esc(l.assigned_to == ME.id ? 'You' : (l.owner_name || 'Claimed'))}</span>`
   : (ME.can_claim && canW('leads') ? '<button class="btn sm claim" data-a="claim"><i class="i i-userplus"></i> Claim</button>' : '<span class="mut">Unclaimed</span>');
