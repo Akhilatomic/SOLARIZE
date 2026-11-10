@@ -94,6 +94,55 @@ chk(call($sales, 'qm', 'img', null, '&f=qm-' . str_repeat('0', 24) . '.png', tru
 chk(call($anon, 'qm', 'img', null, '&f=qm-x.png')['_code'] === 401, 'images need sign-in');
 @unlink($tmpf);
 
+/* templates and saving quotations */
+$sales2 = actor('sales2');
+call($admin, 'admin', 'user_save', ['name' => 'Seller Two', 'username' => 'seller2', 'role' => 'sales', 'active' => 1, 'can_claim' => 0, 'password' => $pw]);
+chk(call($sales2, 'auth', 'login', ['username' => 'seller2', 'password' => $pw])['_code'] === 200, 'second sales user signed in');
+function trashHas($kind) { global $admin; foreach (call($admin, 'trash', 'list')['rows'] ?? [] as $r) if (($r['kind'] ?? '') === $kind) return true; return false; }
+$cid = call($sales, 'customers', 'save', ['name' => 'Quote Customer', 'phone' => '9876543210'])['id'] ?? 0;
+chk($cid > 0, 'customer created');
+$panel = ['cat' => 'panels', 'name' => 'Snap panel 600 Wp', 'wp' => 600, 'qty' => 4];
+$panelId = call($admin, 'qm', 'product_save', $panel)['id'] ?? 0;
+$tplData = ['items' => ['panels' => [['pid' => $panelId, 'qty' => 4, 'qty_note' => '', 'over' => new stdClass()]]], 'price' => 170000, 'subsidy' => null, 'loan' => false, 'title' => '', 'project' => '', 'kseb' => null, 'pay' => null, 'terms' => null, 'delivery' => null];
+$doc = $tplData + ['template_id' => 1, 'customer' => ['name' => 'Quote Customer', 'address' => '', 'consumer_no' => '', 'email' => '', 'mobile' => '9876543210'], 'number' => '', 'date' => date('Y-m-d'), 'valid_days' => 5, 'sales' => ['name' => 'Seller', 'phone' => '', 'email' => ''],
+  'snap' => ['panels' => [['name' => $panel['name'], 'line' => '', 'details' => '', 'qty' => 4, 'wp' => 600]]]];
+chk(call($anon, 'qm', 'tpl_save', ['name' => 'X', 'data' => $tplData])['_code'] === 401, 'template save needs sign-in');
+$t = call($sales, 'qm', 'tpl_save', ['name' => 'My 2 kW', 'data' => $tplData]); chk(($t['id'] ?? 0) > 0, 'sales saves a template');
+chk(call($sales, 'qm', 'tpl_save', ['name' => '', 'data' => $tplData])['_code'] === 400, 'template needs a name');
+chk(call($sales2, 'qm', 'tpl_save', ['id' => $t['id'], 'name' => 'X', 'data' => $tplData])['_code'] === 403, 'other user cannot update it');
+chk(!empty(call($admin, 'qm', 'tpl_save', ['id' => $t['id'], 'name' => 'My 2 kW v2', 'data' => $tplData])['id']), 'admin can');
+$bt = call($sales, 'qm', 'boot'); $mine = null; foreach ($bt['templates'] as $x) if ($x['id'] == $t['id']) $mine = $x;
+chk($mine && $mine['name'] === 'My 2 kW v2' && $mine['data']['price'] == 170000, 'saved template shows in boot');
+chk(call($sales2, 'qm', 'tpl_delete', ['id' => $t['id']])['_code'] === 403, 'other user cannot delete it');
+chk(!empty(call($sales, 'qm', 'tpl_delete', ['id' => $t['id']])['ok']) && trashHas('Quotation template'), 'delete goes to Recycle bin');
+$q1 = call($sales, 'qm', 'save', ['customer_id' => $cid, 'status' => 'Draft', 'subsidy' => 67200, 'doc' => $doc]);
+$q2 = call($sales, 'qm', 'save', ['customer_id' => $cid, 'status' => 'Draft', 'subsidy' => 67200, 'doc' => $doc]);
+chk(($q1['number'] ?? '') === 'JSS/PMSGY/' . date('Y') . '/0144' && ($q2['number'] ?? '') === 'JSS/PMSGY/' . date('Y') . '/0145', 'numbers run on');
+chk(call($sales, 'qm', 'save', ['customer_id' => $cid, 'doc' => ['price' => 0] + $doc])['_code'] === 400, 'price required');
+chk(call($sales, 'qm', 'save', ['doc' => $doc])['_code'] === 400, 'customer or lead required');
+chk(call($anon, 'qm', 'save', ['customer_id' => $cid, 'doc' => $doc])['_code'] === 401, 'save needs sign-in');
+$q1b = call($sales, 'qm', 'save', ['id' => $q1['id'], 'customer_id' => $cid, 'status' => 'Sent', 'subsidy' => 60000, 'doc' => $doc]);
+$g1 = call($sales, 'quotes', 'get', null, '&id=' . $q1['id']);
+chk(($q1b['id'] ?? 0) == $q1['id'] && $q1b['number'] === $q1['number'] && $g1['status'] === 'Sent' && $g1['subsidy'] == 60000, 'update keeps the number');
+chk(call($sales, 'qm', 'boot')['next_number'] === 'JSS/PMSGY/' . date('Y') . '/0146', 'update does not use a number');
+chk(call($sales, 'qm', 'save', ['customer_id' => $cid, 'status' => 'Bogus', 'doc' => $doc])['_code'] === 400, 'bad status rejected');
+/* snapshot: edit the product after saving; the saved quote still has the old wording */
+call($admin, 'qm', 'product_save', ['id' => $panelId, 'name' => 'Changed name'] + $panel);
+chk(json_decode(call($sales, 'quotes', 'get', null, '&id=' . $q1['id'])['doc'], true)['snap']['panels'][0]['name'] === $panel['name'], 'saved quote keeps its snapshot');
+chk(call($sales, 'quotes', 'list')[0]['total'] == $doc['price'], 'list shows the package price');
+/* parallel saves get different numbers */
+$mh = curl_multi_init(); $chs = [];
+for ($i = 0; $i < 2; $i++) {
+  $ch = curl_init("$base/api.php?m=qm&a=save");
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEFILE => $sales['jar'], CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['X-Solarize: 1', 'Content-Type: application/json'],
+    CURLOPT_POSTFIELDS => json_encode(['customer_id' => $cid, 'status' => 'Draft', 'doc' => $doc])]);
+  curl_multi_add_handle($mh, $ch); $chs[] = $ch;
+}
+do { curl_multi_exec($mh, $run); if ($run) curl_multi_select($mh, 1); } while ($run);
+$nums = []; foreach ($chs as $ch) { $j = json_decode(curl_multi_getcontent($ch), true); $nums[] = $j['number'] ?? null; curl_multi_remove_handle($mh, $ch); curl_close($ch); }
+chk($nums[0] && $nums[1] && $nums[0] !== $nums[1], 'parallel saves get different numbers');
+
+
 echo "\n$pass passed, $fail failed\n";
-foreach ([$anon, $admin, $sales] as $a) @unlink($a['jar']);
+foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);

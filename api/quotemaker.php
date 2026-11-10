@@ -148,6 +148,79 @@ function handle_qm($a) {
       audit('qm_settings', 'settings');
       out(['ok' => true]);
     }
+    case 'tpl_save': {
+      need('quotes', true);
+      $id = (int)($in['id'] ?? 0);
+      $name = mb_substr(trim((string)($in['name'] ?? '')), 0, 120);
+      if ($name === '') fail('Enter a name for the template');
+      if (!is_array($in['data'] ?? null)) fail('Nothing to save');
+      $json = json_encode($in['data'], JSON_UNESCAPED_UNICODE);
+      if ($json === false || strlen($json) > 200000) fail('That template is too large');
+      if ($id) {
+        $cur = row('SELECT * FROM qm_templates WHERE id=?', [$id]);
+        if (!$cur) fail('Template not found', 404);
+        if (!is_admin() && (int)$cur['created_by'] !== uid()) fail('Only the person who made this template or an admin can change it', 403);
+        q('UPDATE qm_templates SET name=?,data=?,updated=CURRENT_TIMESTAMP WHERE id=?', [$name, $json, $id]);
+      } else {
+        q('INSERT INTO qm_templates(name,data,created_by) VALUES(?,?,?)', [$name, $json, uid()]);
+        $id = (int)db()->lastInsertId();
+      }
+      audit('qm_template_save', 'qm_templates', $id, $name);
+      out(['id' => $id]);
+    }
+    case 'tpl_delete': {
+      need('quotes', true);
+      $id = (int)($in['id'] ?? 0);
+      $cur = row('SELECT * FROM qm_templates WHERE id=?', [$id]);
+      if (!$cur) fail('Template not found', 404);
+      if (!is_admin() && (int)$cur['created_by'] !== uid()) fail('Only the person who made this template or an admin can delete it', 403);
+      trash_put('Quotation template', (string)$cur['name'], [['qm_templates', 'id=?', [$id]]]);
+      q('DELETE FROM qm_templates WHERE id=?', [$id]);
+      audit('qm_template_delete', 'qm_templates', $id, (string)$cur['name']);
+      out(['ok' => true]);
+    }
+    case 'save': {
+      need('quotes', true);
+      $id = (int)($in['id'] ?? 0);
+      $cust = (int)($in['customer_id'] ?? 0) ?: null; $lead = (int)($in['lead_id'] ?? 0) ?: null;
+      if (!$cust && !$lead) fail('Choose a customer or lead for this quotation');
+      if ($cust && !row('SELECT id FROM customers WHERE id=?', [$cust])) fail('Customer not found', 404);
+      if ($lead && !row('SELECT id FROM leads WHERE id=?', [$lead])) fail('Lead not found', 404);
+      $doc = $in['doc'] ?? null;
+      if (!is_array($doc)) fail('Nothing to save');
+      $price = $doc['price'] ?? 0;
+      if (!is_numeric($price) || (float)$price <= 0) fail('Enter the package price');
+      $status = (string)($in['status'] ?? 'Draft');
+      if (!in_array($status, ['Draft', 'Sent', 'Accepted', 'Rejected'], true)) fail('Unknown status');
+      $subsidy = max(0, (float)($in['subsidy'] ?? 0));
+      $cur = $id ? row('SELECT * FROM quotes WHERE id=?', [$id]) : null;
+      if ($id && !$cur) fail('Quotation not found', 404);
+      $date = (isset($doc['date']) && is_string($doc['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $doc['date'])) ? $doc['date'] : (($cur['date'] ?? '') ?: date('Y-m-d'));
+      $db = db();
+      $db->exec('BEGIN IMMEDIATE');
+      try {
+        if ($cur) {
+          $number = (string)$cur['number'];
+        } else {
+          $r = row("SELECT v FROM settings WHERE k='qm_next'");
+          $n = $r ? (int)json_decode($r['v'], true) : 144; if ($n < 1) $n = 144;
+          $number = qm_number($n);
+          kv_set('qm_next', $n + 1);
+        }
+        $doc['number'] = $number; $doc['date'] = $date;
+        $json = json_encode($doc, JSON_UNESCAPED_UNICODE);
+        if ($json === false || strlen($json) > 500000) { $db->exec('ROLLBACK'); fail('That quotation is too large'); }
+        if ($cur) {
+          q('UPDATE quotes SET customer_id=?,lead_id=?,date=?,status=?,total=?,subsidy=?,doc=?,updated=CURRENT_TIMESTAMP WHERE id=?', [$cust, $lead, $date, $status, (float)$price, $subsidy, $json, $id]);
+        } else {
+          q("INSERT INTO quotes(customer_id,lead_id,number,date,items,gst_rate,subsidy,terms,status,total,doc) VALUES(?,?,?,?,'[]',0,?,'',?,?,?)", [$cust, $lead, $number, $date, $subsidy, $status, (float)$price, $json]);
+          $id = (int)$db->lastInsertId();
+        }
+        $db->exec('COMMIT');
+      } catch (Throwable $e) { if ($db->inTransaction()) $db->exec('ROLLBACK'); throw $e; }
+      audit('quote_save', 'quotes', $id, $number);
+      out(['id' => $id, 'number' => $number]);
+    }
   }
   fail('Unknown action', 404);
 }
