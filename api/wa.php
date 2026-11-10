@@ -45,6 +45,8 @@ function wa_chat_for($wa, $name = '') {
 function wa_scope($a = 'c') {
   if (is_admin()) return '1=1';
   $u = uid(); $leadOk = "($a.lead_id IS NULL OR $a.lead_id IN (SELECT l.id FROM leads l WHERE " . lead_scope('l') . '))';
+  // BA: their chats, or unassigned chats about one of their leads or customers (not unknown numbers)
+  if (is_ba()) return "(($a.assigned_to=$u) OR ($a.assigned_to IS NULL AND (($a.lead_id IS NOT NULL AND $leadOk) OR $a.customer_id IN (SELECT id FROM customers WHERE owner_id=$u))))";
   return "(($a.assigned_to=$u) OR ($a.assigned_to IS NULL AND $leadOk))";
 }
 function wa_chat_get($id) { $c = row('SELECT c.* FROM wa_chats c WHERE c.id=? AND ' . wa_scope('c'), [(int)$id]); if (!$c) fail('Chat not found', 404); return $c; }

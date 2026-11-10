@@ -76,7 +76,7 @@ function handle_plant($a) {
       need('customers');
       $s = trim((string)($_GET['q'] ?? '')); if (mb_strlen($s) < 3) out([]);
       $hits = [];
-      foreach (rows("SELECT p.customer_id, p.data, c.name FROM plant p JOIN customers c ON c.id=p.customer_id WHERE p.data LIKE ?", ['%' . $s . '%']) as $r) {
+      foreach (rows("SELECT p.customer_id, p.data, c.name FROM plant p JOIN customers c ON c.id=p.customer_id WHERE p.data LIKE ? AND " . cust_scope('c'), ['%' . $s . '%']) as $r) {
         $d = json_decode($r['data'], true) ?: [];
         foreach (['panels' => 'Panel', 'inverters' => 'Inverter'] as $k => $lbl) foreach ($d[$k] ?? [] as $i => $x) if (stripos($x['serial'] ?? '', $s) !== false) $hits[] = ['customer_id' => (int)$r['customer_id'], 'name' => $r['name'], 'what' => "$lbl " . ($i + 1), 'serial' => $x['serial']];
       }

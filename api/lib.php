@@ -18,7 +18,7 @@ $E = [
 // role => [read modules, write modules]; '*' = everything
 // Permission modules. 'finance' = every money figure (project values, payments, balances, ad spend, dashboard money cards).
 const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email'];
-const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts'];
+const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts', 'ba' => 'Business Associate (BA)'];
 // role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
 const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
@@ -26,6 +26,8 @@ const ROLE_DEFAULTS = [
   'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings','email'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects','email']],
   'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings','fees','email'], ['projects','checklist','files','customers','folder','calendar','email']],
   'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings','finance','fees','email'], ['quotes','payments','ads','calendar','fees','email']],
+  // Business Associate: their own leads and customers, their customers' projects (view only), no money. Rows are limited in claims.php (ba_gate, cust_scope).
+  'ba' => [['dashboard','leads','customers','projects'], ['leads','customers']],
 ];
 function roles() {
   static $r = null; if ($r !== null) return $r;
@@ -317,5 +319,7 @@ function strip_fin($r) {
   if (isset($r['payments'])) $r['payments'] = [];
   if (isset($r['stage_data'])) foreach ($r['stage_data'] as &$d) unset($d['amount']);
   if (isset($r['services'])) foreach ($r['services'] as &$s) unset($s['cost']);
+  if (isset($r['projects']) && is_array($r['projects'])) foreach ($r['projects'] as &$p) unset($p['cost'], $p['paid'], $p['subsidy_amount']); // customer detail
+  if (isset($r['quotes']) && is_array($r['quotes'])) foreach ($r['quotes'] as &$x) unset($x['total']);
   return $r;
 }

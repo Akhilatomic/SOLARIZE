@@ -414,6 +414,84 @@ chk(!empty($pin['ok']) ? (($lkr['st'] ?? '') === 'away' && !empty($lkr['in'])) :
 chk((call($anon, 'user', 'presence', null, '&act=1')['_code'] ?? 0) === 401, 'presence: needs sign-in');
 @unlink($pl['jar']);
 
+/* ---- Business Associate (BA): own leads and customers, their customers' projects (view only), no money ---- */
+$bu = call($admin, 'admin', 'user_save', ['name' => 'Bala Associate', 'username' => 'assoc', 'role' => 'ba', 'active' => 1, 'can_claim' => 0, 'password' => $pw]);
+chk(!empty($bu['id']), 'BA: admin can create a Business Associate user');
+$ba = actor('ba'); chk(call($ba, 'auth', 'login', ['username' => 'assoc', 'password' => $pw])['_code'] === 200, 'BA: signs in');
+$bme = call($ba, 'auth', 'status')['user'] ?? [];
+chk(($bme['role'] ?? '') === 'ba' && ($bme['role_name'] ?? '') === 'Business Associate (BA)', 'BA: role and name');
+$br = $bme['read'] ?? []; sort($br);
+chk($br === ['customers', 'dashboard', 'leads', 'projects'], 'BA: sees only Dashboard, Leads, Customers, Projects (' . implode(',', $br) . ')');
+$bset = call($ba, 'settings', 'get');
+chk(($bset['_code'] ?? 0) === 200 && isset($bset['company']) && !array_key_exists('catalog', $bset) && !array_key_exists('roles_now', $bset), 'BA: the app settings load read-only, without the price catalogue');
+chk((call($ba, 'settings', 'save', ['key' => 'lead_target', 'value' => 5])['_code'] ?? 0) === 403, 'BA: cannot change settings');
+
+$bc = (int)(call($ba, 'customers', 'save', ['name' => 'BA Own Customer', 'phone' => '9847200001'])['id'] ?? 0);
+$oc = (int)(call($admin, 'customers', 'save', ['name' => 'Office Customer', 'phone' => '9847200002'])['id'] ?? 0);
+chk($bc > 0 && $oc > 0, 'BA: adds a customer of their own');
+$bl = call($ba, 'customers', 'list');
+$names = array_column(array_filter($bl, 'is_array'), 'name');
+chk(in_array('BA Own Customer', $names) && !in_array('Office Customer', $names) && count(array_filter($bl, fn($x) => is_array($x) && isset($x['id']))) === 1, 'BA: the customer list holds only their own customers');
+chk((call($ba, 'customers', 'get', null, "&id=$oc")['_code'] ?? 0) === 404, "BA: someone else's customer is not found");
+chk((call($ba, 'customers', 'get', null, "&id=$bc")['_code'] ?? 0) === 200, 'BA: opens their own customer');
+chk((call($ba, 'profile', 'timeline', null, "&customer_id=$oc")['_code'] ?? 0) === 404, "BA: no timeline of someone else's customer");
+chk((call($ba, 'plant', 'get', null, "&customer_id=$oc")['_code'] ?? 0) === 404, "BA: no plant details of someone else's customer");
+chk((call($ba, 'gen', 'get', null, "&kind=warranty&customer_id=$oc")['_code'] ?? 0) === 404, "BA: no warranty card of someone else's customer");
+chk((call($ba, 'customers', 'save', ['id' => $oc, 'name' => 'Hijack'])['_code'] ?? 0) === 404, "BA: cannot edit someone else's customer");
+chk((call($ba, 'notes', 'add', ['entity' => 'customers', 'entity_id' => $oc, 'text' => 'x'])['_code'] ?? 0) === 404, "BA: cannot add a remark to someone else's customer");
+
+$bp = (int)(call($admin, 'projects', 'save', ['customer_id' => $bc, 'title' => 'BA plant', 'kw' => 3, 'cost' => 250000])['id'] ?? 0);
+$op = (int)(call($admin, 'projects', 'save', ['customer_id' => $oc, 'title' => 'Office plant', 'kw' => 5, 'cost' => 400000])['id'] ?? 0);
+call($admin, 'payments', 'save', ['project_id' => $bp, 'date' => '2026-11-10', 'amount' => 50000, 'mode' => 'Cash', 'ref_no' => '', 'note' => '']);
+$bpl = call($ba, 'projects', 'list'); $bpl = array_values(array_filter($bpl, fn($x) => is_array($x) && isset($x['id'])));
+chk(count($bpl) === 1 && (int)$bpl[0]['id'] === $bp, "BA: the projects list holds only their customers' projects");
+chk(!array_key_exists('cost', $bpl[0] ?? []) && !array_key_exists('paid', $bpl[0] ?? []), 'BA: no plant cost or amount paid in the projects list');
+$bb = call($ba, 'pipeline', 'board');
+chk(count($bb['projects'] ?? []) === 1 && (int)($bb['projects'][0]['id'] ?? 0) === $bp && !array_key_exists('cost', $bb['projects'][0] ?? []), "BA: the pipeline shows only their customers' projects, without money");
+chk((call($ba, 'pipeline', 'move', ['id' => $bp, 'stage' => 'Site survey'])['_code'] ?? 0) === 403, 'BA: the pipeline is view only (cannot move a stage)');
+chk((call($ba, 'projects', 'get', null, "&id=$op")['_code'] ?? 0) === 404, "BA: someone else's project is not found");
+$bpg = call($ba, 'projects', 'get', null, "&id=$bp");
+chk(($bpg['_code'] ?? 0) === 200 && ($bpg['payments'] ?? null) === [] && !array_key_exists('cost', $bpg), 'BA: their project opens without payments or cost');
+$bcg = call($ba, 'customers', 'get', null, "&id=$bc");
+chk(!array_key_exists('cost', $bcg['projects'][0] ?? ['cost' => 1]) && !array_key_exists('paid', $bcg['projects'][0] ?? ['paid' => 1]) && ($bcg['quotes'] ?? null) === [] && ($bcg['files'] ?? null) === [], 'BA: customer page has no project money, quotations or documents');
+chk((call($ba, 'payments', 'list')['_code'] ?? 0) === 403 && (call($ba, 'quotes', 'list')['_code'] ?? 0) === 403, 'BA: no payments or quotations');
+chk((call($ba, 'gen', 'get', null, "&kind=tax&customer_id=$bc")['_code'] ?? 0) === 403, 'BA: no tax bill');
+chk((call($ba, 'customers', 'delete', ['id' => $bc])['_code'] ?? 0) === 403 && (call($ba, 'customers', 'revert', ['id' => $bc])['_code'] ?? 0) === 403, 'BA: cannot delete or revert a customer');
+
+$bd = call($ba, 'dashboard', 'get');
+chk(($bd['_code'] ?? 0) === 200 && ($bd['finance'] ?? 1) === 0 && ($bd['pipeline'] ?? 1) == 0 && ($bd['paid'] ?? 1) == 0, 'BA: dashboard opens with no money');
+chk(($bd['cust_total'] ?? 0) === 1 && ($bd['customers'] ?? 0) === 1 && ($bd['projects'] ?? 0) === 1, 'BA: dashboard counts only their customers and projects');
+chk(count(array_filter($bd['recent'] ?? [], fn($r) => $r['user'] !== 'assoc')) === 0, 'BA: dashboard activity shows only what they did');
+
+call($admin, 'disc', 'post', ['customer_id' => $oc, 'body' => 'office only']);
+$bds = call($ba, 'disc', 'summary');
+chk(count(array_filter($bds['customers'] ?? [], fn($d) => (int)$d['customer_id'] === $oc)) === 0, "BA: no live discussions on someone else's customer");
+
+$bld = (int)(call($ba, 'leads', 'save', ['name' => 'BA Lead', 'phone' => '9847200003'])['id'] ?? 0);
+$old = (int)(call($admin, 'leads', 'save', ['name' => 'Office Lead', 'phone' => '9847200004'])['id'] ?? 0);
+$bll = array_column(array_filter(call($ba, 'leads', 'list'), fn($x) => is_array($x) && isset($x['id'])), 'id');
+chk(in_array($bld, $bll) && !in_array($old, $bll), 'BA: sees their own leads, not unclaimed ones (claiming is off)');
+
+call($admin, 'customers', 'reassign', ['id' => $oc, 'user_id' => $bu['id']]);
+chk((call($ba, 'customers', 'get', null, "&id=$oc")['_code'] ?? 0) === 200 && (call($ba, 'projects', 'get', null, "&id=$op")['_code'] ?? 0) === 200, 'BA: a customer assigned to them (and its project) becomes visible');
+@unlink($ba['jar']);
+
+/* ---- Admin → Audit log: only the last 72 hours are listed; older entries stay for the timelines ---- */
+if ($dbPath !== '' && is_file($dbPath)) {
+  $apdo = new PDO('sqlite:' . $dbPath); $apdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $apdo->exec('PRAGMA busy_timeout=5000');
+  $apdo->exec("INSERT INTO audit_log(user,action,entity,entity_id,detail,created) VALUES('boss','reassign','customers',$bc,'four days ago',datetime('now','-4 days'))");
+  $apdo->exec("INSERT INTO audit_log(user,action,entity,entity_id,detail,created) VALUES('boss','update','customers',$bc,'two days ago',datetime('now','-2 days'))");
+  $al = call($admin, 'admin', 'audit'); $det = array_column(array_filter($al, 'is_array'), 'detail');
+  chk(in_array('two days ago', $det) && !in_array('four days ago', $det), 'audit log: lists the last 72 hours only');
+  chk((int)$apdo->query("SELECT COUNT(*) FROM audit_log WHERE detail='four days ago'")->fetchColumn() === 1, 'audit log: older entries are kept (customer timelines still use them)');
+  $tl = call($admin, 'profile', 'timeline', null, "&customer_id=$bc");
+  chk(($tl['_code'] ?? 0) === 200 && count(array_filter($tl['events'] ?? [], fn($e) => str_contains((string)($e['detail'] ?? '') . (string)($e['title'] ?? ''), 'four days ago'))) === 1, 'audit log: the customer timeline still shows the older entry');
+  $apdo->exec("INSERT INTO audit_log(user,action,entity,entity_id,detail) VALUES('boss','tax_bill','customers',$bc,'59 · ₹225000')");
+  $tax = fn($who) => array_values(array_filter(call($who, 'profile', 'timeline', null, "&customer_id=$bc")['events'] ?? [], fn($e) => ($e['title'] ?? '') === 'Tax bill saved'))[0]['detail'] ?? 'missing';
+  chk($tax($admin) === '59 · ₹225000' && $tax($sales) === '59', 'timeline: amounts show only to people with finance access (' . $tax($sales) . ')');
+  $apdo = null;
+} else chk(true, 'audit log: 72-hour check skipped (no database path)');
+
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);

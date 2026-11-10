@@ -46,7 +46,7 @@ function handle_disc($a) {
     case 'summary': // open discussions for the customers and leads lists
       $sel = "SELECT d.customer_id, d.lead_id, d.id, d.topic, d.created_by, d.created, (SELECT name FROM users WHERE id=d.created_by) created_name, COUNT(m.id) msgs, MAX(m.created) last_at,
           SUM(CASE WHEN m.id > COALESCE((SELECT last_id FROM disc_reads r WHERE r.user_id=? AND r.discussion_id=d.id), 0) AND m.user_id<>? THEN 1 ELSE 0 END) unread";
-      $cust = can('customers') ? rows("$sel, (SELECT name FROM customers WHERE id=d.customer_id) subject FROM discussions d LEFT JOIN disc_msgs m ON m.discussion_id=d.id WHERE d.status='Open' AND d.customer_id IS NOT NULL GROUP BY d.id", [$uid, $uid]) : [];
+      $cust = can('customers') ? rows("$sel, (SELECT name FROM customers WHERE id=d.customer_id) subject FROM discussions d LEFT JOIN disc_msgs m ON m.discussion_id=d.id WHERE d.status='Open' AND d.customer_id IS NOT NULL" . (is_ba() ? ' AND d.customer_id IN (SELECT id FROM customers c WHERE ' . cust_scope('c') . ')' : '') . " GROUP BY d.id", [$uid, $uid]) : [];
       $leads = [];
       if (can('leads')) foreach (rows("$sel, l.name subject, l.assigned_to FROM discussions d JOIN leads l ON l.id=d.lead_id LEFT JOIN disc_msgs m ON m.discussion_id=d.id WHERE d.status='Open' GROUP BY d.id", [$uid, $uid]) as $r)
         if (lead_can_write($r) || in_array($uid, disc_participants($r['id']))) { unset($r['assigned_to']); $leads[] = $r; }

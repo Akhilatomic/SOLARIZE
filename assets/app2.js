@@ -162,7 +162,7 @@ async function pgAdmin() {
   }
   if (t === 'audit') {
     const log = await api('admin', 'audit');
-    ab.innerHTML = table([['When', l => l.created], ['User', l => esc(l.user)], ['Action', l => esc(l.action)], ['Entity', l => esc(l.entity) + (l.entity_id ? ' #' + l.entity_id : '')], ['Detail', l => esc(l.detail)]], log, () => { });
+    ab.innerHTML = `<p class="mut" style="margin:0 0 10px">Last 72 hours · ${log.length} entr${log.length === 1 ? 'y' : 'ies'}. Older entries are kept for the customer and lead timelines.</p>` + table([['When', l => l.created], ['User', l => esc(l.user)], ['Action', l => esc(l.action)], ['Entity', l => esc(l.entity) + (l.entity_id ? ' #' + l.entity_id : '')], ['Detail', l => esc(l.detail)]], log, () => { });
   }
   if (t === 'system') {
     const [st, bk] = await Promise.all([api('admin', 'stats'), api('reset', 'backups')]);

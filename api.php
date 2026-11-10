@@ -41,6 +41,7 @@ try {
   // waits in line behind a slow one (Meta sync, mailbox, WhatsApp) instead of running in parallel. $_SESSION stays readable.
   session_write_close();
   try { housekeeping(); } catch (Throwable $e) { } // hourly: expire 200-day documents, purge the 72-hour recycle bin
+  ba_gate($m, $a); // Business Associate: only their own customers, projects and leads
   // CSRF-light: state-changing calls must be POST
   if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status', 'me', 'today', 'month', 'range', 'pending', 'summary', 'notifs', 'timeline', 'serial', 'zip', 'candidates', 'member', 'avatar', 'leaves', 'balances', 'days', 'folders', 'att', 'admin_list', 'boot', 'img', 'owners', 'next', 'presence']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
   if (isset($E[$m])) handle_crud($m, $a);

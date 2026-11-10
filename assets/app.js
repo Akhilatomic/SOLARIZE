@@ -29,6 +29,7 @@ const MODS = [ // id, label, icon, perm
 const canW = m => ME && (ME.write === '*' || ME.write.includes(m));
 const FIN = () => canR('finance');
 const canR = m => ME && (ME.read === '*' || ME.read.includes(m));
+const BA = () => !!ME && ME.role === 'ba'; // Business Associate: own leads & customers only, no money, cannot delete or revert customers
 
 async function api(m, a, body, qs = '') {
   const opt = body instanceof FormData ? { method: 'POST', body } : body !== undefined ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {};
@@ -260,11 +261,11 @@ async function pgDashboard() {
    <text x="110" y="100" text-anchor="middle" font-size="26" font-weight="700" fill="#1d1d1f">${d.lead_year}</text><text x="110" y="118" text-anchor="middle" font-size="11" fill="#6e6e73">leads this year</text></svg>`;
   const lst = (arr, fn, empty) => arr.length ? `<div class="scroll">${arr.map(fn).join('')}</div>` : `<p class="mut">${empty}</p>`;
   const head = (t, extra = '') => `<div class="ch"><h3>${t}</h3>${extra}</div>`;
-  $('#main').innerHTML = `<div class="dhead"><div><h2>Hello, ${esc(first)}!</h2><div class="mut">Here's how Jasper Solar is doing today.</div></div><div class="mut dtime">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
+  $('#main').innerHTML = `<div class="dhead"><div><h2>Hello, ${esc(first)}!</h2><div class="mut">${BA() ? 'Here’s how your leads and customers are doing today.' : 'Here’s how Jasper Solar is doing today.'}</div></div><div class="mut dtime">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
   <div class="dg">
    <div class="s8" id="newleads"></div>
    <div class="s4 card"><div style="display:flex;gap:12px;align-items:center"><div class="avatar"><i class="i i-sun"></i></div><div><b style="font-size:16px">Good ${gm}, ${esc(first)}</b><div class="mut" style="font-size:12px">Your daily summary</div></div></div>
-    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">${[['<i class="i i-calendar"></i>', d.due_today, 'Follow-ups today'], ['<i class="i i-alert"></i>', d.overdue, 'Overdue'], ['<i class="i i-card"></i>', d.dues.length, 'Payments due'], ['<i class="i i-folder"></i>', d.kseb_pending.length, 'Docs pending']].map(([i, n, l]) => `<div class="tile"><span>${i}</span><div><b>${n}</b><small>${l}</small></div></div>`).join('')}</div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">${[['<i class="i i-calendar"></i>', d.due_today, 'Follow-ups today'], ['<i class="i i-alert"></i>', d.overdue, 'Overdue'], BA() ? ['<i class="i i-project"></i>', d.proj_active, 'Active projects'] : ['<i class="i i-card"></i>', d.dues.length, 'Payments due'], ['<i class="i i-folder"></i>', d.kseb_pending.length, 'Docs pending']].map(([i, n, l]) => `<div class="tile"><span>${i}</span><div><b>${n}</b><small>${l}</small></div></div>`).join('')}</div>
     <div class="warn"><span>${d.overdue ? d.overdue + ' follow-up' + (d.overdue > 1 ? 's are' : ' is') + ' overdue' : '<i class="i i-check"></i> No overdue follow-ups'}</span>${d.overdue ? '<button class="btn sm" id="vod">View Overdue</button>' : ''}</div></div>
 
    ${card('<i class="i i-target"></i>', 'Active Leads', d.leads_total, d.leads_today, vs(d.leads_vs), '', '#/leads')}${card('<i class="i i-users"></i>', 'Customers', d.cust_total, d.cust_today, vs(d.cust_vs), '', '#/customers')}${card('<i class="i i-project"></i>', 'Active Projects', d.proj_active, d.proj_today, vs(d.proj_vs), '', '#/projects')}${card('<i class="i i-alert"></i>', 'Overdue Follow-ups', d.overdue, d.due_today, d.due_today + ' due today', '', '#/leads')}
@@ -273,14 +274,14 @@ async function pgDashboard() {
 
    ${d.finance ? [['Pipeline value', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="s2 card stat"><b>${v}</b><span>${l}</span></div>`).join('') : ''}
 
-   <div class="s6 card">${head('Lead Trend · 30 days', '<small class="mut"><span style="color:#0071e3">●</span> Leads &nbsp;<span style="color:#30a14e">●</span> Won</small>')}${trend}</div>
-   <div class="s3 card">${head('Lead by Source')}${src}</div>
-   <div class="s3 card" style="text-align:center">${head('Lead Target · ' + new Date().getFullYear())}${gauge}<div class="mut" style="font-size:13px">Remaining <b style="color:var(--tx)">${Math.max(0, d.lead_target - d.lead_year)}</b> · Target <b style="color:var(--tx)">${d.lead_target}</b></div></div>
+   <div class="${BA() ? 's8' : 's6'} card">${head('Lead Trend · 30 days', '<small class="mut"><span style="color:#0071e3">●</span> Leads &nbsp;<span style="color:#30a14e">●</span> Won</small>')}${trend}</div>
+   <div class="${BA() ? 's4' : 's3'} card">${head('Lead by Source')}${src}</div>
+   <div class="s3 card ${BA() ? 'hide' : ''}" style="text-align:center">${head('Lead Target · ' + new Date().getFullYear())}${gauge}<div class="mut" style="font-size:13px">Remaining <b style="color:var(--tx)">${Math.max(0, d.lead_target - d.lead_year)}</b> · Target <b style="color:var(--tx)">${d.lead_target}</b></div></div>
 
    <div class="s4 card">${head('Lead → Customer Conversion', `<b style="font-size:24px;color:var(--ok)">${conv}%</b>`)}<div class="mut" style="font-size:12px;margin-bottom:10px">${d.converted} of ${d.leads_all} leads converted</div><div class="prog" style="height:10px"><i style="width:${Math.min(100, conv)}%"></i></div>
      <h3 style="margin-top:20px">Projects by stage</h3>${bars(d.stages.map(s => [s.stage, s.n]), S.project_stages)}</div>
    <div class="s4 card" id="cal"></div>
-   <div class="s4 card">${head('Recent Activity')}${lst(d.recent, r => `<div class="act"><b>${esc(r.user)}</b> ${esc(r.action)} ${esc(r.entity)} <span class="mut">${esc(r.detail || '')}</span><br><small>${r.created}</small></div>`, 'No recent activity')}</div>
+   <div class="s4 card">${head(BA() ? 'Your Recent Activity' : 'Recent Activity')}${lst(d.recent, r => `<div class="act"><b>${esc(r.user)}</b> ${esc(r.action)} ${esc(r.entity)} <span class="mut">${esc(r.detail || '')}</span><br><small>${r.created}</small></div>`, 'No recent activity')}</div>
 
    <div class="s4 card ${d.finance ? '' : 'hide'}">${head('Payments pending', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}${lst(d.dues, p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
    <div class="s4 card">${head('KSEB documents pending', `<span class="pill">${d.kseb_pending.length}</span>`)}${lst(d.kseb_pending, p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`, 'All documents complete')}</div>
@@ -606,8 +607,8 @@ async function pgCustomers() {
     if (W < 680) { COLS = COLS.filter(c => c[0] !== 'date'); full = false; } // phones: card view has room for the key details (owner included)
     else for (const k of ['date', 'by', 'dist', 'kw', '#compact', 'cno', 'phone']) { /* Owner outlasts Date: Me / All needs it */ if (need() <= W) break; if (k === '#compact') full = false; else COLS = COLS.filter(c => c[0] !== k); }
     const fin = canR('fees');
-    const ACTS = c => { const p = !!c.project_id, wl = w && canW('leads');
-      const list = [['ed', 'pencil', 'Edit customer', w], ['pj', 'project', p ? 'Open project' : 'Start a project', p || canW('projects')], ['docs', 'file', 'Documents', true], ['pay', 'card', 'Payments', 1, p], ['fees', 'coin', 'Finance — feasibility, registration, stamp paper', fin],
+    const ACTS = c => { const p = !!c.project_id, wl = w && canW('leads') && !BA();
+      const list = [['ed', 'pencil', 'Edit customer', w], ['pj', 'project', p ? 'Open project' : 'Start a project', p || canW('projects')], ['docs', 'file', 'Documents', canR('files')], ['pay', 'card', 'Payments', canR('payments'), p], ['fees', 'coin', 'Finance — feasibility, registration, stamp paper', fin],
         ['kseb', 'folder', 'KSEB documents', 1, p], ['kdoc', 'clipboard', 'KSEB documentation — work completion report, annexures, MNRE warranty card', canR('checklist')], ['sub', 'sun', 'Subsidy (PM Surya Ghar)', 1, p], ['tl', 'clock', 'Timeline & profile', true], ['rv', 'undo', 'Revert to lead', wl]].filter(x => x[3]);
       return full ? list : list.filter(x => ['ed', 'pj', 'docs'].includes(x[0])); };
     const cell = (k, c) => ({ name: `<td class="cnm"><b class="clip">${esc(c.name)}</b>${feasChip(c.id)}${!COLS.some(x => x[0] === 'cno') && c.consumer_no ? `<small class="mono mut">${esc(c.consumer_no)}</small>` : ''}</td>`,
@@ -649,7 +650,7 @@ async function pgCustomers() {
         if (a === 'fees') return popMenu(b, feeMenuItems(c.id), run);
         if (a !== 'more') return run(a);
         const shown = new Set($$('[data-a]', tr).map(x => x.dataset.a));
-        popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['kdoc', 'clipboard', 'KSEB documentation', canR('checklist')], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner', w && OWN.canReassign(c.owner_id, ME)], ['rv', 'undo', 'Revert to lead', w && canW('leads')]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
+        popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id && canR('payments')], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['kdoc', 'clipboard', 'KSEB documentation', canR('checklist')], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner', w && OWN.canReassign(c.owner_id, ME)], ['rv', 'undo', 'Revert to lead', w && canW('leads') && !BA()]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
       });
     });
     bind([...tb.tBodies[0].rows]); onScreen = n;
@@ -736,7 +737,7 @@ async function pgProject(id) {
   const p = await api('projects', 'get', undefined, '&id=' + id);
   const w = canW('projects'), wc = canW('checklist');
   const paid = p.payments.reduce((a, x) => a + x.amount, 0);
-  const tabs = [['overview', 'Overview & payments'], ['subsidy', 'Subsidy'], ['kseb', 'KSEB documents'], ['files', 'Files'], ['amc', 'AMC & service']];
+  const tabs = [['overview', FIN() ? 'Overview & payments' : 'Overview'], ['subsidy', 'Subsidy'], ['kseb', 'KSEB documents'], ...(canR('files') ? [['files', 'Files']] : []), ['amc', 'AMC & service']];
   const draw = () => {
     const t = TAB.proj || 'overview';
     let body = '';

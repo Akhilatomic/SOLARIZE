@@ -38,6 +38,34 @@ function lead_or_404($id) {
   return $l;
 }
 
+// ---- Business Associate (BA): sees only the customers they own and those customers' projects; never money ----
+function is_ba() { return ($_SESSION['role'] ?? '') === 'ba'; }
+function cust_scope($alias = 'c') { return is_ba() ? "$alias.owner_id=" . uid() : '1=1'; }
+function ba_owns_customer($cid) { return (int)(row('SELECT owner_id FROM customers WHERE id=?', [(int)$cid])['owner_id'] ?? 0) === uid(); }
+function ba_owns_project($pid) { $p = row('SELECT c.owner_id FROM projects p JOIN customers c ON c.id=p.customer_id WHERE p.id=?', [(int)$pid]); return $p && (int)$p['owner_id'] === uid(); }
+/* Runs before every request a BA makes: whatever customer, project, lead, file or discussion it names must be theirs.
+   Lists are narrowed where they are built (cust_scope). Someone else's record answers "Not found", as if it did not exist. */
+function ba_gate($m, $a) {
+  if (!is_ba()) return;
+  $in = body(); $nf = fn() => fail('Not found', 404);
+  if ($m === 'customers' && in_array($a, ['delete', 'revert'], true)) fail('Not allowed for your role', 403); // would remove projects and payments
+  $cid = []; $pid = []; $lid = [];
+  foreach ([$_GET, $in] as $src) {
+    if ($m !== 'leads' && (int)($src['customer_id'] ?? 0)) $cid[] = (int)$src['customer_id'];
+    if ((int)($src['project_id'] ?? 0)) $pid[] = (int)$src['project_id'];
+    if ($m !== 'leads' && (int)($src['lead_id'] ?? 0)) $lid[] = (int)$src['lead_id'];
+    $id = (int)($src['id'] ?? 0); if (!$id) continue;
+    if ($m === 'customers') $cid[] = $id;
+    elseif ($m === 'projects' || ($m === 'pipeline' && $a === 'services')) $pid[] = $id;
+    elseif ($m === 'files') { $f = row('SELECT customer_id, project_id FROM files WHERE id=?', [$id]); if (!$f) $nf(); if ($f['customer_id']) $cid[] = (int)$f['customer_id']; elseif ($f['project_id']) $pid[] = (int)$f['project_id']; else $nf(); }
+    elseif ($m === 'disc' && $a === 'end') { $d = row('SELECT customer_id, lead_id FROM discussions WHERE id=?', [$id]); if (!$d) $nf(); if ($d['customer_id']) $cid[] = (int)$d['customer_id']; if ($d['lead_id']) $lid[] = (int)$d['lead_id']; }
+  }
+  if ($m === 'notes' && (int)($in['entity_id'] ?? 0)) { if (($in['entity'] ?? '') === 'customers') $cid[] = (int)$in['entity_id']; if (($in['entity'] ?? '') === 'projects') $pid[] = (int)$in['entity_id']; }
+  foreach (array_unique($cid) as $x) if (!ba_owns_customer($x)) $nf();
+  foreach (array_unique($pid) as $x) if (!ba_owns_project($x)) $nf();
+  foreach (array_unique($lid) as $x) lead_or_404($x);
+}
+
 // ---- owners: reassigning a lead or a customer ----
 // Who may hand a record to someone else: its current owner, the admin and the assistant manager.
 function can_reassign($owner_id) { return is_admin() || ($_SESSION['role'] ?? '') === 'assistant_manager' || ((int)$owner_id > 0 && (int)$owner_id === uid()); }

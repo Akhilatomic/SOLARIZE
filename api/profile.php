@@ -7,7 +7,9 @@ function handle_profile($a) {
   $cid = (int)($_GET['customer_id'] ?? 0);
   $c = row('SELECT * FROM customers WHERE id=?', [$cid]); if (!$c) fail('Customer not found', 404);
   $fin = can('finance'); $ev = [];
-  $add = function ($ts, $kind, $title, $detail = '', $user = '', $extra = []) use (&$ev) { if (!$ts) return; $ev[] = ['seq' => count($ev), 'ts' => $ts, 'kind' => $kind, 'title' => $title, 'detail' => (string)$detail, 'user' => (string)$user] + $extra; };
+  $add = function ($ts, $kind, $title, $detail = '', $user = '', $extra = []) use (&$ev, $fin) { if (!$ts) return;
+    if (!$fin) $detail = trim(preg_replace('/\s*(·\s*)?₹\s?[\d,]+(\.\d+)?/u', '', (string)$detail), " ·"); // no money in the timeline without finance access (e.g. "Tax bill saved · 59 · ₹2,25,000")
+    $ev[] = ['seq' => count($ev), 'ts' => $ts, 'kind' => $kind, 'title' => $title, 'detail' => (string)$detail, 'user' => (string)$user] + $extra; };
   $money = fn($v) => $fin ? ' · ₹' . number_format((float)$v) : '';
 
   // lead origin

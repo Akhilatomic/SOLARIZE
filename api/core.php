@@ -53,8 +53,8 @@ function handle_crud($t, $a) {
   switch ($a) {
     case 'list':
       if ($t === 'customers') out(array_map(fn($r) => mask_customer(strip_fin($r)), rows("SELECT c.*, lp.id project_id, lp.stage, lp.kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects, ou.name owner_name
-        FROM customers c LEFT JOIN projects lp ON lp.id=(SELECT id FROM projects WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) LEFT JOIN users ou ON ou.id=c.owner_id ORDER BY c.created DESC, c.id DESC")));
-      if ($t === 'projects') out(array_map('strip_fin', rows('SELECT p.*, c.name customer, c.phone, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p LEFT JOIN customers c ON c.id=p.customer_id ORDER BY p.updated DESC')));
+        FROM customers c LEFT JOIN projects lp ON lp.id=(SELECT id FROM projects WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) LEFT JOIN users ou ON ou.id=c.owner_id WHERE " . cust_scope('c') . " ORDER BY c.created DESC, c.id DESC")));
+      if ($t === 'projects') out(array_map('strip_fin', rows('SELECT p.*, c.name customer, c.phone, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE ' . cust_scope('c') . ' ORDER BY p.updated DESC')));
       $w = []; $args = [];
       foreach (['customer_id','project_id','campaign_id','lead_id','status','stage','source','assigned_to'] as $f)
         if (in_array($f, $cols) && isset($_GET[$f]) && $_GET[$f] !== '') { $w[] = "$f=?"; $args[] = $_GET[$f]; }
@@ -64,7 +64,7 @@ function handle_crud($t, $a) {
     case 'get':
       $r = row("SELECT * FROM $t WHERE id=?", [(int)($_GET['id'] ?? 0)]); if (!$r) fail('Not found', 404);
       $r = in_array($t, ['projects', 'customers', 'leads']) ? strip_fin(detail($t, $r)) : detail($t, $r);
-      if ($t === 'customers') $r['owner_name'] = owner_name($r['owner_id'] ?? 0);
+      if ($t === 'customers') { $r['owner_name'] = owner_name($r['owner_id'] ?? 0); if (!can('quotes')) $r['quotes'] = []; if (!can('files')) $r['files'] = []; }
       out($t === 'customers' ? mask_customer($r) : $r);
     case 'save':
       $v = pick($in, $cols);
