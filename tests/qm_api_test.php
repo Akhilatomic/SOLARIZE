@@ -365,6 +365,17 @@ chk(($save($nc[3], '60')['_code'] ?? 0) === 409, 'invoice no.: a number already 
 chk(($save($nc[0], '61')['number'] ?? '') === '61' && ($save($nc[0], '59')['_code'] ?? 0) === 409, 'invoice no.: an issued bill can be renumbered, but not to a used number');
 chk((call($admin, 'gen', 'next', null, "&kind=tax&customer_id={$nc[3]}&date=2027-04-05")['number'] ?? '') === 'JS/INV/27-28/001', 'invoice no.: a new financial year starts its own series');
 
+/* ---- MNRE warranty certificate: its own Ref No. series, typed numbers, signatory remembered ---- */
+$wg = call($admin, 'gen', 'get', null, "&kind=warranty&customer_id={$nc[0]}");
+chk(preg_match('#^JS/WC/\d\d-\d\d/\d{3}$#', $wg['next_no'] ?? '') === 1 && ($wg['mnre']['sign_desig'] ?? '') === 'Proprietor', 'warranty card: shows its Ref No. ' . ($wg['next_no'] ?? '') . ' and a default designation');
+$wd = ['name' => 'No One', 'eff' => '2026-11-01', 'years' => 5, 'sign_name' => 'Akhil', 'sign_desig' => 'Managing Partner', 'sign_phone' => '96055 25552'];
+$w1 = call($admin, 'gen', 'save', ['kind' => 'warranty', 'customer_id' => $nc[0], 'issued_on' => '2026-11-12', 'number' => '', 'data' => $wd]);
+chk(($w1['number'] ?? '') === ($wg['next_no'] ?? 'x'), 'warranty card: issued with the shown number');
+chk((call($admin, 'gen', 'save', ['kind' => 'warranty', 'customer_id' => $nc[1], 'issued_on' => '2026-11-12', 'number' => $w1['number'] ?? '', 'data' => $wd])['_code'] ?? 0) === 409, 'warranty card: a Ref No. already used is refused');
+chk((call($admin, 'gen', 'save', ['kind' => 'warranty', 'customer_id' => $nc[1], 'issued_on' => '2026-11-12', 'number' => 'JSS/WC/0045', 'data' => $wd])['number'] ?? '') === 'JSS/WC/0045', 'warranty card: a typed Ref No. is used');
+$wg2 = call($admin, 'gen', 'get', null, "&kind=warranty&customer_id={$nc[2]}");
+chk(($wg2['mnre']['sign_name'] ?? '') === 'Akhil' && ($wg2['mnre']['sign_desig'] ?? '') === 'Managing Partner' && ($wg2['next_no'] ?? '') === 'JSS/WC/0046', 'warranty card: the signatory is remembered and the series carries on (JSS/WC/0046)');
+
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);

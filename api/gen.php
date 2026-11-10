@@ -74,7 +74,8 @@ function handle_gen($a) {
         'tax' => row("SELECT number, issued_on FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid]) ?: null, // bill no. also prints on the warranty card
         'next_no' => !$r && GEN_KINDS[$kind] !== '' ? gen_next_no($kind, date('Y-m-d'), true) : null, // what a new bill will get (the editor shows it)
         'acct' => $kind === 'tax' ? gen_acct($cid) : null,
-        'qm' => $kind === 'tax' ? gen_qm_info() : null]);
+        'qm' => $kind === 'tax' ? gen_qm_info() : null,
+        'mnre' => $kind === 'warranty' ? kv_get('mnre_defaults', ['sign_name' => '', 'sign_desig' => 'Proprietor', 'sign_phone' => (gen_qm_info() ?: [])['phone'] ?? '']) : null]);
 
     case 'cost': // plant cost = the customer's project value (creates the project if there is none yet)
       need('customers', true); need('finance');
@@ -96,16 +97,18 @@ function handle_gen($a) {
       $issued = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['issued_on'] ?? '')) ? $in['issued_on'] : date('Y-m-d');
       $r = row('SELECT * FROM gen_docs WHERE customer_id=? AND kind=?', [$cid, $kind]);
       /* a typed invoice number (tax bill): any text, but never one another bill already has */
-      $man = $kind === 'tax' ? preg_replace('/\s+/', ' ', trim((string)($in['number'] ?? ''))) : '';
-      if ($man !== '') { if (mb_strlen($man) > 40) fail('The invoice number is too long (40 characters at most)');
-        if (gen_no_taken($kind, $man, $cid)) fail("Invoice number $man is already used on another bill", 409); }
+      $man = in_array($kind, ['tax', 'warranty'], true) ? preg_replace('/\s+/', ' ', trim((string)($in['number'] ?? ''))) : '';
+      $what = $kind === 'tax' ? ['Invoice number', 'bill'] : ['Ref no.', 'warranty certificate'];
+      if ($man !== '') { if (mb_strlen($man) > 40) fail("The {$what[0]} is too long (40 characters at most)");
+        if (gen_no_taken($kind, $man, $cid)) fail("{$what[0]} $man is already used on another {$what[1]}", 409); }
       if ($r) { q('UPDATE gen_docs SET data=?, issued_on=?, updated=CURRENT_TIMESTAMP, updated_by=? WHERE id=?', [json_encode($data, JSON_UNESCAPED_UNICODE), $issued, $_SESSION['name'] ?? '', $r['id']]); $no = $r['number'];
-        if ($man !== '' && $man !== $no) { q('UPDATE gen_docs SET number=? WHERE id=?', [$man, $r['id']]); audit('tax_bill_number', 'customers', $cid, "$no → $man"); $no = $man; } }
+        if ($man !== '' && $man !== $no) { q('UPDATE gen_docs SET number=? WHERE id=?', [$man, $r['id']]); audit($kind === 'tax' ? 'tax_bill_number' : 'warranty_ref', 'customers', $cid, "$no → $man"); $no = $man; } }
       elseif ($man !== '') { $no = $man; q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, $no, $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
       elseif (GEN_KINDS[$kind] === '') { $no = ''; q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, '', $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
       else { $no = gen_next_no($kind, $issued); q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, $no, $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
       if ($kind === 'tax' && $no !== '') { [$pl] = plant_get($cid); if (($pl['gst_invoice_no'] ?? '') !== $no) { $pl['gst_invoice_no'] = $no; $pl['panels'] = $pl['panels'] ?? []; $pl['inverters'] = $pl['inverters'] ?? [];
         q('INSERT INTO plant(customer_id,data,updated,updated_by) VALUES(?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(customer_id) DO UPDATE SET data=excluded.data, updated=excluded.updated, updated_by=excluded.updated_by', [$cid, json_encode($pl, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); } }
+      if ($kind === 'warranty') kv_set('mnre_defaults', ['sign_name' => (string)($data['sign_name'] ?? ''), 'sign_desig' => (string)($data['sign_desig'] ?? ''), 'sign_phone' => (string)($data['sign_phone'] ?? '')]);
       if ($kind === 'mfr') kv_set('mfr_defaults', ['distributor' => $data['distributor'] ?? '', 'email' => $data['email'] ?? '']);
       audit($kind === 'tax' ? 'tax_bill' : ($kind === 'mfr' ? 'mfr_warranty' : ($kind === 'wcs' ? 'warranty_status' : 'warranty_card')), 'customers', $cid, ($kind === 'wcs' ? (string)($data['status'] ?? '') : $no) . ($kind === 'tax' && isset($data['grand']) ? ' · ₹' . $data['grand'] : ''));
       out(['ok' => true, 'number' => $no]);

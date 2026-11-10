@@ -324,3 +324,94 @@ async function renderTax(box, c, id) {
     v.grand = k.grand; v.taxable = Math.round(k.tx * 100) / 100; v.tax = Math.round(k.tt * 100) / 100; const b = $('#tsv', box); b.disabled = true;
     try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: !g.doc && noAuto ? '' : $('#tno', box).value.trim(), data: v }); toast(`Tax bill ${r.number} saved`); renderTax(box, c, id); } catch (e) { b.disabled = false; } };
 }
+
+// ---------------- MNRE warranty certificate, printed on the Jasper Solar letterhead ----------------
+/* The letterhead is the company's own PDF rendered at 200 dpi (assets/letterhead.png): header with the logos and contacts,
+   "Ref No." and "Date" lines at 62.6–66.1 mm, watermark, and the office / GSTIN footer from about 264 mm. The certificate
+   text follows the MNRE recommended format: 5-year system warranty, module performance note, customer data, module and
+   inverter details, module serial numbers, and the company seal & signature. */
+const MNRE_CSS = `.lhp{position:relative;width:210mm;height:297mm;background:#fff;overflow:hidden;box-sizing:border-box;color:#111;font:12.5px/1.36 "Times New Roman",Times,serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.lhp .lhbg{position:absolute;left:0;top:0;width:100%;height:100%;z-index:0}
+.lhp .lhref,.lhp .lhdate{position:absolute;top:61.4mm;z-index:1;font:600 12.5px/1.2 "Times New Roman",Times,serif;background:#fff;padding:0 2px}
+.lhp .lhref{left:27mm}.lhp .lhdate{left:155mm}
+.lhp .lhbody{position:absolute;top:71mm;left:14mm;right:14mm;bottom:35mm;z-index:1}
+.lhp h2{margin:0 0 5px;text-align:center;font-size:15px;font-weight:700;text-decoration:underline;letter-spacing:.02em}
+.lhp p{margin:0 0 5px;text-align:justify}
+.lhp h3{margin:7px 0 3px;text-align:center;font-size:13px;font-weight:700;text-decoration:underline}
+.lhp table{width:100%;border-collapse:collapse;background:transparent;margin:0}
+.lhp td{border:1px solid #222!important;padding:1px 6px!important;font-size:12px!important;vertical-align:top;text-align:left;overflow-wrap:normal!important;word-break:normal;background:transparent!important}
+.lhp th{border:0!important;padding:2px 0!important;font-size:12.5px!important;font-weight:700;text-decoration:underline;text-align:center;color:#111!important;background:transparent!important;text-transform:none!important;letter-spacing:0!important}
+.lhp .mcd td:first-child{width:44%}.lhp td.pre{white-space:pre-line}
+.lhp .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;margin-top:5px}.lhp .mgrid td:first-child{width:42%}
+.lhp .mbot{display:grid;grid-template-columns:54% 1fr;gap:14px;margin-top:6px;align-items:end}.lhp .mbot.full{grid-template-columns:1fr}
+.lhp .msr td{font-family:"Times New Roman",Times,serif}.lhp .msr td.n{width:28px;text-align:center}.lhp .msig .bl{display:inline-block;min-width:38mm;border-bottom:1px dotted #555}
+.lhp .msig{display:flex;flex-direction:column;align-items:center;text-align:center;font-size:12.5px}.lhp .msig .seal{height:34mm;width:100%}
+.lhp .msig b{font-size:13px}
+.lhwrap{overflow:hidden;margin:0 auto}.lhfit{transform-origin:top left;box-shadow:0 1px 3px rgba(0,0,0,.08),0 10px 30px rgba(0,0,0,.10)}`;
+const dotd = s => s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '';
+function mnrePage(v, ref, date, pn, iv) {
+  const sn = pn.map(x => x.serial), n = sn.length, pairs = n > 20 ? 3 : n > 10 ? 2 : 1, rows = pairs === 1 ? 10 : Math.ceil(n / pairs), shown = pairs === 1 ? 10 : n;
+  const srows = Array.from({ length: rows }, (_, r) => `<tr>${Array.from({ length: pairs }, (_, p) => { const i = p * rows + r; return `<td class="n">${i < shown ? i + 1 : ''}</td><td>${esc(sn[i] || '')}</td>`; }).join('')}</tr>`).join('');
+  const row = (l, x) => `<tr><td>${l}</td><td>${esc(x || '')}</td></tr>`;
+  return `<div class="lhp"><img class="lhbg" src="${location.origin}/assets/letterhead.png" alt="">
+   ${ref ? `<div class="lhref">${esc(ref)}</div>` : ''}${date ? `<div class="lhdate">${esc(dotd(date))}</div>` : ''}
+   <div class="lhbody"><h2>WARRANTY CERTIFICATE</h2>
+    <p>The module mounting structure, electrical works including power conditioners/inverters/maximum power point tracker units/distribution boards/digital meters/switchgear etc. and overall workmanship of the SPV power plants/systems are warranted against any design/installation defects except from natural calamities with effect from <b>${esc(dotd(v.eff) || '—')}</b> for a period of <b>${+v.years || 5} years</b>.</p>
+    <p><b>Note: -</b> All PV modules shall carry a performance warranty of &gt;90% during the first 10 years, and &gt;80% during the next 15 years. Further, module shall have performance warranty of &gt;97% during the first year of installation. The degradation of the module below 1% per annum.</p>
+    <h3>CUSTOMER DATA</h3>
+    <table class="mcd">${row('NAME', v.name)}<tr><td>ADDRESS</td><td class="pre">${esc(v.address || '')}</td></tr>${row('EB CONSUMER NUMBER', v.consumer_no)}${row('INSTALLED PLANT CAPACITY', v.capacity)}${row('CONTACT NUMBER', v.phone)}${row('EB PHASE', v.phase)}</table>
+    <div class="mgrid"><table><tr><th colspan="2">SPV MODULE</th></tr>${row('MAKE/MODEL', v.mod_make)}${row('MODULE TYPE', v.mod_type)}${row('MODULE WATTS', v.mod_watts)}</table>
+     <table><tr><th colspan="2">INVERTER</th></tr>${row('MAKE/MODEL', v.inv_make)}${row('CAPACITY', v.inv_capacity)}${row('SERIAL NUMBER', iv.map(x => x.serial).join(', '))}</table></div>
+    <div class="mbot${pairs === 3 ? ' full' : ''}"><table class="msr"><tr><th colspan="${pairs * 2}">SPV MODULE SERIAL NUMBER</th></tr>${srows}</table>
+     <div class="msig"><div class="seal"></div><b>For JASPER SOLAR SOLUTIONS</b><div>Name: ${v.sign_name ? esc(v.sign_name) : '<span class="bl"></span>'}</div><div>Designation: ${v.sign_desig ? esc(v.sign_desig) : '<span class="bl"></span>'}</div>${v.sign_phone ? `<div>Phone: ${esc(v.sign_phone)}</div>` : ''}</div></div>
+   </div></div>`;
+}
+function printLetter(title, page) {
+  const w = window.open('', '_blank'); if (!w) return toast('Allow pop-ups to print or save the PDF', true);
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4;margin:0}html,body{margin:0;background:#fff}${MNRE_CSS}</style></head><body>${page}</body></html>`);
+  w.document.close();
+  const im = w.document.querySelector('img'), go = () => setTimeout(() => { w.focus(); w.print(); }, 250);
+  if (!im || im.complete) go(); else { im.onload = go; im.onerror = go; }
+}
+async function renderMnre(box, c, id) {
+  box.innerHTML = '<p class="mut">Loading…</p>';
+  if (!document.getElementById('mnre-css')) document.head.insertAdjacentHTML('beforeend', `<style id="mnre-css">${MNRE_CSS}</style>`);
+  const g = await api('gen', 'get', undefined, `&kind=warranty&customer_id=${id}`), w = canW('customers'), P = g.plant || {}, M = g.mnre || {};
+  const pn = (P.panels || []).filter(x => x.serial), iv = (P.inverters || []).filter(x => x.serial);
+  const invCap = (P.inverters || []).filter(x => x.capacity).map(x => x.capacity + ' kW').join(', ') || (P.inverter_capacity ? P.inverter_capacity + ' kW' : '');
+  const def = { eff: P.commissioned_on || P.installed_on || today(), years: 5, name: c.name || '', address: [c.address, [c.district, c.pincode].filter(Boolean).join(' - ')].filter(Boolean).join('\n'),
+    consumer_no: c.consumer_no || '', capacity: P.capacity ? P.capacity + ' kW' : '', phone: c.phone || '', phase: c.phase || '',
+    mod_make: [P.panel_make, P.panel_model].filter(Boolean).join(' / '), mod_type: P.panel_type || '', mod_watts: P.panel_wattage ? P.panel_wattage + ' Wp' : '',
+    inv_make: [P.inverter_make, P.inverter_model].filter(Boolean).join(' / '), inv_capacity: invCap,
+    sign_name: M.sign_name || '', sign_desig: M.sign_desig || 'Proprietor', sign_phone: M.sign_phone || '' };
+  const D = Object.assign({}, def, (g.doc || {}).data || {}), ro = w ? '' : 'disabled';
+  const f = (k, l, o = {}) => `<div class="${o.full ? 'full' : ''}"><label for="mf_${k}">${l}</label>${o.ta ? `<textarea id="mf_${k}" data-m="${k}" rows="${o.ta}" ${ro}>${esc(D[k] || '')}</textarea>` : `<input id="mf_${k}" data-m="${k}" ${o.type ? `type="${o.type}"` : ''} value="${esc(D[k] ?? '')}" ${ro}>`}</div>`;
+  box.innerHTML = `<div class="gdl"><div class="card gdf"><div class="pfch"><i class="i i-award"></i><h3>MNRE warranty card</h3><span class="sp"></span><span class="pill ${g.doc ? 'g' : ''}">${g.doc ? esc(g.doc.number) : 'Not issued yet'}</span></div>
+      <p class="mut" style="font-size:12.5px;margin:0 0 8px">Warranty certificate in the MNRE recommended format, printed on the Jasper Solar letterhead.</p>
+      <div class="two"><div class="full"><label for="mref">Ref No.</label><div class="tbr"><input id="mref" maxlength="40" autocomplete="off" value="${esc(g.doc ? g.doc.number : (g.next_no || ''))}" ${ro}>${w ? '<button class="btn sec sm" id="mrefauto" type="button" title="Put the next number in the series">Auto</button>' : ''}</div><small class="mut" id="mrefh"></small></div>
+       <div><label for="mdate">Date</label><input type="date" id="mdate" value="${esc((g.doc || {}).issued_on || today())}" ${ro}></div><div></div>
+       ${f('eff', 'Warranty with effect from', { type: 'date' })}${f('years', 'Warranty period (years)', { type: 'number' })}</div>
+      <label class="msec">Customer data</label><div class="two">${f('name', 'Name', { full: 1 })}${f('address', 'Address', { full: 1, ta: 2 })}${f('consumer_no', 'EB consumer number')}${f('capacity', 'Installed plant capacity')}${f('phone', 'Contact number')}${f('phase', 'EB phase')}</div>
+      <label class="msec">SPV module</label><div class="two">${f('mod_make', 'Make / model', { full: 1 })}${f('mod_type', 'Module type')}${f('mod_watts', 'Module watts')}</div>
+      <label class="msec">Inverter</label><div class="two">${f('inv_make', 'Make / model')}${f('inv_capacity', 'Capacity')}</div>
+      <p class="mut" style="font-size:12.5px;margin:6px 0 0">Serial numbers come from <b>Plant details</b>: ${pn.length} module${pn.length === 1 ? '' : 's'}, ${iv.length} inverter${iv.length === 1 ? '' : 's'}. <button class="btn sec sm" id="mgoplant" type="button">Open Plant details</button></p>
+      <label class="msec">Signed by</label><div class="two">${f('sign_name', 'Name')}${f('sign_desig', 'Designation')}${f('sign_phone', 'Phone')}</div>
+      <div class="bar" style="margin-top:12px">${w ? `<button class="btn" id="msv">${g.doc ? 'Save changes' : 'Issue warranty card'}</button>` : ''}<button class="btn sec" id="mpr"><i class="i i-download"></i> Print / PDF</button></div>
+      <p class="mut" style="font-size:12px;margin:8px 0 0">Prints on A4 with the letterhead. Leave the space above "For JASPER SOLAR SOLUTIONS" for the seal and signature.</p></div>
+    <div class="gdp"><div class="lhwrap" id="mwrap"><div class="lhfit" id="mdoc"></div></div></div></div>`;
+  const ref = () => $('#mref', box).value.trim(), page = () => mnrePage(D, ref(), $('#mdate', box).value, pn, iv);
+  const fit = () => { const wr = $('#mwrap', box), pg = $('#mdoc', box); if (!wr || !pg) return; const s = Math.min(1, (wr.parentElement.clientWidth - 2) / 794); pg.style.transform = `scale(${s})`; wr.style.width = 794 * s + 'px'; wr.style.height = 1123 * s + 'px'; };
+  const upd = () => { $('#mdoc', box).innerHTML = page(); fit(); };
+  let noAuto = !g.doc;
+  const hint = () => { $('#mrefh', box).textContent = g.doc ? 'Change it only to correct a mistake. A number can be on one certificate only.' : noAuto ? 'Next number in the series. Type your own to change it.' : 'Your own number. It must not be on any other certificate.'; };
+  box.addEventListener('input', e => { if (e.target.dataset.m) D[e.target.dataset.m] = e.target.value; if (e.target.id === 'mref' && !g.doc) { noAuto = false; hint(); } upd(); });
+  $('#mdate', box).addEventListener('change', async () => { if (!g.doc && noAuto) { try { $('#mref', box).value = (await api('gen', 'next', undefined, `&kind=warranty&customer_id=${id}&date=${$('#mdate', box).value}`)).number; } catch (e) { } } upd(); });
+  if ($('#mrefauto', box)) $('#mrefauto', box).onclick = async () => { if (g.doc && !confirm('Give this certificate the next number in the series?')) return; noAuto = !g.doc;
+    try { $('#mref', box).value = (await api('gen', 'next', undefined, `&kind=warranty&customer_id=${id}&date=${$('#mdate', box).value}`)).number; } catch (e) { } hint(); upd(); };
+  $('#mgoplant', box).onclick = () => { const t = document.querySelector('[data-pt="plant"]'); if (t) { t.click(); scrollTo({ top: 0, behavior: 'smooth' }); } };
+  $('#mpr', box).onclick = () => printLetter(`Warranty certificate — ${c.name}`, page());
+  if ($('#msv', box)) $('#msv', box).onclick = async e => { const b = e.currentTarget; b.disabled = true;
+    try { const r = await api('gen', 'save', { kind: 'warranty', customer_id: id, issued_on: $('#mdate', box).value || today(), number: !g.doc && noAuto ? '' : ref(), data: D }); toast(`Warranty card ${r.number} saved`); renderMnre(box, c, id); } catch (x) { b.disabled = false; } };
+  if (!window._mnreFit) { window._mnreFit = true; addEventListener('resize', () => { const wr = document.getElementById('mwrap'); if (wr) { const pg = document.getElementById('mdoc'), s = Math.min(1, (wr.parentElement.clientWidth - 2) / 794); pg.style.transform = `scale(${s})`; wr.style.width = 794 * s + 'px'; wr.style.height = 1123 * s + 'px'; } }); }
+  hint(); upd();
+}

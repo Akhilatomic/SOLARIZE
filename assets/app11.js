@@ -46,7 +46,7 @@ async function pgCustomer(id) {
    <div class="card pfhead"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="mut">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') + ' ' : ''}${c.phone ? `<button class="pfv inl" data-cp="${esc(c.phone)}" data-l="phone">${esc(c.phone)}<i class="i i-copy"></i></button>` : ''}${c.consumer_no ? ` · Consumer no. <button class="pfv inl" data-cp="${esc(c.consumer_no)}" data-l="consumer no.">${esc(c.consumer_no)}<i class="i i-copy"></i></button>` : ''}${ownHtml}</div></div>
     <div class="pfact"><button class="btn sec" id="dsc">${discBtnLabel(id)}</button>${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a><button class="btn ok" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>` : ''}
      ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}<button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
-   <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ['plant', 'Plant details', 'sun'], ['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file'], ['warranty', 'Warranty card', 'shield'], ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : [])].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${l}</button>`).join('')}</div>
+   <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ['plant', 'Plant details', 'sun'], ['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file'], ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : [])].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${l}</button>`).join('')}</div>
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
     <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut" style="margin:0">No project yet.</p></div>`}
@@ -77,7 +77,7 @@ async function pgCustomer(id) {
   $('#tlnb').onclick = addNote; $('#tln').onkeydown = e => { if (e.key === 'Enter') addNote(); };
   // tabs
   const showTab = k => { PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
-    if (k === 'plant') renderPlant(box, c, id); if (k === 'docs') renderDocs(box, c, id); if (k === 'warranty') renderWarranty(box, c, id); if (k === 'tax') renderTax(box, c, id); };
+    if (k === 'plant') renderPlant(box, c, id); if (k === 'docs') renderDocs(box, c, id); if (k === 'warranty') renderWarranty(box, c, id); if (k === 'mnre') renderMnre(box, c, id); if (k === 'tax') renderTax(box, c, id); };
   $$('[data-pt]').forEach(b => b.onclick = () => showTab(b.dataset.pt));
   $$('[data-goto]').forEach(b => b.onclick = () => { showTab(b.dataset.goto); scrollTo({ top: 0, behavior: 'smooth' }); });
   if (PFT !== 'overview') showTab(PFT);
