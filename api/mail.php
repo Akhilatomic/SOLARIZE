@@ -1,11 +1,25 @@
 <?php
-// Email: the company mailbox (Hostinger) inside the CRM.
-// Reads over IMAP (imap.hostinger.com:993, SSL) and sends over SMTP (smtp.hostinger.com:465, SSL).
-// Plain sockets, no PHP imap extension needed. The mailbox password is stored encrypted (AES-256-GCM,
-// key in data/mail.key) and never sent back to the browser. Only an admin can change the mailbox settings.
+// Email: each user's own mailboxes inside the CRM (Hostinger by default; Gmail, Zoho, Yahoo or any IMAP/SMTP server).
+// Every user connects their own addresses (up to MAIL_MAX) on first use and switches between them; nobody else can read them.
+// Reads over IMAP (SSL) and sends over SMTP (SSL / STARTTLS). Plain sockets, no PHP imap extension needed.
+// Passwords are stored encrypted (AES-256-GCM, key in data/mail.key) and never sent back to the browser.
+// The admin can see which addresses each user connected (never the mail) and move one into their own list or disconnect it.
 
-const MAIL_DEF = ['email' => '', 'name' => '', 'imap_host' => 'imap.hostinger.com', 'imap_port' => 993, 'smtp_host' => 'smtp.hostinger.com', 'smtp_port' => 465, 'signature' => ''];
+const MAIL_PROVIDERS = [ // preset servers + what to type as the password
+  'hostinger' => ['name' => 'Hostinger', 'imap_host' => 'imap.hostinger.com', 'imap_port' => 993, 'smtp_host' => 'smtp.hostinger.com', 'smtp_port' => 465,
+    'pass' => 'Your Hostinger email password — the one you use at mail.hostinger.com.', 'link' => ''],
+  'gmail' => ['name' => 'Gmail', 'imap_host' => 'imap.gmail.com', 'imap_port' => 993, 'smtp_host' => 'smtp.gmail.com', 'smtp_port' => 465,
+    'pass' => 'Use a Google app password, not your normal password: turn on 2-Step Verification, then create one under Google Account → Security → App passwords.', 'link' => 'https://myaccount.google.com/apppasswords'],
+  'zoho' => ['name' => 'Zoho Mail', 'imap_host' => 'imap.zoho.in', 'imap_port' => 993, 'smtp_host' => 'smtp.zoho.in', 'smtp_port' => 465,
+    'pass' => 'Use a Zoho app-specific password (Zoho Accounts → Security → App passwords). Account outside India? Change the servers to imap.zoho.com and smtp.zoho.com.', 'link' => 'https://accounts.zoho.in/home#security/app_password'],
+  'yahoo' => ['name' => 'Yahoo Mail', 'imap_host' => 'imap.mail.yahoo.com', 'imap_port' => 993, 'smtp_host' => 'smtp.mail.yahoo.com', 'smtp_port' => 465,
+    'pass' => 'Use a Yahoo app password (Account security → Generate app password), not your normal password.', 'link' => 'https://login.yahoo.com/account/security'],
+  'other' => ['name' => 'Other', 'imap_host' => '', 'imap_port' => 993, 'smtp_host' => '', 'smtp_port' => 465,
+    'pass' => 'Your mailbox password. Your email provider can tell you the incoming (IMAP) and outgoing (SMTP) server names.', 'link' => ''],
+];
+const MAIL_MAX = 10; // addresses per user
 const MAIL_PAGE = 40;
+class MailAuthError extends RuntimeException {} // the server refused the password (not a network problem)
 
 // ---------- settings & secret ----------
 function mail_key() {
@@ -15,8 +29,28 @@ function mail_key() {
 }
 function mail_enc($p) { $iv = random_bytes(12); $c = openssl_encrypt($p, 'aes-256-gcm', mail_key(), OPENSSL_RAW_DATA, $iv, $tag); return base64_encode($iv . $tag . $c); }
 function mail_dec($s) { $b = base64_decode((string)$s, true); if ($b === false || strlen($b) < 29) return ''; $p = openssl_decrypt(substr($b, 28), 'aes-256-gcm', mail_key(), OPENSSL_RAW_DATA, substr($b, 0, 12), substr($b, 12, 16)); return $p === false ? '' : $p; }
-function mail_cfg() { $v = json_decode((string)(row("SELECT v FROM settings WHERE k='mail_cfg'")['v'] ?? ''), true); return is_array($v) ? array_merge(MAIL_DEF, $v) : MAIL_DEF; }
-function mail_ready($c) { return $c['email'] !== '' && !empty($c['pass']); }
+// ---------- the signed-in user's mailboxes ----------
+function mail_accts($uid) { return rows('SELECT * FROM mail_accounts WHERE user_id=? ORDER BY id', [(int)$uid]); }
+function mail_pub($a) { // what the browser may see (never the password)
+  return ['id' => (int)$a['id'], 'email' => $a['email'], 'name' => $a['name'], 'provider' => $a['provider'], 'signature' => $a['signature'], 'unread' => (int)$a['unread'], 'problem' => $a['problem'],
+    'imap_host' => $a['imap_host'], 'imap_port' => (int)$a['imap_port'], 'smtp_host' => $a['smtp_host'], 'smtp_port' => (int)$a['smtp_port']]; }
+// one of MY mailboxes: the one asked for (?acct=), else the one I used last
+function mail_acct($id = null) {
+  $id = (int)($id ?? ($_GET['acct'] ?? (body()['acct'] ?? 0)));
+  $a = $id ? row('SELECT * FROM mail_accounts WHERE id=? AND user_id=?', [$id, uid()]) : row('SELECT * FROM mail_accounts WHERE user_id=? ORDER BY last_used DESC, id DESC LIMIT 1', [uid()]);
+  if (!$a) fail($id ? 'This email address is not connected to your login' : 'Set up your email first', 409);
+  return $a;
+}
+// sign in; a refused password marks the address so the app asks for the new one
+function mail_open($a) {
+  @set_time_limit(90);
+  try { $im = new MailImap($a['imap_host'], (int)$a['imap_port'], $a['email'], mail_dec($a['pass'])); }
+  catch (MailAuthError $e) { q("UPDATE mail_accounts SET problem='auth' WHERE id=?", [$a['id']]);
+    out(['error' => 'The saved password for ' . $a['email'] . ' no longer works. Enter the current one.', 'relogin' => (int)$a['id'], 'quiet' => 1], 409); }
+  catch (RuntimeException $e) { fail($e->getMessage(), 502); }
+  if ($a['problem'] !== '') q("UPDATE mail_accounts SET problem='' WHERE id=?", [$a['id']]);
+  return $im;
+}
 // plain (no TLS) only for a mail server on this machine (local testing); everything else is TLS
 function mail_plain($host, $port) { return in_array($host, ['127.0.0.1', 'localhost'], true) && !in_array((int)$port, [993, 465], true); }
 
@@ -31,7 +65,11 @@ class MailImap {
     $g = $this->raw();
     if (stripos($g, '* OK') !== 0 && stripos($g, '* PREAUTH') !== 0) throw new RuntimeException('Unexpected mail server greeting');
     [, $st] = $this->cmd(['LOGIN ', self::astr($user), ' ', self::astr($pass)], false);
-    if (!preg_match('/^\S+ OK/i', $st)) throw new RuntimeException('Mailbox sign-in failed — check the email address and password');
+    if (!preg_match('/^\S+ OK/i', $st)) {
+      $why = trim(mb_substr(preg_replace('/^\S+ (NO|BAD) (\[[^\]]*\] )?/i', '', $st), 0, 200));
+      if (preg_match('/\[(UNAVAILABLE|LIMIT|INUSE|SERVERBUG)\]/i', $st)) throw new RuntimeException('The mail server is busy right now — try again in a minute' . ($why ? " ($why)" : ''));
+      throw new MailAuthError('Sign-in failed — check the email address and password' . ($why && stripos($why, 'fail') === false ? " (the server says: $why)" : ''));
+    }
     [$u] = $this->cmd('CAPABILITY'); foreach ($u as $r) if (stripos($r['t'], '* CAPABILITY') === 0) $this->caps = strtoupper($r['t']);
   }
   function __destruct() { if ($this->s) { @fwrite($this->s, 'Z LOGOUT' . "\r\n"); @fclose($this->s); } }
@@ -90,12 +128,6 @@ class MailImap {
   function expunge($uids) { $this->cmd('UID STORE ' . implode(',', $uids) . ' +FLAGS.SILENT (\\Deleted)');
     if (strpos($this->caps, 'UIDPLUS') !== false) $this->cmd('UID EXPUNGE ' . implode(',', $uids)); else $this->cmd('EXPUNGE'); }
   function append($box, $msg, $flags = '(\\Seen)') { $this->cmd(['APPEND ', self::astr($box), " $flags ", ['lit' => $msg]]); }
-}
-function mail_imap() {
-  $c = mail_cfg(); if (!mail_ready($c)) fail('The mailbox is not set up yet', 409);
-  @set_time_limit(90);
-  try { return new MailImap($c['imap_host'], (int)$c['imap_port'], $c['email'], mail_dec($c['pass'])); }
-  catch (RuntimeException $e) { fail($e->getMessage(), 502); }
 }
 // folder names are modified UTF-7 on the wire
 function mail_fname($n) { try { $d = @mb_convert_encoding($n, 'UTF-8', 'UTF7-IMAP'); } catch (Throwable $e) { $d = $n; } $d = $d ?: $n; return preg_replace('/^INBOX[.\/]/i', '', $d) ?: $d; }
@@ -220,45 +252,71 @@ function mail_list_addrs($s) { $o = []; foreach (preg_split('/[,;\s]+/', (string
 function handle_mail($a) {
   $in = body();
   switch ($a) {
-    case 'config': // GET — settings (admin sees everything except the password)
-      need('email'); $c = mail_cfg();
-      out(['ready' => mail_ready($c), 'email' => $c['email'], 'name' => $c['name'], 'signature' => $c['signature'],
-        'admin' => is_admin() ? ['imap_host' => $c['imap_host'], 'imap_port' => (int)$c['imap_port'], 'smtp_host' => $c['smtp_host'], 'smtp_port' => (int)$c['smtp_port'], 'has_pass' => !empty($c['pass'])] : null]);
+    case 'config': // GET — my mailboxes (no passwords), the one I used last, and the provider presets
+      need('email'); $as = mail_accts(uid());
+      $cur = (int)(row('SELECT id FROM mail_accounts WHERE user_id=? ORDER BY last_used DESC, id DESC LIMIT 1', [uid()])['id'] ?? 0);
+      out(['ready' => (bool)$as, 'accounts' => array_map('mail_pub', $as), 'current' => $cur, 'max' => MAIL_MAX, 'providers' => MAIL_PROVIDERS]);
 
-    case 'setup': // admin: save + test the mailbox
-      if (!is_admin()) fail('Only an admin can change the mailbox settings', 403);
-      $c = mail_cfg(); $old = $c;
-      $email = strtolower(trim((string)($in['email'] ?? ''))); if (!filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Enter the mailbox email address');
-      foreach (['imap_host', 'smtp_host'] as $k) { $v = strtolower(trim((string)($in[$k] ?? $c[$k]))); if (!preg_match('/^[a-z0-9.-]{3,100}$/', $v)) fail('Server name is not valid'); $c[$k] = $v; }
-      foreach (['imap_port', 'smtp_port'] as $k) { $v = (int)($in[$k] ?? $c[$k]); if ($v < 1 || $v > 65535) fail('Port is not valid'); $c[$k] = $v; }
-      $c['email'] = $email; $c['name'] = mb_substr(trim((string)($in['name'] ?? '')), 0, 80); $c['signature'] = mb_substr(trim((string)($in['signature'] ?? '')), 0, 2000);
+    case 'setup': // add one of my mailboxes, or change one (id): signs in first, saves only if that works
+      need('email'); $id = (int)($in['id'] ?? 0);
+      $old = $id ? row('SELECT * FROM mail_accounts WHERE id=? AND user_id=?', [$id, uid()]) : null; if ($id && !$old) fail('This email address is not connected to your login', 404);
+      $prov = isset(MAIL_PROVIDERS[$in['provider'] ?? '']) ? (string)$in['provider'] : 'other'; $P = MAIL_PROVIDERS[$prov];
+      $email = strtolower(trim((string)($in['email'] ?? ''))); if (!filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Enter your email address');
+      $c = ['email' => $email, 'provider' => $prov];
+      foreach (['imap_host', 'smtp_host'] as $k) { $v = strtolower(trim((string)(($in[$k] ?? '') !== '' ? $in[$k] : $P[$k]))); if (!preg_match('/^[a-z0-9.-]{3,100}$/', $v)) fail($k === 'imap_host' ? 'Enter the incoming (IMAP) server name' : 'Enter the outgoing (SMTP) server name'); $c[$k] = $v; }
+      foreach (['imap_port', 'smtp_port'] as $k) { $v = (int)(($in[$k] ?? '') !== '' ? $in[$k] : $P[$k]); if ($v < 1 || $v > 65535) fail('Port is not valid'); $c[$k] = $v; }
+      $c['name'] = mb_substr(trim((string)($in['name'] ?? '')), 0, 80); $c['signature'] = mb_substr(trim((string)($in['signature'] ?? '')), 0, 2000);
+      if (!$old && (int)row('SELECT COUNT(*) n FROM mail_accounts WHERE user_id=?', [uid()])['n'] >= MAIL_MAX) fail('You can connect up to ' . MAIL_MAX . ' email addresses. Remove one first.');
+      if (row('SELECT 1 FROM mail_accounts WHERE user_id=? AND email=? AND id<>?', [uid(), $email, $id])) fail("$email is already connected — pick it from your list");
       $pw = (string)($in['password'] ?? '');
       if ($pw !== '') $c['pass'] = mail_enc($pw);
-      elseif ($email !== $old['email'] || $c['imap_host'] !== $old['imap_host']) { if (empty($c['pass'])) fail('Enter the mailbox password'); }
-      if (empty($c['pass'])) fail('Enter the mailbox password');
+      elseif ($old && $old['email'] === $email && $old['imap_host'] === $c['imap_host']) $c['pass'] = $old['pass'];
+      else fail('Enter the password');
       @set_time_limit(90);
-      try { $im = new MailImap($c['imap_host'], $c['imap_port'], $c['email'], mail_dec($c['pass'])); $im->status('INBOX'); unset($im); }
+      try { $im = new MailImap($c['imap_host'], $c['imap_port'], $email, mail_dec($c['pass'])); $n = $im->status('INBOX')['unseen']; unset($im); }
       catch (RuntimeException $e) { fail('Not saved — ' . $e->getMessage(), 400); }
-      kv_set('mail_cfg', $c); q("DELETE FROM settings WHERE k='mail_unread'");
-      audit('mail_setup', 'settings', null, $email);
-      out(['ok' => true]);
+      $c += ['unread' => $n, 'unread_at' => time(), 'problem' => '', 'last_used' => (int)(microtime(true) * 1000)];
+      if ($old) { q('UPDATE mail_accounts SET ' . implode(',', array_map(fn($k) => "$k=:$k", array_keys($c))) . ' WHERE id=:id', $c + ['id' => $id]); }
+      else { q('INSERT INTO mail_accounts(user_id,' . implode(',', array_keys($c)) . ') VALUES(:user_id,:' . implode(',:', array_keys($c)) . ')', $c + ['user_id' => uid()]); $id = (int)db()->lastInsertId(); }
+      audit($old ? 'mail_update' : 'mail_setup', 'mail', $id, $email); out(['ok' => true, 'id' => $id]);
 
-    case 'remove': // admin: disconnect the mailbox (forgets the password)
-      if (!is_admin()) fail('Only an admin can change the mailbox settings', 403);
-      $c = mail_cfg(); unset($c['pass']); kv_set('mail_cfg', $c); audit('mail_remove', 'settings', null, $c['email']); out(['ok' => true]);
+    case 'use': // remember which of my addresses I'm in
+      need('email'); q('UPDATE mail_accounts SET last_used=? WHERE id=? AND user_id=?', [(int)(microtime(true) * 1000), (int)($in['id'] ?? 0), uid()]); out(['ok' => true]);
+
+    case 'remove': // disconnect one of my addresses (the CRM forgets the password; the mail stays with the provider)
+      need('email'); $rid = (int)($in['id'] ?? 0); if (!$rid) fail('Choose an address'); $a = mail_acct($rid);
+      q('DELETE FROM mail_accounts WHERE id=?', [$a['id']]); audit('mail_remove', 'mail', $a['id'], $a['email']); out(['ok' => true]);
+
+    case 'admin_list': // admin, GET [?user_id] — which addresses people connected (never their mail)
+      if (!is_admin()) fail('Admin only', 403); $uf = (int)($_GET['user_id'] ?? 0);
+      out(rows('SELECT m.id, m.user_id, m.email, m.provider, m.problem, m.created, u.name user_name, u.active FROM mail_accounts m LEFT JOIN users u ON u.id=m.user_id' . ($uf ? ' WHERE m.user_id=' . $uf : '') . ' ORDER BY u.name, m.email'));
+
+    case 'admin_move': // admin: take over someone's address (e.g. they left) — it moves into the admin's own list with its saved password
+      if (!is_admin()) fail('Admin only', 403);
+      $a = row('SELECT m.*, u.name user_name FROM mail_accounts m LEFT JOIN users u ON u.id=m.user_id WHERE m.id=?', [(int)($in['id'] ?? 0)]); if (!$a) fail('Not found', 404);
+      if ((int)$a['user_id'] === uid()) fail('This address is already in your list');
+      if (row('SELECT 1 FROM mail_accounts WHERE user_id=? AND email=?', [uid(), $a['email']])) fail($a['email'] . ' is already in your list — disconnect this copy instead');
+      if ((int)row('SELECT COUNT(*) n FROM mail_accounts WHERE user_id=?', [uid()])['n'] >= MAIL_MAX) fail('You already have ' . MAIL_MAX . ' addresses. Remove one of yours first.');
+      q('UPDATE mail_accounts SET user_id=?, last_used=0 WHERE id=?', [uid(), $a['id']]);
+      audit('mail_move', 'users', (int)$a['user_id'], $a['email'] . ' moved from ' . ($a['user_name'] ?: 'user #' . $a['user_id']) . ' to ' . ($_SESSION['name'] ?? '')); out(['ok' => true]);
+
+    case 'admin_remove': // admin: disconnect someone's address (forgets the saved password)
+      if (!is_admin()) fail('Admin only', 403);
+      $a = row('SELECT m.*, u.name user_name FROM mail_accounts m LEFT JOIN users u ON u.id=m.user_id WHERE m.id=?', [(int)($in['id'] ?? 0)]); if (!$a) fail('Not found', 404);
+      q('DELETE FROM mail_accounts WHERE id=?', [$a['id']]); audit('mail_remove', 'users', (int)$a['user_id'], $a['email'] . ' disconnected from ' . ($a['user_name'] ?: 'user #' . $a['user_id'])); out(['ok' => true]);
 
     case 'folders':
-      need('email'); $im = mail_imap(); $o = [];
+      need('email'); $acc = mail_acct(); $im = mail_open($acc); $o = [];
       foreach ($im->folders() as $f) { $r = mail_role($f); $st = ($r === 'inbox' || $r === 'junk' || $r === '') ? $im->status($f['id']) : ['unseen' => 0];
         $o[] = ['id' => $f['id'], 'name' => $r === 'inbox' ? 'Inbox' : mail_fname($f['id']), 'role' => $r, 'unseen' => $st['unseen']]; }
       $ord = ['inbox' => 0, 'drafts' => 1, 'sent' => 2, 'archive' => 3, 'junk' => 4, 'trash' => 5, '' => 6];
       usort($o, fn($x, $y) => [$ord[$x['role']], $x['name']] <=> [$ord[$y['role']], $y['name']]);
-      foreach ($o as $f) if ($f['role'] === 'inbox') kv_set('mail_unread', ['n' => $f['unseen'], 't' => time()]);
+      foreach ($o as $f) if ($f['role'] === 'inbox') q('UPDATE mail_accounts SET unread=?, unread_at=? WHERE id=?', [$f['unseen'], time(), $acc['id']]);
       out($o);
 
     case 'list':
       need('email'); $box = (string)($_GET['folder'] ?? 'INBOX'); $page = max(1, (int)($_GET['page'] ?? 1)); $qq = trim((string)($_GET['q'] ?? '')); $only = $_GET['only'] ?? '';
-      $im = mail_imap(); $total = $im->select($box);
+      $acc = mail_acct(); $im = mail_open($acc); $total = $im->select($box);
       if (!$total) out(['total' => 0, 'page' => 1, 'pages' => 1, 'items' => []]);
       $crit = $only === 'unread' ? ['UNSEEN'] : ['ALL'];
       if ($qq !== '') { $s = MailImap::astr(mb_substr($qq, 0, 100)); $crit = is_array($s) ? ['CHARSET UTF-8 OR OR FROM ', $s, ' SUBJECT ', $s, ' TO ', $s] : ["OR OR FROM $s SUBJECT $s TO $s"]; if ($only === 'unread') $crit[] = ' UNSEEN'; }
@@ -278,7 +336,7 @@ function handle_mail($a) {
 
     case 'get':
       need('email'); $box = (string)($_GET['folder'] ?? 'INBOX'); $uid = (int)($_GET['uid'] ?? 0);
-      $im = mail_imap(); $im->select($box, false); $f = $im->fetch($uid, 'UID FLAGS RFC822.SIZE BODY.PEEK[]'); if (!isset($f[$uid])) fail('Message not found', 404);
+      $acc = mail_acct(); $im = mail_open($acc); $im->select($box, false); $f = $im->fetch($uid, 'UID FLAGS RFC822.SIZE BODY.PEEK[]'); if (!isset($f[$uid])) fail('Message not found', 404);
       $raw = $f[$uid]['lit']; if (stripos($f[$uid]['flags'], '\\Seen') === false) $im->cmd("UID STORE $uid +FLAGS.SILENT (\\Seen)");
       [$hs] = mime_split($raw); $h = mime_heads($hs); $p = mime_parse($raw);
       $html = $p['html'];
@@ -295,7 +353,7 @@ function handle_mail($a) {
 
     case 'att': // GET — download one attachment
       need('email'); $box = (string)($_GET['folder'] ?? 'INBOX'); $uid = (int)($_GET['uid'] ?? 0); $i = (int)($_GET['i'] ?? -1);
-      $im = mail_imap(); $im->select($box); $f = $im->fetch($uid, 'UID BODY.PEEK[]'); if (!isset($f[$uid])) fail('Message not found', 404);
+      $acc = mail_acct(); $im = mail_open($acc); $im->select($box); $f = $im->fetch($uid, 'UID BODY.PEEK[]'); if (!isset($f[$uid])) fail('Message not found', 404);
       $p = mime_parse($f[$uid]['lit']); $at = $p['att'][$i] ?? null; if (!$at) fail('Attachment not found', 404);
       audit('mail_att', 'mail', $uid, $at['name']);
       header_remove('Content-Type'); header('Content-Type: application/octet-stream'); header('X-Content-Type-Options: nosniff'); header('Cache-Control: private, no-store');
@@ -305,27 +363,32 @@ function handle_mail($a) {
     case 'flag':
       need('email', true); $box = (string)($in['folder'] ?? 'INBOX'); $uids = array_values(array_filter(array_map('intval', (array)($in['uids'] ?? [])))); if (!$uids) fail('Nothing selected');
       $fl = ['seen' => '\\Seen', 'flagged' => '\\Flagged'][$in['flag'] ?? ''] ?? null; if (!$fl) fail('Unknown flag');
-      $im = mail_imap(); $im->select($box, false); $im->cmd('UID STORE ' . implode(',', $uids) . ' ' . (!empty($in['on']) ? '+' : '-') . "FLAGS.SILENT ($fl)");
-      q("DELETE FROM settings WHERE k='mail_unread'"); out(['ok' => true]);
+      $acc = mail_acct(); $im = mail_open($acc); $im->select($box, false); $im->cmd('UID STORE ' . implode(',', $uids) . ' ' . (!empty($in['on']) ? '+' : '-') . "FLAGS.SILENT ($fl)");
+      q('UPDATE mail_accounts SET unread_at=0 WHERE id=?', [$acc['id']]); out(['ok' => true]);
 
     case 'move': // to another folder; 'trash' = delete (from Trash itself = delete forever)
       need('email', true); $box = (string)($in['folder'] ?? 'INBOX'); $uids = array_values(array_filter(array_map('intval', (array)($in['uids'] ?? [])))); if (!$uids) fail('Nothing selected');
-      $im = mail_imap(); $to = (string)($in['to'] ?? '');
+      $acc = mail_acct(); $im = mail_open($acc); $to = (string)($in['to'] ?? '');
       if ($to === 'trash') { $t = mail_special($im, 'trash'); $im->select($box, false);
         if (!$t || $t === $box) { $im->expunge($uids); audit('mail_delete', 'mail', null, count($uids) . ' message(s) deleted forever from ' . mail_fname($box)); out(['ok' => true, 'forever' => true]); }
         $im->move($uids, $t); audit('mail_delete', 'mail', null, count($uids) . ' message(s) moved to Trash'); out(['ok' => true]); }
       $ok = false; foreach ($im->folders() as $f) if ($f['id'] === $to) $ok = true; if (!$ok) fail('Folder not found');
-      $im->select($box, false); $im->move($uids, $to); q("DELETE FROM settings WHERE k='mail_unread'"); out(['ok' => true]);
+      $im->select($box, false); $im->move($uids, $to); q('UPDATE mail_accounts SET unread_at=0 WHERE id=?', [$acc['id']]); out(['ok' => true]);
 
-    case 'unread': // GET — sidebar badge (cached a minute)
-      need('email'); $c = mail_cfg(); if (!mail_ready($c)) out(['unread' => 0, 'ready' => false]);
-      $u = json_decode((string)(row("SELECT v FROM settings WHERE k='mail_unread'")['v'] ?? ''), true);
-      if (is_array($u) && time() - (int)$u['t'] < 60) out(['unread' => (int)$u['n'], 'ready' => true]);
-      try { $im = new MailImap($c['imap_host'], (int)$c['imap_port'], $c['email'], mail_dec($c['pass'])); $n = $im->status('INBOX')['unseen']; } catch (RuntimeException $e) { out(['unread' => 0, 'ready' => true, 'problem' => $e->getMessage()]); }
-      kv_set('mail_unread', ['n' => $n, 't' => time()]); out(['unread' => $n, 'ready' => true]);
+    case 'unread': // GET — sidebar badge: unread mail across all my addresses (each re-checked at most once a minute, max 3 per call)
+      need('email'); $as = mail_accts(uid()); if (!$as) out(['unread' => 0, 'ready' => false, 'accounts' => []]);
+      usort($as, fn($x, $y) => (int)$x['unread_at'] <=> (int)$y['unread_at']); $checked = 0; @set_time_limit(60);
+      foreach ($as as &$a) {
+        if ($a['problem'] !== '' || time() - (int)$a['unread_at'] < 60 || $checked >= 3) continue; // a refused password is not retried until its owner re-enters it
+        $checked++; $a['unread_at'] = time();
+        try { $im = new MailImap($a['imap_host'], (int)$a['imap_port'], $a['email'], mail_dec($a['pass'])); $a['unread'] = $im->status('INBOX')['unseen']; unset($im); }
+        catch (MailAuthError $e) { $a['problem'] = 'auth'; } catch (RuntimeException $e) { } // network hiccup: keep the last count
+        q('UPDATE mail_accounts SET unread=?, unread_at=?, problem=? WHERE id=?', [(int)$a['unread'], $a['unread_at'], $a['problem'], $a['id']]);
+      } unset($a);
+      out(['ready' => true, 'unread' => array_sum(array_map(fn($a) => (int)$a['unread'], $as)), 'accounts' => array_map(fn($a) => ['id' => (int)$a['id'], 'unread' => (int)$a['unread'], 'problem' => $a['problem']], $as)]);
 
-    case 'send':
-      need('email', true); $c = mail_cfg(); if (!mail_ready($c)) fail('The mailbox is not set up yet', 409);
+    case 'send': // ?acct = the address it is sent from
+      need('email', true); $c = mail_acct();
       $j = json_decode((string)($_POST['data'] ?? ''), true); if (!is_array($j)) fail('Bad request');
       $to = mail_list_addrs($j['to'] ?? ''); $cc = mail_list_addrs($j['cc'] ?? ''); $bcc = mail_list_addrs($j['bcc'] ?? '');
       if (!$to) fail('Add at least one recipient'); if (count($to) + count($cc) + count($bcc) > 50) fail('Too many recipients (max 50)');
@@ -344,8 +407,8 @@ function handle_mail($a) {
         $d = file_get_contents($p); $total += strlen($d); $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
         $atts[] = ['name' => $f['name'], 'type' => ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'][$ext] ?? 'application/octet-stream', 'data' => $d]; }
       // forwarding: the original message's attachments go along
-      if (is_array($j['fwd'] ?? null) && !empty($j['fwd']['uid'])) {
-        try { $im0 = new MailImap($c['imap_host'], (int)$c['imap_port'], $c['email'], mail_dec($c['pass'])); $im0->select((string)($j['fwd']['folder'] ?? 'INBOX')); $f0 = $im0->fetch((int)$j['fwd']['uid'], 'UID BODY.PEEK[]'); unset($im0);
+      if (is_array($j['fwd'] ?? null) && !empty($j['fwd']['uid'])) { $src = !empty($j['fwd']['acct']) ? mail_acct((int)$j['fwd']['acct']) : $c; // the mailbox the original is in
+        try { $im0 = new MailImap($src['imap_host'], (int)$src['imap_port'], $src['email'], mail_dec($src['pass'])); $im0->select((string)($j['fwd']['folder'] ?? 'INBOX')); $f0 = $im0->fetch((int)$j['fwd']['uid'], 'UID BODY.PEEK[]'); unset($im0);
           $p0 = mime_parse($f0 ? reset($f0)['lit'] : ''); foreach ($p0['att'] as $at) if (!($at['inline'] && $at['cid'] !== '')) { $total += $at['size']; $atts[] = ['name' => $at['name'], 'type' => $at['type'], 'data' => $at['data']]; } }
         catch (RuntimeException $e) { fail('Could not attach the original files — ' . $e->getMessage(), 502); } }
       foreach ($atts as &$x) if (!preg_match('~^[a-z0-9.+-]+/[a-z0-9.+-]+$~i', (string)$x['type'])) $x['type'] = 'application/octet-stream'; unset($x);
@@ -355,9 +418,12 @@ function handle_mail($a) {
       @set_time_limit(120);
       try { smtp_send($c, $c['email'], array_merge($to, $cc, $bcc), $msg); } catch (RuntimeException $e) { fail($e->getMessage(), 502); }
       $saved = true; // keep a copy in Sent, and mark the original answered
-      try { $im = new MailImap($c['imap_host'], (int)$c['imap_port'], $c['email'], mail_dec($c['pass'])); $sent = mail_special($im, 'sent'); if ($sent) $im->append($sent, $msg); else $saved = false;
-        if ($reply && !empty($j['reply']['uid']) && !empty($j['reply']['folder'])) { $im->select((string)$j['reply']['folder'], false); $im->cmd('UID STORE ' . (int)$j['reply']['uid'] . ' +FLAGS.SILENT (\\Answered)'); } }
+      try { $im = new MailImap($c['imap_host'], (int)$c['imap_port'], $c['email'], mail_dec($c['pass'])); $sent = mail_special($im, 'sent'); if ($sent) $im->append($sent, $msg); else $saved = false; }
       catch (Throwable $e) { $saved = false; }
+      if ($reply && !empty($j['reply']['uid']) && !empty($j['reply']['folder'])) try { // mark the original answered, in the mailbox it is in
+        $ra = !empty($j['reply']['acct']) && (int)$j['reply']['acct'] !== (int)$c['id'] ? mail_acct((int)$j['reply']['acct']) : $c;
+        $ri = $ra === $c && isset($im) ? $im : new MailImap($ra['imap_host'], (int)$ra['imap_port'], $ra['email'], mail_dec($ra['pass']));
+        $ri->select((string)$j['reply']['folder'], false); $ri->cmd('UID STORE ' . (int)$j['reply']['uid'] . ' +FLAGS.SILENT (\\Answered)'); } catch (Throwable $e) { }
       $ppl = mail_people($to); $who = array_values($ppl)[0] ?? null;
       audit('mail_send', $who ? ($who['kind'] === 'customer' ? 'customers' : 'leads') : 'mail', $who['id'] ?? null, mb_substr($subject, 0, 120) . ' → ' . implode(', ', $to) . ($atts ? ' · ' . count($atts) . ' attachment(s)' : ''));
       out(['ok' => true, 'saved' => $saved]);

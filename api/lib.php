@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 24; // bump when tables/columns change
+const SCHEMA_VERSION = 25; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -22,10 +22,10 @@ const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manage
 // role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
 const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
-  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','settings','recycle','fees'], ['attendance','leaves','calendar','leads','customers','projects','checklist','files','folder','whatsapp','recycle','fees']],
-  'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects']],
-  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings','fees'], ['projects','checklist','files','customers','folder','calendar']],
-  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings','finance','fees'], ['quotes','payments','ads','calendar','fees']],
+  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','files','folder','whatsapp','settings','recycle','fees','email'], ['attendance','leaves','calendar','leads','customers','projects','checklist','files','folder','whatsapp','recycle','fees','email']],
+  'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','whatsapp','ads','settings','email'], ['leads','customers','quotes','whatsapp','files','folder','calendar','projects','email']],
+  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','settings','fees','email'], ['projects','checklist','files','customers','folder','calendar','email']],
+  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','files','payments','ads','whatsapp','settings','finance','fees','email'], ['quotes','payments','ads','calendar','fees','email']],
 ];
 function roles() {
   static $r = null; if ($r !== null) return $r;
@@ -162,6 +162,23 @@ function migrate($db) {
     'steps_proj ON project_steps(project_id, created)', 'svc_proj ON services(project_id)', 'spend_camp ON ad_spend(campaign_id)', 'leaves_user ON leaves(user_id, status)',
     'checklist_kind ON checklist(kind, project_id)',
   ] as $ix) $db->exec("CREATE INDEX IF NOT EXISTS $ix");
+  // Email: every user connects their own mailboxes (up to 10), each private to them
+  $db->exec("CREATE TABLE IF NOT EXISTS mail_accounts(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, provider TEXT DEFAULT 'hostinger', email TEXT, name TEXT DEFAULT '', imap_host TEXT, imap_port INTEGER DEFAULT 993, smtp_host TEXT, smtp_port INTEGER DEFAULT 465, pass TEXT DEFAULT '', signature TEXT DEFAULT '', unread INTEGER DEFAULT 0, unread_at INTEGER DEFAULT 0, problem TEXT DEFAULT '', last_used INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, email))");
+  if (!$db->query("SELECT 1 FROM settings WHERE k='mail_v25'")->fetch()) { // once: the old company mailbox becomes the admin's own first address; Email on for every role
+    $old = json_decode((string)$db->query("SELECT v FROM settings WHERE k='mail_cfg'")->fetchColumn(), true);
+    if (is_array($old) && !empty($old['email']) && !empty($old['pass'])) {
+      $who = $db->query("SELECT u.id FROM audit_log a JOIN users u ON u.username=a.user WHERE a.action='mail_setup' AND u.role='admin' ORDER BY a.id DESC LIMIT 1")->fetchColumn()
+        ?: $db->query("SELECT id FROM users WHERE role='admin' AND active=1 ORDER BY id LIMIT 1")->fetchColumn();
+      if ($who) $db->prepare('INSERT OR IGNORE INTO mail_accounts(user_id,provider,email,name,imap_host,imap_port,smtp_host,smtp_port,pass,signature,last_used) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute([(int)$who, ($old['imap_host'] ?? '') === 'imap.hostinger.com' ? 'hostinger' : 'other', strtolower($old['email']), $old['name'] ?? '', $old['imap_host'] ?? 'imap.hostinger.com', (int)($old['imap_port'] ?? 993), $old['smtp_host'] ?? 'smtp.hostinger.com', (int)($old['smtp_port'] ?? 465), $old['pass'], $old['signature'] ?? '', time()]);
+    }
+    $rp = $db->query("SELECT v FROM settings WHERE k='role_perms'")->fetchColumn();
+    if ($rp) { $p = json_decode($rp, true) ?: [];
+      foreach ($p as $role => &$perm) if ($role !== '_modules' && is_array($perm)) foreach (['read', 'write'] as $k) $perm[$k] = array_values(array_unique(array_merge((array)($perm[$k] ?? []), ['email'])));
+      unset($perm); $db->prepare("UPDATE settings SET v=? WHERE k='role_perms'")->execute([json_encode($p)]); }
+    $db->exec("DELETE FROM settings WHERE k='mail_unread'");
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('mail_v25','1')");
+  }
   $db->exec('ANALYZE'); // give the query planner row counts for the new indexes
 }
 

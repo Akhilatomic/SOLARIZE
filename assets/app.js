@@ -35,7 +35,7 @@ async function api(m, a, body, qs = '') {
   const r = await fetch(`api.php?m=${m}&a=${a}${qs}`, opt);
   const j = await r.json().catch(() => ({ error: 'Bad server response' }));
   if (r.status === 401 && m !== 'auth') { boot(); throw j; }
-  if (j.error && !(m === 'auth' && (a === 'login' || a === 'setup'))) { alert(j.error); throw j; }
+  if (j.error && !(m === 'auth' && (a === 'login' || a === 'setup'))) { if (!j.quiet) alert(j.error); throw j; } // quiet: the page shows its own prompt (e.g. email password changed)
   if (m === 'leads' && a === 'save' && typeof refreshFeed === 'function') setTimeout(refreshFeed, 0); // edited leads leave "New leads to contact"
   return j;
 }

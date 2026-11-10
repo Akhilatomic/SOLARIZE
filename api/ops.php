@@ -126,7 +126,7 @@ function handle_admin($a) {
   if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
   $in = body();
   switch ($a) {
-    case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,u.avatar,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads FROM users u ORDER BY u.id'));
+    case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,u.avatar,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads,(SELECT COUNT(*) FROM mail_accounts WHERE user_id=u.id) mails FROM users u ORDER BY u.id'));
     case 'user_save':
       $role = $in['role'] ?? 'sales'; if (!isset(ROLE_DEFAULTS[$role])) fail('Bad role');
       $name = trim($in['name'] ?? ''); $u = trim($in['username'] ?? ''); if ($u === '' || $name === '') fail('Name and username required');

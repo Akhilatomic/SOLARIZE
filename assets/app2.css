@@ -367,6 +367,24 @@ aside a[data-m=email] .nb{background:#007aff}
 .emif{width:100%;border:0;display:block;min-height:120px}.emtx{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.55}
 .emempty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#86868b;padding:30px;text-align:center}.emempty .i{width:40px;height:40px;opacity:.25;margin-bottom:8px}.emempty.sm{padding:30px 14px}
 .emsetup{max-width:760px}
+/* my email addresses: switcher, setup form, admin list */
+.mbxsw{display:flex;align-items:center;gap:9px;width:100%;border:0;background:#f5f5f7;border-radius:10px;padding:7px 9px;margin:0 0 8px;cursor:pointer;text-align:left;color:#1d1d1f;font:inherit;position:relative}
+.mbxsw:hover{background:#ebebf0}.mbxsw>.i-chev{width:11px;height:11px;flex:none;background:#8e8e93;transform:rotate(90deg)}
+.mbxav{width:30px;height:30px;flex:none;border-radius:50%;background:#1d1d1f;color:#fff;display:grid;place-items:center;font-weight:600;font-size:13px}
+.mbxav.warn{background:#ff9f0a}.mbxav .i{width:15px;height:15px;background:#fff}
+.mbxtx{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}.mbxtx b{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mbxtx small{font-size:11.5px;color:#86868b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mbxo{font-style:normal;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#007aff;color:#fff;font-size:10.5px;font-weight:600;display:grid;place-items:center;flex:none}
+.mbxsm{display:none;width:auto;margin:0;padding:2px;background:none;gap:0}.mbxsm:hover{background:none}.mbxsm .mbxav{width:30px;height:30px}.mbxsm .mbxo{position:absolute;top:-4px;right:-6px;height:16px;min-width:16px;font-size:10px}
+.mbxmi{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mbxn{font-size:11.5px;font-weight:600;color:#007aff;margin-left:10px}.mbxn.bad{color:#c93400;font-weight:500}
+.menu button:hover .mbxn{color:#fff}
+.mbxpv{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}.mbxpv button{border:.5px solid rgba(0,0,0,.16);background:#fff;border-radius:999px;padding:7px 15px;font:inherit;font-size:13.5px;cursor:pointer;color:#1d1d1f}
+.mbxpv button:hover{background:#f5f5f7}.mbxpv button.on{background:#1d1d1f;border-color:#1d1d1f;color:#fff}
+.mbxhelp{font-size:12.5px;color:#6e6e73;margin:-2px 0 4px;line-height:1.45}.mbxhelp a{color:#007aff;white-space:nowrap}
+.mbxsrv{margin-top:10px;font-size:13.5px}.mbxsrv summary{cursor:pointer;color:#007aff;margin-bottom:8px;width:max-content}
+.mbxwarn{display:flex;gap:9px;align-items:flex-start;background:#fff4e5;border-radius:10px;padding:10px 12px;font-size:13.5px;margin:0 0 14px;line-height:1.45}.mbxwarn .i{width:16px;height:16px;flex:none;margin-top:1px;background:#c93400}
+.mbxadm{margin-top:12px;padding:12px;border-radius:12px;background:#f5f5f7;display:flex;flex-direction:column;gap:2px}.mbxadm small{font-size:12px}
+.mbxrow{display:flex;align-items:center;gap:8px;padding:8px 0 2px;font-size:13.5px}.mbxrow>.i{width:15px;height:15px;flex:none;opacity:.6}.mbxrow .btn{flex:none}
+.emcr select{flex:1;margin:0;border:0;box-shadow:none;padding:5px 0;min-width:0;width:auto;background-color:transparent;font-size:13.5px}
 .emmod>div{max-width:min(860px,100%)!important}.emc{display:flex;flex-direction:column;gap:8px}
 .emcr{display:flex;align-items:center;gap:8px;border-bottom:.5px solid rgba(0,0,0,.1);padding-bottom:6px}.emcr label{width:60px;margin:0;flex:none;color:#86868b;font-size:13px;font-weight:400}
 .emcr input{flex:1;margin:0;border:0;box-shadow:none;padding:6px 0;min-width:0;background:transparent}.emcf{font-size:13.5px;padding:4px 0}
@@ -374,5 +392,5 @@ aside a[data-m=email] .nb{background:#007aff}
 .emcat{display:flex;flex-wrap:wrap;gap:6px}.emcat:empty{display:none}
 .emch{display:inline-flex;align-items:center;gap:6px;background:#f2f2f7;border-radius:8px;padding:5px 6px 5px 9px;font-size:12.5px;max-width:100%}.emch .i{width:13px;height:13px;flex:none}.emch small{color:#86868b}
 .emch button{border:0;background:none;padding:2px;cursor:pointer;display:grid;place-items:center}.emch button .i{width:12px;height:12px}
-@media(max-width:1180px){.emw{grid-template-columns:minmax(280px,360px) minmax(0,1fr)}.emf{display:none!important}.emfs,.emnew2{display:block}.emfs{width:auto;max-width:130px;margin:0;padding:6px 8px;font-size:13px}.emnew2{display:inline-flex}}
+@media(max-width:1180px){.emw{grid-template-columns:minmax(280px,360px) minmax(0,1fr)}.emf{display:none!important}.mbxsm{display:flex}.emfs,.emnew2{display:block}.emfs{width:auto;max-width:130px;margin:0;padding:6px 8px;font-size:13px}.emnew2{display:inline-flex}}
 @media(max-width:760px){.emw{grid-template-columns:minmax(0,1fr);height:calc(100dvh - 92px)}.emw.v-list .emr{display:none!important}.emw.v-read .eml{display:none!important}.emback{display:inline-flex}.emrs{padding:14px}.emrs h2{font-size:18px}.emcr label{width:52px}}

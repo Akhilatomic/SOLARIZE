@@ -43,7 +43,7 @@ function handle_reset($a) {
     if (!empty($o['audit'])) $db->exec('DELETE FROM audit_log');
     if (!empty($o['datasheets'])) $db->exec('DELETE FROM datasheets');
     if (!empty($o['settings'])) $db->exec("DELETE FROM settings WHERE k NOT IN ('meta_cfg','meta_state','v1_migrated','pipe_v2')");
-    if (!empty($o['users'])) { $db->prepare('DELETE FROM users WHERE id<>?')->execute([uid()]); $db->exec('UPDATE leads SET assigned_to=NULL, claimed_at=\'\' WHERE assigned_to IS NOT NULL'); }
+    if (!empty($o['users'])) { $db->prepare('DELETE FROM users WHERE id<>?')->execute([uid()]); $db->prepare('DELETE FROM mail_accounts WHERE user_id<>?')->execute([uid()]); /* their saved email passwords go too */ $db->exec('UPDATE leads SET assigned_to=NULL, claimed_at=\'\' WHERE assigned_to IS NOT NULL'); }
     try { $db->exec("DELETE FROM sqlite_sequence WHERE name IN ('customers','projects','quotes','payments','checklist','files','project_steps','services','events','notes','messages'" . (!empty($o['datasheets']) ? ",'datasheets'" : '') . ')'); } catch (Throwable $e) { }
     $db->commit();
   } catch (Throwable $e) { $db->rollBack(); fail('Reset failed, nothing was changed: ' . $e->getMessage(), 500); }
