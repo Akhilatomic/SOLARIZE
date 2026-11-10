@@ -46,6 +46,11 @@ call($admin, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'wcr', 'data' => [
 $g = call($admin, 'kseb', 'get', null, "&customer_id=$cid");
 chk(($g['saved']['wcr']['issued_on'] ?? '') === date('Y-m-d') && !isset($g['saved']['wcr']['data']['cust_phone']), 'second save replaces the first, bad date becomes today');
 
+call($admin, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'wcr', 'data' => ['date' => '2026-02-30']]);
+$g = call($admin, 'kseb', 'get', null, "&customer_id=$cid");
+chk(($g['saved']['wcr']['issued_on'] ?? '') === date('Y-m-d'), 'impossible date 2026-02-30 becomes today');
+chk(call($admin, 'kseb', 'save', ['doc' => 'wcr', 'data' => []])['_code'] === 404, 'save with no customer_id is 404');
+
 chk(call($admin, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'zzz', 'data' => []])['_code'] === 400, 'unknown doc is refused');
 chk(call($admin, 'kseb', 'get', null, '&customer_id=999999')['_code'] === 404, 'unknown customer is 404');
 chk(call($anon, 'kseb', 'get', null, "&customer_id=$cid")['_code'] === 401, 'anonymous get is 401');
@@ -58,6 +63,20 @@ $d = call($admin, 'kseb', 'defaults_save', ['data' => ['sign_name' => 'Er X', 'b
 chk($d['_code'] === 200 && ($d['defaults']['sign_name'] ?? '') === 'Er X' && !isset($d['defaults']['bogus']) && ($d['defaults']['vendor_email'] ?? '') === 'info@jasper.solar' && count($d['defaults']) === 7, 'defaults_save keeps the seven keys only');
 $g = call($admin, 'kseb', 'get', null, "&customer_id=$cid");
 chk(($g['defaults']['sign_name'] ?? '') === 'Er X', 'get returns the saved defaults');
+
+$d = call($admin, 'kseb', 'defaults_save', ['data' => ['sign_name' => '  ' . str_repeat('x', 250) . '  ', 'vendor_email' => '  a@b.c  ']]);
+chk(($d['defaults']['vendor_email'] ?? '') === 'a@b.c' && ($d['defaults']['sign_name'] ?? '') === str_repeat('x', 200), 'defaults_save trims and caps at 200 characters');
+
+/* total reset (keep last: it wipes customers): nothing keyed by customer id may survive into a new customer #1 */
+call($admin, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'wcr', 'data' => ['cust_phone' => '111']]);
+$rs = call($admin, 'reset', 'reset', ['password' => $pw, 'confirm' => 'RESET', 'opts' => []]);
+chk($rs['_code'] === 200, 'total reset runs');
+/* ids restart at 1: create customers until one takes the old customer's id */
+$cid2 = 0;
+for ($i = 0; $i < $cid + 2 && $cid2 !== $cid; $i++) { $c2 = call($admin, 'customers', 'save', ['name' => 'After Reset ' . $i, 'phone' => '90000000' . sprintf('%02d', $i)]); $cid2 = (int)($c2['id'] ?? 0); }
+chk($cid2 === $cid, 'new customer reuses the old customer id');
+$g = call($admin, 'kseb', 'get', null, "&customer_id=$cid2");
+chk($g['_code'] === 200 && array_key_exists('wcr', $g['saved'] ?? []) && $g['saved']['wcr'] === null && empty($g['plant']['capacity'] ?? ''), 'a new customer after reset inherits no saved document or plant');
 
 echo "\n$pass passed, $fail failed\n";
 exit($fail ? 1 : 0);

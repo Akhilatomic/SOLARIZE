@@ -98,7 +98,7 @@ var KD = (function () {
   /* inverter_capacity is per inverter in kW; several inverters print count x size and the total */
   K.invCapacity = function (cap, count) {
     cap = trim(cap);
-    if (!cap) return '';
+    if (!cap || (isNum(cap) && +cap === 0)) return '';
     if (!isNum(cap)) return cap;
     var n = parseInt(trim(count), 10);
     if (!(n > 1)) return cap + ' KW';
@@ -130,8 +130,10 @@ var KD = (function () {
     var c = ctx.customer || {}, p = ctx.plant || {}, pr = ctx.project || {}, sd = ctx.defaults || {};
     var today = str(ctx.today);
     var v = {};
-    var bare = function (src, unit) { src = trim(src); return isNum(src) ? src + ' ' + unit : src; };
-    var cap = function (unit) { return bare(trim(p.capacity) ? p.capacity : pr.kw, unit); };
+    /* numeric columns store a blank field as 0, so a numeric zero counts as empty */
+    var zero = function (src) { return isNum(src) && +trim(src) === 0; };
+    var bare = function (src, unit) { src = trim(src); return zero(src) ? '' : isNum(src) ? src + ' ' + unit : src; };
+    var cap = function (unit) { return bare(trim(p.capacity) && !zero(p.capacity) ? p.capacity : (+pr.kw > 0 ? pr.kw : ''), unit); };
     if (docKey === 'wcr') {
       var ph = trim(c.phase);
       var serials = (Array.isArray(p.inverters) ? p.inverters : [])
@@ -154,7 +156,7 @@ var KD = (function () {
         name: trim(c.name), consumer_no: trim(c.consumer_no), category: trim(c.tariff),
         phone: trim(c.phone), email: trim(c.email), address: K.joinAddr(c),
         load: bare(c.sanctioned_load, 'kW'), capacity: cap('kWp'),
-        other: 'NO', mount: 'ROOF-TOP', days: '30 DAYS',
+        other: 'NO', mount: (p.rooftop_type === 'Ground' || p.structure_type === 'Ground mount') ? 'GROUND MOUNTED' : 'ROOF-TOP', days: '30 DAYS',
         place: trim(c.district), date: today
       };
     }
@@ -189,6 +191,7 @@ var KD = (function () {
   };
 
   /* ---- page layout and PDF writing. Positions in pt from the page's top-left; y is the baseline. ---- */
+  /* the template files are cached for 30 days: a replaced template must get a new file name */
   K.PAGES = {
     letterhead: { pdf: 'assets/kseb/letterhead.pdf', png: 'assets/kseb/letterhead.png', w: 595.92, h: 841.92 },
     an1: { pdf: 'assets/kseb/annexure-1.pdf', png: 'assets/kseb/annexure-1.png', w: 595.32, h: 841.92 }
@@ -317,18 +320,19 @@ var KD = (function () {
   };
 
   /* paragraphs in Helvetica, left-aligned, block centred vertically, largest size 10.5 -> 6 that fits the cell */
-  var an1Cell = function (paras, top, bottom, measure) {
+  var an1Cell = function (paras, top, bottom, measure, lh) {
+    lh = lh || 1.2;
     var x = AN1.x0 + AN1.pad, w = AN1.x1 - AN1.x0 - 2 * AN1.pad, room = bottom - top - 2 * AN1.pad;
     var lines, s, bh, fit = false;
     for (s = AN1.max; s >= AN1.min; s -= 0.5) {
       lines = [];
       paras.forEach(function (p) { lines = lines.concat(K.wrap(p, w, 'H', s, measure)); });
-      bh = (lines.length - 1) * 1.2 * s + s;
+      bh = (lines.length - 1) * lh * s + s;
       if (bh <= room) { fit = true; break; }
     }
     if (!fit) s = AN1.min;
     var y0 = top + (bottom - top - bh) / 2 + 0.8 * s, ops = [];
-    lines.forEach(function (line, i) { if (line) ops.push(op(line, x, y0 + i * 1.2 * s, 'H', s)); });
+    lines.forEach(function (line, i) { if (line) ops.push(op(line, x, y0 + i * lh * s, 'H', s)); });
     return { ops: ops, s: s, fit: fit };
   };
 
@@ -339,7 +343,7 @@ var KD = (function () {
         ? AN1.r1.map(function (k) { return (labelOf('an1', k) + ': ' + clean(v[k])).trim(); })
         : (clean(v[row[0]]) ? [clean(v[row[0]])] : []);
       if (!paras.length) return;
-      var c = an1Cell(paras, row[1], row[2], measure);
+      var c = an1Cell(paras, row[1], row[2], measure, row[0] === 'r1' ? 1.1 : 1.2);
       ops = ops.concat(c.ops);
       ok = ok && c.fit;
       size = Math.min(size, c.s);

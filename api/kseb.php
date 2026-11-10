@@ -44,7 +44,8 @@ function handle_kseb($a) {
       $doc = (string)($in['doc'] ?? ''); if (!in_array($doc, KSEB_DOCS, true)) fail('Unknown document');
       $cid = (int)($in['customer_id'] ?? 0); if (!row('SELECT 1 FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
       $data = gen_clean((array)($in['data'] ?? []));
-      $issued = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($data['date'] ?? '')) ? $data['date'] : date('Y-m-d');
+      $dt = (string)($data['date'] ?? '');
+      $issued = preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $dt, $dm) && checkdate((int)$dm[2], (int)$dm[3], (int)$dm[1]) ? $dt : date('Y-m-d');
       q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?) ON CONFLICT(customer_id,kind) DO UPDATE SET issued_on=excluded.issued_on, data=excluded.data, updated=CURRENT_TIMESTAMP, updated_by=excluded.updated_by',
         [$cid, 'kseb_' . $doc, '', $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']);
       audit('kseb_doc', 'customers', $cid, $doc);

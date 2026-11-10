@@ -50,9 +50,12 @@ def main(letterhead, form1, outdir):
     new = pymupdf.open(os.path.join(outdir, 'annexure-1.pdf'))[0]
     # get_text also reports FreeText appearance text, so drop those two spans from the original
     want = [s for s in spans(orig) if s[0].strip() not in REMOVE]
-    print('annots', len(list(new.annots())))
-    print('spans equal', spans(new) == want)
-    print('drawings equal', len(new.get_drawings()) == len(orig.get_drawings()))
+    checks = [('annots', len(list(new.annots())) == 0), ('spans equal', spans(new) == want),
+              ('drawings equal', len(new.get_drawings()) == len(orig.get_drawings()))]
+    for label, ok in checks:
+        print(label, ok)
+    if not all(ok for _, ok in checks):
+        sys.exit(1)
 
 
 if __name__ == '__main__':

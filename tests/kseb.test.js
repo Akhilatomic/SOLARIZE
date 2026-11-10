@@ -197,3 +197,26 @@ test('buildPdf survives non-WinAnsi text', async () => {
   const out = await KD.buildPdf(PDFLib, tpl, ops);
   assert.ok(out.length > tpl.length);
 });
+
+test('zero numbers count as empty', () => {
+  const ctx = Object.assign({}, RAJ, { customer: Object.assign({}, RAJ.customer, { sanctioned_load: 0 }), plant: {}, project: { kw: 0 } });
+  const an = KD.defaults('an1', ctx), w = KD.defaults('wcr', ctx);
+  assert.equal(an.load, '');
+  assert.equal(an.capacity, '');
+  assert.equal(w.capacity, '');
+  const miss = KD.empty('an1', an);
+  assert.ok(miss.includes('Sanctioned load') || miss.some(l => /load/i.test(l)), miss.join('|'));
+  assert.ok(miss.some(l => /capacity/i.test(l)), miss.join('|'));
+  assert.equal(KD.invCapacity('0', '1'), '');
+  assert.equal(KD.invCapacity('5', '0'), '5 KW');
+  const kw = KD.defaults('an1', Object.assign({}, ctx, { project: { kw: 3 } }));
+  assert.equal(kw.capacity, '3 kWp');
+});
+
+test('an1 mount follows the plant form', () => {
+  const m = p => KD.defaults('an1', Object.assign({}, RAJ, { plant: Object.assign({}, RAJ.plant, p) })).mount;
+  assert.equal(m({ rooftop_type: 'Ground' }), 'GROUND MOUNTED');
+  assert.equal(m({ structure_type: 'Ground mount' }), 'GROUND MOUNTED');
+  assert.equal(m({ rooftop_type: 'RCC' }), 'ROOF-TOP');
+  assert.equal(m({}), 'ROOF-TOP');
+});

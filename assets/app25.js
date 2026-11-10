@@ -3,7 +3,7 @@
 // Save and Download PDF. pdf-lib (loaded on first use) writes the text onto the template PDF in the browser.
 // Saving rule: only the fields that differ from the profile are stored (KD.overrides), plus the date, so a corrected
 // profile prints corrected. UI classes start with .kd (assets/kseb.css). Every value shown in HTML goes through esc().
-const KDS = { tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null };
+const KDS = { tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
 const KD_TABS = [['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['list', 'Checklist']];
 const KD_FONT = { T: "'Times New Roman',Times,serif", TB: "'Times New Roman',Times,serif", H: 'Arial,Helvetica,sans-serif', HB: 'Arial,Helvetica,sans-serif' };
 const kdT = v => String(v ?? '').trim();
@@ -29,7 +29,7 @@ const kdTpl = page => KD_TPL[page] = KD_TPL[page] || fetch(KD.PAGES[page].pdf, {
 async function pgKseb(id) {
   /* each load gets a token: the answer for a customer you already switched away from (or a page you left) is dropped */
   const nav = ROUTE_N, tok = ++KDS.tok, within = KDS.nav === nav - 1; /* within: the last navigation was this page too (a customer switch) */
-  KDS.nav = nav;
+  KDS.nav = nav; KDS.hash = location.hash;
   id = Number.isInteger(id) && id > 0 ? id : null;
   const cust = canR('customers');
   if (cust && (!within || !KDS.csP)) { KDS.cs = null; KDS.csP = list('customers').then(r => (KDS.cs = Array.isArray(r) ? r : []), () => (KDS.cs = [])); }
@@ -266,10 +266,9 @@ async function kdPdf() {
   const s = kdSnap(doc), name = kdFileName(doc, s.g), old = b.innerHTML;
   KDS.busy = true; b.disabled = true; b.innerHTML = '<i class="i i-download"></i>Making PDF…';
   try {
-    const m = await kdMeasure();
-    if (KD.layout(doc, s.vals, m).overflow) throw new Error('Too much text to fit — shorten the longest field');
+    const bytes = await kdBuild(doc, s.vals); /* build first (it refuses overflow): a failed template fetch or build stores nothing */
     if (canW('checklist')) await kdSaveDoc(s);
-    kdSaveFile(await kdBuild(doc, s.vals), name);
+    kdSaveFile(bytes, name);
     toast(name + ' downloaded');
   } catch (e) { kdErr(e); }
   finally { KDS.busy = false; b.innerHTML = old; b.disabled = !!(KDS.lay[doc] || {}).overflow; }
@@ -289,3 +288,16 @@ async function kdDefaults() {
     toast('Saved as the company default');
   } catch (e) { kdErr(e); } finally { KDS.busy = false; }
 }
+
+/* ---- leaving with unsaved edits (same pattern as the quotation maker in app22.js): switching customer, or leaving the page ---- */
+const kdDirty = () => canW('checklist') && !!KDS.g && Object.keys(KDS.vals).some(d => KD.DOCS[d] && kdFields(d).some(f => kdT(KDS.vals[d][f.k]) !== kdT((KDS.base[d] || {})[f.k])));
+(() => {
+  const prev = window.onhashchange;
+  window.onhashchange = e => {
+    if (kdOn() && KDS.hash && location.hash !== KDS.hash && kdDirty()) {
+      if (!confirm('This document has changes that are not saved.\n\nLeave without saving?')) { history.replaceState(null, '', KDS.hash); return; }
+    }
+    return prev ? prev.call(window, e) : undefined;
+  };
+  addEventListener('beforeunload', e => { if (kdOn() && kdDirty()) { e.preventDefault(); e.returnValue = ''; } });
+})();
