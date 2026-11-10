@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 30; // bump when tables/columns change
+const SCHEMA_VERSION = 31; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -12,7 +12,7 @@ $E = [
   'quotes' => ['quotes', ['customer_id','lead_id','number','date','items','gst_rate','subsidy','terms','status','total']],
   'campaigns' => ['ads', ['name','platform','objective','start','end','budget','status']],
   'ad_spend' => ['ads', ['campaign_id','date','spend','impressions','clicks','leads']],
-  'payments' => ['payments', ['project_id','date','amount','mode','note']],
+  'payments' => ['payments', ['project_id','date','amount','mode','note','ref_no']],
 ];
 
 // role => [read modules, write modules]; '*' = everything

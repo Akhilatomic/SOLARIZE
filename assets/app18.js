@@ -280,18 +280,43 @@ async function renderTax(box, c, id) {
     $('#tacc', box).innerHTML = `<div class="pfch"><i class="i i-coin"></i><h3>Plant cost & payments</h3>${A.project_id ? `<span class="sp"></span><a class="btn sec sm" href="#/projects/${A.project_id}">Open project</a>` : ''}</div>
       <div class="tbk"><div><small>Plant cost</small><b>${A.cost ? inr2(A.cost) : 'Not set'}</b></div><div><small>Received</small><b>${inr2(A.paid)}</b></div><div class="${bal > 0 ? 'due' : ''}"><small>Balance</small><b>${A.cost ? inr2(bal) : '—'}</b></div></div>
       ${w ? `<div class="tbr"><input id="tcost" inputmode="decimal" placeholder="Total plant cost (₹)" value="${A.cost || ''}"><button class="btn sec" id="tcsv">Save cost</button></div>` : ''}
-      <div class="tbl">${A.payments.map(p => `<div class="tbp"><span>${fdt(p.date)}</span><span>${esc(p.mode || '—')}${p.note ? `<em>${esc(p.note)}</em>` : ''}${p.receipt_no ? `<em>Receipt ${esc(p.receipt_no)}</em>` : ''}</span><b>${inr2(p.amount)}</b><button class="ib" data-prc="${p.id}" title="Payment receipt — print / PDF"><i class="i i-receipt"></i></button>${wp ? `<button class="ib" data-pdel="${p.id}" title="Delete payment"><i class="i i-trash"></i></button>` : ''}</div>`).join('') || '<p class="mut" style="margin:6px 0">No payments recorded yet.</p>'}</div>
-      ${wp ? `<div class="tbr tba"><input type="date" id="tpd" value="${today()}"><input id="tpa" inputmode="decimal" placeholder="Amount (₹)"><select id="tpm">${MODES.map(m => `<option>${m}</option>`).join('')}</select><input id="tpn" placeholder="Reference / note"><button class="btn" id="tpadd">Add payment</button></div>` : ''}
+      <div class="tbl">${A.payments.map(p => `<div class="tbp"><span>${fdt(p.date)}</span><span>${esc(p.mode || '—')}${p.ref_no ? `<em>Ref ${esc(p.ref_no)}</em>` : !isCash(p) ? '<em class="noref">No reference no. — needed for the receipt</em>' : ''}${p.note ? `<em>${esc(p.note)}</em>` : ''}${p.receipt_no ? `<em>Receipt ${esc(p.receipt_no)}</em>` : ''}</span><b>${inr2(p.amount)}</b><button class="ib" data-prc="${p.id}" title="Payment receipt — print / PDF"><i class="i i-receipt"></i></button>${wp ? `<button class="ib" data-pedit="${p.id}" title="Edit payment"><i class="i i-pencil"></i></button><button class="ib" data-pdel="${p.id}" title="Delete payment"><i class="i i-trash"></i></button>` : ''}</div>`).join('') || '<p class="mut" style="margin:6px 0">No payments recorded yet.</p>'}</div>
+      ${wp ? `<div class="tbr tba"><input type="date" id="tpd" value="${today()}"><input id="tpa" inputmode="decimal" placeholder="Amount (₹)"><select id="tpm">${MODES.map(m => `<option>${m}</option>`).join('')}</select><input id="tpref" placeholder="${REF_PH}" maxlength="60" autocomplete="off"><input id="tpn" placeholder="Note (optional)" maxlength="120"><button class="btn" id="tpadd">Add payment</button></div>` : ''}
       ${!A.project_id && w ? '<p class="mut" style="font-size:12px;margin:6px 0 0">Saving the plant cost also starts this customer\'s project in the pipeline.</p>' : ''}`;
     const reload = async () => { A = (await api('gen', 'get', undefined, `&kind=tax&customer_id=${id}`)).acct; drawAcc(); upd(); };
     if ($('#tcsv', box)) $('#tcsv', box).onclick = async e => { e.currentTarget.disabled = true; try { const r = await api('gen', 'cost', { kind: 'tax', customer_id: id, cost: +$('#tcost', box).value || 0 }); A = r.acct; toast('Plant cost saved'); drawAcc(); upd(); } catch (x) { drawAcc(); } };
     if ($('#tpadd', box)) $('#tpadd', box).onclick = async e => { const amt = +$('#tpa', box).value || 0; if (amt <= 0) return toast('Enter the amount received', true);
       if (!A.project_id) return toast('Save the plant cost first', true); e.currentTarget.disabled = true;
-      let nid = 0; try { nid = (await api('payments', 'save', { project_id: A.project_id, date: $('#tpd', box).value || today(), amount: amt, mode: $('#tpm', box).value, note: $('#tpn', box).value.trim() })).id; toast('Payment added'); } catch (x) { }
-      await reload(); if (nid) openReceipt(nid); };
+      const pay = { project_id: A.project_id, date: $('#tpd', box).value || today(), amount: amt, mode: $('#tpm', box).value, ref_no: $('#tpref', box).value.trim(), note: $('#tpn', box).value.trim() };
+      let nid = 0; try { nid = (await api('payments', 'save', pay)).id; } catch (x) { }
+      await reload(); if (!nid) return;
+      if (isCash(pay) || pay.ref_no) { toast('Payment added'); openReceipt(nid); } else toast('Payment added. Add its reference number (Edit) to print the receipt.', true); };
+    if ($('#tpm', box)) $('#tpm', box).onchange = () => { $('#tpref', box).placeholder = $('#tpm', box).value === 'Cash' ? 'Reference no. (optional for cash)' : REF_PH; };
+    $$('[data-pedit]', box).forEach(b => b.onclick = () => editPayment(b.dataset.pedit));
     $$('[data-prc]', box).forEach(b => b.onclick = () => openReceipt(b.dataset.prc));
     $$('[data-pdel]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this payment? It goes to the Recycle bin for 72 hours.')) return; try { await api('payments', 'delete', { id: +b.dataset.pdel }); toast('Payment deleted'); } catch (x) { } reload(); }); };
   // ---- payment receipt
+  const isCash = p => String(p.mode || '').trim().toLowerCase() === 'cash';
+  const REF_PH = 'Reference no. (UTR / cheque / txn)';
+  const accReload = async () => { A = (await api('gen', 'get', undefined, `&kind=tax&customer_id=${id}`)).acct; drawAcc(); upd(); };
+  /* edit a payment: date, amount, mode, reference no. (needed for the receipt unless cash), note; a receipt already made keeps its number */
+  const editPayment = (pid, why) => {
+    const p = A.payments.find(x => x.id == pid); if (!p) return;
+    const modes = MODES.includes(p.mode) || !p.mode ? MODES : MODES.concat(p.mode);
+    /* older payments kept the reference in the note ("Reference / note"): offer it when it looks like one (has a number, short) */
+    const guess = !p.ref_no && /\d/.test(p.note || '') && String(p.note).length <= 40 ? p.note : '';
+    const m = modal(`<h3 style="margin-top:0">Edit payment${p.receipt_no ? ' · receipt ' + esc(p.receipt_no) : ''}</h3>${why ? `<p class="mfw" style="margin:0 0 10px">${esc(why)}</p>` : ''}
+      <div class="two"><div><label for="pe_d">Date</label><input type="date" id="pe_d" value="${esc(p.date || '')}"></div><div><label for="pe_a">Amount (₹)</label><input id="pe_a" inputmode="decimal" value="${+p.amount || ''}"></div>
+       <div><label for="pe_m">Mode</label><select id="pe_m">${modes.map(x => `<option ${x === p.mode ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div><div><label for="pe_r">Reference no.</label><input id="pe_r" maxlength="60" autocomplete="off" placeholder="UTR / cheque / transaction no." value="${esc(p.ref_no || guess)}">${guess ? '<small class="mut">Filled in from the note — check it.</small>' : ''}</div>
+       <div class="full"><label for="pe_n">Note</label><input id="pe_n" maxlength="120" value="${esc(p.note || '')}"></div></div>
+      ${p.receipt_no ? '<p class="mut" style="font-size:12.5px;margin:8px 0 0">The receipt keeps its number. Print it again after saving to get the corrected copy.</p>' : ''}
+      <div class="bar" style="margin-top:12px"><button class="btn" id="pe_s">Save</button><button class="btn sec" id="pe_x">Cancel</button></div>`);
+    if (why) setTimeout(() => $('#pe_r', m).focus(), 50);
+    $('#pe_x', m).onclick = () => m.remove();
+    $('#pe_s', m).onclick = async e => { const amt = +$('#pe_a', m).value || 0; if (amt <= 0) return toast('Enter the amount', true); e.currentTarget.disabled = true;
+      const o = { id: p.id, project_id: A.project_id, date: $('#pe_d', m).value || p.date, amount: amt, mode: $('#pe_m', m).value, ref_no: $('#pe_r', m).value.trim(), note: $('#pe_n', m).value.trim() };
+      try { await api('payments', 'save', o); toast('Payment updated'); m.remove(); await accReload(); if (why && (isCash(o) || o.ref_no)) openReceipt(p.id); } catch (x) { e.currentTarget.disabled = false; } };
+  };
   const rupeeWords = a => { const r = Math.floor(a + 1e-9), ps = Math.round((a - r) * 100); return `Rupees ${inWords(r)}${ps ? ' and ' + inWords(ps) + ' paise' : ''} only`; };
   const rcHtml = (p, no) => {
     const Q = g.qm || {}, v = val(), CN = Q.name || co.name || 'Jasper Solar Solutions', web = Q.site || '', ph = Q.phone || co.phone || '', em = Q.email || co.email || '';
@@ -300,7 +325,7 @@ async function renderTax(box, c, id) {
     const inv = g.doc ? { no: g.doc.number, date: g.doc.issued_on, total: +((g.doc.data || {}).grand) || calc().grand } : null, total = inv ? inv.total : +A.cost || 0, bal = Math.round((total - before - amt) * 100) / 100;
     return `<div class="dhead"><div class="dhco"><img src="${location.origin}/assets/logo.png" alt=""><div><b>${esc(CN)}</b><div class="dco">${esc(Q.address || co.address || '')}${co.gstin ? '<br>GSTIN ' + esc(co.gstin) : ''}${[ph, em, web].filter(Boolean).length ? '<br>' + [ph, em, web].filter(Boolean).map(esc).join(' · ') : ''}</div></div></div></div>
       <h1 class="drt">PAYMENT RECEIPT</h1>
-      <div class="drc"><div class="rf"><span>Receipt no.</span><b>${esc(no)}</b><span>Payment date</span><b>${fdt(p.date)}</b><span>Reference number</span><b>${esc(p.note || '')}</b><span>Payment mode</span><b>${esc(p.mode || '')}</b><span>Amount received in words</span><b>${rupeeWords(amt)}</b></div>
+      <div class="drc"><div class="rf"><span>Receipt no.</span><b>${esc(no)}</b><span>Payment date</span><b>${fdt(p.date)}</b><span>Reference number</span><b>${esc(p.ref_no || (isCash(p) ? 'Cash' : ''))}</b><span>Payment mode</span><b>${esc(p.mode || '')}</b><span>Amount received in words</span><b>${rupeeWords(amt)}</b></div>
        <div class="drbox"><small>Amount Received</small><b>${inr2(amt)}</b></div></div>
       <div class="drfrom"><div><h4>Received from</h4><b>${esc(v.bill_name || c.name)}</b><br>${esc(v.bill_address || [c.address, c.district, c.pincode].filter(Boolean).join(', '))}${c.phone ? '<br>Ph: ' + esc(c.phone) : ''}</div>
        <div class="dstamp"><div class="dfor">For ${esc(CN)}</div><div class="dsp"></div><div class="dsl">Authorised signatory</div><small>Seal &amp; signature</small></div></div>
@@ -310,6 +335,7 @@ async function renderTax(box, c, id) {
   };
   const openReceipt = async pid => {
     const p = A.payments.find(x => x.id == pid); if (!p) return;
+    if (!isCash(p) && !String(p.ref_no || '').trim()) return w && canW('payments') ? editPayment(pid, 'A payment receipt needs the reference number (UTR / cheque / transaction no.) unless the payment was in cash.') : toast('This payment has no reference number, so no receipt can be made. Ask someone who can edit payments.', true);
     if (!p.receipt_no) { try { p.receipt_no = (await api('gen', 'receipt', { kind: 'tax', customer_id: id, payment_id: +pid })).receipt_no; drawAcc(); } catch (e) { return; } }
     const doc = rcHtml(p, p.receipt_no);
     const m = modal(`<div class="bar" style="margin:0 0 10px"><h3 style="margin:0">Payment receipt ${esc(p.receipt_no)}</h3><span class="sp"></span><button class="btn" id="rcpr"><i class="i i-download"></i> Print / PDF</button><button class="btn sec" id="rcx">Close</button></div><div class="gdp"><div class="doc drcpt">${doc}</div></div>`, true);

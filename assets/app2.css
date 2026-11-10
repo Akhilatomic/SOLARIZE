@@ -469,3 +469,7 @@ body.sbah aside.mini a .nb{position:absolute;top:0;right:-2px;margin:0}
 .i-award{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Ccircle%20cx%3D'12'%20cy%3D'8'%20r%3D'6'%2F%3E%3Cpath%20d%3D'M15.48%2012.89%2017%2022l-5-3-5%203%201.52-9.11'%2F%3E%3C%2Fsvg%3E")}
 label.msec{margin-top:14px;font-size:12px;font-weight:600;color:#1d1d1f;text-transform:uppercase;letter-spacing:.04em}
 .tbp{grid-template-columns:110px minmax(0,1fr) auto 30px 30px} /* + Receipt button */
+.tbp{grid-template-columns:110px minmax(0,1fr) auto 30px 30px 30px} /* Receipt · Edit · Delete */
+.tbp em.noref{color:#c4271f}
+.tba{grid-template-columns:repeat(3,minmax(0,1fr))} /* date · amount · mode, then reference · note · Add */
+@media(max-width:820px){.tba{grid-template-columns:1fr 1fr}.tba .btn{grid-column:1/-1}}

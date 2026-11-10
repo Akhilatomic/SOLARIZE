@@ -60,7 +60,7 @@ function gen_clean($v, $depth = 0) { // keep plain text / numbers / small nested
 function gen_acct($cid) {
   $p = row('SELECT id, cost FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid]);
   if (!$p) return ['project_id' => 0, 'cost' => 0, 'payments' => [], 'paid' => 0];
-  $pay = rows('SELECT id, date, amount, mode, note, receipt_no FROM payments WHERE project_id=? ORDER BY date, id', [$p['id']]);
+  $pay = rows('SELECT id, date, amount, mode, note, ref_no, receipt_no FROM payments WHERE project_id=? ORDER BY date, id', [$p['id']]);
   return ['project_id' => (int)$p['id'], 'cost' => (float)$p['cost'], 'payments' => $pay, 'paid' => array_sum(array_map(fn($x) => (float)$x['amount'], $pay))];
 }
 
@@ -101,6 +101,8 @@ function handle_gen($a) {
       if ($kind !== 'tax') fail('Unknown document');
       $pay = row('SELECT p.* FROM payments p JOIN projects pr ON pr.id=p.project_id WHERE p.id=? AND pr.customer_id=?', [(int)($in['payment_id'] ?? 0), $cid]);
       if (!$pay) fail('Payment not found', 404);
+      /* a receipt needs the payment's reference (UTR / cheque / transaction no.), unless it was paid in cash */
+      if (strcasecmp(trim((string)$pay['mode']), 'Cash') !== 0 && trim((string)($pay['ref_no'] ?? '')) === '') fail('Add the reference number (UTR / cheque / transaction no.) to this payment first, or set the mode to Cash.', 422);
       if (($pay['receipt_no'] ?? '') === '') { $pay['receipt_no'] = rcpt_next_no($pay['date'] ?: date('Y-m-d'));
         q("UPDATE payments SET receipt_no=? WHERE id=? AND COALESCE(receipt_no,'')=''", [$pay['receipt_no'], $pay['id']]);
         $pay['receipt_no'] = row('SELECT receipt_no FROM payments WHERE id=?', [$pay['id']])['receipt_no']; audit('payment_receipt', 'customers', $cid, $pay['receipt_no'] . ' · ₹' . $pay['amount']); }
