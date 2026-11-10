@@ -54,7 +54,7 @@ function handle_kseb($a) {
     case 'defaults_save':
       need('checklist', true);
       $v = (array)($in['data'] ?? []); $d = kseb_defaults();
-      foreach (KSEB_DEFAULTS as $k => $_) if (array_key_exists($k, $v)) $d[$k] = mb_substr(trim((string)$v[$k]), 0, 200);
+      foreach (KSEB_DEFAULTS as $k => $_) if (array_key_exists($k, $v) && is_scalar($v[$k])) $d[$k] = mb_substr(trim((string)$v[$k]), 0, 200); /* a list or object is skipped, never stored as "Array" */
       kv_set('kseb_defaults', $d);
       audit('kseb_defaults', 'settings', 0, '');
       out(['ok' => true, 'defaults' => $d]);

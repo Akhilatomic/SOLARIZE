@@ -66,6 +66,10 @@ chk(($g['defaults']['sign_name'] ?? '') === 'Er X', 'get returns the saved defau
 
 $d = call($admin, 'kseb', 'defaults_save', ['data' => ['sign_name' => '  ' . str_repeat('x', 250) . '  ', 'vendor_email' => '  a@b.c  ']]);
 chk(($d['defaults']['vendor_email'] ?? '') === 'a@b.c' && ($d['defaults']['sign_name'] ?? '') === str_repeat('x', 200), 'defaults_save trims and caps at 200 characters');
+$d = call($admin, 'kseb', 'defaults_save', ['data' => ['sign_name' => ['x'], 'sign_designation' => 'MD']]);
+chk($d['_code'] === 200 && ($d['defaults']['sign_name'] ?? '') === str_repeat('x', 200) && ($d['defaults']['sign_designation'] ?? '') === 'MD', 'defaults_save skips a non-scalar value (no "Array"), saves the rest');
+$g = call($admin, 'kseb', 'get', null, "&customer_id=$cid");
+chk(($g['defaults']['sign_name'] ?? '') === str_repeat('x', 200) && ($g['defaults']['sign_designation'] ?? '') === 'MD', 'get returns the defaults without the skipped value');
 
 /* total reset (keep last: it wipes customers): nothing keyed by customer id may survive into a new customer #1 */
 call($admin, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'wcr', 'data' => ['cust_phone' => '111']]);
