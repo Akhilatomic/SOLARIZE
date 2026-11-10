@@ -134,7 +134,7 @@ function handle_admin($a) {
         $id = (int)$in['id'];
         if ($id === (int)$_SESSION['uid'] && ($role !== 'admin' || empty($in['active']))) fail('You cannot demote or disable yourself');
         if (!empty($in['password'])) sec_password_ok((string)$in['password'], $u);
-        $was = row('SELECT role, active FROM users WHERE id=?', [$id]);
+        $was = row('SELECT role, active, username FROM users WHERE id=?', [$id]); $was_name = $was['username'] ?? '';
         q('UPDATE users SET name=?,username=?,role=?,active=?,can_claim=? WHERE id=?', [$name, $u, $role, empty($in['active']) ? 0 : 1, empty($in['can_claim']) ? 0 : 1, $id]);
         if (!empty($in['password'])) q('UPDATE users SET hash=?, sess_ver=sess_ver+1 WHERE id=?', [password_hash($in['password'], PASSWORD_DEFAULT), $id]); // new password signs them out everywhere
         elseif ($was && ($was['role'] !== $role || ((int)$was['active'] && empty($in['active'])))) q('UPDATE users SET sess_ver=sess_ver+1 WHERE id=?', [$id]);
@@ -143,6 +143,8 @@ function handle_admin($a) {
         if (row('SELECT 1 FROM users WHERE username=?', [$u])) fail('Username already exists');
         q('INSERT INTO users(name,username,hash,role,can_claim) VALUES(?,?,?,?,?)', [$name, $u, password_hash($in['password'], PASSWORD_DEFAULT), $role, empty($in['can_claim']) ? 0 : 1]); $id = db()->lastInsertId();
       }
+      /* "Too many wrong attempts … ask the admin": saving the user (e.g. with a new password) clears their sign-in lock */
+      foreach (array_unique([strtolower($u), strtolower((string)($was_name ?? ''))]) as $k) if ($k !== '') q('DELETE FROM login_guard WHERE k=?', ['u:' . $k]);
       audit('user_save', 'users', (int)$id, "$u ($role)"); out(['id' => $id]);
     case 'audit': out(rows('SELECT * FROM audit_log ORDER BY id DESC LIMIT 300'));
     case 'stats':

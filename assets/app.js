@@ -35,7 +35,10 @@ async function api(m, a, body, qs = '') {
   const r = await fetch(`api.php?m=${m}&a=${a}${qs}`, opt);
   const j = await r.json().catch(() => ({ error: 'Bad server response' }));
   if (r.status === 401 && m !== 'auth') { boot(); throw j; }
-  if (j.error && !(m === 'auth' && (a === 'login' || a === 'setup'))) { if (!j.quiet) alert(j.error); throw j; } // quiet: the page shows its own prompt (e.g. email password changed)
+  /* Every error is thrown. Sign-in errors get no pop-up: the sign-in form shows them under the button (they used to come back as a
+     normal answer, so the form reloaded and "Wrong username or password" / "Too many wrong attempts" never appeared).
+     quiet: the page shows its own prompt (e.g. email password changed). */
+  if (j.error) { if (!j.quiet && !(m === 'auth' && (a === 'login' || a === 'setup'))) alert(j.error); throw j; }
   if (m === 'leads' && a === 'save' && typeof refreshFeed === 'function') setTimeout(refreshFeed, 0); // edited leads leave "New leads to contact"
   return j;
 }

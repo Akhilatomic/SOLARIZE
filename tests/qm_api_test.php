@@ -223,6 +223,18 @@ chk(call($sales, 'leads', 'callback', ['id' => $lid, 'at' => '', 'done' => 1])['
 $g2 = call($admin, 'leads', 'get', null, "&id=$lid");
 chk(($g2['callback_at'] ?? 'x') === '' && ($g2['callback_note'] ?? 'x') === '', 'callback: cleared');
 
+/* ---- sign-in lockout: the admin can unlock someone by saving their user ---- */
+$lk = actor('lockme');
+$lu = call($admin, 'admin', 'user_save', ['name' => 'Lock Me', 'username' => 'Lockme', 'role' => 'sales', 'active' => 1, 'can_claim' => 0, 'password' => $pw]);
+chk(!empty($lu['id']), 'lockout: user created');
+for ($i = 0; $i < 5; $i++) $w = call($lk, 'auth', 'login', ['username' => 'Lockme', 'password' => 'wrong-' . $i]);
+chk(($w['_code'] ?? 0) === 401 && ($w['error'] ?? '') === 'Wrong username or password', 'lockout: wrong password says so');
+$l6 = call($lk, 'auth', 'login', ['username' => 'Lockme', 'password' => $pw]);
+chk(($l6['_code'] ?? 0) === 429 && strpos($l6['error'] ?? '', 'Too many wrong attempts') === 0, 'lockout: locked after 5 wrong passwords, even with the right one');
+call($admin, 'admin', 'user_save', ['id' => $lu['id'], 'name' => 'Lock Me', 'username' => 'Lockme', 'role' => 'sales', 'active' => 1, 'can_claim' => 0]);
+chk((call($lk, 'auth', 'login', ['username' => 'Lockme', 'password' => $pw])['_code'] ?? 0) === 200, 'lockout: admin saving the user unlocks them');
+@unlink($lk['jar']);
+
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);
