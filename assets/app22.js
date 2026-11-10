@@ -224,11 +224,25 @@ function qmkWhoHtml() {
   return `<div class="qm-who"><span class="qm-av">${esc(name.trim().charAt(0).toUpperCase() || '?')}</span><div><b>${esc(name)}</b><small>${c.customer_id ? 'Customer' : 'Lead'}${r && r.phone ? ' · ' + esc(r.phone) : ''}</small></div>
     ${QMK.picking ? '' : '<button type="button" class="btn sec sm" data-a="whoc">Change</button>'}</div>`;
 }
+/* Quotation heading: the title bar, its tag and the project line, filled with the default text so it can be edited from there.
+   Text equal to the default (or emptied) stays automatic, so it follows the plant size when the components change. */
+const QMK_HEAD = [['title', 'Title'], ['pill', 'Tag on the title bar'], ['project', 'Project (in the customer details)']];
+function qmkHeadDefaults() {
+  const d = QMK.doc, st = qmkSt(), { lines } = qmkCalc(), auto = QM.calc(Object.assign({}, d, { title: '', project: '' }), lines, st, st.subsidy_rates);
+  return { title: auto.title, pill: st.pill || '', project: auto.project };
+}
+const qmkHeadCustom = (k, def) => { const v = QMK.doc[k]; return v != null && v !== '' && v !== def; };
+const qmkHeadHint = (k, def) => qmkHeadCustom(k, def) ? `Changed for this quotation · default: “${esc(def)}” <button type="button" class="btn sec sm" data-a="hreset" data-k="${k}">Reset to default</button>` : 'Default text — edit it to change it for this quotation only.';
+function qmkEdHead() {
+  const D = qmkHeadDefaults();
+  return `<section class="qm-sec" data-pv=".qp-title"><h3>Quotation heading</h3><div class="two">${QMK_HEAD.map(([k, l]) => `<div class="full"><label for="qmh_${k}">${esc(l)}</label>
+    <input id="qmh_${k}" data-h="${k}" maxlength="${k === 'pill' ? 60 : 120}" value="${esc(qmkHeadCustom(k, D[k]) ? QMK.doc[k] : D[k])}"><small class="qm-hint" id="qmhh_${k}">${qmkHeadHint(k, D[k])}</small></div>`).join('')}</div></section>`;
+}
 function qmkEdCustomer() {
   const d = QMK.doc, co = qmkSt().company || {}, has = QMK.cust.customer_id || QMK.cust.lead_id, pick = !has || QMK.picking;
   const f = (k, l, o = {}) => `<div class="${o.full ? 'full' : ''}"><label>${esc(l)}</label>${o.ta ? `<textarea rows="2" data-f="${k}">${esc(qmkGet(d, k))}</textarea>`
     : `<input data-f="${k}" type="${o.t || 'text'}" value="${esc(qmkGet(d, k))}"${o.ph ? ` placeholder="${esc(o.ph)}"` : ''}${o.t === 'number' ? ' min="1" step="1"' : ''}>`}</div>`;
-  return `<section class="qm-sec"><h3>Customer</h3>${has ? qmkWhoHtml() : ''}
+  return `${qmkEdHead()}<section class="qm-sec"><h3>Customer</h3>${has ? qmkWhoHtml() : ''}
     ${pick ? `<div class="qm-find"><i class="i i-search"></i><input id="qmcq" placeholder="Search customers and leads by name or phone" autocomplete="off" aria-label="Search customers and leads">${has ? '<button type="button" class="btn sec sm" data-a="whox">Cancel</button>' : ''}<div class="qm-res" id="qmres"></div></div>` : ''}
     <div class="two">${f('customer.name', 'Name')}${f('customer.mobile', 'Mobile')}${f('customer.email', 'Email')}${f('customer.consumer_no', 'Consumer number')}${f('customer.address', 'Address', { full: 1, ta: 1 })}</div>
     <p class="qm-hint">Changes here only change this quotation, not the customer record.</p></section>
@@ -357,7 +371,7 @@ function qmkGuide(lines) {
   return `<i class="i i-coin"></i><span>Items add up to <b>₹${QM.inr(sum)}</b> at your rates${miss ? ` · ${miss} item${miss === 1 ? ' has' : 's have'} no rate yet` : ''}. Only a guide: the package price is what prints.</span>`;
 }
 function qmkEdPrice() {
-  const d = QMK.doc, st = qmkSt(), { lines, calc } = qmkCalc(), auto = QM.calc(Object.assign({}, d, { title: '', project: '' }), lines, st, st.subsidy_rates);
+  const d = QMK.doc, { lines, calc } = qmkCalc();
   const has = v => v != null && v !== '';
   return `<section class="qm-sec" data-pv=".qp-price"><h3>Price</h3><div class="qm-sum" id="qmsum">${qmkSum(calc)}</div>
     <label for="qmprice">Package price, including KSEB charges</label><div class="qm-rs qm-big"><span>₹</span><input id="qmprice" inputmode="numeric" autocomplete="off" value="${+d.price > 0 ? esc(QM.inr(d.price)) : ''}" placeholder="Type the price, e.g. 1,70,000"></div>
@@ -366,9 +380,7 @@ function qmkEdPrice() {
     <p class="qm-hint" id="qmsubh">Leave it empty for the automatic PM Surya Ghar amount on ${esc(calc.dcKwp)} kWp.</p></section>
    <section class="qm-sec" data-pv=".qp-loan"><h3>Loan page</h3><label class="qm-sw"><input type="checkbox" id="qmloan" ${d.loan ? 'checked' : ''}><span>Add the SBI Surya Ghar loan page (margin, loan, EMI table)</span></label></section>
    ${['kseb', 'pay', 'delivery', 'terms'].map(k => qmkList(k, calc)).join('')}
-   <section class="qm-sec" data-pv=".qp-title"><h3>Title and labels</h3><div class="two"><div class="full"><label>Title</label><input data-f="title" value="${esc(d.title || '')}" placeholder="${esc(auto.title)}"></div>
-    <div><label>Project</label><input data-f="project" value="${esc(d.project || '')}" placeholder="${esc(auto.project)}"></div><div><label>Label on the title bar</label><input data-f="pill" value="${esc(d.pill || '')}" placeholder="${esc(st.pill || '')}"></div></div>
-    <p class="qm-hint">Leave a box empty to print the automatic text shown in grey.</p></section>`;
+   <p class="qm-hint">The quotation heading (title, tag, project) is edited on the <button type="button" class="btn sec sm" data-a="go" data-k="customer">Customer</button> tab.</p>`;
 }
 function qmkRowsRead(key) {
   const box = $(`[data-list="${key}"]`); if (!box) return;
@@ -531,6 +543,10 @@ async function qmRefresh() {
 function qmkOnInput(e) {
   const t = e.target, d = QMK.doc, f = t.dataset.f, l = t.dataset.l;
   if (f) { qmkSet(d, f, t.type === 'number' ? (t.value === '' ? '' : +t.value) : t.value); qmkChanged(!/^(customer|sales)\.|^(date|valid_days)$/.test(f)); return; }
+  if (t.dataset.h) { /* heading: the default text (or nothing) means automatic */
+    const k = t.dataset.h, def = qmkHeadDefaults()[k], v = t.value;
+    d[k] = v.trim() === '' || v === def ? '' : v; qmkChanged(true);
+    const h = $('#qmhh_' + k); if (h) h.innerHTML = qmkHeadHint(k, def); return; }
   if (l) {
     const [c, i, k] = l.split('|'), it = (d.items[c] || [])[i]; if (!it) return;
     if (k === 'qty') return qmkQty(c, +i, t.value, t);
@@ -573,6 +589,7 @@ function qmkOnClick(e) {
   if (id === 'qmgear') return typeof qmOpenSettings === 'function' && qmOpenSettings();
   if (id === 'qmpp' || id === 'qmpn') return qmkPage(id === 'qmpp' ? -1 : 1);
   if (a === 'go') return qmkTab(k);
+  if (a === 'hreset') { d[k] = ''; qmkChanged(true); const i = $('#qmh_' + k); if (i) i.value = qmkHeadDefaults()[k]; const h = $('#qmhh_' + k); if (h) h.innerHTML = qmkHeadHint(k, qmkHeadDefaults()[k]); return; }
   if (a === 'pick') { const [c, p] = k.split('|'); return qmkPick(c, +p); }
   if (a === 'who') {
     const [ty, rid] = k.split('|'), r = (ty === 'lead' ? QMK.ls : QMK.cs).find(x => x.id == rid); if (!r) return;
