@@ -50,7 +50,12 @@ test('subsidy', () => {
 
 test('subsidyText', () => {
   assert.equal(QM.subsidyText(4, 600, 2.4, R),
-    'Worked out on the DC panel capacity (4 × 600 Wp = 2.4 kWp): ₹30,000 per kW for the first 2 kW, plus ₹18,000 per kW for the next 0.4 kW. Credited directly to the customer\'s bank account within 30 working days after commissioning.');
+    'Worked out on the DC panel capacity (4 × 600 Wp = 2.4 kWp): ₹30,000 per kW for the first 2 kW, plus ₹18,000 per kW for the next 0.4 kW. Credited directly to the customer’s bank account within 30 working days after commissioning.');
+});
+
+test('printed rows: optimisers before the inverter, same categories as CATS', () => {
+  assert.deepEqual(QM.ROWS.slice(0, 4), ['panels', 'optimiser', 'inverter', 'acdb']);
+  assert.deepEqual(QM.ROWS.slice().sort(), QM.CATS.slice().sort());
 });
 
 test('emi', () => {

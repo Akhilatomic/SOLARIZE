@@ -79,6 +79,7 @@
 .qp-pr2 span{display:block;font-size:10px;line-height:14px}
 .qp-sub2{background:#e6f4ea;color:#14663a}
 .qp-net{background:#1e2638;color:#fff}
+.qp-gnote{font-size:10px;line-height:14px;color:#6b7280}
 .qp-sign{display:flex;gap:34px;margin-top:64px}
 .qp-sign>div{flex:1;border-top:1px solid #1e2638;padding-top:4px;font-size:10.5px;line-height:15px;color:#6b7280}
 

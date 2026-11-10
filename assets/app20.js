@@ -2,6 +2,8 @@
 var QM = (function () {
   var Q = {};
   Q.CATS = ['panels', 'inverter', 'optimiser', 'acdb', 'dcdb', 'dccable', 'accable', 'isolator', 'meter', 'parts', 'earthing', 'la', 'structure', 'install'];
+  /* printed row order: optimisers come before the inverter, as in the SolarEdge quotations (warranty boxes keep CATS order) */
+  Q.ROWS = ['panels', 'optimiser', 'inverter'].concat(Q.CATS.slice(3));
 
   var num = function (v, d) { v = Number(v); return isFinite(v) ? v : (d || 0); };
   var r1 = function (x) { return Math.round(x * 10) / 10; };
@@ -29,7 +31,7 @@ var QM = (function () {
   Q.subsidyText = function (panelCount, panelWp, kwp, rates) {
     var t = 'Worked out on the DC panel capacity (' + panelCount + ' × ' + panelWp + ' Wp = ' + kwp + ' kWp): ₹' + Q.inr(rates.per_kw_first2) + ' per kW for the first 2 kW';
     if (kwp > 2) t += ', plus ₹' + Q.inr(rates.third_kw) + ' per kW for the next ' + r1(Math.min(kwp - 2, 1)) + ' kW';
-    return t + '. Credited directly to the customer\'s bank account within 30 working days after commissioning.';
+    return t + '. Credited directly to the customer’s bank account within 30 working days after commissioning.';
   };
 
   Q.emi = function (principal, annualRatePct, months) {

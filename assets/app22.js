@@ -188,7 +188,7 @@ function qmkPvTo(t) {
   let el = null;
   if (qmkIsCat(t)) {
     const { lines } = qmkCalc(), rows = $$('#qmpages .qp-items tbody tr'); let n = 0;
-    for (const c of QM.CATS.concat(Object.keys(lines).filter(k => QM.CATS.indexOf(k) < 0))) { if (c === t) break; n += (lines[c] || []).length; }
+    for (const c of qpCats(lines)) { if (c === t) break; n += (lines[c] || []).length; }
     el = (lines[t] || []).length ? rows[n] : $('#qmpages .qp-items');
   } else el = t === 'price' ? $('#qmpages .qp-price') : $('#qmpages .qp');
   qmkPvShow(el);

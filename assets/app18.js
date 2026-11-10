@@ -152,7 +152,7 @@ async function renderTax(box, c, id) {
   const pn = (P.panels || []).filter(x => x.serial), iv = (P.inverters || []).filter(x => x.serial);
   const issued = (g.doc || {}).issued_on || today();
   box.innerHTML = `<div class="gdl"><div class="card gdf"><div class="pfch"><i class="i i-receipt"></i><h3>Tax bill</h3><span class="sp"></span><span class="pill ${g.doc ? 'g' : ''}">${g.doc ? esc(g.doc.number) : 'Not issued yet'}</span></div>
-      ${g.quote && !g.doc ? `<p class="mut" style="font-size:12.5px;margin:0 0 6px">Items copied from quotation ${esc(g.quote.number)} — check HSN codes and GST rates before issuing.</p>` : ''}
+      ${g.quote && g.quote.items.length && !g.doc ? `<p class="mut" style="font-size:12.5px;margin:0 0 6px">Items copied from quotation ${esc(g.quote.number)} — check HSN codes and GST rates before issuing.</p>` : ''}
       <div class="two"><div><label>Invoice date</label><input type="date" id="tdate" value="${issued}" ${w ? '' : 'disabled'}></div>
        <div><label>Supply</label><select id="tinter" ${w ? '' : 'disabled'}><option value="0" ${+D.interstate ? '' : 'selected'}>Within Kerala — CGST + SGST</option><option value="1" ${+D.interstate ? 'selected' : ''}>Outside Kerala — IGST</option></select></div>
        <div><label>Bill to (name)</label><input data-t="bill_name" value="${esc(D.bill_name || '')}" ${w ? '' : 'disabled'}></div><div><label>Customer GSTIN (if any)</label><input data-t="cust_gstin" value="${esc(D.cust_gstin || '')}" maxlength="15" ${w ? '' : 'disabled'}></div>

@@ -38,7 +38,7 @@ const qpSplit = s => {
   const k = w.length > 2 && w[0].length < 7 ? 2 : 1;
   return [w.slice(0, k).join(' '), w.slice(k).join(' ')];
 };
-const qpCats = lines => QM.CATS.concat(Object.keys(lines || {}).filter(k => QM.CATS.indexOf(k) < 0));
+const qpCats = lines => QM.ROWS.concat(Object.keys(lines || {}).filter(k => QM.ROWS.indexOf(k) < 0));
 const qpKv = rows => '<table class="qp-kv" data-nofit="1">' + rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(qpVal(v))}</td></tr>`).join('') + '</table>';
 const qpCard = (title, body, cls) => `<div class="qp-card${cls ? ' ' + cls : ''}"><div class="qp-ct"><span class="qp-tick"></span>${esc(title)}</div>${body}</div>`;
 const qpSec = (title, cls) => `<div class="qp-sec${cls ? ' ' + cls : ''}"><span class="qp-dash"></span>${esc(title)}</div>`;
@@ -92,7 +92,8 @@ function qpCover(doc, lines, calc, st, ctx) {
     + '<div class="qp-price">' + qpCard('Account details', qpKv([['Bank', bank.bank], ['Account name', bank.name], ['Account number', bank.account], ['IFSC code', bank.ifsc]]), 'qp-acct')
     + `<div class="qp-money"><div class="qp-gross"><span>Gross amount (including KSEB charges)</span><b>₹ ${QM.inr(doc.price)}</b></div>`
     + `<div class="qp-pr2"><div class="qp-sub2"><small>SUBSIDY</small><b>− ${qpRs(calc.subsidy)}</b><span>Credited to your bank account after commissioning</span></div>`
-    + `<div class="qp-net"><small>COST AFTER SUBSIDY</small><b>${qpRs(calc.net)}</b><span>${qpRs(doc.price)} − ${qpRs(calc.subsidy)}</span></div></div></div></div>`
+    + `<div class="qp-net"><small>COST AFTER SUBSIDY</small><b>${qpRs(calc.net)}</b><span>${qpRs(doc.price)} − ${qpRs(calc.subsidy)}</span></div></div>`
+    + (calc.kseb.total > 0 && +doc.price > calc.kseb.total ? `<p class="qp-gnote">Gross amount = plant cost ${qpRs(doc.price - calc.kseb.total)} + KSEB charges ${qpRs(calc.kseb.total)}<span class="qp-kpg"></span>.</p>` : '') + '</div></div>'
     + `<div class="qp-sign"><div>For ${esc(qpTitleCase(co.name || ''))} (authorised signatory)</div><div>Customer acceptance (signature and date)</div></div>`);
 }
 
@@ -152,7 +153,8 @@ function qpLoan(calc, st, ctx, fill) {
 function qpTerms(doc, calc, st, ctx, fill) {
   const del = doc.delivery || st.delivery || [], terms = doc.terms || st.terms || [], pay = calc.pay || [];
   const rates = (typeof S !== 'undefined' && S && S.subsidy_rates) || QP_RATES;
-  const stext = calc.subsidy === calc.subsidyAuto && calc.panelCount ? QM.subsidyText(calc.panelCount, calc.panelWp, calc.dcKwp, rates)
+  /* the "worked out on…" sum is shown only below the cap; a capped subsidy just says how it is paid (as in the 3 kW and 5 kW quotations) */
+  const stext = calc.subsidy === calc.subsidyAuto && calc.panelCount && calc.subsidy < (+rates.cap || Infinity) ? QM.subsidyText(calc.panelCount, calc.panelWp, calc.dcKwp, rates)
     : 'Credited directly to the customer’s bank account within 30 working days after commissioning.';
   const war = calc.warranties.map(w => { const p = qpSplit(w.label); return `<div><b>${esc(w.years)} ${String(w.years) === '1' ? 'yr' : 'yrs'}</b><span>${esc(p[0])}</span><span>${esc(p[1])}</span></div>`; }).join('');
   const kseb = calc.kseb.rows.map((r, i) => {
@@ -216,7 +218,8 @@ function qpPaginate(c) {
     if (!qpFits(terms)) { keep.appendChild(tk.querySelector('.qp-kc')); qpTighten(terms); }
     qpTighten(nx);
   }
-  const pg = [...c.querySelectorAll('.qp')], over = [];
+  const pg = [...c.querySelectorAll('.qp')], over = [], kp = pg.findIndex(p => p.querySelector('.qp-kc'));
+  c.querySelectorAll('.qp-kpg').forEach(e => { e.textContent = kp < 0 ? '' : ` (see page ${kp + 1})`; });
   pg.forEach((p, i) => {
     const e = p.querySelector('.qp-pno'); if (e) e.textContent = `Page ${i + 1} of ${pg.length}`;
     if (p.querySelector('.qp-in') && !qpFits(p)) {
