@@ -6,10 +6,14 @@ const GEN_KINDS = ['warranty' => 'WC', 'tax' => 'INV', 'mfr' => '', 'wcs' => '']
 
 function gen_fy($date) { $t = strtotime($date ?: 'now'); $y = (int)date('Y', $t); $s = (int)date('n', $t) >= 4 ? $y : $y - 1; return sprintf('%02d-%02d', $s % 100, ($s + 1) % 100); }
 function gen_next_no($kind, $date) {
-  $fy = gen_fy($date); $k = "seq_{$kind}_{$fy}";
-  $n = (int)(row('SELECT v FROM settings WHERE k=?', [$k])['v'] ?? 0) + 1; kv_set($k, (string)$n);
+  $fy = gen_fy($date); $k = "seq_{$kind}_{$fy}"; $mid = GEN_KINDS[$kind];
+  /* kv_set stores JSON, so the counter reads back as "1" with quotes; (int) of that was 0 and every bill got number 001.
+     Decode it, and never go below a number already issued this year (repairs counters left stuck by that bug). */
+  $raw = (string)(row('SELECT v FROM settings WHERE k=?', [$k])['v'] ?? '0'); $n = (int)(json_decode($raw, true) ?? $raw);
+  foreach (rows('SELECT number FROM gen_docs WHERE kind=? AND number LIKE ?', [$kind, "%/$mid/$fy/%"]) as $r) $n = max($n, (int)substr(strrchr($r['number'], '/'), 1));
+  $n++; kv_set($k, $n);
   $pre = trim((string)(settings()['company']['quote_prefix'] ?? 'JS')) ?: 'JS';
-  return sprintf('%s/%s/%s/%03d', $pre, GEN_KINDS[$kind], $fy, $n);
+  return sprintf('%s/%s/%s/%03d', $pre, $mid, $fy, $n);
 }
 function gen_clean($v, $depth = 0) { // keep plain text / numbers / small nested lists only
   if (is_array($v)) { if ($depth > 3) return []; $o = []; foreach (array_slice($v, 0, 200, true) as $k => $x) $o[is_int($k) ? $k : mb_substr(preg_replace('/[^\w]/', '', (string)$k), 0, 40)] = gen_clean($x, $depth + 1); return $o; }

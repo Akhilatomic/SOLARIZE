@@ -25,7 +25,8 @@ const DOC_CSS = `.tbg{display:grid;grid-template-columns:repeat(auto-fill,minmax
 .dt{width:100%;border-collapse:collapse;margin:6px 0 10px}.dt th,.dt td{border:1px solid #d1d1d6;padding:5px 6px;text-align:left;vertical-align:top}.dt th{background:#f5f5f7;font-size:10.5px;font-weight:600}.dt .r,.dt .h{text-align:right;white-space:nowrap}.dt .h{text-align:left}
 .dtot{margin-left:auto;width:320px}.dtot td{border:0;border-bottom:1px solid #e5e5ea}.dtot tr:last-child td{font-weight:700;font-size:14px;border-bottom:2px solid #1d1d1f}
 .dsig{display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px}.dsig div{text-align:center;min-width:200px;border-top:1px solid #1d1d1f;padding-top:4px;font-size:11px}
-.dsmall{font-size:10.5px;color:#3a3a3c;white-space:pre-wrap}.dser{columns:3;column-gap:16px;font-size:10.5px;font-family:ui-monospace,Menlo,Consolas,monospace}`;
+.dsmall{font-size:10.5px;color:#3a3a3c;white-space:pre-wrap}.dser{columns:3;column-gap:16px;font-size:10.5px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.dpt{font-weight:700;text-transform:uppercase}.dpk{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.06em;color:#6e6e73;margin-bottom:1px}.dsub{white-space:pre-line;font-size:11px;color:#3a3a3c;margin-top:2px}`;
 
 // ---------------- Warranty card ----------------
 const W_DEF = { panel_product: 12, panel_perf: 25, inverter: 5, workmanship: 5, structure: 10 };
@@ -149,15 +150,30 @@ async function renderTax(box, c, id) {
     D = { bill_name: c.name, bill_address: [c.address, c.district, c.pincode].filter(Boolean).join(', '), cust_gstin: c.gst_no || '', interstate: c.gst_no && String(c.gst_no).slice(0, 2) !== cs ? 1 : 0, items, notes: 'Goods once sold will not be taken back. Subject to Thiruvananthapuram jurisdiction.' }; }
   D.ser = D.ser || { p: 1, i: 1, m: 1 }; D.show_paid = +D.show_paid || 0;
   let A = g.acct || { project_id: 0, cost: 0, payments: [], paid: 0 };
+  /* Part A / Part B bill (solar plant under the GST 70:30 rule): the total (incl. GST) is split so that 70% of the taxable value is
+     Part A — supply of the plant (panels + inverter, goods at 5%) and 30% is Part B — installation and the rest (service at 18%):
+     8.9% overall, the rate quotations use. New bills use it; a bill issued with item lines keeps them until switched. */
+  const kwTxt = String(P.capacity || (g.project || {}).kw || '').trim();
+  const sp = s => s.replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
+  const defParts = () => {
+    const pc = P.panel_count || (P.panels || []).length || '', pa = [];
+    const pnl = sp(`${kwTxt ? kwTxt + ' kW — ' : ''}${pc ? pc + ' × ' : ''}${P.panel_wattage ? P.panel_wattage + ' Wp ' : ''}${P.panel_type || ''} ${P.panel_model ? '(' + P.panel_model + ')' : ''}`);
+    const inv = sp(`${P.inverter_capacity ? P.inverter_capacity + ' kW ' : ''}${P.inverter_type || ''} ${P.inverter_model ? '(' + P.inverter_model + ')' : ''}`);
+    pa.push('Solar panel: ' + (pnl || 'Solar PV modules')); if (P.panel_make) pa.push('Make: ' + P.panel_make);
+    pa.push('Grid-tied inverter: ' + (inv || 'On-grid inverter')); if (P.inverter_make) pa.push('Make: ' + P.inverter_make);
+    return { total: +A.cost || +(g.project || {}).cost || 0, share: 70,
+      a: { title: sp(`Supply of ${kwTxt ? kwTxt + ' kW ' : ''}on-grid solar power plant`), lines: pa.join('\n'), hsn: '85414300', gst: 5 },
+      b: { title: sp(`Installation of ${kwTxt ? kwTxt + ' kW ' : ''}on-grid solar power plant`), lines: 'ACDB, DCDB, cables, solar panel mounting structure, earthing materials, wiring materials, lightning arrester, electrical and solar accessories, transit and work cost', hsn: '995461', gst: 18 } }; };
+  let PT = D.parts && D.parts.a ? { ...D.parts, a: { ...D.parts.a }, b: { ...D.parts.b } } : (g.doc && (D.items || []).length ? null : defParts());
   const pn = (P.panels || []).filter(x => x.serial), iv = (P.inverters || []).filter(x => x.serial);
   const issued = (g.doc || {}).issued_on || today();
   box.innerHTML = `<div class="gdl"><div class="card gdf"><div class="pfch"><i class="i i-receipt"></i><h3>Tax bill</h3><span class="sp"></span><span class="pill ${g.doc ? 'g' : ''}">${g.doc ? esc(g.doc.number) : 'Not issued yet'}</span></div>
-      ${g.quote && g.quote.items.length && !g.doc ? `<p class="mut" style="font-size:12.5px;margin:0 0 6px">Items copied from quotation ${esc(g.quote.number)} — check HSN codes and GST rates before issuing.</p>` : ''}
+      ${g.quote && g.quote.items.length && !g.doc && !PT ? `<p class="mut" style="font-size:12.5px;margin:0 0 6px">Items copied from quotation ${esc(g.quote.number)} — check HSN codes and GST rates before issuing.</p>` : ''}
       <div class="two"><div><label>Invoice date</label><input type="date" id="tdate" value="${issued}" ${w ? '' : 'disabled'}></div>
        <div><label>Supply</label><select id="tinter" ${w ? '' : 'disabled'}><option value="0" ${+D.interstate ? '' : 'selected'}>Within Kerala — CGST + SGST</option><option value="1" ${+D.interstate ? 'selected' : ''}>Outside Kerala — IGST</option></select></div>
        <div><label>Bill to (name)</label><input data-t="bill_name" value="${esc(D.bill_name || '')}" ${w ? '' : 'disabled'}></div><div><label>Customer GSTIN (if any)</label><input data-t="cust_gstin" value="${esc(D.cust_gstin || '')}" maxlength="15" ${w ? '' : 'disabled'}></div>
        <div class="full"><label>Billing address</label><input data-t="bill_address" value="${esc(D.bill_address || '')}" ${w ? '' : 'disabled'}></div></div>
-      <label style="margin-top:12px">Items</label><div id="titems"></div>${w ? '<button class="btn sec sm" id="tadd" type="button"><i class="i i-plus"></i> Add line</button>' : ''}
+      <div id="tlines"></div>
       <label>Notes</label><textarea data-t="notes" rows="2" ${w ? '' : 'disabled'}>${esc(D.notes || '')}</textarea>
       <label>Print on the bill</label><div class="tbo">${[['p', `Panel serial numbers (${pn.length})`], ['i', `Inverter serial numbers (${iv.length})`], ['m', `Energy meter serial${P.meter_serial ? '' : ' (not entered)'}`]].map(([k, l]) => `<label><input type="checkbox" data-o="${k}" ${D.ser[k] ? 'checked' : ''} ${w ? '' : 'disabled'}> ${l}</label>`).join('')}<label><input type="checkbox" data-o="paid" ${D.show_paid ? 'checked' : ''} ${w ? '' : 'disabled'}> Payments received & balance</label></div>
       ${!pn.length && !iv.length && !P.meter_serial ? '<p class="mut" style="font-size:12.5px;margin:4px 0 0">Add serial numbers in <b>Plant details</b> to print them on the bill.</p>' : ''}
@@ -167,18 +183,40 @@ async function renderTax(box, c, id) {
     <div class="tbx"><div class="card" id="tacc"></div><div class="card" id="tsum"></div></div>
     <datalist id="hsnl">${['85414300 — Solar PV modules', '85044090 — Inverters', '73089090 — Mounting structure', '85444999 — Cables', '853690 — Connectors / DB', '995461 — Installation services', '998732 — Repair & maintenance'].map(x => `<option value="${x.split(' ')[0]}">${x}</option>`).join('')}</datalist>`;
   let I = (D.items || []).map(x => ({ ...x }));
-  const drawItems = () => { $('#titems', box).innerHTML = I.map((x, i) => `<div class="tirow"><input data-i="${i}" data-f="desc" value="${esc(x.desc)}" placeholder="Description" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="hsn" value="${esc(x.hsn || '')}" placeholder="HSN/SAC" list="hsnl" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="qty" value="${x.qty}" inputmode="decimal" placeholder="Qty" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="rate" value="${x.rate}" inputmode="decimal" placeholder="Rate" ${w ? '' : 'disabled'}><select data-i="${i}" data-f="gst" ${w ? '' : 'disabled'}>${[0, 5, 12, 18, 28].map(r => `<option ${+x.gst === r ? 'selected' : ''}>${r}</option>`).join('')}</select>${w ? `<button class="ib" data-del="${i}" title="Remove line" type="button"><i class="i i-x"></i></button>` : ''}</div>`).join('');
+  const ro = w ? '' : 'disabled';
+  const partBox = p => `<div class="tpart"><div class="tpk">Part ${p.toUpperCase()} — ${p === 'a' ? 'solar panel & inverter (goods)' : 'installation & other items (service)'}<span class="sp"></span><small id="pamt_${p}" class="mut"></small></div>
+    <label>Title</label><input data-p="${p}.title" value="${esc(PT[p].title)}" ${ro}>
+    <label>Details printed under the title (one per line)</label><textarea data-p="${p}.lines" rows="${p === 'a' ? 5 : 3}" ${SPELL} ${ro}>${esc(PT[p].lines)}</textarea>
+    <div class="two"><div><label>HSN/SAC</label><input data-p="${p}.hsn" list="hsnl" value="${esc(PT[p].hsn || '')}" ${ro}></div><div><label>GST %</label><select data-p="${p}.gst" ${ro}>${[0, 5, 12, 18, 28].map(r => `<option ${+PT[p].gst === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div></div></div>`;
+  const drawItems = () => {
+    if (PT) {
+      $('#tlines', box).innerHTML = `<label style="margin-top:12px">Total amount incl. GST (₹)</label><div class="tbr"><input id="ptot" data-p="total" inputmode="decimal" value="${+PT.total || ''}" placeholder="Plant cost incl. GST" ${ro}>${w && +A.cost && +A.cost !== +PT.total ? `<button class="btn sec sm" id="puse" type="button">Use plant cost ${inr2(A.cost)}</button>` : ''}</div>
+       <div class="two"><div><label>Part A share of the taxable value (%)</label><input data-p="share" inputmode="decimal" value="${+PT.share}" ${ro}></div><div><label>Part B share (%)</label><input id="pshb" value="${100 - Math.min(100, +PT.share || 0)}" disabled></div></div>
+       ${partBox('a')}${partBox('b')}`;
+      if ($('#puse', box)) $('#puse', box).onclick = () => { PT.total = +A.cost; drawItems(); upd(); };
+      return; }
+    $('#tlines', box).innerHTML = `<label style="margin-top:12px">Items</label><div id="titems"></div>${w ? '<button class="btn sec sm" id="tadd" type="button"><i class="i i-plus"></i> Add line</button> <button class="btn sec sm" id="tconv" type="button">Use Part A / Part B layout</button>' : ''}`;
+    if ($('#tadd', box)) $('#tadd', box).onclick = () => { I.push({ desc: '', hsn: '', qty: 1, rate: 0, gst: 18 }); drawItems(); };
+    if ($('#tconv', box)) $('#tconv', box).onclick = () => { PT = defParts(); drawItems(); upd(); toast('Switched to Part A / Part B — check it, then save'); };
+    $('#titems', box).innerHTML = I.map((x, i) => `<div class="tirow"><input data-i="${i}" data-f="desc" value="${esc(x.desc)}" placeholder="Description" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="hsn" value="${esc(x.hsn || '')}" placeholder="HSN/SAC" list="hsnl" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="qty" value="${x.qty}" inputmode="decimal" placeholder="Qty" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="rate" value="${x.rate}" inputmode="decimal" placeholder="Rate" ${w ? '' : 'disabled'}><select data-i="${i}" data-f="gst" ${w ? '' : 'disabled'}>${[0, 5, 12, 18, 28].map(r => `<option ${+x.gst === r ? 'selected' : ''}>${r}</option>`).join('')}</select>${w ? `<button class="ib" data-del="${i}" title="Remove line" type="button"><i class="i i-x"></i></button>` : ''}</div>`).join('');
     $$('[data-del]', box).forEach(b => b.onclick = () => { I.splice(+b.dataset.del, 1); drawItems(); upd(); }); };
-  const calc = () => { const inter = $('#tinter', box).value === '1'; let tx = 0, tt = 0; const rows = I.filter(x => x.desc).map(x => { const tv = (+x.qty || 0) * (+x.rate || 0), t = tv * (+x.gst || 0) / 100; tx += tv; tt += t; return { ...x, tv, t }; });
+  const calc = () => { const inter = $('#tinter', box).value === '1'; let tx = 0, tt = 0;
+    if (PT) { const r2 = x => Math.round(x * 100) / 100, sh = Math.min(100, Math.max(0, +PT.share || 0)), ga = +PT.a.gst || 0, gb = +PT.b.gst || 0;
+      const T = r2((+PT.total || 0) / (1 + (sh * ga + (100 - sh) * gb) / 10000)), atv = r2(T * sh / 100);
+      const rows = [['a', atv, ga], ['b', r2(T - atv), gb]].filter(x => x[1] > 0).map(([p, tv, gst]) => ({ part: p.toUpperCase(), desc: PT[p].title, sub: PT[p].lines, hsn: PT[p].hsn, qty: 1, rate: tv, gst, tv, t: inter ? r2(tv * gst / 100) : 2 * r2(tv * gst / 200) })); /* CGST and SGST each at half the rate, so the columns add up */
+      rows.forEach(x => { tx += x.tv; tt += x.t; }); const sum = r2(tx + tt), grand = Math.round(sum);
+      return { inter, rows, tx: r2(tx), tt: r2(tt), ro: r2(grand - sum), grand, parts: 1, sh, ga, gb }; } const rows = I.filter(x => x.desc).map(x => { const tv = (+x.qty || 0) * (+x.rate || 0), t = tv * (+x.gst || 0) / 100; tx += tv; tt += t; return { ...x, tv, t }; });
     const sum = tx + tt, grand = Math.round(sum); return { inter, rows, tx, tt, ro: grand - sum, grand }; };
-  const val = () => { const o = { items: I, interstate: +$('#tinter', box).value, ser: {}, show_paid: 0 }; $$('[data-t]', box).forEach(e => o[e.dataset.t] = e.value); $$('[data-o]', box).forEach(e => { if (e.dataset.o === 'paid') o.show_paid = e.checked ? 1 : 0; else o.ser[e.dataset.o] = e.checked ? 1 : 0; }); return o; };
+  const val = () => { const o = { items: PT ? [] : I, ...(PT ? { parts: PT } : {}), interstate: +$('#tinter', box).value, ser: {}, show_paid: 0 }; $$('[data-t]', box).forEach(e => o[e.dataset.t] = e.value); $$('[data-o]', box).forEach(e => { if (e.dataset.o === 'paid') o.show_paid = e.checked ? 1 : 0; else o.ser[e.dataset.o] = e.checked ? 1 : 0; }); return o; };
   const html = () => { const v = val(), k = calc();
     return `${coBlock(co)}<h1>TAX INVOICE</h1>
       <div class="dmeta"><div><span>Invoice no.</span><b>${esc(g.doc ? g.doc.number : '(issued on save)')}</b></div><div><span>Invoice date</span>${fdt($('#tdate', box).value)}</div>
        <div><span>Place of supply</span>${k.inter ? 'Outside Kerala (IGST)' : 'Kerala (32)'}</div><div><span>Consumer no.</span>${esc(c.consumer_no || '—')}</div></div>
       <div class="dbox"><h4>Bill to</h4><b>${esc(v.bill_name)}</b><br>${esc(v.bill_address || '')}${v.cust_gstin ? '<br>GSTIN: ' + esc(v.cust_gstin) : ''}${c.phone ? '<br>Ph: ' + esc(c.phone) : ''}</div>
-      <table class="dt"><thead><tr><th>#</th><th>Description</th><th>HSN/SAC</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Taxable value</th><th class="r">GST</th>${k.inter ? '<th class="r">IGST</th>' : '<th class="r">CGST</th><th class="r">SGST</th>'}<th class="r">Amount</th></tr></thead><tbody>
-       ${k.rows.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.desc)}</td><td class="h">${esc(x.hsn || '')}</td><td class="r">${+x.qty}</td><td class="r">${inr2(x.rate)}</td><td class="r">${inr2(x.tv)}</td><td class="r">${+x.gst}%</td>${k.inter ? `<td class="r">${inr2(x.t)}</td>` : `<td class="r">${inr2(x.t / 2)}</td><td class="r">${inr2(x.t / 2)}</td>`}<td class="r">${inr2(x.tv + x.t)}</td></tr>`).join('') || `<tr><td colspan="10">No items</td></tr>`}</tbody></table>
+      ${k.parts ? `<table class="dt"><thead><tr><th>#</th><th>Item</th><th>HSN/SAC</th><th class="r">Taxable value</th><th class="r">GST</th>${k.inter ? '<th class="r">IGST</th>' : '<th class="r">CGST</th><th class="r">SGST</th>'}<th class="r">Amount</th></tr></thead><tbody>
+       ${k.rows.map((x, i) => `<tr><td>${i + 1}</td><td><span class="dpk">PART ${x.part}</span><div class="dpt">${esc(x.desc)}</div>${x.sub ? `<div class="dsub">${esc(x.sub)}</div>` : ''}</td><td class="h">${esc(x.hsn || '')}</td><td class="r">${inr2(x.tv)}</td><td class="r">${+x.gst}%</td>${k.inter ? `<td class="r">${inr2(x.t)}</td>` : `<td class="r">${inr2(x.t / 2)}</td><td class="r">${inr2(x.t / 2)}</td>`}<td class="r">${inr2(x.tv + x.t)}</td></tr>`).join('') || `<tr><td colspan="9">Enter the total amount</td></tr>`}</tbody></table>
+      <div class="dsmall">GST for a solar power plant: ${k.sh}% of the taxable value is supply of goods (Part A) at ${k.ga}% and ${100 - k.sh}% is installation / service (Part B) at ${k.gb}%.</div>` : `<table class="dt"><thead><tr><th>#</th><th>Description</th><th>HSN/SAC</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Taxable value</th><th class="r">GST</th>${k.inter ? '<th class="r">IGST</th>' : '<th class="r">CGST</th><th class="r">SGST</th>'}<th class="r">Amount</th></tr></thead><tbody>
+       ${k.rows.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.desc)}</td><td class="h">${esc(x.hsn || '')}</td><td class="r">${+x.qty}</td><td class="r">${inr2(x.rate)}</td><td class="r">${inr2(x.tv)}</td><td class="r">${+x.gst}%</td>${k.inter ? `<td class="r">${inr2(x.t)}</td>` : `<td class="r">${inr2(x.t / 2)}</td><td class="r">${inr2(x.t / 2)}</td>`}<td class="r">${inr2(x.tv + x.t)}</td></tr>`).join('') || `<tr><td colspan="10">No items</td></tr>`}</tbody></table>`}
       <table class="dt dtot"><tbody><tr><td>Taxable value</td><td class="r">${inr2(k.tx)}</td></tr>${k.inter ? `<tr><td>IGST</td><td class="r">${inr2(k.tt)}</td></tr>` : `<tr><td>CGST</td><td class="r">${inr2(k.tt / 2)}</td></tr><tr><td>SGST</td><td class="r">${inr2(k.tt / 2)}</td></tr>`}
        <tr><td>Round off</td><td class="r">${inr2(k.ro)}</td></tr><tr><td>Total</td><td class="r">${inr2(k.grand)}</td></tr></tbody></table>
       <div class="dbox"><h4>Amount in words</h4>Rupees ${inWords(k.grand)} only</div>
@@ -218,20 +256,23 @@ async function renderTax(box, c, id) {
       ${diff ? `<p class="mfw">Plant cost (${inr2(A.cost)}) and invoice total (${inr2(k.grand)}) differ by ${inr2(Math.abs(A.cost - k.grand))}.${w ? ' <button class="btn sec sm" id="tmatch" title="Scale the item rates so the invoice total (with GST) equals the plant cost">Match plant cost</button>' : ''}</p>` : ''}
       <table class="tbh"><thead><tr><th>HSN/SAC</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Taxable</th>${k.inter ? '<th class="r">IGST</th>' : '<th class="r">CGST</th><th class="r">SGST</th>'}</tr></thead>
       <tbody>${hs.map(h => `<tr><td>${esc(h.hsn)}</td><td class="r">${+h.qty.toFixed(2)}</td><td class="r">${h.gst}%</td><td class="r">${inr2(h.tv)}</td>${k.inter ? `<td class="r">${inr2(h.t)}</td>` : `<td class="r">${inr2(h.t / 2)}</td><td class="r">${inr2(h.t / 2)}</td>`}</tr>`).join('')}</tbody></table>`;
-    if ($('#tmatch', box)) $('#tmatch', box).onclick = () => { const f = A.cost / calc().grand; I.forEach(x => x.rate = Math.round((+x.rate || 0) * f * 100) / 100); drawItems(); upd(); const d = A.cost - calc().grand; if (Math.abs(d) >= 0.5 && I.length) { const x = I.find(y => +y.qty === 1) || I[0]; x.rate = Math.round((x.rate + d / (+x.qty || 1) / (1 + (+x.gst || 0) / 100)) * 100) / 100; drawItems(); upd(); } toast('Item rates adjusted — save to keep'); };
+    if ($('#tmatch', box)) $('#tmatch', box).onclick = () => { if (PT) { PT.total = +A.cost; drawItems(); upd(); return toast('Total set to the plant cost — save to keep'); } const f = A.cost / calc().grand; I.forEach(x => x.rate = Math.round((+x.rate || 0) * f * 100) / 100); drawItems(); upd(); const d = A.cost - calc().grand; if (Math.abs(d) >= 0.5 && I.length) { const x = I.find(y => +y.qty === 1) || I[0]; x.rate = Math.round((x.rate + d / (+x.qty || 1) / (1 + (+x.gst || 0) / 100)) * 100) / 100; drawItems(); upd(); } toast('Item rates adjusted — save to keep'); };
     $('#tscp', box).onclick = () => { const r = sumRows(); copyText(r.info.map(([l, x]) => `${l}: ${x}`).join('\n') + '\n\nHSN summary\n' + r.hs.map(h => `${h.hsn} · ${h.gst}% · taxable ${inr2(h.tv)} · tax ${inr2(h.t)}`).join('\n'), 'bill details'); };
     $('#tscsv', box).onclick = () => { const r = sumRows(), q = x => '"' + String(x).replace(/"/g, '""') + '"', n = x => (Math.round(x * 100) / 100).toFixed(2);
       const csv = ['Invoice no,Invoice date,Customer,Customer GSTIN,Place of supply,HSN/SAC,Qty,GST rate %,Taxable value,CGST,SGST,IGST,Invoice total',
         ...r.hs.map(h => [g.doc ? g.doc.number : '', $('#tdate', box).value, r.v.bill_name, r.v.cust_gstin, r.k.inter ? 'Other state' : '32-Kerala', h.hsn, +h.qty.toFixed(2), h.gst, n(h.tv), r.k.inter ? 0 : n(h.t / 2), r.k.inter ? 0 : n(h.t / 2), r.k.inter ? n(h.t) : 0, r.k.grand].map(q).join(','))].join('\r\n');
       const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv' })); a.download = `Tax bill ${(g.doc ? g.doc.number : 'draft').replace(/\//g, '-')} - ${c.name}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }; };
-  const upd = () => { $('#tdoc', box).innerHTML = html(); drawSum(); };
+  const upd = () => { $('#tdoc', box).innerHTML = html(); drawSum();
+    if (PT) { const k = calc(); ['A', 'B'].forEach(p => { const x = k.rows.find(r => r.part === p), el = $('#pamt_' + p.toLowerCase(), box); if (el) el.textContent = x ? `${inr2(x.tv)} + GST ${inr2(x.t)} = ${inr2(x.tv + x.t)}` : '—'; });
+      const b = $('#pshb', box); if (b) b.value = 100 - k.sh; } };
   drawItems(); drawAcc(); upd();
-  box.addEventListener('input', e => { if (e.target.dataset.i !== undefined) { const x = I[+e.target.dataset.i]; x[e.target.dataset.f] = e.target.dataset.f === 'desc' || e.target.dataset.f === 'hsn' ? e.target.value : +e.target.value || 0;
+  box.addEventListener('input', e => { if (PT && e.target.dataset.p) { const [k, f] = e.target.dataset.p.split('.');
+      if (f) PT[k][f] = f === 'gst' ? +e.target.value : e.target.value; else PT[k] = Math.max(0, +String(e.target.value).replace(/[^\d.]/g, '') || 0); upd(); return; }
+    if (e.target.dataset.i !== undefined) { const x = I[+e.target.dataset.i]; x[e.target.dataset.f] = e.target.dataset.f === 'desc' || e.target.dataset.f === 'hsn' ? e.target.value : +e.target.value || 0;
       if (e.target.dataset.f === 'desc' && !x.hsn) { const h = guessHsn(x.desc); if (h[1]) { x.hsn = h[1]; x.gst = h[2]; drawItems(); } } } upd(); });
   box.addEventListener('change', e => { if (e.target.dataset.f === 'gst') { I[+e.target.dataset.i].gst = +e.target.value; } upd(); });
-  if ($('#tadd', box)) $('#tadd', box).onclick = () => { I.push({ desc: '', hsn: '', qty: 1, rate: 0, gst: 18 }); drawItems(); };
   $('#tpr', box).onclick = () => printDoc(`Tax invoice — ${c.name}`, `<div class="doc">${html()}</div>`);
-  if ($('#tsv', box)) $('#tsv', box).onclick = async () => { const v = val(), k = calc(); if (!k.rows.length) return toast('Add at least one item', true);
+  if ($('#tsv', box)) $('#tsv', box).onclick = async () => { const v = val(), k = calc(); if (!k.rows.length) return toast(PT ? 'Enter the total amount (incl. GST)' : 'Add at least one item', true);
     v.grand = k.grand; v.taxable = Math.round(k.tx * 100) / 100; v.tax = Math.round(k.tt * 100) / 100; const b = $('#tsv', box); b.disabled = true;
     try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, data: v }); toast(`Tax bill ${r.number} saved`); renderTax(box, c, id); } catch (e) { b.disabled = false; } };
 }

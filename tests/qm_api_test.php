@@ -334,6 +334,22 @@ if ($dbPath !== '' && is_file($dbPath)) {
 } else echo "  skip owner backfill test (no database path given)\n";
 foreach ([$asha, $ravi, $mira, $eli, $acc, $miraC] as $a) @unlink($a['jar']);
 
+/* ---- tax bill: Part A / Part B data round-trips, and every bill gets its own invoice number ---- */
+$tb = []; foreach (['Bill One', 'Bill Two', 'Bill Three'] as $nm) $tb[] = call($admin, 'customers', 'save', ['name' => $nm, 'phone' => '9847' . rand(100000, 999999)])['id'] ?? 0;
+$parts = ['total' => 320000, 'share' => 70, 'a' => ['title' => 'Supply of 5 kW on-grid solar power plant', 'lines' => "Solar panel: 8 x 600 Wp\nMake: Waaree", 'hsn' => '85414300', 'gst' => 5], 'b' => ['title' => 'Installation of 5 kW on-grid solar power plant', 'lines' => 'ACDB, DCDB, cables', 'hsn' => '995461', 'gst' => 18]];
+$n1 = call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[0], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill One', 'items' => [], 'parts' => $parts, 'grand' => 320000]])['number'] ?? '';
+$n2 = call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[1], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill Two', 'items' => [], 'parts' => $parts]])['number'] ?? '';
+chk($n1 !== '' && $n2 !== '' && $n1 !== $n2, "tax bill: two bills get different numbers ($n1, $n2)");
+$gb = call($admin, 'gen', 'get', null, "&kind=tax&customer_id={$tb[0]}");
+chk(($gb['doc']['data']['parts']['a']['gst'] ?? 0) === 5 && ($gb['doc']['data']['parts']['b']['hsn'] ?? '') === '995461' && ($gb['doc']['data']['parts']['total'] ?? 0) === 320000, 'tax bill: Part A / Part B saved as entered');
+$re = call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[0], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill One', 'items' => [], 'parts' => $parts]])['number'] ?? '';
+chk($re === $n1, 'tax bill: saving changes keeps the bill\'s number');
+if ($dbPath !== '' && is_file($dbPath)) { // a counter left stuck by the old bug ("1" stored as JSON text) must not hand out a used number again
+  $pdo = new PDO('sqlite:' . $dbPath); $pdo->exec('PRAGMA busy_timeout=5000'); $pdo->exec("UPDATE settings SET v='\"1\"' WHERE k='seq_tax_26-27'"); $pdo = null;
+  $n3 = call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[2], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill Three', 'items' => [], 'parts' => $parts]])['number'] ?? '';
+  chk($n3 !== '' && !in_array($n3, [$n1, $n2], true), "tax bill: a stuck counter does not reuse an issued number ($n3)");
+}
+
 echo "\n$pass passed, $fail failed\n";
 foreach ([$anon, $admin, $sales, $sales2] as $a) @unlink($a['jar']);
 exit($fail ? 1 : 0);
