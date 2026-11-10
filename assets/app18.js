@@ -113,6 +113,8 @@ async function renderWarranty(box, c, id) {
 // Same rows as the distributor's Excel form; downloads as .xls in that layout.
 const MFR_ROWS = [['distributor', 'Distributer '], ['dealer', 'Dealer Name'], ['module', 'Module Type'], ['serials', 'Sl Nos'], ['sp_invoice', 'Southern Power Invoice No:'], ['cust_name', 'Final Customer Name'], ['cust_invoice', 'Final Customer Invoice No:'], ['invoice_date', 'Final Invoice Date'], ['address', 'Customer Address'], ['phone', 'Customer Phone No: '], ['pdf', 'PDF of Final customer Invoice']];
 const mfDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? d.split('-').reverse().join('-') : (d || '');
+/* column widths in characters (SheetJS "wch"); an unknown key saves the columns 0 wide and hidden, and the file opens looking empty */
+const MFR_COLS = [{ wch: 32 }, { wch: 85 }];
 let XLSX_P = null;
 const loadXlsx = () => XLSX_P = XLSX_P || new Promise((ok, no) => { if (window.XLSX) return ok(window.XLSX); const sc = document.createElement('script'); sc.src = 'assets/vendor/xlsx-0.18.5.min.js'; sc.onload = () => ok(window.XLSX); sc.onerror = () => { XLSX_P = null; no(new Error('Could not load the Excel library')); }; document.head.appendChild(sc); });
 async function renderMfr(box, c, id, fresh) {
@@ -144,7 +146,7 @@ async function renderMfr(box, c, id, fresh) {
   const fname = v => `${(P.panel_make || 'Renew').replace(/[^\w ]+/g, '').trim() || 'Renew'} Warranty Certificate - ${(v.cust_name || c.name || 'customer').replace(/[\\/:*?"<>|]+/g, '').trim()}.xls`;
   $('#mfx', box).onclick = async e => { const b = e.currentTarget; b.disabled = true;
     try { const X = await loadXlsx(), v = val(), ws = X.utils.aoa_to_sheet(rows(v));
-      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }]; ws['!cols'] = [{ wyh: 25 }, { wyh: 85.44 }];
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }]; ws['!cols'] = MFR_COLS;
       const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Sheet1'); X.writeFile(wb, fname(v), { bookType: 'biff8' }); toast('Excel form downloaded');
     } catch (x) { toast(x.message || 'Download failed'); } b.disabled = false; };
   const text = v => rows(v).map(r => r.length > 1 ? `${r[0].trim()} ${r[1]}` : r[0].trim()).join('\n');
