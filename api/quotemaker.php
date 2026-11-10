@@ -33,6 +33,7 @@ function qm_coerce($v, $def, $depth = 0) {
   if (is_float($def)) return is_numeric($v) ? (float)$v : $def;
   return is_scalar($v) ? mb_substr(trim((string)$v), 0, 2000) : $def;
 }
+function qm_next_n(): int { $r = row("SELECT v FROM settings WHERE k='qm_next'"); $n = $r ? (int)json_decode($r['v'], true) : 144; return $n < 1 ? 144 : $n; }
 function qm_number($n = null): string {
   if ($n === null) { $r = row("SELECT v FROM settings WHERE k='qm_next'"); $n = $r ? (int)json_decode($r['v'], true) : 144; if ($n < 1) $n = 144; }
   return str_replace(['{YYYY}', '{NNNN}'], [date('Y'), str_pad((string)$n, 4, '0', STR_PAD_LEFT)], qm_settings()['number_format']);
@@ -84,7 +85,7 @@ function handle_qm($a) {
       $products = array_map(fn($p) => qm_product_out($p, $fin), rows('SELECT * FROM qm_products ORDER BY sort, id'));
       $templates = array_map(function ($t) { $t['id'] = (int)$t['id']; $t['data'] = json_decode((string)$t['data'], true) ?: new stdClass(); $t['created_by'] = $t['created_by'] === null ? null : (int)$t['created_by']; $t['created_name'] = (string)($t['created_name'] ?? ''); return $t; },
         rows('SELECT t.id,t.name,t.data,t.created_by,u.name AS created_name,t.updated FROM qm_templates t LEFT JOIN users u ON u.id=t.created_by ORDER BY t.id'));
-      out(['cats' => QM_CATS, 'products' => $products, 'templates' => $templates, 'settings' => qm_settings(), 'admin' => is_admin() ? 1 : 0, 'finance' => $fin ? 1 : 0, 'next_number' => qm_number()]);
+      out(['cats' => QM_CATS, 'products' => $products, 'templates' => $templates, 'settings' => qm_settings(), 'admin' => is_admin() ? 1 : 0, 'finance' => $fin ? 1 : 0, 'next_number' => qm_number(), 'next_n' => qm_next_n()]);
     }
     case 'product_save': {
       if (!is_admin()) fail('Only an admin can change the product list', 403);
@@ -145,6 +146,11 @@ function handle_qm($a) {
       if ($clean['valid_days'] < 1) $clean['valid_days'] = QM_DEFAULTS['valid_days'];
       if (strpos($clean['number_format'], '{NNNN}') === false) $clean['number_format'] = QM_DEFAULTS['number_format'];
       kv_set('qm_settings', $clean);
+      if (array_key_exists('next_number', $in)) {
+        $nn = $in['next_number'];
+        if (!is_numeric($nn) || (int)$nn < 1 || (int)$nn > 99999999) fail('The next quotation number must be a whole number, 1 or more');
+        kv_set('qm_next', (int)$nn);
+      }
       audit('qm_settings', 'settings');
       out(['ok' => true]);
     }

@@ -83,6 +83,13 @@ chk(($b4['settings']['valid_days'] ?? 0) === 7 && ($b4['settings']['kseb']['stam
 chk(!empty(call($admin, 'qm', 'settings_save', ['settings' => ['loan' => ['tariff' => 7.5, 'margin_pct' => 12.5, 'units_per_kwp' => 1300]]])['ok']), 'save decimal loan numbers');
 $b5 = call($admin, 'qm', 'boot');
 chk(($b5['settings']['loan']['tariff'] ?? 0) === 7.5 && ($b5['settings']['loan']['margin_pct'] ?? 0) === 12.5 && ($b5['settings']['loan']['units_per_kwp'] ?? 0) === 1300, 'decimals survive in int-typed settings');
+$next0 = call($admin, 'qm', 'boot')['next_n'] ?? 144;
+chk(call($sales, 'qm', 'settings_save', ['settings' => ['valid_days' => 7], 'next_number' => 500])['_code'] === 403, 'sales cannot set the next number');
+chk(call($admin, 'qm', 'settings_save', ['settings' => ['valid_days' => 7], 'next_number' => 'abc'])['_code'] === 400, 'bad next number refused');
+chk(!empty(call($admin, 'qm', 'settings_save', ['settings' => ['valid_days' => 7], 'next_number' => 500])['ok']), 'admin sets the next number');
+$b6 = call($admin, 'qm', 'boot');
+chk(($b6['next_n'] ?? 0) === 500 && $b6['next_number'] === 'JSS/PMSGY/' . date('Y') . '/0500', 'next number changed');
+call($admin, 'qm', 'settings_save', ['settings' => ['valid_days' => 7], 'next_number' => $next0]);
 $seen = []; $nolabel = 0; $dup = 0;
 foreach ($boot['products'] ?? [] as $p) { if (trim($p['label'] ?? '') === '') $nolabel++; $k = $p['cat'] . '|' . ($p['label'] ?? ''); if (isset($seen[$k])) $dup++; $seen[$k] = 1; }
 chk($nolabel === 0 && $dup === 0, 'every seeded product has a label, unique within its category');
