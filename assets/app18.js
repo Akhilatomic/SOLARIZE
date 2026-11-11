@@ -11,10 +11,27 @@ function inWords(n) { // Indian numbering: crore, lakh, thousand
   return (s + three(n)).trim();
 }
 const coBlock = co => `<div class="dhco"><img src="${location.origin}/assets/logo.png" alt=""><div><b>${esc(co.name || 'Jasper Solar Solutions')}</b><div>${esc(co.address || '')}</div><div>${[co.phone ? 'Ph: ' + esc(co.phone) : '', co.email ? esc(co.email) : '', co.gstin ? 'GSTIN: ' + esc(co.gstin) : ''].filter(Boolean).join(' · ')}</div></div></div>`;
-function printDoc(title, inner) {
+/* print window HTML; fit = one A4 page: the document sits in a .dpage box exactly the printable area (A4 less the 12 mm margins) */
+const printHtml = (title, inner, fit) => `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${DOC_CSS}@page{size:A4;margin:12mm}body{margin:0;background:#fff}.doc{box-shadow:none;margin:0 auto;border:0}</style></head><body>${fit ? `<div class="dpage">${inner}</div>` : inner}</body></html>`;
+/* Fit the document in .dpage onto one page: measured at the page width, it is scaled down (transform, so the text stays vector)
+   just enough to fit the height, and widened by the same factor so it still fills the width. A document shorter than the page
+   is stretched to the full height instead, which puts the signature (margin-top:auto) at the foot of the page. */
+const PRINT_A4 = { w: 186, h: 271 }; /* mm: A4 210 × 297 less 12 mm margins, with 2 mm to spare on the height */
+function fitPage(win) {
+  const page = win.document.querySelector('.dpage'), el = page && page.firstElementChild; if (!el) return 1;
+  const mm = 96 / 25.4, W = PRINT_A4.w * mm, H = PRINT_A4.h * mm;
+  const height = z => { el.style.width = W / z + 'px'; el.style.minHeight = '0'; return el.offsetHeight; };
+  let z = 1;
+  for (let i = 0; i < 6; i++) { const nz = Math.min(1, H / height(z)); if (Math.abs(nz - z) < 0.002) { z = nz; break; } z = nz; }
+  while (z > 0.5 && height(z) * z > H) z -= 0.01; /* the iteration can stop just above the fit */
+  el.style.width = W / z + 'px'; el.style.minHeight = H / z + 'px';
+  el.style.transformOrigin = '0 0'; el.style.transform = z < 1 ? `scale(${z})` : '';
+  return z;
+}
+function printDoc(title, inner, fit) {
   const w = window.open('', '_blank'); if (!w) return toast('Allow pop-ups to print or save the PDF', true);
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${DOC_CSS}@page{size:A4;margin:12mm}body{margin:0;background:#fff}.doc{box-shadow:none;margin:0 auto;border:0}</style></head><body>${inner}</body></html>`);
-  w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 350);
+  w.document.write(printHtml(title, inner, fit));
+  w.document.close(); setTimeout(() => { if (fit) fitPage(w); w.focus(); w.print(); }, 350);
 }
 /* tax bill layout (header with the title on the right, Bill to / Ship to, item table with CGST/SGST % and amount, totals beside the words) */
 const TAXDOC_CSS = `.dhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:2px solid #1d1d1f;padding-bottom:10px}
@@ -35,7 +52,10 @@ const TAXDOC_CSS = `.dhead{display:flex;justify-content:space-between;align-item
 .dsrl{margin:0;padding:0 0 0 22px;column-gap:18px;font:10.5px/1.6 ui-monospace,Menlo,Consolas,monospace}.dsrl li{break-inside:avoid}
 .dsign{display:flex;justify-content:flex-end;margin-top:18px;break-inside:avoid}.dstamp{width:260px;text-align:center;font-size:11px}.dstamp .dfor{font-weight:600}
 .dstamp .dsp{height:92px}.dstamp .dsl{border-top:1px solid #1d1d1f;padding-top:4px;font-weight:600}.dstamp small{display:block;color:#6e6e73;font-size:10px}
-@media print{.dtax{font-size:11.5px!important;line-height:1.38!important;padding:0!important;min-height:270mm;box-sizing:border-box;display:flex;flex-direction:column}.dtax .dsign{margin-top:auto;padding-top:6px}}.dtot .dgt td,.dtot .dbal td{font-weight:700!important;font-size:13.5px!important;border-bottom:2px solid #1d1d1f!important}.dtot .dpay td{color:#c4271f}`;
+.dpage{width:186mm;height:271mm;overflow:hidden}.dpage .doc{max-width:none;padding:0;margin:0}
+.dpage .dtax{font-size:11px;line-height:1.36;box-sizing:border-box;display:flex;flex-direction:column}.dpage .dtax .dsign{margin-top:auto;padding-top:10px}
+.dpage .dt{margin:4px 0 8px}.dpage .dt th,.dpage .dt td{padding:3px 5px}.dpage .dbox{padding:5px 8px;margin-bottom:6px}.dpage .dtax .dmeta{margin:6px 0 8px}
+.dpage .dhead{padding-bottom:8px}.dpage .dhco img{width:48px;height:48px}.dpage .dstamp .dsp{height:84px}.dtot .dgt td,.dtot .dbal td{font-weight:700!important;font-size:13.5px!important;border-bottom:2px solid #1d1d1f!important}.dtot .dpay td{color:#c4271f}`;
 const DOC_CSS = `.tbg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px 12px;margin-top:2px}.tbs+.tbs{margin-top:6px}
 .doc{font:12px/1.45 -apple-system,"Segoe UI",Arial,sans-serif;color:#1d1d1f;background:#fff;padding:26px 28px;max-width:794px}
 .doc h1{font-size:18px;letter-spacing:.06em;text-align:center;margin:14px 0 12px;font-weight:700}
@@ -379,7 +399,7 @@ async function renderTax(box, c, id) {
   $('#tdate', box).addEventListener('change', () => { if (!g.doc && noAuto) nextNo(); });
   noHint();
   if ($('#tgoplant', box)) $('#tgoplant', box).onclick = () => { const t = document.querySelector('[data-pt="plant"]'); if (t) { t.click(); scrollTo({ top: 0, behavior: 'smooth' }); } };
-  $('#tpr', box).onclick = () => printDoc(`Tax invoice — ${c.name}`, `<div class="doc dtax">${html()}</div>`);
+  $('#tpr', box).onclick = () => printDoc(`Tax invoice — ${c.name}`, `<div class="doc dtax">${html()}</div>`, true); /* always one A4 page */
   if ($('#tsv', box)) $('#tsv', box).onclick = async () => { const v = val(), k = calc(); if (!k.rows.length) return toast(PT ? 'Enter the total amount (incl. GST)' : 'Add at least one item', true);
     v.grand = k.grand; v.taxable = Math.round(k.tx * 100) / 100; v.tax = Math.round(k.tt * 100) / 100; const b = $('#tsv', box); b.disabled = true;
     try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: !g.doc && noAuto ? '' : $('#tno', box).value.trim(), data: v }); toast(`Tax bill ${r.number} saved`); renderTax(box, c, id); } catch (e) { b.disabled = false; } };
