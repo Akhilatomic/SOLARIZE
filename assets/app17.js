@@ -52,8 +52,11 @@ function presPaint() {
     if (el.title !== lb) el.title = lb; });
 }
 async function presBeat() {
-  try { const r = await fetch(`api.php?m=user&a=presence&act=${Date.now() - PRES.used < 3e5 ? 1 : 0}`, { credentials: 'same-origin' }); if (!r.ok) return;
-    const j = await r.json(); PRES.map = Object.fromEntries((j.users || []).map(u => [u.id, u])); presPaint(); } catch (e) { }
+  /* team=1 while the dashboard is open: names, roles and pictures come too, for its Who's online strip */
+  try { const team = document.getElementById('dteam') ? 1 : 0;
+    const r = await fetch(`api.php?m=user&a=presence&act=${Date.now() - PRES.used < 3e5 ? 1 : 0}&team=${team}`, { credentials: 'same-origin' }); if (!r.ok) return;
+    const j = await r.json(); PRES.map = Object.fromEntries((j.users || []).map(u => [u.id, u])); presPaint();
+    if (typeof dashTeam === 'function') dashTeam(); } catch (e) { }
 }
 function startPresence() {
   if (!PRES.on) { PRES.on = true; const mark = () => { PRES.used = Date.now(); };
@@ -61,4 +64,32 @@ function startPresence() {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { mark(); presBeat(); } });
     new MutationObserver(debounce(presPaint, 200)).observe(document.body, { childList: true, subtree: true }); } /* pictures drawn later get their ring too */
   clearInterval(PRES.t); PRES.t = setInterval(presBeat, 60000); presBeat();
+}
+
+/* ---- Dashboard: who else is using the CRM now (header strip; a click lists everyone with their status) ---- */
+const TEAM_GROUPS = [['on', 'Online now'], ['away', 'Away · CRM open but idle, or checked in'], ['off', 'Offline']];
+function teamPeople() { return Object.values(PRES.map).filter(u => u.name !== undefined).sort((a, b) => String(a.name).localeCompare(String(b.name))); }
+function dashTeam() {
+  const el = document.getElementById('dteam'); if (!el) return;
+  const all = teamPeople(); if (!all.length) { el.innerHTML = ''; el.classList.add('hide'); return; }
+  el.classList.remove('hide');
+  const others = all.filter(u => +u.id !== +ME.id), on = others.filter(u => u.st === 'on'), away = others.filter(u => u.st === 'away'), shown = on.concat(away).slice(0, 5);
+  el.innerHTML = `${shown.length ? `<span class="dtav">${shown.map(u => `<span class="dtp" data-pres="${u.id}">${avImg(u.id, u.avatar, u.name)}</span>`).join('')}${on.length + away.length > 5 ? `<span class="dtp dtm">+${on.length + away.length - 5}</span>` : ''}</span>` : '<span class="dtdot"></span>'}
+    <span class="dtt"><b>${on.length ? on.length + ' online' : 'Nobody else online'}</b>${away.length ? `<small>${away.length} away</small>` : ''}</span><i class="i i-chev"></i>`;
+  el.title = on.length || away.length ? 'Who is online: ' + on.concat(away).map(u => u.name + (u.st === 'on' ? '' : ' (away)')).join(', ') : 'Who is online';
+  el.onclick = teamModal; el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); teamModal(); } };
+  presPaint(); if (TEAM_M && document.body.contains(TEAM_M)) teamList(TEAM_M);
+}
+let TEAM_M = null;
+function teamList(m) {
+  const all = teamPeople();
+  $('.tml', m).innerHTML = TEAM_GROUPS.map(([st, label]) => { const g = all.filter(u => u.st === st); return g.length ? `<h4 class="tmh"><span class="tmdot ${st}"></span>${label} <span class="mut">${g.length}</span></h4>
+    ${g.map(u => `<div class="tmr"><span class="dtp" data-pres="${u.id}">${avImg(u.id, u.avatar, u.name)}</span><div><b>${esc(u.name)}${+u.id === +ME.id ? ' <small class="mut">(you)</small>' : ''}</b><small class="mut">${esc(u.role_name || '')}${u.role_name ? ' · ' : ''}${esc(presLabel(u))}</small></div></div>`).join('')}` : ''; }).join('');
+  presPaint();
+}
+function teamModal() {
+  TEAM_M = modal(`<div class="dlh"><h2>Who is online</h2><span class="sp"></span><button class="lvx" id="tmx" aria-label="Close"><i class="i i-x"></i></button></div>
+    <p class="mut" style="margin:-4px 0 10px;font-size:12px">Updated every minute. Green: using the CRM now · Yellow: CRM open but idle, or checked in for attendance · Red: offline.</p><div class="tml"></div>`);
+  $('#tmx', TEAM_M).onclick = () => { TEAM_M.remove(); TEAM_M = null; };
+  teamList(TEAM_M);
 }

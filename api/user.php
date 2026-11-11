@@ -32,12 +32,13 @@ function handle_user($a) {
       if ($u0 && ($now - (int)$u0['seen_at'] >= 40 || ($act && $now - (int)$u0['active_at'] >= 40))) /* at most one write a minute per tab */
         q('UPDATE users SET seen_at=?' . ($act ? ', active_at=?' : '') . ' WHERE id=?', $act ? [$now, $now, $me] : [$now, $me]);
       $in = []; foreach (rows("SELECT user_id, check_in FROM attendance WHERE date=? AND COALESCE(check_in,'')<>'' AND COALESCE(check_out,'')=''", [date('Y-m-d')]) as $r) $in[(int)$r['user_id']] = $r['check_in'];
-      $list = [];
-      foreach (rows('SELECT id, seen_at, active_at FROM users WHERE active=1') as $u) {
+      $list = []; $team = !empty($_GET['team']); /* team=1 (the dashboard's Who's online): names, roles and pictures too */
+      foreach (rows('SELECT id, name, role, avatar, seen_at, active_at FROM users WHERE active=1') as $u) {
         $id = (int)$u['id']; $seen = $id === $me ? $now : (int)$u['seen_at']; $used = $id === $me && $act ? $now : (int)$u['active_at'];
         $open = $seen && $now - $seen <= 150; $busy = $open && $used && $now - $used <= 300;
         $list[] = ['id' => $id, 'st' => $busy ? 'on' : ($open || isset($in[$id]) ? 'away' : 'off'), 'open' => $open ? 1 : 0,
-          'seen' => $seen ? $now - $seen : null, 'idle' => $used ? $now - $used : null, 'in' => $in[$id] ?? null];
+          'seen' => $seen ? $now - $seen : null, 'idle' => $used ? $now - $used : null, 'in' => $in[$id] ?? null]
+          + ($team ? ['name' => $u['name'], 'role_name' => ROLE_NAMES[$u['role']] ?? $u['role'], 'avatar' => (string)$u['avatar']] : []);
       }
       out(['users' => $list]);
     case 'avatar_remove':

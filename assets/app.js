@@ -266,7 +266,7 @@ async function pgDashboard() {
    <text x="110" y="100" text-anchor="middle" font-size="26" font-weight="700" fill="#1d1d1f">${d.lead_year}</text><text x="110" y="118" text-anchor="middle" font-size="11" fill="#6e6e73">leads this year</text></svg>`;
   const lst = (arr, fn, empty) => arr.length ? `<div class="scroll">${arr.map(fn).join('')}</div>` : `<p class="mut">${empty}</p>`;
   const head = (t, extra = '') => `<div class="ch"><h3>${t}</h3>${extra}</div>`;
-  $('#main').innerHTML = `<div class="dhead"><div><h2>Hello, ${esc(first)}!</h2><div class="mut">${BA() ? 'Here’s how your leads and customers are doing today.' : 'Here’s how Jasper Solar is doing today.'}</div></div><div class="mut dtime">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
+  $('#main').innerHTML = `<div class="dhead"><div><h2>Hello, ${esc(first)}!</h2><div class="mut">${BA() ? 'Here’s how your leads and customers are doing today.' : 'Here’s how Jasper Solar is doing today.'}</div></div><div class="dhr"><div class="dteam" id="dteam" role="button" tabindex="0" title="Who is online"></div><div class="mut dtime">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div></div>
   <div class="dg">
    <div class="s8" id="newleads"></div>
    <div class="s4 card"><div style="display:flex;gap:12px;align-items:center"><div class="avatar"><i class="i i-sun"></i></div><div><b style="font-size:16px">Good ${gm}, ${esc(first)}</b><div class="mut" style="font-size:12px">Your daily summary</div></div></div>
@@ -315,6 +315,8 @@ async function pgDashboard() {
     }
   };
   $$('[data-dt]').forEach(t => { t.onclick = () => tileGo(t.dataset.dt); t.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tileGo(t.dataset.dt); } }; });
+  /* Who's online: names come with the next presence check (it asks for them while #dteam is on the page) */
+  dashTeam(); if (typeof presBeat === 'function') presBeat();
   // calendar with appointment dots
   let cm = new Date(); cm.setDate(1); let sel = today();
   const drawCal = () => {
