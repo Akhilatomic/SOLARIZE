@@ -260,10 +260,15 @@ async function pgDashboard() {
   const src = d.sources.length ? d.sources.map((s, i) => `<div style="display:flex;align-items:center;gap:10px;margin:9px 0"><span style="width:110px;font-size:13px">${esc(s.s)}</span><div class="prog" style="flex:1"><i style="width:${s.n / smax * 100}%;background:${cols[i % cols.length]}"></i></div><b>${s.n}</b></div>`).join('') : '<div style="text-align:center;padding:30px 0"><b style="font-size:30px">0</b><br><small class="mut">LEADS</small></div>';
   // conversion
   const conv = d.leads_all ? Math.round(d.converted / d.leads_all * 1000) / 10 : 0;
-  // target gauge
-  const f = Math.min(1, d.lead_year / (d.lead_target || 1000));
-  const gauge = `<svg viewBox="0 0 220 130" style="width:260px;max-width:100%"><path d="M10 115 A100 100 0 0 1 210 115" pathLength="100" fill="none" stroke="#ececf0" stroke-width="26"/><path d="M10 115 A100 100 0 0 1 210 115" pathLength="100" fill="none" stroke="#0071e3" stroke-width="26" stroke-dasharray="${f * 100} 100" stroke-linecap="butt"/>
-   <text x="110" y="100" text-anchor="middle" font-size="26" font-weight="700" fill="#1d1d1f">${d.lead_year}</text><text x="110" y="118" text-anchor="middle" font-size="11" fill="#6e6e73">leads this year</text></svg>`;
+  // target gauges: leads this month (Settings → monthly lead target) and customers this year (yearly customer target); green once reached
+  const gaugeOf = (n, target, what, color) => {
+    const f = Math.min(1, n / (target || 1)), done = n >= target;
+    return `<div class="tgg"><svg viewBox="0 0 220 130" style="width:210px;max-width:100%"><path d="M10 115 A100 100 0 0 1 210 115" pathLength="100" fill="none" stroke="#ececf0" stroke-width="24"/><path d="M10 115 A100 100 0 0 1 210 115" pathLength="100" fill="none" stroke="${done ? '#34c759' : color}" stroke-width="24" stroke-dasharray="${f * 100} 100" stroke-linecap="butt"/>
+     <text x="110" y="98" text-anchor="middle" font-size="26" font-weight="700" fill="#1d1d1f">${n.toLocaleString('en-IN')}</text><text x="110" y="117" text-anchor="middle" font-size="11" fill="#6e6e73">${what}</text></svg>
+     <div class="mut" style="font-size:12.5px">${done ? '<b style="color:var(--ok)">Target reached</b>' : `Remaining <b style="color:var(--tx)">${(target - n).toLocaleString('en-IN')}</b>`} · Target <b style="color:var(--tx)">${target.toLocaleString('en-IN')}</b> · ${Math.round(f * 100)}%</div></div>`;
+  };
+  const mName = new Date().toLocaleDateString('en-GB', { month: 'long' });
+  const gauge = gaugeOf(+d.leads_month || 0, +d.lead_target || 1000, 'leads in ' + mName, '#0071e3') + gaugeOf(+d.cust_year || 0, +d.customer_target || 2000, 'customers in ' + new Date().getFullYear(), '#5e5ce6');
   const lst = (arr, fn, empty) => arr.length ? `<div class="scroll">${arr.map(fn).join('')}</div>` : `<p class="mut">${empty}</p>`;
   const head = (t, extra = '') => `<div class="ch"><h3>${t}</h3>${extra}</div>`;
   $('#main').innerHTML = `<div class="dhead"><div><h2>Hello, ${esc(first)}!</h2><div class="mut">${BA() ? 'Here’s how your leads and customers are doing today.' : 'Here’s how Jasper Solar is doing today.'}</div></div><div class="dhr"><div class="dteam" id="dteam" role="button" tabindex="0" title="Who is online"></div><div class="mut dtime">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div></div>
@@ -281,7 +286,7 @@ async function pgDashboard() {
 
    <div class="${BA() ? 's8' : 's6'} card">${head('Lead Trend · 30 days', '<small class="mut"><span style="color:#0071e3">●</span> Leads &nbsp;<span style="color:#30a14e">●</span> Won</small>')}${trend}</div>
    <div class="${BA() ? 's4' : 's3'} card">${head('Lead by Source')}${src}</div>
-   <div class="s3 card ${BA() ? 'hide' : ''}" style="text-align:center">${head('Lead Target · ' + new Date().getFullYear())}${gauge}<div class="mut" style="font-size:13px">Remaining <b style="color:var(--tx)">${Math.max(0, d.lead_target - d.lead_year)}</b> · Target <b style="color:var(--tx)">${d.lead_target}</b></div></div>
+   <div class="s3 card ${BA() ? 'hide' : ''}" style="text-align:center">${head('Targets')}${gauge}</div>
 
    <div class="s4 card">${head('Lead → Customer Conversion', `<b style="font-size:24px;color:var(--ok)">${conv}%</b>`)}<div class="mut" style="font-size:12px;margin-bottom:10px">${d.converted} of ${d.leads_all} leads converted</div><div class="prog" style="height:10px"><i style="width:${Math.min(100, conv)}%"></i></div>
      <h3 style="margin-top:20px">Projects by stage</h3>${bars(d.stages.map(s => [s.stage, s.n]), S.project_stages)}</div>

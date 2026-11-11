@@ -44,7 +44,8 @@ function handle_dashboard() {
     'recent' => $ba ? rows('SELECT user,action,entity,detail,created FROM audit_log WHERE user=? ORDER BY id DESC LIMIT 8', [$_SESSION['username'] ?? '']) // a BA sees only what they did
       : rows('SELECT user,action,entity,detail,created FROM audit_log ORDER BY id DESC LIMIT 8'),
     'lead_year' => $cnt("SELECT COUNT(*) v FROM leads WHERE substr($loc,1,4)=?$L", [date('Y')]),
-    'lead_target' => (int)settings()['lead_target'],
+    'lead_target' => (int)settings()['lead_target'], 'customer_target' => (int)settings()['customer_target'],
+    'cust_year' => $cnt("SELECT COUNT(*) v FROM customers WHERE substr($loc,1,4)=?" . $SC['customers'], [date('Y')]),
     'converted' => $cnt("SELECT COUNT(*) v FROM leads WHERE customer_id IS NOT NULL$L"), 'leads_all' => $cnt("SELECT COUNT(*) v FROM leads WHERE 1=1$L"),
   ];
   if (!can('finance')) { $pipeline = $billed = $paid = $spendM = 0; $overdue = []; }
