@@ -77,6 +77,9 @@ $d = call($sales, 'folder', 'folder_new', ['parent_id' => $sp, 'name' => 'renew'
 chk($d['_code'] === 409 && ($d['error'] ?? '') === 'A folder with this name is already here', 'duplicate sibling name (any case) is 409');
 chk(call($sales, 'folder', 'folder_new', ['parent_id' => $sp, 'name' => 'A/B'])['_code'] === 400, 'name with / is 400');
 chk(call($sales, 'folder', 'folder_new', ['parent_id' => $sp, 'name' => 'A\\B'])['_code'] === 400, 'name with \\ is 400');
+chk(call($sales, 'folder', 'folder_new', ['parent_id' => $sp, 'name' => '..'])['_code'] === 400, 'name ".." is 400');
+chk(call($sales, 'folder', 'folder_new', ['parent_id' => $sp, 'name' => '.'])['_code'] === 400, 'name "." is 400');
+chk(call($sales, 'folder', 'folder_new', ['parent_id' => $sp, 'name' => "a\tb"])['_code'] === 400, 'name with a tab is 400');
 chk(call($sales, 'folder', 'folder_new', ['parent_id' => $sp, 'name' => '   '])['_code'] === 400, 'empty name is 400');
 chk(call($sales, 'folder', 'folder_new', ['parent_id' => $sp, 'name' => str_repeat('x', 81)])['_code'] === 400, 'name over 80 characters is 400');
 chk(call($sales, 'folder', 'folder_new', ['parent_id' => 99999, 'name' => 'Ghost'])['_code'] === 404, 'unknown parent is 404');
@@ -179,6 +182,22 @@ chk(call($admin, 'trash', 'restore', ['id' => $tFile])['_code'] === 200, 'then t
 $l = call($sales, 'folder', 'list');
 chk(fid($l, 'Pair') === $pair && in_array('pair.pdf', names($l)), 'folder and file are back');
 call($sales, 'folder', 'delete', ['files' => [], 'folders' => [$pair]]);
+
+/* bulk delete: each item deleted on its own needs its parent restored first */
+$bk = (int)call($sales, 'folder', 'folder_new', ['parent_id' => null, 'name' => 'Bulk'])['id'];
+$bk2 = (int)call($sales, 'folder', 'folder_new', ['parent_id' => null, 'name' => 'Bulk2'])['id'];
+$b1 = (int)upload($sales, 'b1.pdf', $pdf1, $bk)['id']; $b2 = (int)upload($sales, 'b2.pdf', $pdf1, $bk)['id'];
+$sub = (int)call($sales, 'folder', 'folder_new', ['parent_id' => $bk2, 'name' => 'Inner'])['id'];
+chk(call($sales, 'folder', 'delete', ['files' => [$b1, $b2], 'folders' => [$sub]])['_code'] === 200, 'delete two files and a folder from different parents in one request');
+chk(call($sales, 'folder', 'delete', ['files' => [], 'folders' => [$bk]])['_code'] === 200, 'then delete the files\' folder');
+$tr = call($admin, 'trash', 'list')['rows']; $tb = [];
+foreach ($tr as $t) { $tb[$t['label']] = (int)$t['id']; }
+$rs = call($admin, 'trash', 'restore', ['id' => $tb['b1'] ?? 0]);
+chk($rs['_code'] === 400 && strpos($rs['error'] ?? '', 'the folder "Bulk"') !== false, 'bulk-deleted file needs its folder restored first');
+$rs = call($admin, 'trash', 'restore', ['id' => $tb['Bulk2 / Inner'] ?? 0]);
+chk($rs['_code'] === 200, 'the unrelated folder restores (its parent still exists)');
+chk(call($admin, 'trash', 'restore', ['id' => $tb['Bulk']])['_code'] === 200 && call($admin, 'trash', 'restore', ['id' => $tb['b1']])['_code'] === 200 && call($admin, 'trash', 'restore', ['id' => $tb['b2']])['_code'] === 200, 'folder first, then both files restore');
+call($sales, 'folder', 'delete', ['files' => [], 'folders' => [$bk, $bk2]]);
 
 /* delete the whole tree and restore */
 $cnt = fn($l) => count($l['folders']);

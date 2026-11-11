@@ -263,7 +263,8 @@ function migrate($db) {
     if (!$old) { $db->exec("INSERT INTO ds_folders(parent_id,name,user) VALUES(NULL,'Old uploads','System')"); $old = (int)$db->lastInsertId(); }
     $cats = $db->query("SELECT DISTINCT TRIM(category) FROM datasheets WHERE folder_id IS NULL AND TRIM(COALESCE(category,''))<>''")->fetchAll(PDO::FETCH_COLUMN);
     foreach ($cats as $cat) {
-      $nm = trim(str_replace(['/', '\\'], '-', mb_substr($cat, 0, 80)));
+      $nm = trim(preg_replace('/[\x00-\x1f\x7f]/', '', str_replace(['/', '\\'], '-', mb_substr($cat, 0, 80))));
+      if ($nm === '' || $nm === '.' || $nm === '..') $nm = 'Other';
       $sub = $db->prepare('SELECT id FROM ds_folders WHERE parent_id=? AND name=? COLLATE NOCASE'); $sub->execute([$old, $nm]); $sid = $sub->fetchColumn();
       if (!$sid) { $db->prepare("INSERT INTO ds_folders(parent_id,name,user) VALUES(?,?,'System')")->execute([$old, $nm]); $sid = (int)$db->lastInsertId(); }
       $db->prepare('UPDATE datasheets SET folder_id=? WHERE folder_id IS NULL AND TRIM(category)=?')->execute([$sid, $cat]);

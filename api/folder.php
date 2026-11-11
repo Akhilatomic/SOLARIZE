@@ -34,6 +34,7 @@ function ds_name($v) {
   $n = trim((string)$v);
   if ($n === '' || mb_strlen($n) > 80) fail('Names must be 1 to 80 characters');
   if (strpbrk($n, '/\\') !== false) fail('Folder names cannot contain / or \\');
+  if ($n === '.' || $n === '..' || preg_match('/[\x00-\x1f\x7f]/', $n)) fail('That name is not allowed');
   return $n;
 }
 // ids of the given folders and everything below them
@@ -152,10 +153,9 @@ function handle_folder($a) {
         while ($p && $n++ < 50) { if (in_array((int)$p, $folders)) { $inner = true; break; } $pf = ds_folder($p); $p = $pf ? $pf['parent_id'] : null; }
         if (!$inner) $top[] = $f;
       }
-      $single = count($top) + count($files) === 1;
       foreach ($top as $f) {
         $sub = ds_in(ds_subtree([$f['id']])); $needs = [];
-        if ($single && $f['parent_id'] && ($pf = ds_folder($f['parent_id']))) $needs[] = ['ds_folders', $pf['id'], 'the folder "' . $pf['name'] . '"'];
+        if ($f['parent_id'] && ($pf = ds_folder($f['parent_id']))) $needs[] = ['ds_folders', $pf['id'], 'the folder "' . $pf['name'] . '"'];
         trash_put('Folder', ds_path($f['id']), [['ds_folders', "id IN ($sub)", []], ['datasheets', "folder_id IN ($sub)", []]], $needs);
         foreach (rows("SELECT id,file_name FROM datasheets WHERE folder_id IN ($sub)") as $r) audit('delete', 'datasheet', $r['id'], $r['file_name']);
         q("DELETE FROM datasheets WHERE folder_id IN ($sub)"); q("DELETE FROM ds_folders WHERE id IN ($sub)");
@@ -163,7 +163,7 @@ function handle_folder($a) {
       }
       foreach ($files as $id) {
         $r = row('SELECT * FROM datasheets WHERE id=?', [$id]); if (!$r) continue;
-        ds_trash_file($r, $r['title'], $single); audit('delete', 'datasheet', $r['id'], $r['title']);
+        ds_trash_file($r, $r['title']); audit('delete', 'datasheet', $r['id'], $r['title']);
       }
       out(['ok' => true]);
     case 'zip':
