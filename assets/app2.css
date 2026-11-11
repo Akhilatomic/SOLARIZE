@@ -537,3 +537,14 @@ tr.cmn-wait td{background:#fbfcff}
 .cmn-msfoot{font-size:12px;margin:0}
 .cmn-mshint{font-size:12.5px;margin:0 2px 12px;display:flex;gap:6px;align-items:center}.cmn-mshint .i{width:15px;height:15px}
 @media(max-width:600px){.cmn-msbig{grid-template-columns:1fr 1fr}.cmn-msbig b{font-size:20px}.cmn-cell{height:24px;font-size:10px}.cmn-bar{gap:6px}.cmn-cells{gap:2px}.cmn-grp small{font-size:10px;white-space:normal}}
+
+/* Profile pages (.pp) */
+.pp{display:flex;flex-direction:column;gap:14px;min-width:0}
+.pp-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.pp-head h2{margin:0;font-size:18px}.pp-head .sp{flex:1}
+.pp-hand{font-size:12.5px;margin:-4px 0 10px}
+.pp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 28px}
+.pp-row{align-items:start}.pp-row>span{padding-top:6px}
+.pp-val{display:flex;flex-direction:column;gap:3px;min-width:0;align-items:flex-start}.pp-val input,.pp-val select,.pp-val textarea{width:100%}.pp-val .btn{margin-top:4px}
+.pp-need{color:#d73b3e;font-size:12px;font-weight:500}.pp-later{color:var(--mut);font-size:12px}
+.pp-hi{background:#fff8e6;border:1px solid #f0d58a;border-radius:12px;padding:10px 14px;margin-bottom:10px}.pp-hi label{margin:0 0 4px;color:#7a5b00;font-weight:600}.pp-hi .pfv{font-size:16px;font-weight:600}
+@media(max-width:820px){.pp-grid{grid-template-columns:minmax(0,1fr)}.pp-row.pfr{grid-template-columns:minmax(0,1fr);gap:2px}.pp-row>span{padding-top:0}}
