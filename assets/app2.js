@@ -228,6 +228,7 @@ function drawAccess() {
     box.innerHTML = `<div class="ch"><h3>User access</h3><span class="mut" style="font-size:12px">Tick what each role can <b>view</b> and <b>edit</b>. Admin always has full access. Changes apply on the user's next page load.</span></div>
      <div class="tw"><table class="acc"><thead><tr><th>Area</th>${roles.map(r => `<th>${esc(S.role_names[r])}<small><a href="#" data-allr="${r}">all</a> · <a href="#" data-nofin="${r}">no finance</a> · <a href="#" data-def="${r}">default</a></small></th>`).join('')}</tr></thead><tbody>
      ${S.modules.map(mod => `<tr class="${FIN_MODS.includes(mod) ? 'finrow' : ''}"><td><b>${MOD_LABELS[mod] || mod}</b>${FIN_MODS.includes(mod) ? ' <span class="pill y">finance</span>' : ''}</td>${roles.map(r => { const rd = now[r].read.includes(mod), wt = now[r].write.includes(mod);
+       if ((S.role_never && S.role_never[r] || []).includes(mod)) return '<td><span class="mut" style="font-size:12px" title="Business Associates never have WhatsApp">Not for this role</span></td>';
        return `<td><label class="ck"><input type="checkbox" data-r="${r}" data-m="${mod}" data-k="read" ${rd ? 'checked' : ''}> View</label>${mod === 'finance' || mod === 'dashboard' || mod === 'settings' ? '' : `<label class="ck"><input type="checkbox" data-r="${r}" data-m="${mod}" data-k="write" ${wt ? 'checked' : ''}> Edit</label>`}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>
      <div class="bar" style="margin-top:12px"><button class="btn" id="uasv">Save user access</button><button class="btn sec" id="uars">Reset all to defaults</button></div>`;
     $$('input[data-r]', box).forEach(c => c.onchange = () => { const r = now[c.dataset.r], m = c.dataset.m, k = c.dataset.k, set = new Set(r[k]);
@@ -235,7 +236,7 @@ function drawAccess() {
       if (k === 'write' && c.checked && !r.read.includes(m)) r.read.push(m);          // edit needs view
       if (k === 'read' && !c.checked) r.write = r.write.filter(x => x !== m);           // no view → no edit
       render(); });
-    $$('[data-allr]', box).forEach(x => x.onclick = e => { e.preventDefault(); const r = x.dataset.allr; now[r] = { read: [...S.modules], write: S.modules.filter(m => !['finance', 'dashboard', 'settings'].includes(m)) }; render(); });
+    $$('[data-allr]', box).forEach(x => x.onclick = e => { e.preventDefault(); const r = x.dataset.allr; const no = (S.role_never && S.role_never[r]) || []; now[r] = { read: S.modules.filter(m => !no.includes(m)), write: S.modules.filter(m => !['finance', 'dashboard', 'settings'].includes(m) && !no.includes(m)) }; render(); });
     $$('[data-nofin]', box).forEach(x => x.onclick = e => { e.preventDefault(); const r = x.dataset.nofin; now[r].read = now[r].read.filter(m => !FIN_MODS.includes(m)); now[r].write = now[r].write.filter(m => !FIN_MODS.includes(m)); render(); });
     $$('[data-def]', box).forEach(x => x.onclick = e => { e.preventDefault(); const r = x.dataset.def; now[r] = JSON.parse(JSON.stringify(S.role_defaults[r])); render(); });
     $('#uasv', box).onclick = async () => { await api('settings', 'save', { key: 'role_perms', value: now }); S = await api('settings', 'get'); toast('User access saved'); drawAccess(); };

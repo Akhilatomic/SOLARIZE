@@ -44,7 +44,7 @@ function handle_profile($a) {
   foreach (rows('SELECT * FROM quotes WHERE customer_id=? ORDER BY id', [$cid]) as $q) $add($q['created'], 'quote', 'Quotation ' . $q['number'], $q['status'] . $money($q['total']), '', ['link' => '#/quotes/' . $q['id']]);
   foreach (rows('SELECT f.* FROM files f WHERE f.customer_id=? ORDER BY id', [$cid]) as $f) $add($f['created'], 'file', 'Document uploaded', $f['name'] . ($f['item'] ? ' · ' . $f['item'] : ''), $f['user'], ['file' => (int)$f['id']]);
   foreach (rows("SELECT * FROM notes WHERE entity='customers' AND entity_id=? ORDER BY id", [$cid]) as $n) $add($n['created'], 'note', 'Note', $n['text'], $n['user']);
-  foreach (rows('SELECT * FROM messages WHERE customer_id=? ORDER BY id', [$cid]) as $m) $add($m['created'], 'wa', 'WhatsApp sent', $m['text'], $m['user']);
+  if (!is_ba()) foreach (rows('SELECT * FROM messages WHERE customer_id=? ORDER BY id', [$cid]) as $m) $add($m['created'], 'wa', 'WhatsApp sent', $m['text'], $m['user']);
   foreach (rows('SELECT d.*, a.name an, b.name bn FROM discussions d LEFT JOIN users a ON a.id=d.created_by LEFT JOIN users b ON b.id=d.closed_by WHERE d.customer_id=?', [$cid]) as $d) {
     $add($d['created'], 'disc', 'Discussion started', $d['topic'], $d['an']);
     if ($d['status'] === 'Closed') $add($d['closed_at'], 'disc', 'Discussion ended', $d['outcome'], $d['bn']);

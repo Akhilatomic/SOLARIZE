@@ -231,7 +231,9 @@ function handle_wa($a) {
     case 'assign':
       $c = wa_chat_get($in['chat_id'] ?? 0); $to = (int)($in['user_id'] ?? 0);
       if (!is_admin() && $to !== uid() && $to !== 0) fail('Only the admin can assign chats to others', 403);
-      if ($to && !row('SELECT 1 FROM users WHERE id=? AND active=1', [$to])) fail('Choose an active user');
+      $tu = $to ? row('SELECT role FROM users WHERE id=? AND active=1', [$to]) : null;
+      if ($to && !$tu) fail('Choose an active user');
+      if ($tu && $tu['role'] === 'ba') fail('Business Associates have no WhatsApp access');
       q('UPDATE wa_chats SET assigned_to=? WHERE id=?', [$to ?: null, $c['id']]); audit('wa_assign', 'wa_chats', $c['id'], (string)$to); out(['ok' => true]);
     case 'link':
       $c = wa_chat_get($in['chat_id'] ?? 0);

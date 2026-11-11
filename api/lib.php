@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 35; // bump when tables/columns change
+const SCHEMA_VERSION = 36; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -29,6 +29,10 @@ const ROLE_DEFAULTS = [
   // Business Associate: their own leads and customers, their customers' projects (view only), no money. Rows are limited in claims.php (ba_gate, cust_scope).
   'ba' => [['dashboard','leads','customers','projects'], ['leads','customers']],
 ];
+// Areas a role never gets, whatever is ticked in Settings → User access or granted by "Can see & claim leads".
+// Business Associates are outside partners: no WhatsApp (inbox, business number, message history).
+const ROLE_NEVER = ['ba' => ['whatsapp']];
+function claim_grants($role) { return array_values(array_diff(CLAIM_GRANTS, ROLE_NEVER[$role] ?? [])); }
 function roles() {
   static $r = null; if ($r !== null) return $r;
   $r = ROLE_DEFAULTS;
@@ -44,6 +48,7 @@ function roles() {
     $wt = array_values(array_unique(array_merge(array_intersect($p['write'] ?? [], MODULES), array_intersect($def[1], $fresh))));
     $r[$role] = [array_values(array_unique(array_merge($rd, $wt))), $wt]; // edit implies view
   }
+  foreach (ROLE_NEVER as $role => $mods) if (isset($r[$role]) && is_array($r[$role][0])) $r[$role] = [array_values(array_diff($r[$role][0], $mods)), array_values(array_diff($r[$role][1], $mods))];
   return $r;
 }
 
@@ -56,7 +61,7 @@ function can($module, $write = false) {
   $list = $r[$write ? 1 : 0];
   if ($list === '*' || in_array($module, $list)) return true;
   // 'Can see & claim leads' (Admin → Users) lets any role work the leads they claim; ownership is enforced in claims.php
-  return in_array($module, CLAIM_GRANTS) && function_exists('can_claim') && can_claim();
+  return in_array($module, claim_grants($_SESSION['role'] ?? '')) && function_exists('can_claim') && can_claim();
 }
 const CLAIM_GRANTS = ['leads', 'whatsapp'];
 function need($module, $write = false) { if (!can($module, $write)) fail('Not allowed for your role', 403); }
@@ -211,6 +216,8 @@ function migrate($db) {
   $db->exec('CREATE INDEX IF NOT EXISTS cust_owner ON customers(owner_id)');
   $db->exec('UPDATE customers SET owner_id=(SELECT l.assigned_to FROM leads l WHERE l.customer_id=customers.id AND l.assigned_to>0 ORDER BY l.id DESC LIMIT 1) WHERE owner_id IS NULL');
   $db->exec("UPDATE customers SET owner_id=(SELECT u.id FROM users u WHERE lower(trim(u.name))=lower(trim(customers.added_by)) ORDER BY u.active DESC, u.id LIMIT 1) WHERE owner_id IS NULL AND trim(COALESCE(added_by,''))<>''");
+  /* v36: Business Associates never have WhatsApp: chats assigned to one go back to unassigned so staff see them again */
+  $db->exec("UPDATE wa_chats SET assigned_to=NULL WHERE assigned_to IN (SELECT id FROM users WHERE role='ba')");
   /* v35: Finance › Commission (BA customers) / Incentive (staff customers). One row per customer: the amount the admin agreed,
      paid in two parts (amount, date, transaction ID); visible = the person may see it. user_id is fixed on the first save. */
   $db->exec("CREATE TABLE IF NOT EXISTS commissions(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER UNIQUE, user_id INTEGER, amount REAL DEFAULT 0, p1_amount REAL DEFAULT 0, p1_date TEXT DEFAULT '', p1_ref TEXT DEFAULT '', p2_amount REAL DEFAULT 0, p2_date TEXT DEFAULT '', p2_ref TEXT DEFAULT '', visible INTEGER DEFAULT 0, note TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, updated_by TEXT DEFAULT '')");

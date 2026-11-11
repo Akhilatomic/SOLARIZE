@@ -31,7 +31,7 @@ function handle_calendar($a) {
         WHERE l.appt BETWEEN ? AND ? AND " . lead_scope('l') . ($uf ? ' AND l.assigned_to=' . $uf : ''), [$from, $to])) : [];
       $projects = can('projects') ? rows("SELECT p.id,p.title,p.start,p.end,p.stage,p.engineer,c.name customer FROM projects p LEFT JOIN customers c ON c.id=p.customer_id
         WHERE (p.start BETWEEN ? AND ?) OR (p.end BETWEEN ? AND ?)", [$from, $to, $from, $to]) : [];
-      out(['events' => $events, 'appts' => $appts, 'projects' => $projects, 'users' => rows('SELECT id,name FROM users WHERE active=1 ORDER BY name'), 'types' => EV_TYPES]);
+      out(['events' => $events, 'appts' => $appts, 'projects' => $projects, 'users' => rows('SELECT id,name,role FROM users WHERE active=1 ORDER BY name'), 'types' => EV_TYPES]);
     case 'save':
       $title = trim((string)($in['title'] ?? '')); if ($title === '') fail('Title required');
       $type = in_array($in['type'] ?? '', EV_TYPES) ? $in['type'] : 'Other';

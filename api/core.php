@@ -40,7 +40,7 @@ function login_as($u) { session_regenerate_id(true); $_SESSION['sv'] = (int)($u[
 function me() {
   if (empty($_SESSION['uid'])) return null;
   $r = roles()[$_SESSION['role']] ?? [[], []]; $cc = can_claim();
-  return ['avatar' => (string)(row('SELECT avatar FROM users WHERE id=?', [$_SESSION['uid']])['avatar'] ?? ''), 'id' => $_SESSION['uid'], 'name' => $_SESSION['name'], 'username' => $_SESSION['username'], 'role' => $_SESSION['role'], 'role_name' => ROLE_NAMES[$_SESSION['role']] ?? $_SESSION['role'], 'read' => $cc && $r[0] !== '*' ? array_values(array_unique(array_merge($r[0], CLAIM_GRANTS))) : $r[0], 'write' => $cc && $r[1] !== '*' ? array_values(array_unique(array_merge($r[1], CLAIM_GRANTS))) : $r[1], 'can_claim' => $cc ? 1 : 0, 'comm_n' => $_SESSION['role'] === 'admin' ? 0 : comm_shared_count($_SESSION['uid'])];
+  return ['avatar' => (string)(row('SELECT avatar FROM users WHERE id=?', [$_SESSION['uid']])['avatar'] ?? ''), 'id' => $_SESSION['uid'], 'name' => $_SESSION['name'], 'username' => $_SESSION['username'], 'role' => $_SESSION['role'], 'role_name' => ROLE_NAMES[$_SESSION['role']] ?? $_SESSION['role'], 'read' => $cc && $r[0] !== '*' ? array_values(array_unique(array_merge($r[0], claim_grants($_SESSION['role'])))) : $r[0], 'write' => $cc && $r[1] !== '*' ? array_values(array_unique(array_merge($r[1], claim_grants($_SESSION['role'])))) : $r[1], 'can_claim' => $cc ? 1 : 0, 'comm_n' => $_SESSION['role'] === 'admin' ? 0 : comm_shared_count($_SESSION['uid'])];
 }
 
 function handle_crud($t, $a) {
@@ -194,13 +194,13 @@ function prep_quote($v, $in) {
 function detail($t, $r) {
   $id = (int)$r['id'];
   $notes = fn() => rows('SELECT * FROM notes WHERE entity=? AND entity_id=? ORDER BY id DESC', [$t, $id]);
-  if ($t === 'leads') { $r['notes_log'] = $notes(); $r['messages'] = rows('SELECT * FROM messages WHERE lead_id=? ORDER BY id DESC', [$id]); }
+  if ($t === 'leads') { $r['notes_log'] = $notes(); $r['messages'] = is_ba() ? [] : rows('SELECT * FROM messages WHERE lead_id=? ORDER BY id DESC', [$id]); }
   if ($t === 'customers') {
     $r['notes_log'] = $notes();
     $r['projects'] = rows('SELECT p.*, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p WHERE customer_id=? ORDER BY id DESC', [$id]);
     $r['quotes'] = rows('SELECT id,number,date,total,status FROM quotes WHERE customer_id=? ORDER BY id DESC', [$id]);
     $r['files'] = rows('SELECT id,name,kind,item,size,created FROM files WHERE customer_id=? ORDER BY id DESC', [$id]);
-    $r['messages'] = rows('SELECT * FROM messages WHERE customer_id=? ORDER BY id DESC', [$id]);
+    $r['messages'] = is_ba() ? [] : rows('SELECT * FROM messages WHERE customer_id=? ORDER BY id DESC', [$id]); // BA: no WhatsApp history
   }
   if ($t === 'projects') {
     $S = settings();

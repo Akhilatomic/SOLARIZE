@@ -99,7 +99,7 @@ function handle_whatsapp($a) {
 function handle_settings($a) {
   if ($a === 'get' && !can('settings')) { $s = settings(); unset($s['catalog'], $s['role_perms']); out($s + ['modules' => MODULES, 'role_names' => ROLE_NAMES]); }
   need('settings', in_array($a, ['save', 'upload_bg', 'remove_bg']));
-  if ($a === 'get') out(settings() + ['modules' => MODULES, 'role_names' => ROLE_NAMES, 'role_defaults' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], ROLE_DEFAULTS), 'roles_now' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], roles())]);
+  if ($a === 'get') out(settings() + ['modules' => MODULES, 'role_names' => ROLE_NAMES, 'role_defaults' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], ROLE_DEFAULTS), 'roles_now' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], roles()), 'role_never' => ROLE_NEVER]);
   if ($a === 'upload_bg' || $a === 'remove_bg') {
     if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
     $dir = dirname(__DIR__) . '/uploads';
@@ -122,7 +122,7 @@ function handle_settings($a) {
     if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
     $in = body(); $k = $in['key'] ?? ''; if (!array_key_exists($k, defaults())) fail('Unknown setting');
     $val = $in['value'];
-    if ($k === 'role_perms') { $clean = []; foreach ((array)$val as $role => $p) { if ($role === 'admin' || !isset(ROLE_DEFAULTS[$role])) continue; $clean[$role] = ['read' => array_values(array_intersect((array)($p['read'] ?? []), MODULES)), 'write' => array_values(array_intersect((array)($p['write'] ?? []), MODULES))]; } $clean['_modules'] = MODULES; $val = $clean; }
+    if ($k === 'role_perms') { $clean = []; foreach ((array)$val as $role => $p) { if ($role === 'admin' || !isset(ROLE_DEFAULTS[$role])) continue; $no = ROLE_NEVER[$role] ?? []; $clean[$role] = ['read' => array_values(array_diff(array_intersect((array)($p['read'] ?? []), MODULES), $no)), 'write' => array_values(array_diff(array_intersect((array)($p['write'] ?? []), MODULES), $no))]; } $clean['_modules'] = MODULES; $val = $clean; }
     if ($k === 'login') { $val = ['bg' => settings()['login']['bg'], 'tagline' => mb_substr((string)($val['tagline'] ?? ''), 0, 80), 'dim' => max(0, min(80, (int)($val['dim'] ?? 35)))]; }
     q('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', [$k, json_encode($val, JSON_UNESCAPED_UNICODE)]);
     audit('settings', 'settings', null, $k); out(['ok' => true]);
@@ -153,6 +153,7 @@ function handle_admin($a) {
       }
       /* "Too many wrong attempts … ask the admin": saving the user (e.g. with a new password) clears their sign-in lock */
       foreach (array_unique([strtolower($u), strtolower((string)($was_name ?? ''))]) as $k) if ($k !== '') q('DELETE FROM login_guard WHERE k=?', ['u:' . $k]);
+      if ($role === 'ba') q('UPDATE wa_chats SET assigned_to=NULL WHERE assigned_to=?', [(int)$id]); // BAs never have WhatsApp
       audit('user_save', 'users', (int)$id, "$u ($role)"); out(['id' => $id]);
     case 'audit': out(rows("SELECT * FROM audit_log WHERE created >= datetime('now', '-72 hours') ORDER BY id DESC LIMIT 3000"));
     case 'stats':

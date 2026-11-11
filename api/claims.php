@@ -73,7 +73,7 @@ function can_reassign($owner_id) { return is_admin() || ($_SESSION['role'] ?? ''
 function user_can_work($u, $mod) {
   if (($u['role'] ?? '') === 'admin') return true;
   $r = roles()[$u['role'] ?? ''] ?? null; if (!$r) return false;
-  return $r[1] === '*' || in_array($mod, (array)$r[1]) || (in_array($mod, CLAIM_GRANTS) && (int)($u['can_claim'] ?? 0) === 1);
+  return $r[1] === '*' || in_array($mod, (array)$r[1]) || (in_array($mod, claim_grants($u['role'] ?? '')) && (int)($u['can_claim'] ?? 0) === 1);
 }
 function owner_candidates($mod) {
   $ok = array_filter(rows('SELECT id,name,role,can_claim,avatar FROM users WHERE active=1 ORDER BY name'), fn($u) => user_can_work($u, $mod));
