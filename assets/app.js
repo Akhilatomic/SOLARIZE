@@ -203,7 +203,8 @@ function csvDownload(name, cols, data) {
 }
 function pickFile(accept = '') { return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => res(i.files[0]); i.click(); }); }
 async function upload(extra) { const f = await pickFile('.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt'); if (!f) return false; const fd = new FormData(); fd.append('file', f); Object.entries(extra).forEach(([k, v]) => fd.append(k, v ?? '')); await api('files', 'upload', fd); return true; }
-const docLeft = c => Math.ceil((new Date(String(c).replace(' ', 'T') + 'Z').getTime() + 200 * 864e5 - Date.now()) / 864e5);
+const DOC_DAYS = 365; /* documents go to the Recycle bin this many days after upload (api/trash.php DOC_LIFE_DAYS); warranty cards never */
+const docLeft = c => Math.ceil((new Date(String(c).replace(' ', 'T') + 'Z').getTime() + DOC_DAYS * 864e5 - Date.now()) / 864e5);
 const fileLink = f => { const d = f.kind === 'warranty' ? 1e9 : docLeft(f.created); return `<a href="api.php?m=files&a=get&id=${f.id}&v=1" target="_blank" rel="noopener">${esc(f.name)}</a> <small class="mut">${dt(f.created)} · ${Math.round(f.size / 1024)} KB</small> <small class="${d <= 30 ? 'dexp' : 'mut'}" title="Uploaded documents are kept for 200 days, then moved to the Recycle bin">· ${d === 1e9 ? 'kept forever' : d > 0 ? d + ' day' + (d === 1 ? '' : 's') + ' left' : 'expiring'}</small>`; };
 function noteBox(entity, id, notes, redo) {
   return `<div class="card"><h3>Notes & activity</h3>${canW(entity) ? `<div class="bar"><input id="nt" placeholder="Add a note or call log…" style="max-width:none;flex:1"><button class="btn" id="an">Add</button></div>` : ''}

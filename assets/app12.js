@@ -91,7 +91,7 @@ const isImg = f => /\.(jpe?g|png|webp|gif)$/i.test(f.name), isPdf = f => /\.pdf$
 const fileUrl = (f, dl) => `api.php?m=files&a=get&id=${f.id}${dl === 1 ? '&dl=1' : dl === 'v' ? '&v=1' : ''}`; // thumbnails: no flag; view / download: audited
 function renderDocs(box, c, id) {
   const F = c.files, w = canW('files'), have = new Set(F.map(f => f.item).filter(Boolean));
-  box.innerHTML = `<div class="card pfc"><div class="pfch"><i class="i i-file"></i><h3>Documents</h3><small class="mut">${F.length} file${F.length === 1 ? '' : 's'} · kept 200 days</small><span class="sp"></span>
+  box.innerHTML = `<div class="card pfc"><div class="pfch"><i class="i i-file"></i><h3>Documents</h3><small class="mut">${F.length} file${F.length === 1 ? '' : 's'} · kept ${DOC_DAYS} days</small><span class="sp"></span>
       ${F.length ? `<a class="btn sec sm dlall" href="api.php?m=files&a=zip&customer_id=${id}"><i class="i i-download"></i> Download all</a>` : ''}${w ? '<button class="btn sm" id="dcadd"><i class="i i-plus"></i> Add documents</button>' : ''}</div>
      <div class="dcchk">${DOC_TYPES.map(t => `<button class="dcc ${have.has(t) ? 'ok' : ''}" data-t="${esc(t)}" ${w ? '' : 'disabled'} title="${have.has(t) ? 'Uploaded' : 'Missing — click to upload'}">${have.has(t) ? '<i class="i i-check"></i>' : ''}${esc(t)}</button>`).join('')}</div></div>
     <div class="dcgrid">${F.map((f, i) => { const d = docLeft(f.created);

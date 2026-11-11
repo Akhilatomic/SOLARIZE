@@ -112,7 +112,7 @@ async function renderWarranty(box, c, id) {
         <div class="wym"><b title="${esc(f.name)}">${esc(f.name)}</b><small class="mut">Uploaded ${fdt(String(f.created).slice(0, 10))} · ${Math.round(f.size / 1024)} KB</small>
         <div class="bar"><a class="btn sec sm" href="${fileUrl(f, 1)}"><i class="i i-download"></i> Download</a>${(ME && ME.role === 'admin') ? `<button class="ib" data-wx="${f.id}" title="Delete"><i class="i i-trash"></i></button>` : ''}</div></div></div>`;
     $('#wcu', box).innerHTML = `<div class="pfch"><i class="i i-file"></i><h3>Warranty cards</h3><span class="sp"></span><span class="pill g">Kept forever</span></div>
-      <p class="mut" style="font-size:12.5px;margin:0 0 6px">Manufacturer warranty cards. They are never deleted automatically (other documents expire after 200 days); only an admin can delete them.</p>
+      <p class="mut" style="font-size:12.5px;margin:0 0 6px">Manufacturer warranty cards. They are never deleted automatically (other documents expire after ${DOC_DAYS} days); only an admin can delete them.</p>
       ${G.map(([item, label]) => { const L = F.map((f, i) => [f, i]).filter(([f]) => item === 'Warranty card' ? !G.slice(0, 3).some(x => x[0] === f.item) : f.item === item);
         return `<div class="wysec"><div class="wyh"><b>${label}</b><span class="wyst ${L.length ? 'ok' : ''}">${L.length ? '<i class="i i-check"></i> Uploaded' : 'Not uploaded'}</span><span class="sp"></span>
           ${wf && item !== 'Warranty card' ? `<label class="btn sec sm wyup" title="Upload the ${label.toLowerCase()} warranty card"><input type="file" accept="image/*,.pdf" hidden multiple data-item="${item}"><i class="i i-upload"></i> Upload</label>` : ''}</div>

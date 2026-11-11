@@ -1,11 +1,11 @@
 <?php
 // Recycle bin: every delete first snapshots the item (and everything deleted with it) here and moves its files to data/trash.
 // Restore re-inserts the rows with their original ids and moves files back. Items are purged for good after 72 hours.
-// Uploaded documents (files table) live 200 days, then go to the bin (and are purged 72 h later).
+// Uploaded documents (files table) live 365 days, then go to the bin (and are purged 72 h later).
 // Exception: warranty cards (files.kind = 'warranty') are kept forever.
 
 const TRASH_HOURS = 72;
-const DOC_LIFE_DAYS = 200;
+const DOC_LIFE_DAYS = 365;
 const TRASH_FILE_COLS = ['files' => 'path', 'datasheets' => 'path', 'wa_msgs' => 'file_path'];
 
 function trash_dir() { $d = dirname(__DIR__) . '/data/trash'; if (!is_dir($d)) mkdir($d, 0750, true); return $d; }
