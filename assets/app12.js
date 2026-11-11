@@ -29,18 +29,19 @@ async function renderPlant(box, c, id, edit, st, onSaved) {
   d.panels = d.panels || []; d.inverters = d.inverters || [];
   if (edit) return plantForm(box, c, id, d, r, st, onSaved);
   const pfs = st ? PFP.PAGES.find(x => x.key === 'plant').sections[0].fields : [], pctx = st ? pfCtx(Object.assign({}, st, { p: d })) : null;
+  const need = k => { const ff = pfs.find(x => x.k === k); return ff ? pfNeed(ff, pctx) : ''; };
   const field = ([k, l]) => { const ff = pfs.find(x => x.k === k), v = k === 'rooftop_type' ? (d[k] || c.roof_type) : d[k]; return `<div class="plf"><span>${l}</span>${cpv(v, l)}${ff ? pfNeed(ff, pctx) : ''}</div>`; };
   const pw = d.panels.reduce((a, p) => a + (+p.wattage || +d.panel_wattage || 0), 0);
   const serialList = (list, kind, cols) => list.length ? `<div class="plser">${list.map((x, i) => `<div class="pls"><b>${kind} ${i + 1}</b><span>${cols.map(([k, l, u]) => x[k] ? esc(x[k]) + (u || '') : '').filter(Boolean).join(' · ') || '<em class="mut">—</em>'}</span>${x.serial ? cpv(x.serial, kind + ' ' + (i + 1) + ' serial') : '<em class="mut">no serial</em>'}</div>`).join('')}</div>` : `<p class="mut" style="margin:0;font-size:13px">No ${kind.toLowerCase()}s listed yet.${w ? ' Use <b>Edit</b> to add them with serial numbers.' : ''}</p>`;
-  const sec = ([t, ic, fs], extra = '') => `<div class="card pfc"><div class="pfch"><i class="i i-${ic}"></i><h3>${t}</h3></div><div class="plgrid">${fs.map(field).join('')}</div>${extra}</div>`;
+  const sec = ([t, ic, fs], extra = '') => `<div class="card pfc"><div class="pfch"><i class="i i-${ic}"></i><h3>${t}</h3></div>${st ? '<div class="pp-hand mut">Keep the installation papers and DCR in hand</div>' : ''}<div class="plgrid">${fs.map(field).join('')}</div>${extra}</div>`;
   const pay = r.payment;
   box.innerHTML = `<div class="card plsum"><div class="plsi"><i class="i i-sun"></i></div><div class="plst"><h3>${d.capacity ? esc(d.capacity) + ' kWp' : 'Plant'} ${d.system_type ? '· ' + esc(d.system_type) : ''}</h3>
       <div class="mut">${[d.panel_count ? `${esc(d.panel_count)} × ${esc(d.panel_make || 'panel')}${d.panel_wattage ? ' ' + esc(d.panel_wattage) + ' W' : ''}` : '', d.inverter_count || d.inverter_make ? `${esc(d.inverter_count || 1)} × ${esc(d.inverter_make || 'inverter')}${d.inverter_capacity ? ' ' + esc(d.inverter_capacity) + ' kW' : ''}` : '', d.application_no ? 'Application ' + esc(d.application_no) : ''].filter(Boolean).join(' · ') || 'No plant details yet'}</div>
       ${r.updated ? `<small class="mut">Updated ${new Date(r.updated.replace(' ', 'T') + 'Z').toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}${r.updated_by ? ' by ' + esc(r.updated_by) : ''}</small>` : ''}</div>
       <span class="sp"></span>${d.panels.length || d.inverters.length ? '<button class="btn sec sm" id="plcs"><i class="i i-copy"></i> Copy serials</button>' : ''}${w ? '<button class="btn" id="pled"><i class="i i-pencil"></i> Edit plant details</button>' : ''}</div>
     <div class="plcols">
-     ${sec(PL_SECTIONS[0], `<div class="pfsub">Panels (${d.panels.length})${pw ? ` · ${(pw / 1000).toFixed(2)} kWp total` : ''}</div>${serialList(d.panels, 'Panel', [['make', 'Make'], ['wattage', 'W', ' W']])}`)}
-     ${sec(PL_SECTIONS[1], `<div class="pfsub">Inverters (${d.inverters.length})</div>${serialList(d.inverters, 'Inverter', [['make', 'Make'], ['type', 'Type'], ['capacity', 'kW', ' kW']])}`)}
+     ${sec(PL_SECTIONS[0], `<div class="pfsub">Panels (${d.panels.length})${need('panel_serials')}${pw ? ` · ${(pw / 1000).toFixed(2)} kWp total` : ''}</div>${serialList(d.panels, 'Panel', [['make', 'Make'], ['wattage', 'W', ' W']])}`)}
+     ${sec(PL_SECTIONS[1], `<div class="pfsub">Inverters (${d.inverters.length})${need('inverter_serials')}</div>${serialList(d.inverters, 'Inverter', [['make', 'Make'], ['type', 'Type'], ['capacity', 'kW', ' kW']])}`)}
      ${PL_SECTIONS.slice(2).map(s => sec(s)).join('')}
      ${pay ? `<div class="card pfc"><div class="pfch"><i class="i i-coin"></i><h3>Project cost & payment</h3>${r.project ? `<span class="sp"></span><a class="btn sec sm" href="#/projects/${r.project.id}">Open project</a>` : ''}</div>
        <div class="plpay"><div class="b"><small>Total project cost</small><b>${pay.cost ? inr(pay.cost) : 'Not set'}</b></div><div class="g"><small>Total paid</small><b>${inr(pay.paid)}</b><em>${pay.count} payment${pay.count === 1 ? '' : 's'}</em></div>
@@ -82,7 +83,7 @@ function plantForm(box, c, id, d, r, st, onSaved) {
       $(`[data-pk="${b.dataset.paste === 'panels' ? 'panel_count' : 'inverter_count'}"]`, box).value = L.length; m.remove(); sync(); toast(`${s.length} serial number${s.length === 1 ? '' : 's'} filled`); }; });
   $('#plx', box).onclick = () => renderPlant(box, c, id, false, st, onSaved);
   $('#plsv', box).onclick = async () => { const data = { panels: P, inverters: V }; $$('[data-pk]', box).forEach(e => data[e.dataset.pk] = e.value.trim());
-    const b = $('#plsv', box); b.disabled = true; try { await api('plant', 'save', { customer_id: id, data }); toast('Plant details saved'); if (st) { st.p = Object.assign({}, d, data); if (onSaved) onSaved(st); } renderPlant(box, c, id, false, st, onSaved); } catch (e) { b.disabled = false; } };
+    const b = $('#plsv', box); b.disabled = true; try { await api('plant', 'save', { customer_id: id, data }); toast('Plant details saved'); if (st) { st.p = Object.assign({}, d, data); if (onSaved) { onSaved(st); return; } } renderPlant(box, c, id, false, st, onSaved); } catch (e) { b.disabled = false; } };
 }
 
 // ---------------- Documents ----------------

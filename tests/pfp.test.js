@@ -121,3 +121,31 @@ test('later flags needed-but-not-due empties', function () {
   assert.strictEqual(PFP.later(f, c), true);
   assert.strictEqual(PFP.isDue(f, c), false);
 });
+
+test('premises has a blank option and an unchanged blank premises is not in the diff', function () {
+  var f = fields('kseb').filter(function (x) { return x.k === 'premises'; })[0];
+  assert.deepStrictEqual(f.opts[0], ['', '']);
+  var d = PFP.diff('kseb', ctx({ c: { premises: '', name: 'Test One' } }), { name: 'Test One', premises: '' });
+  assert.ok(!('premises' in d));
+});
+
+test('connected load 0 counts as empty, 3 does not; a 0 meter reading is a value', function () {
+  var pr = { prog: { key: 'netmeter' }, j: { loan: 'No' } };
+  assert.ok(miss('kseb', ctx({ c: { sanctioned_load: 0 } })).indexOf('sanctioned_load') >= 0);
+  assert.ok(miss('kseb', ctx({ c: { sanctioned_load: '0' } })).indexOf('sanctioned_load') >= 0);
+  assert.ok(miss('kseb', ctx({ c: { sanctioned_load: 3 } })).indexOf('sanctioned_load') < 0);
+  assert.ok(miss('plant', ctx({ prog: pr.prog, j: pr.j, p: { meter_reading: '0' } })).indexOf('meter_reading') < 0);
+});
+
+test('bank-only documents count only when the latest project has a loan', function () {
+  var no = ctx({ prog: { key: 'netmeter' }, j: { loan: 'No' } }), yes = ctx({ prog: { key: 'netmeter' }, j: { loan: 'Yes' } });
+  assert.ok(miss('plant', no).indexOf('panel_model') < 0);
+  assert.ok(miss('plant', yes).indexOf('panel_model') >= 0);
+  assert.ok(miss('plant', no).indexOf('capacity') >= 0);
+  assert.ok(miss('plant', yes).indexOf('capacity') >= 0);
+  var cap = fields('plant').filter(function (x) { return x.k === 'capacity'; })[0];
+  assert.ok(PFP.docsFor(cap, no).indexOf('bag') < 0 && PFP.docsFor(cap, yes).indexOf('bag') >= 0);
+  var early = ctx({ prog: { key: 'pmsg' }, j: { loan: 'No' } });
+  var pm = fields('plant').filter(function (x) { return x.k === 'panel_model'; })[0];
+  assert.strictEqual(PFP.later(pm, early), false);
+});

@@ -77,9 +77,7 @@ async function pgCustomer(id) {
   // tabs
   /* a page save: refresh the red counts on the tabs and the Overview card, without reloading the profile */
   const bindGoto = () => $$('[data-goto]').forEach(b => b.onclick = () => { showTab(b.dataset.goto); scrollTo({ top: 0, behavior: 'smooth' }); });
-  const refresh = s => { const n = PFP.counts(pfCtx(s));
-    $$('[data-ppn]').forEach(e => { const v = n[e.dataset.ppn] || 0; e.textContent = v; e.hidden = !v; });
-    $('#ppsum').innerHTML = sumHtml(n); bindGoto(); };
+  const refresh = () => route();
   const showTab = (k, edit) => { PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
     if (k === 'plant') renderPlant(box, st.c, id, !!edit, st, refresh);
     else if (pgKeys.includes(k)) renderPfPage(box, st, k, !!edit, refresh);
@@ -124,7 +122,7 @@ function locModal(c, id) {
   $('#lcgps', m).onclick = () => { const b = $('#lcgps', m); if (!navigator.geolocation) return toast('This browser cannot get your location', true); b.disabled = true; b.textContent = 'Getting location…';
     navigator.geolocation.getCurrentPosition(p => { $('#lcp', m).value = p.coords.latitude.toFixed(6) + ', ' + p.coords.longitude.toFixed(6); chk(); b.disabled = false; b.innerHTML = `<i class="i i-target"></i> Got it (±${Math.round(p.coords.accuracy)} m) — use again`; },
       () => { b.disabled = false; b.innerHTML = '<i class="i i-target"></i> Use my current location (at the site)'; toast('Location permission denied', true); }, { enableHighAccuracy: true, timeout: 10000 }); };
-  const save = async (lat, lng) => { await api('customers', 'save', { ...c, id, lat, lng, landmark: $('#lcl', m).value.trim() }); m.remove(); toast('Location saved'); route(); };
+  const save = async (lat, lng) => { await api('profile', 'page_save', { customer_id: id, page: 'loc', data: { lat, lng, landmark: $('#lcl', m).value.trim() } }); m.remove(); toast('Location saved'); route(); };
   $('#lcsv', m).onclick = () => { const p = chk(); if ($('#lcp', m).value.trim() && !p) return; save(p ? p.lat : '', p ? p.lng : ''); };
   if ($('#lcclr', m)) $('#lcclr', m).onclick = () => save('', '');
 }

@@ -3,7 +3,7 @@ var PFP = (function () {
   var ALL = ['cov', 'req', 'wcr', 'an1', 'an2', 'an3', 'doi', 'agr', 'chk', 'bfr', 'bag'];
   var NOCHK = ALL.filter(function (d) { return d !== 'chk'; });
   var ANX = ['an1', 'an2', 'an3'];
-  var PLANT_DOCS = ['cov', 'wcr'].concat(ANX, ['doi', 'agr', 'bag']);
+  var BANK_ONLY = ['bfr', 'bag'];
 
   /* f(key, label, scope, docs, extra) */
   function f(k, l, s, docs, x) {
@@ -14,7 +14,7 @@ var PFP = (function () {
   var OPT = { opt: true };
   var TARIFF = [['', ''], ['LT-1A Domestic', 'LT-1A Domestic'], ['LT-6 Non-domestic', 'LT-6 Non-domestic'], ['LT-7 Commercial', 'LT-7 Commercial'], ['LT-4 Industrial', 'LT-4 Industrial'], ['Other', 'Other']];
   var PHASE = [['', ''], ['Single phase', 'Single phase'], ['Three phase', 'Three phase']];
-  var PREM = [['Owned', 'Owned'], ['Leased', 'Leased']];
+  var PREM = [['', ''], ['Owned', 'Owned'], ['Leased', 'Leased']];
 
   function ext() { var o = {}; for (var a = 0; a < arguments.length; a++) for (var i in arguments[a]) o[i] = arguments[a][i]; return o; }
   function due(d, x) { return ext({ due: d }, x); }
@@ -90,22 +90,22 @@ var PFP = (function () {
       ] }
     ] },
     { key: 'plant', tab: 'Plant details', icon: 'sun', sections: [{ paper: 'Plant details', fields: [
-      f('capacity', 'Solar capacity (kWp)', 'p', PLANT_DOCS, due('electrical', { t: 'num' })),
-      f('panel_make', 'Panel make', 'p', PLANT_DOCS, due('electrical')),
-      f('panel_type', 'Panel type', 'p', PLANT_DOCS, due('electrical')),
-      f('panel_wattage', 'Panel wattage (W)', 'p', PLANT_DOCS, due('electrical', { t: 'num' })),
-      f('panel_count', 'Number of panels', 'p', PLANT_DOCS, due('electrical', { t: 'num' })),
-      f('panel_model', 'Panel model no.', 'p', PLANT_DOCS, due('electrical')),
-      f('panel_efficiency', 'Panel efficiency (%)', 'p', PLANT_DOCS, due('electrical', { t: 'num' })),
-      f('inverter_make', 'Inverter make', 'p', PLANT_DOCS, due('electrical')),
-      f('inverter_capacity', 'Inverter capacity (kW)', 'p', PLANT_DOCS, due('electrical', { t: 'num' })),
-      f('inverter_dc_voltage', 'Inverter DC voltage (V)', 'p', PLANT_DOCS, due('electrical', { t: 'num' })),
-      f('meter_make', 'Meter make', 'p', PLANT_DOCS, due('inspection')),
-      f('meter_serial', 'Meter serial no.', 'p', PLANT_DOCS, due('inspection')),
-      f('meter_reading', 'Meter reading', 'p', PLANT_DOCS, due('inspection', { t: 'num' })),
-      f('cell_invoice_no', 'Cell invoice no.', 'p', PLANT_DOCS, due('delivery')),
-      f('panel_serials', 'Panel serial numbers', 'p', PLANT_DOCS, due('electrical', { ro: true })),
-      f('inverter_serials', 'Inverter serial numbers', 'p', PLANT_DOCS, due('electrical', { ro: true }))
+      f('capacity', 'Solar capacity (kWp)', 'p', ['cov', 'wcr', 'an1', 'an2', 'an3', 'doi', 'agr', 'bfr', 'bag'], due('electrical', { t: 'num' })),
+      f('panel_make', 'Panel make', 'p', ['cov', 'wcr', 'bag'], due('electrical')),
+      f('panel_type', 'Panel type', 'p', ['cov', 'wcr'], due('electrical')),
+      f('panel_wattage', 'Panel wattage (W)', 'p', ['cov', 'wcr', 'doi', 'bag'], due('electrical', { t: 'num' })),
+      f('panel_count', 'Number of panels', 'p', ['cov', 'doi'], due('electrical', { t: 'num' })),
+      f('panel_model', 'Panel model no.', 'p', ['bag'], due('electrical')),
+      f('panel_efficiency', 'Panel efficiency (%)', 'p', ['bag'], due('electrical', { t: 'num' })),
+      f('inverter_make', 'Inverter make', 'p', ['cov', 'wcr', 'doi', 'bag'], due('electrical')),
+      f('inverter_capacity', 'Inverter capacity (kW)', 'p', ['cov', 'wcr', 'doi'], due('electrical', { t: 'num' })),
+      f('inverter_dc_voltage', 'Inverter DC voltage (V)', 'p', ['doi'], due('electrical', { t: 'num' })),
+      f('meter_make', 'Meter make', 'p', ['agr'], due('inspection')),
+      f('meter_serial', 'Meter serial no.', 'p', ['agr'], due('inspection')),
+      f('meter_reading', 'Meter reading', 'p', ['agr'], due('inspection', { t: 'num' })),
+      f('cell_invoice_no', 'Cell invoice no.', 'p', ['cov'], due('delivery')),
+      f('panel_serials', 'Panel serial numbers', 'p', ['cov'], due('electrical', { ro: true })),
+      f('inverter_serials', 'Inverter serial numbers', 'p', ['cov', 'wcr', 'doi'], due('electrical', { ro: true }))
     ] }] }
   ];
 
@@ -116,6 +116,11 @@ var PFP = (function () {
     if (!list || !list.length || list.length < n) return '';
     for (var i = 0; i < list.length; i++) if (!s(list[i] && list[i].serial)) return '';
     return 'ok';
+  }
+
+  function docsFor(fl, ctx) {
+    var loan = !!(ctx && ctx.j && ctx.j.loan === 'Yes');
+    return fl.docs.filter(function (d) { return loan || BANK_ONLY.indexOf(d) < 0; });
   }
 
   function value(fl, ctx) {
@@ -129,6 +134,7 @@ var PFP = (function () {
     if (fl.k === 'inverter_serials') return serialsOk(p.inverters, p.inverter_count);
     if (fl.k === 'application_no') return s(p.application_no) || s(j.application_no);
     var src = fl.s === 'c' ? c : fl.s === 'j' ? j : p;
+    if (fl.k === 'sanctioned_load' && fl.s === 'c' && !(parseFloat(s(src[fl.k])) > 0)) return '';
     return s(src[fl.k]);
   }
 
@@ -149,14 +155,15 @@ var PFP = (function () {
     if (!pg) return out;
     pg.sections.forEach(function (sec) {
       sec.fields.forEach(function (fl) {
-        if (fl.docs.length && !fl.opt && !value(fl, ctx) && isDue(fl, ctx) && allowed(fl, ctx)) out.push({ k: fl.k, l: fl.l, docs: fl.docs });
+        var dd = docsFor(fl, ctx);
+        if (dd.length && !fl.opt && !value(fl, ctx) && isDue(fl, ctx) && allowed(fl, ctx)) out.push({ k: fl.k, l: fl.l, docs: dd });
       });
     });
     return out;
   }
 
   function later(fl, ctx) {
-    return fl.docs.length > 0 && !value(fl, ctx) && !isDue(fl, ctx);
+    return docsFor(fl, ctx).length > 0 && !value(fl, ctx) && !isDue(fl, ctx);
   }
 
   function counts(ctx) {
@@ -179,6 +186,6 @@ var PFP = (function () {
     return out;
   }
 
-  return { PAGES: PAGES, value: value, isDue: isDue, missing: missing, later: later, counts: counts, diff: diff };
+  return { PAGES: PAGES, docsFor: docsFor, value: value, isDue: isDue, missing: missing, later: later, counts: counts, diff: diff };
 })();
 if (typeof module !== 'undefined') module.exports = PFP;

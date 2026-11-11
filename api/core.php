@@ -105,6 +105,10 @@ function handle_crud($t, $a) {
           q('UPDATE quotes SET number=? WHERE id=?', [($c['quote_prefix'] ?: 'Q') . '-' . date('y') . '-' . str_pad($id, 4, '0', STR_PAD_LEFT), $id]);
         }
       }
+      if ($t === 'projects' && trim((string)($v['application_no'] ?? '')) !== '' && (int)($v['customer_id'] ?? 0)) {
+        $an = mb_substr(trim((string)$v['application_no']), 0, 120); [$pd] = plant_get((int)$v['customer_id']);
+        if ($an !== (string)($pd['application_no'] ?? '')) plant_patch((int)$v['customer_id'], ['application_no' => $an]);
+      }
       out(['id' => $id]);
     case 'delete':
       $id = (int)($in['id'] ?? 0);

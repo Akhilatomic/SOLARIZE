@@ -46,7 +46,9 @@ function plant_get($cid) { $r = row('SELECT data, updated, updated_by FROM plant
 
 /* merge a few keys into the stored plant JSON (panels / inverters untouched); returns the new plant data */
 function plant_patch(int $cid, array $kv): array {
-  [$d] = plant_get($cid);
+  [$d, $r0] = plant_get($cid);
+  if (!$r0 && ($pj = row('SELECT kw, panel, inverter FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid])))
+    foreach (['capacity' => 'kw', 'panel_make' => 'panel', 'inverter_make' => 'inverter'] as $k => $col) if (empty($d[$k]) && (string)($pj[$col] ?? '') !== '') $d[$k] = mb_substr(trim((string)$pj[$col]), 0, 120);
   foreach (PLANT_KEYS as $k) if (array_key_exists($k, $kv)) $d[$k] = mb_substr(trim((string)$kv[$k]), 0, 120);
   $d['panels'] = $d['panels'] ?? []; $d['inverters'] = $d['inverters'] ?? [];
   q('INSERT INTO plant(customer_id,data,updated,updated_by) VALUES(?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(customer_id) DO UPDATE SET data=excluded.data, updated=excluded.updated, updated_by=excluded.updated_by', [$cid, json_encode($d, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']);

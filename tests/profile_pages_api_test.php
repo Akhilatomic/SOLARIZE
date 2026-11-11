@@ -121,5 +121,29 @@ $ge = call($eng, 'customers', 'get', null, "&id=$pid"); $ge['landmark'] = 'Eng g
 call($eng, 'customers', 'save', $ge);
 chk((call($admin, 'customers', 'get', null, "&id=$pid")['jansamarth_id'] ?? '') === 'ANS-SOLAR-TEST-2', 'engineer save keeps jansamarth_id');
 
+/* final-fix round */
+$k = call($admin, 'customers', 'save', ['name' => 'Loc Person', 'phone' => '9000000005']);
+$kid = (int)($k['id'] ?? 0);
+$ps($admin, 'kseb', ['pole_no' => 'P-1'], $kid);
+$r = $ps($admin, 'loc', ['lat' => '8.5', 'lng' => '77.0', 'landmark' => 'Temple'], $kid);
+$g = call($admin, 'customers', 'get', null, "&id=$kid");
+chk($r['_code'] === 200 && ($g['pole_no'] ?? '') === 'P-1' && (string)($g['lat'] ?? '') === '8.5' && (string)($g['lng'] ?? '') === '77.0' && ($g['landmark'] ?? '') === 'Temple', 'loc page saves lat/lng/landmark and keeps pole_no');
+chk($ps($admin, 'loc', ['lat' => '8.5', 'name' => 'X'], $kid)['_code'] === 400, 'loc page rejects other keys');
+chk($ps($admin, 'kseb', [], $kid)['_code'] === 400, 'empty data 400');
+$n0 = (int)$pdo->query("SELECT COUNT(*) FROM audit_log WHERE entity='customers' AND entity_id=$kid")->fetchColumn();
+$ps($admin, 'contact', [], $kid);
+chk((int)$pdo->query("SELECT COUNT(*) FROM audit_log WHERE entity='customers' AND entity_id=$kid")->fetchColumn() === $n0, 'empty save writes no audit row');
+
+$m = call($admin, 'customers', 'save', ['name' => 'Seed Person', 'phone' => '9000000006']);
+$mid = (int)($m['id'] ?? 0);
+$mp = call($admin, 'projects', 'save', ['customer_id' => $mid, 'title' => 'Seed Project', 'kw' => 3, 'panel' => 'ReNew', 'inverter' => 'Deye']);
+$r = $ps($admin, 'reg', ['etoken_id' => 'ET-9'], $mid);
+$pd = call($admin, 'plant', 'get', null, "&customer_id=$mid")['data'] ?? [];
+chk($r['_code'] === 200 && (string)($pd['capacity'] ?? '') === '3' && ($pd['panel_make'] ?? '') === 'ReNew' && ($pd['inverter_make'] ?? '') === 'Deye' && ($pd['etoken_id'] ?? '') === 'ET-9', 'page_save on a customer without a plant row seeds from the project');
+
+call($admin, 'projects', 'save', ['id' => (int)($mp['id'] ?? 0), 'customer_id' => $mid, 'title' => 'Seed Project', 'kw' => 3, 'application_no' => 'NP-SUB-77']);
+$pd = call($admin, 'plant', 'get', null, "&customer_id=$mid")['data'] ?? [];
+chk(($pd['application_no'] ?? '') === 'NP-SUB-77' && ($pd['etoken_id'] ?? '') === 'ET-9', 'project application_no edit reaches the plant');
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail ? 1 : 0);

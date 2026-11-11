@@ -3,17 +3,18 @@ function pfCtx(st) {
   return { c: st.c, p: st.p, j: st.j, prog: st.prog, pipe: st.pipe, can: perm => perm === 'loans' ? canR('loans') : perm === 'fin' ? FIN() : true };
 }
 function pfNeed(f, ctx) {
-  if (PFP.value(f, ctx) || !f.docs.length || f.opt) return '';
+  if (PFP.value(f, ctx) || !PFP.docsFor(f, ctx).length || f.opt) return '';
   if (PFP.later(f, ctx)) return '<small class="pp-later">needed later</small>';
-  const names = f.docs.map(d => (KD.DOCS[d] && KD.DOCS[d].tab) || d);
-  return '<small class="pp-need">empty · needed by ' + esc(names.join(', ')) + '</small>';
+  const names = PFP.docsFor(f, ctx).map(d => (KD.DOCS[d] && KD.DOCS[d].tab) || d);
+  const shown = names.length > 2 ? names.slice(0, 2).join(', ') + ' +' + (names.length - 2) + ' more' : names.join(', ');
+  return '<small class="pp-need" title="' + esc(names.join(', ')) + '">empty · needed by ' + esc(shown) + '</small>';
 }
 function pfShown(f, st) {
   if (f.perm === 'loans') return canR('loans');
   if (f.perm === 'fin') return FIN() && !!st.j;
   return true;
 }
-function pfCanEdit(f) { return f.perm === 'loans' ? canW('loans') : f.perm === 'fin' ? FIN() : canW('customers'); }
+function pfCanEdit(f) { return f.perm === 'loans' ? canW('loans') : f.perm === 'fin' ? FIN() && canW('projects') : canW('customers'); }
 function pfMasked(v) { return String(v == null ? '' : v).indexOf('•') >= 0; }
 function pfInput(f, v) {
   const masked = pfMasked(v), val = masked ? '' : v, ph = masked ? ` placeholder="${esc(v + ' — type to replace')}"` : '', k = `data-k="${esc(f.k)}"${masked ? ' data-masked="1"' : ''}`;
