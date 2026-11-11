@@ -1,4 +1,12 @@
 // Folder: file manager (nested folders, upload/drag-drop, move/delete/zip), public share links, WhatsApp sharing
+/* File drags anywhere on the Folder page: stop the browser opening the file; writers upload into the current folder. Bound once. */
+let FMUP = null, FMDOC = false;
+function fmDocDrag() {
+  if (FMDOC) return; FMDOC = true;
+  const hf = e => e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+  document.addEventListener('dragover', e => { if ($('#fm') && hf(e)) e.preventDefault(); });
+  document.addEventListener('drop', e => { if (!$('#fm') || !hf(e)) return; e.preventDefault(); const dz = $('#fmdrop'); if (dz) dz.classList.add('hide'); if (FMUP) FMUP(e.dataTransfer.files); else toast("You can't upload here", 1); });
+}
 let FM = { q: '', cur: 0, files: new Set(), folders: new Set() };
 const fsize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 const baseUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -36,6 +44,7 @@ async function pgFolder(id) {
    <div id="fmlist" class="fm-list"></div>
    <div id="fmdrop" class="fm-drop hide"><i class="i i-upload"></i><div>Drop files to upload into <b>${esc(crumbs.length ? crumbs[crumbs.length - 1].name : 'Folder')}</b></div></div>
    <div id="fmbar" class="fm-bar hide"></div></div>`;
+  fmDocDrag(); FMUP = null;
   const reload = () => route();
   const clearSel = () => { FM.files.clear(); FM.folders.clear(); };
   const draw = () => {
@@ -97,19 +106,20 @@ async function pgFolder(id) {
   const upload = async list => {
     list = [...list]; if (!list.length) return;
     const st = document.createElement('div'); st.className = 'fm-prog'; document.body.appendChild(st);
-    let ok = 0, done = 0;
+    let ok = 0, bad = 0, done = 0;
     for (const f of list) {
       done++; st.textContent = `Uploading ${done} of ${list.length}…`;
-      if (f.size > 25 * 1048576) { alert(f.name + ' is larger than 25 MB.'); continue; }
+      if (f.size > 25 * 1048576) { alert(f.name + ' is larger than 25 MB.'); bad++; continue; }
       if (files.some(x => x.file_name.toLowerCase() === f.name.toLowerCase()) && !confirm(`Replace ${f.name} with the new version? The old one goes to the Recycle bin.`)) continue;
       const fd = new FormData(); fd.append('file', f); fd.append('folder_id', cur ? String(cur) : '');
-      try { await api('folder', 'upload', fd); ok++; } catch (e) { break; }
+      try { await api('folder', 'upload', fd); ok++; } catch (e) { bad++; }
     }
     st.remove();
-    if (ok) toast(ok + ' file' + (ok > 1 ? 's' : '') + ' uploaded');
+    if (ok || bad) toast((ok ? ok + ' uploaded' : '') + (ok && bad ? ' · ' : '') + (bad ? bad + ' failed' : ''), !ok);
     reload();
   };
   $('#fmq').oninput = e => { FM.q = e.target.value; draw(); };
+  FMUP = w ? upload : null;
   if (w) {
     $('#fmup').onclick = () => $('#fmfile').click();
     $('#fmfile').onchange = e => { const l = [...e.target.files]; e.target.value = ''; upload(l); };
@@ -124,7 +134,6 @@ async function pgFolder(id) {
     fm.ondragenter = e => { if (!hasFiles(e)) return; e.preventDefault(); dn++; dz.classList.remove('hide'); };
     fm.ondragover = e => { if (hasFiles(e)) e.preventDefault(); };
     fm.ondragleave = e => { if (!hasFiles(e)) return; if (--dn <= 0) { dn = 0; dz.classList.add('hide'); } };
-    fm.ondrop = e => { if (!hasFiles(e)) return; e.preventDefault(); dn = 0; dz.classList.add('hide'); upload(e.dataTransfer.files); };
   }
   draw();
 }
