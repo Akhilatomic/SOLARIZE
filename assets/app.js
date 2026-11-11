@@ -684,7 +684,9 @@ const CF = [{ g: 'Basic details' }, { k: 'name', l: 'Name' }, { k: 'phone', l: '
   { g: 'Bank details (for subsidy)' }, { k: 'bank_holder', l: 'Account holder name' }, { k: 'bank_name', l: 'Bank name' }, { k: 'bank_branch', l: 'Branch' }, { k: 'bank_account', l: 'Account number' }, { k: 'bank_ifsc', l: 'IFSC code' },
   { g: 'Location' }, { k: 'landmark', l: 'Landmark', full: 1 }];
 function customerModal(id, c = {}) {
-  const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} customer</h2><div class="two">${CF.filter(f => !(f.k === 'lead_type' && BA())).map(f => f.g ? `<div class="full cfg">${f.g}</div>` : fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
+  /* Meta only comes from a lead: a customer added here is Own lead or Office (one won from a Meta lead keeps Meta) */
+  const cf = CF.filter(f => !(f.k === 'lead_type' && BA())).map(f => f.k === 'lead_type' && c.lead_type !== 'meta' ? { ...f, opts: LT_OPTS.filter(o => o[0] !== 'meta') } : f);
+  const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} customer</h2><div class="two">${cf.map(f => f.g ? `<div class="full cfg">${f.g}</div>` : fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button>${id && canW('leads') ? '<span class="sp"></span><button class="btn sec" id="rvl" title="Move this customer back to Leads"><i class="i i-refresh"></i> Revert to lead</button>' : ''}</div>`);
   $('#cx', m).onclick = () => m.remove();
   ksebOfficeFill(m);

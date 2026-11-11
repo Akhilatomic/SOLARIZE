@@ -66,6 +66,18 @@ $cd['lead_type'] = 'office'; call($admin, 'customers', 'save', $cd);
 chk(($cust($cDirect)['lead_type'] ?? '') === 'office', 'the admin can');
 $cd['lead_type'] = 'own'; call($admin, 'customers', 'save', $cd);
 
+// Meta only comes from a lead: a customer added directly is never Meta
+$dm = (int)(call($mira, 'customers', 'save', ['name' => 'Ms Direct Meta', 'phone' => '9100000007', 'lead_type' => 'meta'])['id'] ?? 0);
+chk(($cust($dm)['lead_type'] ?? '') === 'office', 'customer added directly as Meta is saved as Office');
+$x = $cust($dm); $x['lead_type'] = 'meta'; call($admin, 'customers', 'save', $x);
+chk(($cust($dm)['lead_type'] ?? '') === 'office', 'the admin cannot make a direct customer Meta either');
+chk(call($admin, 'comm', 'approve', ['customer_id' => $dm, 'lead_type' => 'meta', 'ok' => 1])['_code'] === 400, 'approval refuses Meta for a direct customer');
+$x = $cust($cMeta); $x['phone'] = '9100000099'; call($admin, 'customers', 'save', $x);
+chk(($cust($cMeta)['lead_type'] ?? '') === 'meta', 'a customer won from a Meta lead keeps Meta');
+$rd = inc_row($admin, $dm); $rm = inc_row($admin, $cMeta);
+chk($rd && $rd['from_lead'] === 0 && $rm && $rm['from_lead'] === 1, 'the list tells which customers came from a lead');
+call($admin, 'comm', 'approve', ['customer_id' => $dm, 'lead_type' => 'office', 'ok' => 0]); // out of the way of the counts below
+
 // kW from projects (3 kW each)
 foreach ([$cOwn, $cOff, $cMeta, $cDirect] as $cid) call($admin, 'projects', 'save', ['customer_id' => $cid, 'title' => 'Roof', 'kw' => 3, 'cost' => 180000]);
 

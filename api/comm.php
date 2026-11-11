@@ -68,7 +68,7 @@ function comm_rows($where, $args = []) {
       COALESCE(cm.p2_amount,0) p2_amount, COALESCE(cm.p2_date,'') p2_date, COALESCE(cm.p2_ref,'') p2_ref,
       COALESCE(cm.visible,0) visible, COALESCE(cm.note,'') note, COALESCE(cm.updated,'') updated, COALESCE(cm.updated_by,'') updated_by,
       COALESCE(cm.appr,'') appr, COALESCE(cm.appr_by,'') appr_by, COALESCE(cm.auto,0) auto, COALESCE(cm.calc,'') calc,
-      COALESCE(NULLIF(c.lead_type,''),'office') lead_type, " . INC_MONTH . " ym, " . INC_KW . " kw,
+      COALESCE(NULLIF(c.lead_type,''),'office') lead_type, " . INC_MONTH . " ym, " . INC_KW . " kw, CASE WHEN lk.customer_id IS NULL THEN 0 ELSE 1 END from_lead,
       u.id user_id, u.name user_name, u.role user_role, u.active user_active, COALESCE(pj.cost,0) cost, COALESCE(py.amt,0) received
     FROM customers c
     LEFT JOIN commissions cm ON cm.customer_id=c.id
@@ -77,7 +77,7 @@ function comm_rows($where, $args = []) {
     WHERE $where ORDER BY c.id DESC", $args);
   foreach ($rs as &$r) {
     foreach (['amount', 'p1_amount', 'p2_amount', 'cost', 'received', 'kw'] as $k) $r[$k] = (float)$r[$k];
-    foreach (['customer_id', 'user_id', 'user_active', 'visible', 'auto'] as $k) $r[$k] = (int)$r[$k];
+    foreach (['customer_id', 'user_id', 'user_active', 'visible', 'auto', 'from_lead'] as $k) $r[$k] = (int)$r[$k];
     $r['id'] = $r['id'] === null ? 0 : (int)$r['id'];
     $r['kind'] = comm_kind_of($r['user_role']);
     $r['scheme'] = $r['kind'] === 'incentive' && $r['ym'] >= INC_START ? 1 : 0;   // milestone scheme: needs the admin's approval
@@ -147,7 +147,7 @@ function handle_comm($a) {
 
     case 'candidates': // customers on neither list (no owner, or owned by an admin), to add one by hand
       if (!comm_can_manage('incentive')) fail('Not allowed for your role', 403);
-      out(rows("SELECT c.id, c.name, c.phone, c.district, " . INC_MONTH . " ym FROM customers c LEFT JOIN commissions cm ON cm.customer_id=c.id
+      out(rows("SELECT c.id, c.name, c.phone, c.district, " . INC_MONTH . " ym, EXISTS(SELECT 1 FROM leads l WHERE l.customer_id=c.id) from_lead FROM customers c LEFT JOIN commissions cm ON cm.customer_id=c.id
         LEFT JOIN users u ON u.id=COALESCE(NULLIF(cm.user_id,0), c.owner_id) WHERE u.id IS NULL OR u.role='admin' ORDER BY c.id DESC LIMIT 2000"));
 
     case 'approve': // admin: a staff customer of the scheme is eligible (ok=1, with its lead type) or not (ok=0)
@@ -155,6 +155,7 @@ function handle_comm($a) {
       $cid = (int)($in['customer_id'] ?? 0);
       $c = row('SELECT c.id, c.name, c.owner_id, ' . INC_MONTH . ' ym FROM customers c WHERE c.id=?', [$cid]); if (!$c) fail('Customer not found', 404);
       $lt = (string)($in['lead_type'] ?? ''); if (!isset(LEAD_TYPES[$lt])) fail('Choose the lead type: Own lead, Office or Meta');
+      if ($lt === 'meta' && !cust_from_lead($cid)) fail('This customer was added directly, not from a lead, so it cannot be Meta. Choose Own lead or Office.');
       $old = row('SELECT * FROM commissions WHERE customer_id=?', [$cid]);
       $u = row('SELECT id, name, role FROM users WHERE id=?', [(int)($in['user_id'] ?? 0) ?: ((int)($old['user_id'] ?? 0) ?: (int)$c['owner_id'])]);
       if (!$u || in_array($u['role'], ['admin', 'ba'], true)) fail('Choose the staff member this incentive is for');

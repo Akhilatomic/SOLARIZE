@@ -171,9 +171,11 @@ async function commMilestone(box, uid) {
 // admin: a staff customer is eligible (with its lead type, which decides the rate) or not
 function commApprove(r, people, done) {
   const staff = people.filter(p => p.kind === 'incentive');
-  const m = modal(`<h2 style="margin-top:0">Approve incentive</h2><p class="mut" style="margin-top:-6px"><b>${esc(r.name)}</b>${r.ym ? ' · won ' + cmYm(r.ym) : ''}${+r.kw ? ' · ' + (+r.kw) + ' kW' : ' · kW not set yet'}</p>
+  /* Meta only comes from a lead: a customer added directly is Own lead or Office */
+  const types = Object.entries(COMM.LT).filter(([k]) => k !== 'meta' || +r.from_lead), cur = types.some(([k]) => k === r.lead_type) ? r.lead_type : 'office';
+  const m = modal(`<h2 style="margin-top:0">Approve incentive</h2><p class="mut" style="margin-top:-6px"><b>${esc(r.name)}</b>${r.ym ? ' · won ' + cmYm(r.ym) : ''}${+r.kw ? ' · ' + (+r.kw) + ' kW' : ' · kW not set yet'}${+r.from_lead ? '' : ' · added directly, not from a lead'}</p>
     <div class="two"><div><label>Staff member</label><select id="apu">${r.user_id ? '' : '<option value="">Choose…</option>'}${staff.map(p => `<option value="${p.id}" ${+r.user_id === p.id ? 'selected' : ''}>${esc(p.name)}${p.active ? '' : ' (inactive)'}</option>`).join('')}</select></div>
-      <div><label>Lead type</label><select id="apt">${Object.entries(COMM.LT).map(([k, l]) => `<option value="${k}" ${(r.lead_type || 'office') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+      <div><label>Lead type</label><select id="apt">${types.map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
     <div class="cmn-sum" id="apv"></div>
     <label class="cmn-vis"><input type="checkbox" id="apvis" ${r.appr === 'no' && !r.visible ? '' : 'checked'}> <span id="apvl"></span></label>
     <p class="mut" style="font-size:12px;margin:6px 0 0">Own lead: ₹3,000 per kW. Meta / Office lead: by the staff member’s milestone in the month the customer was won. Only approved customers get an incentive.</p>
@@ -240,6 +242,6 @@ async function commPick(d, done, reload) {
   $('#cmq', m).oninput = dr; dr(); $('#cmx', m).onclick = () => m.remove();
   $('#cml', m).onclick = e => { const b = e.target.closest('[data-pk]'); if (!b) return; const c = cs.find(x => x.id === +b.dataset.pk); m.remove();
     /* on the Incentive list, a customer won since the scheme started goes through approval (it chooses the staff member and lead type) */
-    if (d.admin && d.kind === 'incentive' && c.ym >= d.start) return commApprove({ customer_id: c.id, name: c.name, user_id: 0, lead_type: 'office', ym: c.ym, kw: 0, appr: '' }, d.people, reload);
+    if (d.admin && d.kind === 'incentive' && c.ym >= d.start) return commApprove({ customer_id: c.id, name: c.name, user_id: 0, lead_type: 'office', ym: c.ym, kw: 0, appr: '', from_lead: +c.from_lead }, d.people, reload);
     commEdit({ customer_id: c.id, name: c.name, user_id: 0, amount: 0, p1_amount: 0, p2_amount: 0, visible: 0, note: '', cost: 0, received: 0 }, d.people, done); };
 }

@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 37; // bump when tables/columns change
+const SCHEMA_VERSION = 38; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -43,8 +43,12 @@ function lead_type_save($t, $in, $id) {
   if ($t === 'leads' && $old && trim((string)($old['meta_id'] ?? '')) !== '') return 'meta';
   if ($t === 'customers' && $old && !is_admin()) return lead_type_of($old, $t);
   $v = (string)($in['lead_type'] ?? '');
-  return isset(LEAD_TYPES[$v]) ? $v : ($old ? lead_type_of($old, $t) : 'office');
+  $v = isset(LEAD_TYPES[$v]) ? $v : ($old ? lead_type_of($old, $t) : 'office');
+  if ($t === 'customers' && $v === 'meta' && !cust_from_lead($id)) $v = 'office'; // added directly (no lead behind it): never Meta
+  return $v;
 }
+// Meta comes only from a lead: a customer is Meta only when it was won from one; one added directly is Own lead or Office
+function cust_from_lead($cid) { return (int)$cid > 0 && (bool)row('SELECT 1 FROM leads WHERE customer_id=? LIMIT 1', [(int)$cid]); }
 // Areas a role never gets, whatever is ticked in Settings → User access or granted by "Can see & claim leads".
 // Business Associates are outside partners: no WhatsApp (inbox, business number, message history), and commission instead of incentive.
 const ROLE_NEVER = ['ba' => ['whatsapp', 'incentive']];
@@ -236,6 +240,8 @@ function migrate($db) {
      and auto amounts on commissions. Amounts already typed count as approved, so nothing changes for them. */
   $db->exec("UPDATE leads SET lead_type=CASE WHEN COALESCE(meta_id,'')<>'' OR source='Meta Ads' THEN 'meta' ELSE 'office' END WHERE COALESCE(lead_type,'') NOT IN ('own','office','meta')");
   $db->exec("UPDATE customers SET lead_type=COALESCE((SELECT l.lead_type FROM leads l WHERE l.customer_id=customers.id ORDER BY l.id DESC LIMIT 1),'office') WHERE COALESCE(lead_type,'') NOT IN ('own','office','meta')");
+  /* v38: a customer added directly (no lead behind it) is never Meta */
+  $db->exec("UPDATE customers SET lead_type='office' WHERE lead_type='meta' AND id NOT IN (SELECT customer_id FROM leads WHERE customer_id IS NOT NULL)");
   /* v36: Business Associates never have WhatsApp: chats assigned to one go back to unassigned so staff see them again */
   $db->exec("UPDATE wa_chats SET assigned_to=NULL WHERE assigned_to IN (SELECT id FROM users WHERE role='ba')");
   /* v35: Finance › Commission (BA customers) / Incentive (staff customers). One row per customer: the amount the admin agreed,
