@@ -68,6 +68,7 @@ function handle_crud($t, $a) {
       out($t === 'customers' ? mask_customer($r) : $r);
     case 'save':
       $v = pick($in, $cols);
+      if ($t === 'leads' || $t === 'customers') $v['lead_type'] = lead_type_save($t, $in, (int)($in['id'] ?? 0));
       /* KSEB sub division / division / circle follow the consumer number or section office (api/kseb_offices.php) */
       if ($t === 'customers') $v = kseb_autofill($v, !empty($in['id']) ? row('SELECT consumer_no, kseb_section, kseb_subdivision, kseb_division, kseb_circle FROM customers WHERE id=?', [(int)$in['id']]) : null);
       if (isset($v['name']) && $v['name'] === '') fail('Name required');
@@ -149,7 +150,7 @@ function handle_crud($t, $a) {
       } else { // customer was added directly: create a lead from it
         q('INSERT INTO leads(name,phone,email,address,city,location,source,status,added_by,assigned_to,claimed_at,kw,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
           [$cu['name'], $cu['phone'], $cu['email'], $cu['address'], $cu['district'], $cu['address'], 'Customer (reverted)', $hasQuote ? 'Quoted' : 'Contacted', $_SESSION['name'] ?? '', uid(), date('Y-m-d H:i:s'), $cu['kw'] ?? null, trim(($cu['notes'] ?? '') . "\n" . $stamp)]);
-        $lid = (int)db()->lastInsertId();
+        $lid = (int)db()->lastInsertId(); q('UPDATE leads SET lead_type=? WHERE id=?', [lead_type_of($cu, 'customers'), $lid]);
       }
       q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$cu['id']]);
       q('UPDATE quotes SET lead_id=COALESCE(lead_id, ?), customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // quotes stay with the lead
@@ -164,7 +165,7 @@ function handle_crud($t, $a) {
       $l = row('SELECT * FROM leads WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$l) fail('Not found', 404);
       if ($l['customer_id']) out(['customer_id' => $l['customer_id']]);
       q('INSERT INTO customers(name,phone,email,address,district,notes,added_by,owner_id) VALUES(?,?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '', (int)$l['assigned_to'] ?: uid()]); // the lead's owner keeps the customer
-      $cid = (int)db()->lastInsertId();
+      $cid = (int)db()->lastInsertId(); q('UPDATE customers SET lead_type=? WHERE id=?', [lead_type_of($l), $cid]); // the incentive follows the lead type
       q("UPDATE leads SET customer_id=?, status='Won', updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
       lead_to_customer_plant($l, $cid); // site condition + proposed plant → customer's Plant details
       q('UPDATE quotes SET customer_id=? WHERE lead_id=? AND customer_id IS NULL', [$cid, $l['id']]);

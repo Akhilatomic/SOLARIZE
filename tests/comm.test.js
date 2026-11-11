@@ -61,3 +61,33 @@ test('filter: search, status tab, person', () => {
   assert.deepEqual(COMM.filter(rows, 'utr55', 'all', 0).map(r => r.customer_id), [1]);
   assert.deepEqual(COMM.filter(rows, 'sam', 'all', 0).map(r => r.customer_id), [2]);
 });
+
+const TIERS = [[2, 1000], [5, 2000], [null, 3000]];
+
+test('milestone rate: 1st–2nd ₹1,000/kW, 3rd–5th ₹2,000/kW, 6th on ₹3,000/kW', () => {
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 10, 11, 25].map(k => COMM.rate(k, TIERS)), [1000, 1000, 2000, 2000, 2000, 3000, 3000, 3000, 3000]);
+});
+
+test('milestone step: what the next project earns and how far the next step is', () => {
+  assert.deepEqual(COMM.step(0, TIERS), { next: 1000, up: 2000, more: 2 }); // close 2 more, then the 3rd earns ₹2,000/kW
+  assert.deepEqual(COMM.step(1, TIERS), { next: 1000, up: 2000, more: 1 });
+  assert.deepEqual(COMM.step(2, TIERS), { next: 2000, up: 3000, more: 3 }); // the 3rd now earns ₹2,000; 3 more to reach the 6th
+  assert.deepEqual(COMM.step(4, TIERS), { next: 2000, up: 3000, more: 1 });
+  assert.deepEqual(COMM.step(5, TIERS), { next: 3000, up: 0, more: 0 });   // top step
+  assert.deepEqual(COMM.step(12, TIERS), { next: 3000, up: 0, more: 0 });
+});
+
+test('milestone bar groups: one per step, the last drawn to 10 (or more)', () => {
+  assert.deepEqual(COMM.groups(TIERS), [{ from: 1, to: 2, rate: 1000 }, { from: 3, to: 5, rate: 2000 }, { from: 6, to: 10, rate: 3000 }]);
+  assert.deepEqual(COMM.groups(TIERS, 13)[2], { from: 6, to: 13, rate: 3000 });
+});
+
+test('approval states: waiting and not eligible come before money states', () => {
+  assert.equal(COMM.status(row({ pending: 1 })), 'approve');
+  assert.equal(COMM.status(row({ appr: 'no' })), 'no');
+  assert.equal(COMM.status(row({ appr: 'ok', amount: 3000 })), 'due');
+  const rows = [row({ customer_id: 1, pending: 1, lead_type: 'office' }), row({ customer_id: 2, appr: 'ok', amount: 100, lead_type: 'own' }), row({ customer_id: 3, appr: 'no' })];
+  assert.deepEqual(COMM.filter(rows, '', 'approve', 0).map(r => r.customer_id), [1]);
+  assert.deepEqual(COMM.filter(rows, '', 'unset', 0).map(r => r.customer_id), []);
+  assert.deepEqual(COMM.filter(rows, 'own lead', 'all', 0).map(r => r.customer_id), [2]);
+});

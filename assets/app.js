@@ -29,6 +29,9 @@ const MODS = [ // id, label, icon, perm
 const canW = m => ME && (ME.write === '*' || ME.write.includes(m));
 const FIN = () => canR('finance');
 const canR = m => ME && (ME.read === '*' || ME.read.includes(m));
+/* Lead type (who brought the lead): Own = the staff member's own contact; Office and Meta = company leads. It decides the incentive (api/comm.php). */
+const LT_NAMES = { own: 'Own lead', office: 'Office', meta: 'Meta' }, LT_OPTS = [['', 'Choose…'], ['own', 'Own lead'], ['office', 'Office'], ['meta', 'Meta']];
+const ltBadge = t => LT_NAMES[t] ? `<span class="pill ltp lt-${t}" title="Lead type">${LT_NAMES[t]}</span>` : '';
 const BA = () => !!ME && ME.role === 'ba'; // Business Associate: own leads & customers only, no money, no WhatsApp, cannot delete or revert customers
 
 async function api(m, a, body, qs = '') {
@@ -432,7 +435,7 @@ async function pgLeads() {
     const loc = l => { const c = l.city || '', o = l.location || l.address || ''; return o && o.toLowerCase() !== c.toLowerCase() ? (c ? c + ' · ' + o : o) : c; };
     const cell = {
       date: l => `<td class="dt" title="${esc(dmy(l.created) + (l.added_by ? ' · added by ' + l.added_by : ''))}">${dshort(l.created)}<small>${esc(l.added_by || '')}</small></td>`,
-      name: l => ed(l, 'name', `<div class="nm">${l.notify ? '<span class="ndot" title="New lead — not contacted yet"></span>' : ''}<b>${esc(l.name)}</b>${l.source === 'Meta Ads' ? '<span class="pill mt">Meta</span>' : ''}</div>`, l.name),
+      name: l => ed(l, 'name', `<div class="nm">${l.notify ? '<span class="ndot" title="New lead — not contacted yet"></span>' : ''}<b>${esc(l.name)}</b>${BA() ? '' : ltBadge(l.lead_type || (l.meta_id || l.source === 'Meta Ads' ? 'meta' : 'office'))}</div>`, l.name),
       phone: l => ed(l, 'phone', `<span class="ph">${esc(l.phone)}</span>`),
       status: l => ed(l, 'status', pill(l.status, stageCls(l.status))),
       city: l => ed(l, 'city', `<span class="clip">${esc(loc(l))}</span>`, loc(l)),
@@ -524,7 +527,7 @@ async function pgLeads() {
   if ($('#lnew')) $('#lnew').onclick = () => leadModal(0);
   $('#lcol').onclick = () => $('#lcm').classList.toggle('hide');
   $$('[data-col]').forEach(c => c.onchange = () => { LHIDE = $$('[data-col]').filter(x => !x.checked).map(x => x.dataset.col); try { localStorage.lcols = JSON.stringify(LHIDE); } catch (e) { } draw(); });
-  if ($('#lex')) $('#lex').onclick = () => csvDownload('leads-' + today() + '.csv', ['name', 'phone', 'email', 'city', 'location', 'source', 'status', 'appt', 'remark', 'kw', 'budget', 'added_by', 'created', 'notes'], leads);
+  if ($('#lex')) $('#lex').onclick = () => csvDownload('leads-' + today() + '.csv', ['name', 'phone', 'email', 'city', 'location', 'source', 'lead_type', 'status', 'appt', 'remark', 'kw', 'budget', 'added_by', 'created', 'notes'], leads);
   if ($('#lim')) $('#lim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; const rows = csvObjs(await f.text()); let n = 0; for (const r of rows) { if (!r.name) continue; await api('leads', 'save', { ...r, status: r.status || 'New' }); n++; } alert('Imported ' + n + ' leads'); route(); };
   draw(); DISC.lredraw = draw;
 }
@@ -532,7 +535,7 @@ async function leadModal(id) {
   const l = id ? await api('leads', 'get', undefined, '&id=' + id) : { status: 'New', source: S.lead_sources[0] };
   if (id && typeof refreshFeed === 'function' && (FEED.leads || []).some(x => x.id == id)) refreshFeed(); // viewed → drops off the dashboard list
   if (id && !l.location) l.location = l.address;
-  const F = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'source', l: 'Source', opts: S.lead_sources }, { k: 'city', l: 'City' }, { k: 'location', l: 'Location / address' },
+  const F = [{ k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'source', l: 'Source', opts: S.lead_sources }, ...(BA() ? [] : [{ k: 'lead_type', l: 'Lead type', opts: l.meta_id ? [['meta', 'Meta (from the Meta form)']] : LT_OPTS }]), { k: 'city', l: 'City' }, { k: 'location', l: 'Location / address' },
     { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'appt', l: 'Appointment date', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, ...(FIN() ? [{ k: 'budget', l: 'Budget (₹)', t: 'number' }] : []), { k: 'remark', l: 'Remark', full: 1, t: 'textarea', rows: 2, spell: 1 }];
   if ((CACHE.camps || []).length) F.splice(4, 0, { k: 'campaign_id', l: 'Meta campaign', opts: opt(CACHE.camps.map(c => [c.id, c.name]), '— none —') });
   const w = canW('leads') && (!id || !!l.can_edit);
@@ -554,7 +557,8 @@ async function leadModal(id) {
   if ($('#mul', m)) $('#mul', m).onclick = async () => { if (await unlockLead(id, l.assigned_to == ME.id)) { m.remove(); route(); } };
   if ($('#mas', m)) $('#mas', m).onclick = async () => { if (await assignLead(l)) { m.remove(); route(); } };
   if ($('#oc', m)) $('#oc', m).onclick = () => m.remove();
-  if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m), ...leadExtra(m) }; if (!o.name) return alert('Name required'); await api('leads', 'save', o); m.remove(); route(); };
+  if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m), ...leadExtra(m) }; if (!o.name) return alert('Name required'); if (BA()) o.lead_type = 'own';
+    if (!o.lead_type) { const lt = $('[data-k="lead_type"]', m); if (lt) { lt.focus(); lt.classList.add('bad'); } return alert('Choose the lead type: Own lead, Office or Meta'); } await api('leads', 'save', o); m.remove(); route(); };
   if ($('#lcbk', m)) $('#lcbk', m).onclick = () => callbackBox(l, () => { const b = $('#lcbk', m); if (b) { b.innerHTML = cbBtnTxt(l); b.classList.toggle('cbdue', !!l.callback_at && l.callback_at <= cbNow()); } });
   if ($('#wa', m)) $('#wa', m).onclick = () => waOpen({ name: l.name, phone: l.phone, lead_id: id });
   if ($('#lds', m)) $('#lds', m).onclick = () => { m.remove(); discOpen({ lead_id: id }); };
@@ -672,7 +676,7 @@ async function pgCustomers() {
   draw(); DISC.redraw = draw;
   if (!window._custRz) { window._custRz = 1; let tm; addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(() => { if (/^#\/customers\/?$/.test(location.hash) && DISC.redraw) DISC.redraw(); }, 150); }); }
 }
-const CF = [{ g: 'Basic details' }, { k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'alt_phone', l: 'Alternate phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'address', l: 'Address', full: 1 }, { k: 'district', l: 'District', d: 'Thiruvananthapuram' }, { k: 'pincode', l: 'PIN code' },
+const CF = [{ g: 'Basic details' }, { k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'lead_type', l: 'Lead type', opts: LT_OPTS }, { k: 'alt_phone', l: 'Alternate phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'address', l: 'Address', full: 1 }, { k: 'district', l: 'District', d: 'Thiruvananthapuram' }, { k: 'pincode', l: 'PIN code' },
   { k: 'roof_type', l: 'Roof type', opts: ['', 'RCC flat', 'Sheet / tin', 'Tile', 'Other'] }, { k: 'gst_no', l: 'GST no. (if business)' },
   { g: 'KSEB details' }, { k: 'consumer_no', l: 'KSEB consumer no.' }, { k: 'kseb_section', l: 'KSEB section office' }, { k: 'sanctioned_load', l: 'Sanctioned load (kW)', t: 'number' }, { k: 'phase', l: 'Connection', opts: ['', 'Single phase', 'Three phase'] }, { k: 'tariff', l: 'Tariff', opts: ['', 'LT-1A Domestic', 'LT-6 Non-domestic', 'LT-7 Commercial', 'LT-4 Industrial', 'Other'] }, { k: 'meter_no', l: 'Meter no.' },
   { k: 'kseb_circle', l: 'Electrical circle', ph: 'e.g. Electrical Circle (Rural) Kattakada' }, { k: 'kseb_division', l: 'Electrical division', ph: 'e.g. Electrical Division Neyyattinkara' }, { k: 'kseb_subdivision', l: 'Electrical sub division' },
@@ -680,12 +684,14 @@ const CF = [{ g: 'Basic details' }, { k: 'name', l: 'Name' }, { k: 'phone', l: '
   { g: 'Bank details (for subsidy)' }, { k: 'bank_holder', l: 'Account holder name' }, { k: 'bank_name', l: 'Bank name' }, { k: 'bank_branch', l: 'Branch' }, { k: 'bank_account', l: 'Account number' }, { k: 'bank_ifsc', l: 'IFSC code' },
   { g: 'Location' }, { k: 'landmark', l: 'Landmark', full: 1 }];
 function customerModal(id, c = {}) {
-  const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} customer</h2><div class="two">${CF.map(f => f.g ? `<div class="full cfg">${f.g}</div>` : fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
+  const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} customer</h2><div class="two">${CF.filter(f => !(f.k === 'lead_type' && BA())).map(f => f.g ? `<div class="full cfg">${f.g}</div>` : fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button>${id && canW('leads') ? '<span class="sp"></span><button class="btn sec" id="rvl" title="Move this customer back to Leads"><i class="i i-refresh"></i> Revert to lead</button>' : ''}</div>`);
   $('#cx', m).onclick = () => m.remove();
   ksebOfficeFill(m);
+  const lt = $('[data-k="lead_type"]', m); if (lt && id && !isAdm()) { lt.disabled = true; lt.title = 'Only the admin changes the lead type of a customer (it decides the incentive)'; }
   if ($('#rvl', m)) $('#rvl', m).onclick = () => revertToLead(id, c.name, m);
-  $('#sv', m).onclick = async () => { const o = { ...c, id, ...collect(m) }; if (!o.name) return alert('Name required'); const r = await api('customers', 'save', o); m.remove(); if (id) route(); else location.hash = '#/customers/' + r.id; };
+  $('#sv', m).onclick = async () => { const o = { ...c, id, ...collect(m) }; if (!o.name) return alert('Name required'); if (BA()) o.lead_type = 'own';
+    if (!o.lead_type) { if (lt) lt.focus(); return alert('Choose the lead type: Own lead, Office or Meta'); } const r = await api('customers', 'save', o); m.remove(); if (id) route(); else location.hash = '#/customers/' + r.id; };
 }
 /* KSEB office: typing the consumer number (11 + section code + …) or picking the section office fills the electrical
    sub division, division and circle (and an empty section). A field the user typed stays; one we filled follows the office.

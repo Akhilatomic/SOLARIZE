@@ -128,7 +128,7 @@ function meta_ingest($L, $form) {
   $camp = trim((string)($L['campaign_name'] ?? '')); $cid = null;
   if ($camp !== '') { $c = row('SELECT id FROM campaigns WHERE name=?', [$camp]); if (!$c) { q('INSERT INTO campaigns(name,platform,status,objective) VALUES(?,?,?,?)', [$camp, 'Meta', 'Active', 'Leads']); $cid = (int)db()->lastInsertId(); } else $cid = (int)$c['id']; }
   $ts = strtotime($L['created_time'] ?? '') ?: time();
-  q("INSERT INTO leads(name,phone,email,city,location,address,source,campaign_id,status,added_by,notes,meta_id,meta_form,meta_ad,meta_campaign,notify,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)",
+  q("INSERT INTO leads(name,phone,email,city,location,address,source,campaign_id,status,added_by,notes,meta_id,meta_form,meta_ad,meta_campaign,notify,created,updated,lead_type) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,'meta')",
     [$name, $phone, $f['email'] ?? '', $f['city'] ?? '', $f['city'] ?? '', $f['addr'] ?? '', 'Meta Ads', $cid, 'New', 'Meta Ads', implode("\n", $notes), $mid, $form['name'] ?? '', (string)($L['ad_name'] ?? ''), $camp, gmdate('Y-m-d H:i:s', $ts), gmdate('Y-m-d H:i:s')]);
   return 1;
 }

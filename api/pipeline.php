@@ -53,7 +53,7 @@ function handle_pipeline($a) {
         if ($l['customer_id']) $cid = (int)$l['customer_id'];
         else {
           q('INSERT INTO customers(name,phone,email,address,district,notes,added_by,owner_id) VALUES(?,?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '', (int)$l['assigned_to'] ?: uid()]);
-          $cid = (int)db()->lastInsertId();
+          $cid = (int)db()->lastInsertId(); q('UPDATE customers SET lead_type=? WHERE id=?', [lead_type_of($l), $cid]);
           q("UPDATE leads SET customer_id=?, status='Won', notify=0, updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
           audit('convert', 'leads', $l['id'], "→ customer $cid");
         }

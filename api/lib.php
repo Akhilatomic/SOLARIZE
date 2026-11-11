@@ -1,13 +1,13 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 36; // bump when tables/columns change
+const SCHEMA_VERSION = 37; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
 // entity => [module, columns]
 $E = [
-  'leads' => ['leads', ['name','phone','email','address','city','location','remark','appt','added_by','source','campaign_id','status','assigned_to','followup','kw','budget','customer_id','notes','meta_id','meta_form','meta_ad','meta_campaign','notify','claimed_at','site','plant']],
-  'customers' => ['customers', ['name','phone','email','address','district','consumer_no','kseb_section','sanctioned_load','roof_type','gst_no','notes','added_by','alt_phone','pincode','phase','tariff','meter_no','bank_holder','bank_name','bank_branch','bank_account','bank_ifsc','lat','lng','landmark','kseb_circle','kseb_division','kseb_subdivision','local_body','village_survey','jansamarth_id']],
+  'leads' => ['leads', ['name','phone','email','address','city','location','remark','appt','added_by','source','campaign_id','status','assigned_to','followup','kw','budget','customer_id','notes','meta_id','meta_form','meta_ad','meta_campaign','notify','claimed_at','site','plant','lead_type']],
+  'customers' => ['customers', ['name','phone','email','address','district','consumer_no','kseb_section','sanctioned_load','roof_type','gst_no','notes','added_by','alt_phone','pincode','phase','tariff','meter_no','bank_holder','bank_name','bank_branch','bank_account','bank_ifsc','lat','lng','landmark','kseb_circle','kseb_division','kseb_subdivision','local_body','village_survey','jansamarth_id','lead_type']],
   'projects' => ['projects', ['customer_id','title','kw','panel','inverter','stage','engineer','start','end','cost','application_no','subsidy_status','subsidy_amount','notes','loan','amc_start','amc_end','amc_interval']],
   'quotes' => ['quotes', ['customer_id','lead_id','number','date','items','gst_rate','subsidy','terms','status','total']],
   'campaigns' => ['ads', ['name','platform','objective','start','end','budget','status']],
@@ -30,6 +30,21 @@ const ROLE_DEFAULTS = [
   // Business Associate: their own leads and customers, their customers' projects (view only), no money. Rows are limited in claims.php (ba_gate, cust_scope).
   'ba' => [['dashboard','leads','customers','projects'], ['leads','customers']],
 ];
+// Lead type: who brought the lead. Meta form leads are always Meta; Own = the staff member's own contact (₹3,000/kW incentive);
+// Meta and Office are company leads (milestone incentive, api/comm.php). The admin confirms it when approving the incentive.
+const LEAD_TYPES = ['own' => 'Own lead', 'office' => 'Office', 'meta' => 'Meta'];
+function lead_type_of($r, $t = 'leads') {
+  $v = (string)($r['lead_type'] ?? ''); if (isset(LEAD_TYPES[$v])) return $v;
+  return $t === 'leads' && (trim((string)($r['meta_id'] ?? '')) !== '' || ($r['source'] ?? '') === 'Meta Ads') ? 'meta' : 'office';
+}
+// the lead type a save may set: Meta form leads stay Meta; only the admin re-types an existing customer (it decides the incentive)
+function lead_type_save($t, $in, $id) {
+  $old = $id ? row("SELECT * FROM $t WHERE id=?", [$id]) : null;
+  if ($t === 'leads' && $old && trim((string)($old['meta_id'] ?? '')) !== '') return 'meta';
+  if ($t === 'customers' && $old && !is_admin()) return lead_type_of($old, $t);
+  $v = (string)($in['lead_type'] ?? '');
+  return isset(LEAD_TYPES[$v]) ? $v : ($old ? lead_type_of($old, $t) : 'office');
+}
 // Areas a role never gets, whatever is ticked in Settings → User access or granted by "Can see & claim leads".
 // Business Associates are outside partners: no WhatsApp (inbox, business number, message history), and commission instead of incentive.
 const ROLE_NEVER = ['ba' => ['whatsapp', 'incentive']];
@@ -217,12 +232,21 @@ function migrate($db) {
   $db->exec('CREATE INDEX IF NOT EXISTS cust_owner ON customers(owner_id)');
   $db->exec('UPDATE customers SET owner_id=(SELECT l.assigned_to FROM leads l WHERE l.customer_id=customers.id AND l.assigned_to>0 ORDER BY l.id DESC LIMIT 1) WHERE owner_id IS NULL');
   $db->exec("UPDATE customers SET owner_id=(SELECT u.id FROM users u WHERE lower(trim(u.name))=lower(trim(customers.added_by)) ORDER BY u.active DESC, u.id LIMIT 1) WHERE owner_id IS NULL AND trim(COALESCE(added_by,''))<>''");
+  /* v37: lead type on every lead and customer (Meta form leads → Meta, the rest → Office until someone says Own); incentive approval
+     and auto amounts on commissions. Amounts already typed count as approved, so nothing changes for them. */
+  $db->exec("UPDATE leads SET lead_type=CASE WHEN COALESCE(meta_id,'')<>'' OR source='Meta Ads' THEN 'meta' ELSE 'office' END WHERE COALESCE(lead_type,'') NOT IN ('own','office','meta')");
+  $db->exec("UPDATE customers SET lead_type=COALESCE((SELECT l.lead_type FROM leads l WHERE l.customer_id=customers.id ORDER BY l.id DESC LIMIT 1),'office') WHERE COALESCE(lead_type,'') NOT IN ('own','office','meta')");
   /* v36: Business Associates never have WhatsApp: chats assigned to one go back to unassigned so staff see them again */
   $db->exec("UPDATE wa_chats SET assigned_to=NULL WHERE assigned_to IN (SELECT id FROM users WHERE role='ba')");
   /* v35: Finance › Commission (BA customers) / Incentive (staff customers). One row per customer: the amount the admin agreed,
      paid in two parts (amount, date, transaction ID); visible = the person may see it. user_id is fixed on the first save. */
   $db->exec("CREATE TABLE IF NOT EXISTS commissions(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER UNIQUE, user_id INTEGER, amount REAL DEFAULT 0, p1_amount REAL DEFAULT 0, p1_date TEXT DEFAULT '', p1_ref TEXT DEFAULT '', p2_amount REAL DEFAULT 0, p2_date TEXT DEFAULT '', p2_ref TEXT DEFAULT '', visible INTEGER DEFAULT 0, note TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, updated_by TEXT DEFAULT '')");
   $db->exec('CREATE INDEX IF NOT EXISTS comm_user ON commissions(user_id, visible)');
+  /* v37 (continued): incentive approval and auto amounts on commissions, after the table exists */
+  $cmc = array_column($db->query('PRAGMA table_info(commissions)')->fetchAll(), 'name');
+  foreach (["appr TEXT DEFAULT ''", "appr_by TEXT DEFAULT ''", "appr_at TEXT DEFAULT ''", 'auto INTEGER DEFAULT 0', "calc TEXT DEFAULT ''"] as $col) { $cn = strtok($col, ' ');
+    if ($cmc && !in_array($cn, $cmc)) { try { $db->exec("ALTER TABLE commissions ADD COLUMN $col"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } } }
+  $db->exec("UPDATE commissions SET appr='ok' WHERE COALESCE(appr,'')='' AND (amount>0 OR p1_amount>0)");
   /* v34: customers.jansamarth_id (the Jan Samarth solar loan application ID, ANS-SOLAR-…) comes from the column list above */
   /* v33: every customer's empty KSEB sub division / division / circle (and section) filled from the consumer number or section */
   require_once __DIR__ . '/kseb_offices.php';

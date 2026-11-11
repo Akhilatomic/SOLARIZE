@@ -114,7 +114,7 @@ function handle_wa_hook() {
       // unknown number → new WhatsApp lead (shows in "New leads to contact")
       $chat = row('SELECT * FROM wa_chats WHERE id=?', [$chat['id']]);
       if (!$chat['lead_id'] && !$chat['customer_id']) {
-        q("INSERT INTO leads(name,phone,source,status,added_by,notify,notes) VALUES(?,?,?,?,?,1,?)", [$chat['name'] ?: ('WhatsApp ' . substr($from, -10)), substr($from, -10), 'WhatsApp', 'New', 'WhatsApp', 'First message: ' . mb_substr($body, 0, 200)]);
+        q("INSERT INTO leads(name,phone,source,status,added_by,notify,notes,lead_type) VALUES(?,?,?,?,?,1,?,'office')", [$chat['name'] ?: ('WhatsApp ' . substr($from, -10)), substr($from, -10), 'WhatsApp', 'New', 'WhatsApp', 'First message: ' . mb_substr($body, 0, 200)]);
         q('UPDATE wa_chats SET lead_id=? WHERE id=?', [(int)db()->lastInsertId(), $chat['id']]);
       }
     }
