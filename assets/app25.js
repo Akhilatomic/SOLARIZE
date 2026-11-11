@@ -1,11 +1,12 @@
-// Two pages on this code ("books", KD_BOOKS): KSEB documentation (#/kseb, #/kseb/<customerId>) and Bank documentation
+// Two pages on this code ("books", KD_BOOKS): KSEB documentation (#/kseb, #/kseb/<customerId>; its Agreement tab is the KSEB
+// net metering agreement, which can also fill empty profile fields) and Bank documentation
 // (#/bank/<customerId>: the loan papers, feasibility report and vendor–customer agreement).
 // A document tab: customer picker, the document's fields (KD.DOCS in app24.js) on the left, a live A4 preview on the right,
 // Save and Download PDF. pdf-lib (loaded on first use) writes the text onto the template PDF in the browser.
 // Saving rule: only the fields that differ from the profile are stored (KD.overrides), plus the date, so a corrected
 // profile prints corrected. UI classes start with .kd (assets/kseb.css). Every value shown in HTML goes through esc().
 const KDS = { book: 'kseb', tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
-const KD_TABS = [['cov', 'Cover page'], ['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['doi', 'Details of installation'], ['chk', 'Checklist sheet'], ['mnre', 'MNRE warranty card']];
+const KD_TABS = [['cov', 'Cover page'], ['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['doi', 'Details of installation'], ['agr', 'Agreement'], ['chk', 'Checklist sheet'], ['mnre', 'MNRE warranty card']];
 const BK_TABS = [['bfr', 'Feasibility report'], ['bag', 'Vendor–customer agreement']];
 const KD_BOOKS = {
   kseb: { tabs: KD_TABS, def: 'wcr', api: 'kseb', perm: 'checklist', hash: '#/kseb/', what: 'profile and plant details' },
@@ -133,7 +134,7 @@ function kdGroup(doc, gr, w) {
 function kdField(doc, f) {
   const v = esc(KDS.vals[doc][f.k] ?? ''), id = 'kdf_' + f.k, a = `id="${id}" data-k="${f.k}"`;
   const inp = f.t === 'area' ? `<textarea ${a} rows="${f.rows || 2}">${v}</textarea>`
-    : f.t === 'opts' ? `<select ${a}>${f.opts.map(o => `<option${o === KDS.vals[doc][f.k] ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`
+    : f.t === 'opts' ? `<select ${a}>${f.opts.map(o => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov)}"${ov === KDS.vals[doc][f.k] ? ' selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>`
     : f.t === 'date' ? `<div class="kd-date"><input ${a} type="date" value="${v}"><button type="button" class="btn sec sm" data-a="today">Today</button></div><small class="kd-dh" id="kddh"></small>`
     : `<input ${a} value="${v}">`;
   const mark = f.t === 'date' ? '' : `<span class="kd-mark">edited</span><button type="button" class="kd-rs" data-a="reset" data-k="${f.k}" aria-label="Reset ${esc(f.l)}"><i class="i i-undo"></i></button>`;
@@ -174,7 +175,8 @@ function kdMarks() {
   });
   const miss = kdMissing(doc, v);
   e.hidden = !miss.length;
-  e.innerHTML = miss.length ? `<i class="i i-alert"></i><span><b>Still empty:</b> ${esc(miss.join(' · '))}. Fill them in the customer profile, or write them by hand on the printout.</span>` : '';
+  const toProfile = kdFields(doc).some(f => f.src) && canW('customers');
+  e.innerHTML = miss.length ? `<i class="i i-alert"></i><span><b>Still empty:</b> ${esc(miss.join(' · '))}. ${toProfile ? 'Type them here (saving also fills them in the customer profile), fill them in the profile' : 'Fill them in the customer profile'}, or write them by hand on the printout.</span>` : '';
   const sv = (KDS.g.saved || {})[doc], dh = $('#kddh');
   if (dh) dh.textContent = sv && kdT(v.date) && v.date === (sv.data || {}).date && v.date !== today() ? 'The date of the saved copy: reprints keep it.' : '';
   kdState();
@@ -270,15 +272,38 @@ function kdOnClick(e) {
 /* what a save or a PDF uses, taken when the button is pressed: a customer switch meanwhile cannot mix two customers */
 const kdSnap = doc => ({ doc, g: KDS.g, id: KDS.id, vals: Object.assign({}, KDS.vals[doc]), defs: KDS.defs[doc] });
 async function kdSaveDoc(s) {
-  const r = await api(KB().api, 'save', { customer_id: s.id, doc: s.doc, data: KD.overrides(s.doc, s.vals, s.defs) });
+  /* fields that are also profile fields (src): what was typed for an empty profile field goes into the profile too */
+  const data = KD.overrides(s.doc, s.vals, s.defs), fill = canW('customers') ? KD.fill(s.doc, data, kdCtx(s.g)) : [];
+  const r = await api(KB().api, 'save', Object.assign({ customer_id: s.id, doc: s.doc, data }, fill.length ? { fill } : {}));
   (s.g.saved = s.g.saved || {})[s.doc] = r.saved;
-  if (KDS.g === s.g) { KDS.base[s.doc] = KD.values(s.doc, kdCtx(s.g), r.saved && r.saved.data); kdMarks(); }
+  if (r.customer && r.plant) kdProfileFilled(s.g, r);
+  if (KDS.g === s.g) {
+    const base = KDS.base[s.doc] = KD.values(s.doc, kdCtx(s.g), r.saved && r.saved.data), cur = KDS.vals[s.doc];
+    /* a value now kept in the profile shows as the profile writes it ("3kw" -> "3 KW"), unless it was typed over meanwhile */
+    (r.filled || []).forEach(k => { if (cur && cur[k] === s.vals[k] && cur[k] !== base[k]) { cur[k] = base[k]; const el = $('#kdf_' + k); if (el && kdDoc() === s.doc) el.value = base[k]; } });
+    kdMarks(); if (r.filled && r.filled.length && kdDoc() === s.doc) kdLayoutSoon();
+  }
   return r;
 }
+/* the profile changed under the open customer: new defaults everywhere; a document without unsaved edits follows them */
+function kdProfileFilled(g, r) {
+  const docs = Object.keys(KDS.vals).filter(d => KD.DOCS[d]);
+  const clean = KDS.g === g ? docs.filter(d => !kdFields(d).some(f => kdT(KDS.vals[d][f.k]) !== kdT((KDS.base[d] || {})[f.k]))) : [];
+  g.customer = r.customer; g.plant = r.plant;
+  if (KDS.g !== g) return;
+  const ctx = kdCtx(g);
+  docs.forEach(d => {
+    KDS.defs[d] = KD.defaults(d, ctx); KDS.base[d] = KD.values(d, ctx, ((g.saved || {})[d] || {}).data);
+    if (clean.includes(d)) KDS.vals[d] = Object.assign({}, KDS.base[d]);
+  });
+}
+/* " · also saved in the customer profile: Transformer, GPS" for the toast */
+const kdFilledNote = (doc, r) => r && r.filled && r.filled.length
+  ? ' · also saved in the customer profile: ' + r.filled.map(k => (kdFields(doc).find(f => f.k === k) || { l: k }).l).join(', ') : '';
 async function kdSave() {
   const doc = kdDoc(), b = $('#kdsave'); if (!doc || !KDS.g || !b || KDS.busy) return;
   KDS.busy = true; b.disabled = true; b.textContent = 'Saving…';
-  try { await kdSaveDoc(kdSnap(doc)); toast(KD.DOCS[doc].file + ' saved'); } catch (e) { kdErr(e); }
+  try { const r = await kdSaveDoc(kdSnap(doc)); toast(KD.DOCS[doc].file + ' saved' + kdFilledNote(doc, r)); } catch (e) { kdErr(e); }
   finally { KDS.busy = false; b.disabled = false; b.textContent = 'Save'; }
 }
 /* PDF bytes for one document from the given values (no saving, no download) */
@@ -302,9 +327,9 @@ async function kdPdf() {
   KDS.busy = true; b.disabled = true; b.innerHTML = '<i class="i i-download"></i>Making PDF…';
   try {
     const bytes = await kdBuild(doc, s.vals); /* build first (it refuses overflow): a failed template fetch or build stores nothing */
-    if (canW(KB().perm)) await kdSaveDoc(s);
+    const r = canW(KB().perm) ? await kdSaveDoc(s) : null;
     kdSaveFile(bytes, name);
-    toast(name + ' downloaded');
+    toast(name + ' downloaded' + kdFilledNote(doc, r));
   } catch (e) { kdErr(e); }
   finally { KDS.busy = false; b.innerHTML = old; b.disabled = !!(KDS.lay[doc] || {}).overflow; }
 }

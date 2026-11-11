@@ -3,7 +3,7 @@ const DOC_TYPES = ['Aadhaar card', 'Aadhaar card back side', 'Aadhaar 2', 'PAN c
   'Loan Quotation', 'Loan Papers', 'Building tax', 'Land tax', 'Agreement', 'Feasibility', 'Acknowledgement', 'Site Photo', 'Geo-tagged Photo', 'Customer Geo Tagged Photo'];
 const PL_OPTS = {
   panel_type: ['Mono PERC', 'TOPCon', 'Bifacial', 'HJT', 'Polycrystalline'], inverter_type: ['Single phase', 'Three phase', 'Hybrid', 'Micro inverter', 'Optimizer (SolarEdge)'],
-  meter_type: ['Uni-directional (solar generation meter)'], /* the meter we fit is the uni-directional solar generation meter; the net meter is KSEB's */ structure_type: ['Hot Dip Galvanized', 'GI elevated', 'Aluminium', 'Shed / sheet mount', 'Ground mount'], structure_material: ['Hot-dip galvanised iron', 'Aluminium', 'MS painted'], panel_arrangement: ['Portrait', 'Landscape', 'Mixed'],
+  meter_by: ['Consumer', 'KSEB'], meter_type: ['Uni-directional (solar generation meter)'], /* the meter we fit is the uni-directional solar generation meter; the net meter is KSEB's */ structure_type: ['Hot Dip Galvanized', 'GI elevated', 'Aluminium', 'Shed / sheet mount', 'Ground mount'], structure_material: ['Hot-dip galvanised iron', 'Aluminium', 'MS painted'], panel_arrangement: ['Portrait', 'Landscape', 'Mixed'],
   system_type: ['On-grid', 'Off-grid', 'Hybrid'], rooftop_type: ['RCC flat', 'RCC sloped', 'Sheet / tin', 'Tile', 'Ground'], rooftop_penetration: ['No (ballasted)', 'Yes (anchored)'],
 };
 const PL_SECTIONS = [
@@ -11,7 +11,7 @@ const PL_SECTIONS = [
   ['Inverter', 'gear', [['inverter_make', 'Inverter make'], ['inverter_count', 'Number of inverters', 'n'], ['inverter_type', 'Inverter type'], ['inverter_capacity', 'Inverter capacity (kW)', 'n'], ['inverter_model', 'Inverter model'], ['inverter_dc_voltage', 'DC input voltage (V)', 'n']]],
   ['Structure', 'project', [['structure_type', 'Structure type'], ['structure_material', 'Material'], ['panel_arrangement', 'Panel arrangement']]],
   ['Rooftop', 'target', [['system_type', 'System type'], ['rooftop_type', 'Rooftop type'], ['rooftop_age', 'Rooftop age (years)', 'n'], ['building_height', 'Building height (m)', 'n'], ['floors', 'Number of floors', 'n'], ['rooftop_penetration', 'Rooftop penetration'], ['slab_thickness', 'Slab thickness (mm)', 'n'], ['slab_slope', 'Slope of slab (degrees)', 'n']]],
-  ['Energy meter', 'gauge', [['meter_type', 'Meter type'], ['meter_make', 'Meter make'], ['meter_serial', 'Meter serial no.'], ['meter_reading', 'Solar meter initial reading (kWh)', 'n']]],
+  ['Energy meter', 'gauge', [['meter_type', 'Meter type'], ['meter_make', 'Meter make'], ['meter_serial', 'Meter serial no.'], ['meter_reading', 'Solar meter initial reading (kWh)', 'n'], ['meter_by', 'Solar & net meter provided by (Consumer / KSEB)']]],
   ['Application', 'receipt', [['application_no', 'Application no.'], ['application_date', 'Application date', 'd'], ['gst_invoice_no', 'GST invoice no.'], ['commissioned_on', 'Commissioned on', 'd'], ['warranty_till', 'Warranty till', 'd']]],
   ['KSEB & dates', 'calendar', [['kseb_reg_no', 'KSEB solar registration no.'], ['spin', 'SPIN (solar plant identification no.)'], ['installed_on', 'Date of installation', 'd'], ['inspected_on', 'Date of joint inspection', 'd']]],
   ['DCR', 'shield', [['dcr_po_no', 'Purchase order / invoice no.'], ['dcr_po_date', 'Purchase order / invoice date', 'd'], ['cell_maker', 'Cell manufacturer'], ['cell_invoice_no', 'Cell GST invoice no.']]],

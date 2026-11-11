@@ -242,6 +242,58 @@ var KD = (function () {
           { k: 'date', l: 'Date', t: 'date' }
         ] }
       ]
+    },
+    /* Net Metering Agreement with KSEB Limited (KSERC RE & Net Metering Regulations 2020), printed on ₹200 Kerala e-Stamp paper:
+       page 1 holds only the opening, below the stamp (FLOW, as the vendor–customer agreement); the wording is fixed (K.KAGR);
+       the Schedule is a table on its own page. Fields with src are customer profile (c.) or plant (p.) fields: a value typed
+       here for a field still empty in the profile is saved to the profile too (K.fill). */
+    agr: {
+      key: 'agr', tab: 'Agreement', file: 'Net Metering Agreement', page: 'blank', flow: true,
+      groups: [
+        { g: 'Agreement', fields: [
+          { k: 'date', l: 'Made on', t: 'date' },
+          { k: 'place', l: 'Made at (place)' }
+        ] },
+        { g: 'Consumer (1st party)', fields: [
+          { k: 'name', l: 'Name of the consumer' },
+          { k: 'consumer_no', l: 'Consumer number', src: 'c.consumer_no' },
+          { k: 'category', l: 'Category (tariff)' },
+          { k: 'premises', l: 'Premises', t: 'opts', opt: true, src: 'c.premises',
+            opts: [['Owned', 'Owned by the consumer'], ['Leased', 'Under a valid lease agreement'], ['', 'Not marked (strike out by hand)']] },
+          { k: 'address', l: 'Residing at (permanent address)', t: 'area' }
+        ] },
+        { g: 'KSEB Limited (2nd party)', fields: [
+          { k: 'section', l: 'Electrical Section', src: 'c.kseb_section' },
+          { k: 'party2', l: '2nd party, as named above the signatures' }
+        ] },
+        { g: 'Supply', fields: [
+          { k: 'voltage', l: 'Voltage at which supply is availed' },
+          { k: 'load', l: 'Connected load / contract demand', src: 'c.sanctioned_load' }
+        ] },
+        { g: 'Solar meter and net meter', fields: [
+          { k: 'meter_by', l: 'Meters provided by', t: 'opts', opt: true, src: 'p.meter_by',
+            opts: [['Consumer', 'The consumer, at own cost'], ['KSEB', 'KSEB Limited (consumer pays meter rent)'], ['', 'Not marked (strike out by hand)']] },
+          { k: 'meter_no', l: 'Solar meter no.', src: 'p.meter_serial' },
+          { k: 'meter_make', l: 'Solar meter make', src: 'p.meter_make' },
+          { k: 'meter_reading', l: 'Initial reading', src: 'p.meter_reading' }
+        ] },
+        { g: 'Solar plant and premises', fields: [
+          { k: 'capacity', l: 'Capacity of the solar energy system' },
+          { k: 'spin', l: 'SPIN (given by KSEB; blank to write by hand)', src: 'p.spin', opt: true },
+          { k: 'transformer', l: 'Distribution transformer & HT feeder (HT prosumer)', src: 'c.transformer' },
+          { k: 'local_body', l: 'Corporation / Municipality / Panchayath', src: 'c.local_body' },
+          { k: 'village_survey', l: 'Village & survey number', src: 'c.village_survey' },
+          { k: 'gps', l: 'GPS (latitude, longitude)', src: 'c.gps' },
+          { k: 'site_address', l: 'Address of the premises where the plant is installed', t: 'area' }
+        ] },
+        { g: 'Wheeling of excess energy (optional)', fields: [1, 2, 3].reduce(function (a, n) {
+          return a.concat([
+            { k: 'w' + n + '_no', l: 'Preference ' + n + ': consumer no.', opt: true },
+            { k: 'w' + n + '_tariff', l: 'Preference ' + n + ': tariff', opt: true },
+            { k: 'w' + n + '_section', l: 'Preference ' + n + ': electrical section', opt: true }
+          ]);
+        }, []) }
+      ]
     }
     ,
     /* ---- Bank documentation (assets/app25.js, #/bank): the papers for a customer's solar loan ---- */
@@ -501,6 +553,28 @@ var KD = (function () {
         islanding: 'Yes', grid_trip: '2 seconds', reenergise: 'Yes', re_delay: '60 seconds',
         date: today
       };
+    } else if (docKey === 'agr') {
+      var tf = trim(c.tariff), tcode = /^((?:E?HT|LT)\s*-?\s*[0-9]+[A-Z]*)/i.exec(tf);
+      var aph = phaseOf(c.phase) || K.invPhase(p, c), lat = trim(c.lat), lng = trim(c.lng);
+      v = {
+        date: today, place: K.placeName(c.local_body) || trim(c.kseb_section) || trim(c.district),
+        name: trim(c.name), consumer_no: trim(c.consumer_no),
+        category: tcode ? tcode[1].toUpperCase().replace(/\s+/g, '') : (/^other$/i.test(tf) ? '' : tf),
+        premises: /^lease/i.test(trim(c.premises)) ? 'Leased' : 'Owned',
+        address: K.joinAddr(c),
+        section: trim(c.kseb_section), party2: 'KSEB Limited',
+        voltage: aph === 'three' ? '415V' : aph === 'single' ? '240V' : '',
+        load: bare(c.sanctioned_load, 'KW'),
+        /* the consumer buys the meters unless the profile says KSEB (as Annexure 2: "meters bought by the consumer: YES") */
+        meter_by: /^kseb/i.test(trim(p.meter_by)) ? 'KSEB' : 'Consumer',
+        meter_no: trim(p.meter_serial), meter_make: trim(p.meter_make),
+        meter_reading: isNum(p.meter_reading) ? trim(p.meter_reading) + ' kWh' : trim(p.meter_reading),
+        capacity: cap('KW'), spin: trim(p.spin),
+        transformer: trim(c.transformer), local_body: trim(c.local_body), village_survey: trim(c.village_survey),
+        gps: lat && lng && !(+lat === 0 && +lng === 0) ? lat + ',' + lng : '',
+        site_address: K.joinAddr(c)
+      };
+      [1, 2, 3].forEach(function (n) { v['w' + n + '_no'] = ''; v['w' + n + '_tariff'] = ''; v['w' + n + '_section'] = ''; });
     } else if (docKey === 'chk') {
       v = {
         name: trim(c.name), consumer_no: trim(c.consumer_no), section: trim(c.kseb_section),
@@ -552,6 +626,39 @@ var KD = (function () {
     values = values || {};
     return fieldsOf(docKey).filter(function (f) { return f.k !== 'ref' && !f.opt && !trim(values[f.k]); })
       .map(function (f) { return f.l; });
+  };
+
+  /* "Anad Grama Panchayath" -> "Anad": the place name of a local body, for "made … at <place>" */
+  K.placeName = function (s) {
+    return trim(s).replace(/\s+(grama\s+|gram\s+|block\s+)?(panchayath|panchayat|municipality|municipal\s+corporation|corporation)\.?$/i, '').trim();
+  };
+
+  /* fields that are also profile fields (src 'c.col' customer, 'p.col' plant): the overrides typed here for a profile
+     field that is still empty, as [{k, t, col, v}] for the server, which fills only fields that are still empty.
+     Numbers lose their unit ("3 KW" -> "3"); GPS "lat, lng" fills the customer's lat and lng. */
+  K.fill = function (docKey, o, ctx) {
+    var c = (ctx && ctx.customer) || {}, p = (ctx && ctx.plant) || {}, out = [];
+    o = o || {};
+    fieldsOf(docKey).forEach(function (f) {
+      if (!f.src || !Object.prototype.hasOwnProperty.call(o, f.k)) return;
+      var t = f.src.split('.')[0], col = f.src.split('.')[1], val = trim(o[f.k]).replace(/\s+/g, ' '), m;
+      if (!val) return;
+      if (col === 'gps') {
+        m = /^(-?\d{1,2}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)$/.exec(val);
+        var has = function (x) { return trim(x) !== '' && !(isNum(x) && +x === 0); };
+        if (m && !has(c.lat) && !has(c.lng)) out.push({ k: f.k, t: 'c', col: 'gps', v: m[1] + ',' + m[2] });
+        return;
+      }
+      var cur = trim((t === 'c' ? c : p)[col]);
+      if (cur && !(col === 'sanctioned_load' && isNum(cur) && +cur === 0)) return;
+      if (col === 'sanctioned_load' || col === 'meter_reading') {
+        m = /^(\d+(?:\.\d+)?|\.\d+)\s*(kw|kwh|units?)?$/i.exec(val.replace(/,/g, ''));
+        if (!m) return;
+        val = m[1];
+      }
+      out.push({ k: f.k, t: t, col: col, v: val });
+    });
+    return out;
   };
 
   /* ---- page layout and PDF writing. Positions in pt from the page's top-left; y is the baseline. ---- */
@@ -1208,10 +1315,240 @@ var KD = (function () {
     return { ops: ops, size: Math.max(s1, 8), overflow: !fit1 || p + 1 > D.maxPages, pages: p + 1 };
   };
 
+  /* ---- KSEB: Net Metering Agreement (the official wording, 200RS AGREEMENT.docx) ----
+     Blocks: t title, p paragraph, w paragraph with its first line indented, c centred, n numbered clause, sig the closing
+     "In witness whereof" with the signatures (kept together), sched the Schedule. {field} is filled in (an empty one prints a
+     blank line to fill by hand); {~tag}…{~} is a "strike out whichever is not applicable" part, struck through when chosen. */
+  K.KAGR = [
+    ['t', 'Net Metering Agreement for connecting solar energy system to the distribution system of the licensee'],
+    ['p', 'This memorandum of agreement is made on this {date} at {place} between {name} Consumer number {consumer_no} (hereinafter referred to as ‘consumer’) residing at {address}, as first party'],
+    ['c', 'AND'],
+    ['w', 'The Kerala State Electricity Board Limited, a company incorporated under the Indian companies act 1956 (Central Act 1 of 1956), having its registered office at Vydyuthi Bhavanam, Pattom, Thiruvananthapuram represented by Shri Assistant Engineer, Electrical Section {section} hereinafter referred to as ‘KSEB Limited’ (which expression shall unless excluded by or repugnant to the contest or meaning thereof be deemed to include its successors, representatives and assignees ) as second party of the agreement;'],
+    ['w', 'Whereas, the consumer has installed a solar energy system at the premises {~own}owned and possessed by him/her{~} {~or}or{~} {~lease}owned and possessed by consumer under a valid lease agreement{~} (strike out whichever is not applicable) and has requested KSEB Limited to provide connectivity to the said plant;'],
+    ['w', 'And whereas, KSEB Limited agrees to provide to the consumer, a solar plant identification number (SPIN) {spin} as scheduled in the agreement for the electricity generated from the above plant having capacity {capacity_kw} kW as per conditions of this agreement and Kerala State Electricity Regulatory Commission (Renewable Energy & Net Metering) Regulations, 2020 as amended from time to time;'],
+    ['w', 'And whereas, the consumer has in addition to those automatic and inbuilt isolation devices within inverter and external manual relays, installed a manually operated isolating switch and associated equipment with sufficient safeguards between the solar energy system and the distribution system of KSEB Limited to prevent injection of electricity from his/her solar energy system to the distribution system of the licensee when the distribution system is de-energized;'],
+    ['w', 'And whereas, the consumer has assured that in case of a power outage in the system of KSEB Limited, his/her plant will not inject power into the distribution system of the licensee and has produced separately the documents substantiating this assurance which form part of this agreement, as if incorporated herein;'],
+    ['w', 'And whereas, the consumer has undertaken that all the equipment connected to the distribution system comply with relevant international (IEEE/IEC) or Indian standards (BIS) and that installations of electrical equipment comply with the relevant provisions of the Central Electricity Authority (Measures relating to Safety and Electric Supply) Regulations, 2010 as amended from time to time;'],
+    ['w', 'And whereas, the consumer undertakes that he/she is in possession of all the necessary approvals and clearances, including sanction from the Electrical Inspector, as specified in relevant regulations for connecting the solar energy system to the distribution system for commissioning the solar energy system;'],
+    ['w', '{~rent}And whereas, the consumer shall remit the rent for solar meter and net meter, as applicable, charged by KSEB Limited at the rates approved by the Kerala State Electricity Regulatory Commission from time to time for the satisfactory fulfillment of this agreement.{~} [strike out this portion if the meter is provided by the consumer at his/her cost];'],
+    ['w', '{~cmeter}And whereas the consumer has provided the solar meter and the net meter at his/her cost, which has been tested, certified and installed by KSEB Limited.{~} [strike out this portion if the meter is provided by KSEB Ltd];'],
+    ['p', 'Now, therefore, both the parties hereby agree as follows:-'],
+    ['n', '1.', 'The net-metering connection shall be governed by the provisions contained in the Kerala State Electricity Regulatory Commission (Renewable Energy & Net Metering) Regulations, 2020 as amended from time to time and also subject to the condition that the solar energy system meets the requirements as per the provisions contained in Central Electricity Authority (Technical Standard for Connectivity of the Distributed Generation Resources) Regulations, 2013 as amended from time to time.'],
+    ['n', '2.', 'KSEB Limited shall have the sole authority to decide based on the results of necessary studies, the interface/interconnection point to the solar energy system.'],
+    ['n', '3.', 'The validity of the agreement will be 25 years from the date of this agreement.'],
+    ['n', '4.', 'If the consumer’s solar energy system either causes damage to and/or produces adverse effects affecting other consumers or assets of KSEB Limited, the consumer will have to disconnect solar energy system immediately from the distribution system upon direction from the KSEB Limited and correct the defect at his own expense prior to reconnection.'],
+    ['n', '5.', 'KSEB Limited shall have access to the metering equipment and disconnecting means for solar energy system in all required situations.'],
+    ['n', '6.', 'KSEB Limited shall have the right to disconnect solar energy system from the distribution system of the licensee in emergency, if it is found at that point of time that providing service through the net metering system is not safe to the grid as a whole.'],
+    ['n', '7.', 'The consumer indemnifies KSEB Limited for the damages or adverse effects, if any, from the negligence or intentional defective operation in the connection and operation of the solar energy system of the consumer;'],
+    ['n', '8.', 'KSEB Limited shall not be liable for delivery to or realization by the consumer of any fiscal or other incentives provided by the Central/State Government or any other authority;'],
+    ['n', '9.', 'All the commercial settlements under this agreement shall follow the provisions of the Kerala State Electricity Regulatory Commission (Renewable Energy & Net Metering) Regulations, 2020 as amended from time to time.'],
+    ['n', '10.', 'The consumer/KSEBL may terminate this agreement after giving thirty days’ (30 days) clear notice in writing to the authorized authority of the Licensee/consumer.'],
+    ['n', '11.', 'KSEB Limited has the right to terminate this agreement at any point of time after giving 30 days’ prior notice if consumer breaches any terms of this agreement and in cases where such breaches could be rectified and the same are not provided/informed within 30 days of written notice from KSEB Limited about the breach.'],
+    ['n', '12.', 'The consumer agrees that upon the termination of this agreement, he must disconnect the solar energy system from the distribution system of KSEB Limited in a timely manner to the satisfaction of KSEB Limited.'],
+    ['n', '13.', 'The consumer shall have the right to the bank and use the electricity generated and injected in excess over his/her full consumption into the distribution system of the licensee by the solar energy system subject to the conditions specified in the Kerala State Electricity Regulatory Commission (Renewable Energy & Net Metering) Regulations, 2020 as amended from time to time.'],
+    ['n', '14.', 'The consumer shall have the right for wheeling the excess electricity generated, by the solar energy system installed in the premises of the consumer (detailed under item II of the attached schedule), in accordance with Regulation 17 of KSERC (Renewable Energy & Net Metering) Regulations, 2020 as amended from time to time and shall be used in the premises owned by the consumer and in the order of preference as detailed under item III of the attached schedule.'],
+    ['n', '15.', 'The licensee shall within seven days from the date of execution of this agreement, connect the solar energy system.'],
+    ['n', '16.', 'The licensee shall pay for the net energy banked by the consumer at the end of the settlement period at the average pooled purchase cost of KSEB Ltd as approved by the Commission from time to time, as stated in the Kerala State Electricity Regulatory Commission (Renewable Energy & Net Metering) Regulations, 2020 as amended from time to time.'],
+    ['sig', 'In witness whereof the said {name} (1st party) and the said {party2} (2nd party) have hereunto signed at the day and year first above written.'],
+    ['sched']
+  ];
+  /* the Schedule: label | value rows; h = a section heading row; a value list is joined with '/' (e.g. consumer no./category) */
+  var SCH_ROWS = [
+    { h: '(I)', t: 'Particulars regarding the consumer at whose premises the solar energy system is installed' },
+    ['NAME OF THE CONSUMER', 'name'], ['PERMANENT ADDRESS OF THE CONSUMER', 'address'],
+    ['CONSUMER NUMBER/CODE & CATEGORY', ['consumer_no', 'category']], ['THE VOLTAGE AT WHICH SUPPLY IS AVAILED', 'voltage'],
+    ['CONNECTED LOAD/CONTRACT DEMAND', 'load'],
+    { h: '(II)', t: 'Details of premises where the solar energy system is installed' },
+    ['ADDRESS OF THE PREMISES WHERE THE SOLAR ENERGY SYSTEM IS INSTALLED', 'site_address'], ['SOLAR METER DETAILS', ''],
+    ['METER NO & MAKE', ['meter_no', 'meter_make']], ['INITIAL READING', 'meter_reading'], ['PARTICULARS OF SOLAR ENERGY SYSTEM', ''],
+    ['SOLAR PLANT IDENTIFICATION NUMBER (SPIN)', 'spin'], ['THE CAPACITY OF THE SOLAR ENERGY SYSTEM', 'capacity'],
+    ['NAME OF ELECTRICAL SECTION', 'section'],
+    ['DETAILS OF DISTRIBUTION TRANSFORMER AND HT FEEDER (FOR HT PROSUMER) TO WHICH THE PLANT IS CONNECTED', 'transformer'],
+    ['NAME OF CORPORATION/MUNICIPALITY/PANCHAYATH', 'local_body'], ['VILLAGE & SURVEY NUMBER', 'village_survey'],
+    ['GPS DETAILS OF THE LOCATION', 'gps'],
+    { h: '(III)', t: 'Particulars of premises to which the excess energy generated from the solar energy system detailed in (II) above is to be wheeled in accordance with KSERC (RE & Net Metering) Regulations, 2020 as amended from time to time' },
+    { wheel: ['ORDER OF PREFERRED PREMISES', 'CONSUMER NUMBER OF THE PREMISES', 'TARIFF', 'NAME OF ELECTRICAL SECTION'] }
+  ];
+  /* the docx table: x 55-537, label | value split at 305; the wheeling table's columns at 149 / 277 / 344 */
+  var SCH = { x0: 56, c: 306, x1: 539, wc: [56, 150, 278, 345, 539], pad: 4, padX: 5, minH: 19, hInd: 26, max: 10, min: 8.5 };
+
+  /* which {~tag} parts are struck through: the premises not applicable, and the meter paragraph that does not apply */
+  var agrStrike = function (v) {
+    var S = {}, pm = trim(v.premises), mb = trim(v.meter_by);
+    if (pm === 'Owned') { S.or = 1; S.lease = 1; } else if (pm === 'Leased') { S.own = 1; S.or = 1; }
+    if (mb === 'Consumer') S.rent = 1; else if (mb === 'KSEB') S.cmeter = 1;
+    return S;
+  };
+  /* filled text without markers (spaces collapsed) and, per character, whether it is struck; a space between two struck
+     parts is struck too, so "or owned … agreement" gets one unbroken line */
+  var agrRich = function (text, v, S) {
+    var val = function (k) {
+      if (k === 'date') return K.dmy(v.date) || clean(v.date);
+      if (k === 'capacity_kw') return clean(v.capacity).replace(/\s*kwp?\.?$/i, '');
+      return clean(v[k]);
+    };
+    var filled = text.replace(/\{(\w+)\}/g, function (m, k) { return val(k).replace(/\n+/g, ', ').replace(/\{~/g, '{ ~') || '__________'; });
+    var plain = '', st = [], on = false;
+    filled.split(/(\{~\w*\})/).forEach(function (part) {
+      var mk = /^\{~(\w*)\}$/.exec(part);
+      if (mk) { on = !!(mk[1] && S[mk[1]]); return; }
+      for (var ch of part) {
+        if (/\s/.test(ch)) { if (!plain || plain[plain.length - 1] === ' ') continue; ch = ' '; }
+        plain += ch; st.push(on);
+      }
+    });
+    if (plain[plain.length - 1] === ' ') { plain = plain.slice(0, -1); st.pop(); }
+    for (var i = 1; i < plain.length - 1; i++) if (plain[i] === ' ' && st[i - 1] && st[i + 1]) st[i] = true;
+    return { plain: plain, st: st };
+  };
+  /* K.wrap with a narrower first line (ind pt) */
+  var wrapFirst = function (t, w, ind, f, s, measure) {
+    if (!ind) return K.wrap(t, w, f, s, measure);
+    var one = K.wrap(t, w - ind, f, s, measure);
+    if (one.length < 2) return one;
+    return [one[0]].concat(K.wrap(t.slice(one[0].length).trim(), w, f, s, measure));
+  };
+
+  var layoutAgr = function (v, measure) {
+    var D = FLOW, ops = [], p = 0, y = D.first, s = 10.5, lh = 1.3 * s, ok = true, S = agrStrike(v);
+    var bottom = function () { return p === 0 ? D.firstBottom : D.bottom; };
+    var pg = function (o) { if (p) o.p = p; return o; };
+    var room = function (h) { if (y + h > bottom()) { if (p === 0) ok = false; p++; y = D.top; } };
+    var put = function (t, x, f, sz, u) { if (t) ops.push(pg(op(t, x, y, f || 'T', sz || s, u))); };
+    var hline = function (x1, x2, yy, w, c) { ops.push(pg({ ln: [r2(x1), r2(yy), r2(x2), r2(yy)], w: w || 0.4, c: c })); };
+    var para = function (text, x, f, label, lx, center, ind) {
+      f = f || 'T';
+      var R = agrRich(text, v, S), pos = 0;
+      wrapFirst(R.plain, D.x1 - x, ind || 0, f, s, measure).forEach(function (ln, i) {
+        room(lh); y += lh;
+        if (i === 0 && label) put(label, lx, 'T');
+        var x0 = center ? (D.x0 + D.x1) / 2 - measure(ln, f, s) / 2 : x + (i === 0 ? ind || 0 : 0);
+        put(ln, x0, f);
+        /* the struck runs of this line, found by its place in the paragraph text */
+        while (R.plain[pos] === ' ') pos++;
+        if (R.plain.substr(pos, ln.length) !== ln) return;
+        for (var a = 0; a < ln.length;) {
+          if (!R.st[pos + a]) { a++; continue; }
+          var b = a; while (b < ln.length && R.st[pos + b]) b++;
+          var a2 = a, b2 = b; while (ln[a2] === ' ' && a2 < b2) a2++; while (ln[b2 - 1] === ' ' && b2 > a2) b2--;
+          if (b2 > a2) hline(x0 + measure(ln.slice(0, a2), f, s), x0 + measure(ln.slice(0, b2), f, s), y - 0.27 * s, 0.6);
+          a = b;
+        }
+        pos += ln.length;
+      });
+    };
+    var sigBlock = function (b) {
+      /* "In witness whereof", then each party signs at the right with two witnesses at the left: kept on one page */
+      var lines = wrapFirst(agrRich(b[1], v, S).plain, D.x1 - D.x0, 0, 'T', s, measure).length;
+      if (y + (lines + 20) * lh > bottom()) { p++; y = D.top; }
+      y += 0.3 * lh; para(b[1], D.x0);
+      var cx = D.x1 - 200, wx = D.x0 + 52;
+      [['(1st party)', clean(v.name)], ['(2nd party)', clean(v.party2)]].forEach(function (pt) {
+        y += 3 * lh; hline(cx, D.x1, y, 0.4, [0.45, 0.45, 0.48]);
+        y += lh; put(pt[0], cx, 'TB');
+        y += lh; put(pt[1], cx);
+        ['Witness 1', 'Witness 2'].forEach(function (w, i) {
+          y += (i ? 2.6 : 1.8) * lh; put(w, D.x0); hline(wx, wx + 190, y + 1, 0.4, [0.45, 0.45, 0.48]);
+        });
+      });
+    };
+    var block = function (b) {
+      var kind = b[0];
+      if (kind === 't') { para(b[1], D.x0, 'TB'); y += 0.5 * lh; return; }
+      if (kind === 'p') { para(b[1], D.x0); y += 0.45 * lh; return; }
+      if (kind === 'w') { para(b[1], D.x0, 'T', '', 0, false, 35); y += 0.45 * lh; return; }
+      if (kind === 'c') { para(b[1], D.x0, 'T', '', 0, true); y += 0.45 * lh; return; }
+      if (kind === 'n') { para(b[2], D.x0 + 36, 'T', b[1], D.x0 + 14); y += 0.3 * lh; return; }
+      if (kind === 'sig') return sigBlock(b);
+    };
+    var cut = K.KAGR.findIndex(function (b) { return b[0] === 'w' && /^Whereas/.test(b[1]); });
+    /* page 1: the opening at the largest size that stays inside the stamp paper's writing band */
+    var s1;
+    for (s1 = 10.5; s1 >= 8; s1 -= 0.5) {
+      ops = []; p = 0; y = D.first; s = s1; lh = 1.3 * s; ok = true;
+      K.KAGR.slice(0, cut).forEach(block);
+      if (ok && p === 0) break;
+    }
+    var fit1 = ok && p === 0;
+    /* page 2 onwards at 10.5 pt; the Schedule starts a new page */
+    p = 1; y = D.top; s = 10.5; lh = 1.3 * s;
+    K.KAGR.slice(cut).forEach(function (b) { if (b[0] !== 'sched') block(b); });
+    var sc = agrSchedule(v, p + 1, measure);
+    return { ops: ops.concat(sc.ops), size: Math.max(s1, 8), overflow: !fit1 || !sc.fit, pages: sc.last + 1 };
+  };
+
+  /* the Schedule from page `first`: the title, the table and the two parties' signatures, on one page at the largest size
+     from 10 to 8.5 pt that fits; a schedule too long for that (long addresses) continues over the page at 10 pt */
+  var agrSchedule = function (v, first, measure) {
+    var at = function (s, paged) {
+      var D = SCH, F = FLOW, ops = [], p = first, lh = 1.2 * s, y, fit = true;
+      var pg = function (o) { o.p = p; return o; };
+      var T = function (t, x, yy, f, sz, u) { if (t) ops.push(pg(op(t, x, yy, f || 'T', sz || s, u))); };
+      var L = function (x1, y1, x2, y2, c, w) { ops.push(pg({ ln: [r2(x1), r2(y1), r2(x2), r2(y2)], w: w || 0.6, c: c })); };
+      var title = 'SCHEDULE to Solar Net Metering Agreement', ts = s + 4;
+      T(title, (D.x0 + D.x1) / 2 - measure(title, 'T', ts) / 2, F.top + ts, 'T', ts, true);
+      y = F.top + ts + 0.9 * ts;
+      var segs = [], top0 = y;
+      var close = function () { /* the frame of the rows drawn on this page */
+        segs.forEach(function (sg) { L(D.x0, sg[0], D.x1, sg[0]); sg[2].forEach(function (x) { L(x, sg[0], x, sg[1]); }); });
+        if (segs.length) L(D.x0, segs[segs.length - 1][1], D.x1, segs[segs.length - 1][1]);
+        segs = [];
+      };
+      /* one row: cells = [[x0, x1, lines, font, align, 't' = level with the row's first line]]; height from the tallest cell, text centred vertically */
+      var row = function (cells, cols) {
+        var n = Math.max.apply(null, cells.map(function (c) { return c[2].length; }).concat([1]));
+        var h = Math.max(D.minH, n * lh + 2 * D.pad);
+        if (y + h > F.bottom) {
+          if (!paged) fit = false;
+          close(); p++; y = F.top;
+        }
+        cells.forEach(function (c) {
+          var y0 = (c[5] === 't' ? y + D.pad + (h - 2 * D.pad - n * lh) / 2 : y + (h - c[2].length * lh) / 2) + 0.78 * s;
+          c[2].forEach(function (ln, i) {
+            var x = c[4] === 'c' ? (c[0] + c[1]) / 2 - measure(ln, c[3], s) / 2 : c[0] + D.padX;
+            T(ln, x, y0 + i * lh, c[3]);
+          });
+        });
+        segs.push([y, y + h, cols]);
+        y += h;
+      };
+      var wr = function (t, x0, x1, f) { return t ? K.wrap(t, x1 - x0 - 2 * D.padX, f || 'T', s, measure) : []; };
+      var joined = function (k) { return Array.isArray(k) ? k.map(function (x) { return clean(v[x]); }).filter(Boolean).join('/') : clean(v[k]); };
+      SCH_ROWS.forEach(function (r) {
+        if (r.h) {
+          row([[D.x0, D.x0 + D.hInd + D.padX, [r.h], 'TB', '', 't'], [D.x0 + D.hInd, D.x1, wr(r.t, D.x0 + D.hInd, D.x1), 'T']], [D.x0, D.x1]);
+        } else if (r.wheel) {
+          var W = D.wc;
+          row(r.wheel.map(function (t, i) { return [W[i], W[i + 1], wr(t, W[i], W[i + 1]), 'T', 'c']; }), W);
+          for (var n = 1; n <= 5; n++) {
+            var vals = n <= 3 ? ['PREFERENCE ' + n, clean(v['w' + n + '_no']), clean(v['w' + n + '_tariff']), clean(v['w' + n + '_section'])] : ['', '', '', ''];
+            row(vals.map(function (t, i) { return [W[i], W[i + 1], wr(t, W[i], W[i + 1]), 'T']; }), W);
+          }
+        } else {
+          row([[D.x0, D.c, wr(r[0], D.x0, D.c), 'T'], [D.c, D.x1, wr(joined(r[1]), D.c, D.x1), 'T']], [D.x0, D.c, D.x1]);
+        }
+      });
+      close();
+      /* the two parties sign below the table, as on the form */
+      var need = 2 * (3.6 * lh + lh) + 2 * lh;
+      if (y + need > F.bottom) { if (!paged) fit = false; p++; y = F.top; }
+      var mid = (D.x0 + D.x1) / 2;
+      ['1st Party', '2nd Party'].forEach(function (t) {
+        y += 3.6 * lh; L(mid - 85, y, mid + 85, y, [0.45, 0.45, 0.48], 0.4);
+        y += lh; T(t, mid - measure(t, 'T', s) / 2, y);
+      });
+      return { ops: ops, fit: fit && y <= F.bottom, last: p, top: top0 };
+    };
+    for (var s = SCH.max; s >= SCH.min; s -= 0.5) { var r = at(s, false); if (r.fit) return r; }
+    r = at(SCH.max, true);
+    return { ops: r.ops, fit: r.last - first < 3, last: r.last };
+  };
+
   K.layout = function (docKey, values, measure) {
     values = values || {};
     if (docKey === 'bfr') return layoutBfr(values, measure);
     if (docKey === 'bag') return layoutBag(values, measure);
+    if (docKey === 'agr') return layoutAgr(values, measure);
     if (docKey === 'cov') return layoutCov(values, measure);
     if (docKey === 'doi') return layoutDoi(values, measure);
     if (docKey === 'wcr') return layoutWcr(values, measure);

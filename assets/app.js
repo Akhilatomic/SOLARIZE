@@ -680,7 +680,8 @@ const CF = [{ g: 'Basic details' }, { k: 'name', l: 'Name' }, { k: 'phone', l: '
   { k: 'roof_type', l: 'Roof type', opts: ['', 'RCC flat', 'Sheet / tin', 'Tile', 'Other'] }, { k: 'gst_no', l: 'GST no. (if business)' },
   { g: 'KSEB details' }, { k: 'consumer_no', l: 'KSEB consumer no.' }, { k: 'kseb_section', l: 'KSEB section office' }, { k: 'sanctioned_load', l: 'Sanctioned load (kW)', t: 'number' }, { k: 'phase', l: 'Connection', opts: ['', 'Single phase', 'Three phase'] }, { k: 'tariff', l: 'Tariff', opts: ['', 'LT-1A Domestic', 'LT-6 Non-domestic', 'LT-7 Commercial', 'LT-4 Industrial', 'Other'] }, { k: 'meter_no', l: 'Meter no.' },
   { k: 'kseb_circle', l: 'Electrical circle', ph: 'e.g. Electrical Circle (Rural) Kattakada' }, { k: 'kseb_division', l: 'Electrical division', ph: 'e.g. Electrical Division Neyyattinkara' }, { k: 'kseb_subdivision', l: 'Electrical sub division' },
-  { k: 'local_body', l: 'Panchayath / Municipality / Corporation' }, { k: 'village_survey', l: 'Village & survey no.' }, { k: 'jansamarth_id', l: 'Jan Samarth loan ID', ph: 'ANS-SOLAR-…' },
+  { k: 'local_body', l: 'Panchayath / Municipality / Corporation' }, { k: 'village_survey', l: 'Village & survey no.' },
+  { k: 'premises', l: 'Premises (for the KSEB agreement)', opts: [['', ''], ['Owned', 'Owned by the consumer'], ['Leased', 'Under a lease agreement']] }, { k: 'transformer', l: 'Distribution transformer / HT feeder', ph: 'e.g. Anad Jn transformer, 11 kV Anad feeder' }, { k: 'jansamarth_id', l: 'Jan Samarth loan ID', ph: 'ANS-SOLAR-…' },
   { g: 'Bank details (for subsidy)' }, { k: 'bank_holder', l: 'Account holder name' }, { k: 'bank_name', l: 'Bank name' }, { k: 'bank_branch', l: 'Branch' }, { k: 'bank_account', l: 'Account number' }, { k: 'bank_ifsc', l: 'IFSC code' },
   { g: 'Location' }, { k: 'landmark', l: 'Landmark', full: 1 }];
 function customerModal(id, c = {}) {

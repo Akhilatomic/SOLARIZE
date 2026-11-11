@@ -1,13 +1,13 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 38; // bump when tables/columns change
+const SCHEMA_VERSION = 39; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
 // entity => [module, columns]
 $E = [
   'leads' => ['leads', ['name','phone','email','address','city','location','remark','appt','added_by','source','campaign_id','status','assigned_to','followup','kw','budget','customer_id','notes','meta_id','meta_form','meta_ad','meta_campaign','notify','claimed_at','site','plant','lead_type']],
-  'customers' => ['customers', ['name','phone','email','address','district','consumer_no','kseb_section','sanctioned_load','roof_type','gst_no','notes','added_by','alt_phone','pincode','phase','tariff','meter_no','bank_holder','bank_name','bank_branch','bank_account','bank_ifsc','lat','lng','landmark','kseb_circle','kseb_division','kseb_subdivision','local_body','village_survey','jansamarth_id','lead_type']],
+  'customers' => ['customers', ['name','phone','email','address','district','consumer_no','kseb_section','sanctioned_load','roof_type','gst_no','notes','added_by','alt_phone','pincode','phase','tariff','meter_no','bank_holder','bank_name','bank_branch','bank_account','bank_ifsc','lat','lng','landmark','kseb_circle','kseb_division','kseb_subdivision','local_body','village_survey','jansamarth_id','lead_type','premises','transformer']],
   'projects' => ['projects', ['customer_id','title','kw','panel','inverter','stage','engineer','start','end','cost','application_no','subsidy_status','subsidy_amount','notes','loan','amc_start','amc_end','amc_interval']],
   'quotes' => ['quotes', ['customer_id','lead_id','number','date','items','gst_rate','subsidy','terms','status','total']],
   'campaigns' => ['ads', ['name','platform','objective','start','end','budget','status']],
@@ -253,6 +253,8 @@ function migrate($db) {
   foreach (["appr TEXT DEFAULT ''", "appr_by TEXT DEFAULT ''", "appr_at TEXT DEFAULT ''", 'auto INTEGER DEFAULT 0', "calc TEXT DEFAULT ''"] as $col) { $cn = strtok($col, ' ');
     if ($cmc && !in_array($cn, $cmc)) { try { $db->exec("ALTER TABLE commissions ADD COLUMN $col"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } } }
   $db->exec("UPDATE commissions SET appr='ok' WHERE COALESCE(appr,'')='' AND (amount>0 OR p1_amount>0)");
+  /* v39: customers.premises (Owned / Leased) and customers.transformer (distribution transformer & HT feeder), asked for by the
+     KSEB net metering agreement, come from the column list above; plant.meter_by (Consumer / KSEB) lives in the plant JSON */
   /* v34: customers.jansamarth_id (the Jan Samarth solar loan application ID, ANS-SOLAR-…) comes from the column list above */
   /* v33: every customer's empty KSEB sub division / division / circle (and section) filled from the consumer number or section */
   require_once __DIR__ . '/kseb_offices.php';

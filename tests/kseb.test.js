@@ -574,3 +574,77 @@ test('agreement: the MNRE wording filled in, below the stamp, signatures togethe
   const out = await KD.buildPdf(PDFLib, fs.readFileSync(path.join(ROOT, 'assets/kseb/blank.pdf')), r.ops);
   assert.equal((await PDFLib.PDFDocument.load(out)).getPageCount(), r.pages);
 });
+
+/* ---- KSEB Net Metering Agreement (Agreement tab): ₹200 e-Stamp paper, strike-outs, Schedule, profile fill ---- */
+const NET = {
+  customer: { name: 'SUMA DEVI R', consumer_no: '1146530000002', address: 'Sreekovil, Pandarakonam, Anad P O', district: 'Thiruvananthapuram', pincode: '695541',
+    kseb_section: 'Chullimanoor', sanctioned_load: 3, phase: 'Single phase', tariff: 'LT-1A Domestic', local_body: 'Anad Grama Panchayath', lat: '8.63975', lng: '77.003603' },
+  plant: { capacity: '3', meter_make: 'VISIONTEK', meter_serial: '17180001', meter_reading: '0.2794' },
+  project: null, defaults: {}, today: '2026-11-11',
+};
+
+test('agreement: defaults from the profile and plant', () => {
+  const v = KD.defaults('agr', NET);
+  assert.deepEqual([v.date, v.place, v.category, v.voltage, v.load, v.capacity, v.premises, v.meter_by, v.party2],
+    ['2026-11-11', 'Anad', 'LT-1A', '240V', '3 KW', '3 KW', 'Owned', 'Consumer', 'KSEB Limited']);
+  assert.deepEqual([v.meter_no, v.meter_make, v.meter_reading, v.gps, v.section, v.local_body], ['17180001', 'VISIONTEK', '0.2794 kWh', '8.63975,77.003603', 'Chullimanoor', 'Anad Grama Panchayath']);
+  assert.equal(v.site_address, v.address);
+  for (const g of KD.DOCS.agr.groups) for (const f of g.fields) assert.ok(f.k in v, 'agr.' + f.k);
+  const t = KD.defaults('agr', { customer: { phase: 'Three phase', premises: 'Leased', tariff: 'Other', lat: '0', lng: '0' }, plant: { meter_by: 'kseb' }, today: '2026-11-11' });
+  assert.deepEqual([t.voltage, t.premises, t.meter_by, t.category, t.gps], ['415V', 'Leased', 'KSEB', '', '']);
+  assert.deepEqual(KD.empty('agr', v), ['Distribution transformer & HT feeder (HT prosumer)', 'Village & survey number'], 'SPIN and wheeling are optional');
+  assert.equal(KD.placeName('Thiruvananthapuram Corporation'), 'Thiruvananthapuram');
+  assert.equal(KD.placeName('Nedumangad Municipality'), 'Nedumangad');
+});
+
+test('agreement: typed values for empty profile fields go to the profile', () => {
+  const ctx = { customer: Object.assign({}, NET.customer, { lat: '', lng: '', sanctioned_load: 0 }), plant: { meter_make: 'VISIONTEK' } };
+  const fill = KD.fill('agr', { date: '2026-11-11', transformer: 'Anad Jn TF', load: '3kw', gps: '8.6, 77.0', meter_make: 'GENUS', meter_reading: '12.5 kWh', premises: 'Leased', place: 'Anad', meter_by: '' }, ctx);
+  assert.deepEqual(fill.map(f => [f.k, f.t, f.col, f.v]), [
+    ['premises', 'c', 'premises', 'Leased'], ['load', 'c', 'sanctioned_load', '3'], ['meter_reading', 'p', 'meter_reading', '12.5'],
+    ['transformer', 'c', 'transformer', 'Anad Jn TF'], ['gps', 'c', 'gps', '8.6,77.0']]);
+  assert.deepEqual(KD.fill('agr', { gps: 'near the temple', load: 'three' }, ctx), [], 'text that is not a number / position is not stored');
+  assert.deepEqual(KD.fill('agr', { gps: '8.7,77.1' }, NET), [], 'a position already in the profile is kept');
+});
+
+test('agreement: stamp paper page 1, strike-outs, Schedule table, signatures together', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const v = KD.values('agr', NET, {});
+  const r = KD.layout('agr', v, measure), text = r.ops.filter(o => o.t), all = text.map(o => o.t).join(' ');
+  assert.equal(r.overflow, false);
+  assert.ok(r.pages >= 4 && r.pages <= 6, r.pages + ' pages');
+  assert.ok(text.filter(o => !o.p).every(o => o.y >= 500 && o.y <= 706), 'page 1 inside the e-Stamp writing band');
+  assert.equal(text.find(o => /^Whereas, the consumer/.test(o.t)).p, 1, 'Whereas starts page 2');
+  for (const t of ['made on this 11-11-2026 at Anad between SUMA DEVI R Consumer number 1146530000002', 'Electrical Section Chullimanoor hereinafter', 'having capacity 3 kW as per', '(SPIN) __________ as scheduled'])
+    assert.ok(all.includes(t), t);
+  /* Owned + meters bought by the consumer: the lease words and the meter rent paragraph are struck through */
+  const strikes = o => o.filter(x => x.ln && x.ln[1] === x.ln[3] && x.w === 0.6 && (x.p || 0) < 3);
+  const owned = strikes(r.ops);
+  assert.ok(owned.length >= 4, owned.length + ' strike lines');
+  const leased = strikes(KD.layout('agr', Object.assign({}, v, { premises: 'Leased', meter_by: 'KSEB' }), measure).ops);
+  const none = strikes(KD.layout('agr', Object.assign({}, v, { premises: '', meter_by: '' }), measure).ops);
+  assert.equal(none.length, 0, 'not marked: nothing struck');
+  assert.notDeepEqual(leased.map(x => x.ln), owned.map(x => x.ln));
+  /* the struck line runs through "or owned and possessed by consumer under a valid lease agreement" */
+  const ln = text.find(o => o.t.includes('owned and possessed by consumer under'));
+  const s1 = owned.find(x => (x.p || 0) === (ln.p || 0) && Math.abs(x.ln[1] - (ln.y - 0.27 * ln.s)) < 0.1);
+  assert.ok(s1 && s1.ln[0] > ln.x, 'strike on the lease line, after its start');
+  /* the signatures: both parties and four witnesses on one page, after clause 16 */
+  const last = text.find(o => o.t === '(2nd party)').p;
+  for (const t of ['(1st party)', 'SUMA DEVI R', 'KSEB Limited']) assert.ok(text.some(o => o.t === t && o.p === last), t);
+  assert.equal(text.filter(o => o.t === 'Witness 1' && o.p === last).length, 2);
+  /* the Schedule: its own page, the table and values inside the frame */
+  const sch = text.find(o => o.t === 'SCHEDULE to Solar Net Metering Agreement');
+  assert.ok(sch.p > last && sch.u, 'Schedule after the signatures, underlined');
+  const on = text.filter(o => o.p >= sch.p);
+  for (const t of ['1146530000002/LT-1A', '240V', '17180001/VISIONTEK', '0.2794 kWh', '8.63975,77.003603', 'Anad Grama Panchayath', 'PREFERENCE 3', '1st Party', '2nd Party'])
+    assert.ok(on.some(o => o.t === t), t);
+  for (const o of on) assert.ok(o.x >= 56 && o.x + measure(o.t, o.f, o.s) <= 539.5 && o.y <= 780, o.t);
+  for (const o of text) assert.ok(o.x >= 66 - 10 && o.x + measure(o.t, o.f, o.s) <= 539.5, o.t);
+  const out = await KD.buildPdf(PDFLib, fs.readFileSync(path.join(ROOT, 'assets/kseb/blank.pdf')), r.ops);
+  assert.equal((await PDFLib.PDFDocument.load(out)).getPageCount(), r.pages);
+  /* a long address shrinks page 1 but stays in the band */
+  const long = KD.layout('agr', Object.assign({}, v, { address: 'PICHIMANGALATHU VEEDU PICHIMANGALAM VENJARAMOODU PULLAMPARA THIRUVANANTHAPURAM KERALA 695607 NEAR THE OLD TEMPLE ROAD JUNCTION' }), measure);
+  assert.equal(long.overflow, false);
+  assert.ok(long.ops.filter(o => o.t && !o.p).every(o => o.y >= 500 && o.y <= 706));
+});
