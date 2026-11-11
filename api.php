@@ -29,6 +29,7 @@ require_once __DIR__ . '/api/kseb_offices.php';
 require __DIR__ . '/api/bank.php';
 require __DIR__ . '/api/mail.php';
 require __DIR__ . '/api/quotemaker.php';
+require __DIR__ . '/api/comm.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';
@@ -75,6 +76,7 @@ try {
     case 'bank': handle_bank($a);
     case 'mail': handle_mail($a);
     case 'qm': handle_qm($a);
+    case 'comm': handle_comm($a);
   }
   fail('Unknown module', 404);
 } catch (Throwable $e) {

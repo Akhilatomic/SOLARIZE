@@ -6,13 +6,16 @@ const FEES = {
 };
 let FEEQ = { q: '', f: {} };
 const feeOpen = () => { try { return localStorage.feesOpen !== '0'; } catch (e) { return true; } };
-// sidebar group: Finance › Feasibility fee / Registration fee / Stamp paper
+// sidebar group: Finance › Feasibility fee / Registration fee / Stamp paper (Finance access) · Commission / Incentive (assets/app27.js)
+const feesNavItems = () => [...(canR('fees') ? Object.entries(FEES).map(([k, v]) => [`#/fees/${k}`, k, v.title, v.icon, v.tc]) : []),
+  ...(typeof COMM !== 'undefined' ? COMM.nav(ME).map(([k, l]) => [`#/comm/${k}`, 'comm-' + k, l, COMM_ICON[k], COMM_TC[k]]) : [])];
 function feesNav() {
-  return `<div class="sgrp ${feeOpen() ? 'open' : ''}" id="feesg"><a href="#/fees/feasibility" class="sgh" data-g="fees" title="Finance"><span class="ft t-fees"><i class="i i-coin"></i></span><span class="lbl">Finance</span><i class="i i-chev"></i></a>
-    <div class="sgc">${Object.entries(FEES).map(([k, v]) => `<a href="#/fees/${k}" data-sub="${k}" title="${v.title}"><span class="ft ${v.tc}"><i class="i i-${v.icon}"></i></span><span class="lbl">${v.title}</span></a>`).join('')}</div></div>`;
+  const L = feesNavItems(); if (!L.length) return '';
+  return `<div class="sgrp ${feeOpen() ? 'open' : ''}" id="feesg"><a href="${L[0][0]}" class="sgh" data-g="fees" title="Finance"><span class="ft t-fees"><i class="i i-coin"></i></span><span class="lbl">Finance</span><i class="i i-chev"></i></a>
+    <div class="sgc">${L.map(([h, k, t, ic, tc]) => `<a href="${h}" data-sub="${k}" title="${t}"><span class="ft ${tc}"><i class="i i-${ic}"></i></span><span class="lbl">${t}</span></a>`).join('')}</div></div>`;
 }
 document.addEventListener('click', e => { const h = e.target.closest('.sgh'); if (!h) return;
-  const g = h.closest('.sgrp'), onFees = location.hash.startsWith('#/fees');
+  const g = h.closest('.sgrp'), onFees = /^#\/(fees|comm)(\/|$)/.test(location.hash);
   if (onFees) { e.preventDefault(); g.classList.toggle('open'); try { localStorage.feesOpen = g.classList.contains('open') ? '1' : '0'; } catch (x) { } }
   else { g.classList.add('open'); try { localStorage.feesOpen = '1'; } catch (x) { } } });
 

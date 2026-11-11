@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 34; // bump when tables/columns change
+const SCHEMA_VERSION = 35; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -211,6 +211,10 @@ function migrate($db) {
   $db->exec('CREATE INDEX IF NOT EXISTS cust_owner ON customers(owner_id)');
   $db->exec('UPDATE customers SET owner_id=(SELECT l.assigned_to FROM leads l WHERE l.customer_id=customers.id AND l.assigned_to>0 ORDER BY l.id DESC LIMIT 1) WHERE owner_id IS NULL');
   $db->exec("UPDATE customers SET owner_id=(SELECT u.id FROM users u WHERE lower(trim(u.name))=lower(trim(customers.added_by)) ORDER BY u.active DESC, u.id LIMIT 1) WHERE owner_id IS NULL AND trim(COALESCE(added_by,''))<>''");
+  /* v35: Finance › Commission (BA customers) / Incentive (staff customers). One row per customer: the amount the admin agreed,
+     paid in two parts (amount, date, transaction ID); visible = the person may see it. user_id is fixed on the first save. */
+  $db->exec("CREATE TABLE IF NOT EXISTS commissions(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER UNIQUE, user_id INTEGER, amount REAL DEFAULT 0, p1_amount REAL DEFAULT 0, p1_date TEXT DEFAULT '', p1_ref TEXT DEFAULT '', p2_amount REAL DEFAULT 0, p2_date TEXT DEFAULT '', p2_ref TEXT DEFAULT '', visible INTEGER DEFAULT 0, note TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, updated_by TEXT DEFAULT '')");
+  $db->exec('CREATE INDEX IF NOT EXISTS comm_user ON commissions(user_id, visible)');
   /* v34: customers.jansamarth_id (the Jan Samarth solar loan application ID, ANS-SOLAR-…) comes from the column list above */
   /* v33: every customer's empty KSEB sub division / division / circle (and section) filled from the consumer number or section */
   require_once __DIR__ . '/kseb_offices.php';

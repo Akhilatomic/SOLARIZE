@@ -40,7 +40,7 @@ function login_as($u) { session_regenerate_id(true); $_SESSION['sv'] = (int)($u[
 function me() {
   if (empty($_SESSION['uid'])) return null;
   $r = roles()[$_SESSION['role']] ?? [[], []]; $cc = can_claim();
-  return ['avatar' => (string)(row('SELECT avatar FROM users WHERE id=?', [$_SESSION['uid']])['avatar'] ?? ''), 'id' => $_SESSION['uid'], 'name' => $_SESSION['name'], 'username' => $_SESSION['username'], 'role' => $_SESSION['role'], 'role_name' => ROLE_NAMES[$_SESSION['role']] ?? $_SESSION['role'], 'read' => $cc && $r[0] !== '*' ? array_values(array_unique(array_merge($r[0], CLAIM_GRANTS))) : $r[0], 'write' => $cc && $r[1] !== '*' ? array_values(array_unique(array_merge($r[1], CLAIM_GRANTS))) : $r[1], 'can_claim' => $cc ? 1 : 0];
+  return ['avatar' => (string)(row('SELECT avatar FROM users WHERE id=?', [$_SESSION['uid']])['avatar'] ?? ''), 'id' => $_SESSION['uid'], 'name' => $_SESSION['name'], 'username' => $_SESSION['username'], 'role' => $_SESSION['role'], 'role_name' => ROLE_NAMES[$_SESSION['role']] ?? $_SESSION['role'], 'read' => $cc && $r[0] !== '*' ? array_values(array_unique(array_merge($r[0], CLAIM_GRANTS))) : $r[0], 'write' => $cc && $r[1] !== '*' ? array_values(array_unique(array_merge($r[1], CLAIM_GRANTS))) : $r[1], 'can_claim' => $cc ? 1 : 0, 'comm_n' => $_SESSION['role'] === 'admin' ? 0 : comm_shared_count($_SESSION['uid'])];
 }
 
 function handle_crud($t, $a) {
@@ -106,7 +106,7 @@ function handle_crud($t, $a) {
       $id = (int)($in['id'] ?? 0);
       trash_crud($t, $id); // snapshot into the Recycle bin first (restorable for 72 hours)
       if ($t === 'customers') {
-        q('DELETE FROM plant WHERE customer_id=?', [$id]); q('DELETE FROM fees WHERE customer_id=?', [$id]); q('DELETE FROM gen_docs WHERE customer_id=?', [$id]);
+        q('DELETE FROM plant WHERE customer_id=?', [$id]); q('DELETE FROM fees WHERE customer_id=?', [$id]); q('DELETE FROM gen_docs WHERE customer_id=?', [$id]); q('DELETE FROM commissions WHERE customer_id=?', [$id]);
         foreach (rows('SELECT id FROM projects WHERE customer_id=?', [$id]) as $p) purge_project($p['id']);
         q('DELETE FROM quotes WHERE customer_id=?', [$id]); q('DELETE FROM messages WHERE customer_id=?', [$id]); q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$id]);
       }
@@ -156,7 +156,7 @@ function handle_crud($t, $a) {
       q("UPDATE notes SET entity='leads', entity_id=? WHERE entity='customers' AND entity_id=?", [$lid, $cu['id']]);
       q('UPDATE discussions SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); q('UPDATE notifs SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // discussions follow it back
       q('UPDATE messages SET lead_id=COALESCE(lead_id, ?), customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // WhatsApp log stays with the lead
-      q('DELETE FROM plant WHERE customer_id=?', [$cu['id']]); q('DELETE FROM fees WHERE customer_id=?', [$cu['id']]); q('DELETE FROM gen_docs WHERE customer_id=?', [$cu['id']]); q('DELETE FROM customers WHERE id=?', [$cu['id']]);
+      q('DELETE FROM plant WHERE customer_id=?', [$cu['id']]); q('DELETE FROM fees WHERE customer_id=?', [$cu['id']]); q('DELETE FROM gen_docs WHERE customer_id=?', [$cu['id']]); q('DELETE FROM commissions WHERE customer_id=?', [$cu['id']]); q('DELETE FROM customers WHERE id=?', [$cu['id']]);
       audit('revert', 'customers', $cu['id'], "{$cu['name']} → lead $lid" . ($why ? " · $why" : '') . ($gone ? " · deleted $gone" : ''));
       out(['lead_id' => $lid, 'reopened' => $l ? 1 : 0]);
     case 'convert':

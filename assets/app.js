@@ -68,7 +68,7 @@ function loginView(setup, brand) {
   $('#lf').onsubmit = async e => { e.preventDefault(); const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value }); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
 }
 function shell() {
-  const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : canR(m[3]));
+  const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : m[0] === 'fees' ? feesNavItems().length > 0 : canR(m[3]));
   app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span><button type="button" class="sbpin" id="sbpin" aria-pressed="false"><i class="i i-pin"></i></button></h1>
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}${m[0] === 'fees' ? feesNav() : `<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}"><span class="ft t-${m[0]}">${m[2]}</span><span class="lbl">${m[1]}</span></a>`}`).join('')}
    </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2>
@@ -107,7 +107,7 @@ function sideAuto() {
   $('#bg').onclick = e => on() ? (s.classList.contains('mini') ? show() : hide()) : drawer(e);
   s.addEventListener('pointerenter', e => { if (e.pointerType !== 'mouse' || !on()) return; clearTimeout(tHide); if (s.classList.contains('mini')) tOpen = setTimeout(show, 120); });
   s.addEventListener('pointerleave', e => { if (e.pointerType !== 'mouse' || !on()) return; clearTimeout(tOpen); if (!s.classList.contains('mini')) later(); });
-  s.addEventListener('click', e => { const a = e.target.closest('a'); if (!a || !on()) return; if (a.classList.contains('sgh') && location.hash.startsWith('#/fees')) return; hide(); });
+  s.addEventListener('click', e => { const a = e.target.closest('a'); if (!a || !on()) return; if (a.classList.contains('sgh') && /^#\/(fees|comm)(\/|$)/.test(location.hash)) return; hide(); });
   s.addEventListener('focusin', e => { if (on() && e.target.matches(':focus-visible')) show(); });
   s.addEventListener('focusout', e => { if (on() && !s.contains(e.relatedTarget) && !s.matches(':hover')) later(); });
   document.addEventListener('pointerdown', e => { if (on() && !s.contains(e.target) && !e.target.closest('#bg') && !s.classList.contains('mini')) hide(); });
@@ -125,7 +125,7 @@ async function route() {
   const t = MODS.find(m => m[0] === mod);
   $('#title').innerHTML = t ? `<span class="ft t-${t[0]}">${t[2]}</span><span class="ttl">${esc(t[1])}</span>` : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
-  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, subsidy: () => pgOverview('subsidy'), kseb: pgKseb, bank: pgBank, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
+  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, subsidy: () => pgOverview('subsidy'), kseb: pgKseb, bank: pgBank, comm: pgComm, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
   try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { if (nav === ROUTE_N) main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
