@@ -1,12 +1,18 @@
 // Folder: file manager (nested folders, upload/drag-drop, move/delete/zip), public share links, WhatsApp sharing
 /* File drags anywhere on the Folder page: stop the browser opening the file; writers upload into the current folder. Bound once. */
-let FMUP = null, FMDOC = false;
+/* FMDRAG: the items being dragged inside the page ({files, folders}), null otherwise */
+let FMUP = null, FMDOC = false, FMDRAG = null;
+const fmHasFiles = e => !!e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+/* the folder a drop lands on: a folder row / card, or a breadcrumb ({el, id}; id 0 = top level) */
+const fmDropAt = e => { const t = e.target && e.target.closest && e.target.closest('#fmlist [data-k^="d"], .fm-crumbs a[data-fid]'); return t ? { el: t, id: t.dataset.fid !== undefined ? +t.dataset.fid : +t.dataset.k.slice(1) } : null; };
+const fmUnmark = () => $$('.fm-over').forEach(x => x.classList.remove('fm-over'));
 function fmDocDrag() {
   if (FMDOC) return; FMDOC = true;
-  const hf = e => e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
-  document.addEventListener('dragover', e => { if ($('#fm') && hf(e)) e.preventDefault(); });
-  document.addEventListener('drop', e => { if (!$('#fm') || !hf(e)) return; e.preventDefault(); const dz = $('#fmdrop'); if (dz) dz.classList.add('hide'); if (FMUP) FMUP(e.dataTransfer.files); else toast("You can't upload here", 1); });
+  document.addEventListener('dragover', e => { if ($('#fm') && fmHasFiles(e)) e.preventDefault(); });
+  /* files from the computer: onto a folder → into that folder, anywhere else → into the open folder */
+  document.addEventListener('drop', e => { if (!$('#fm') || !fmHasFiles(e)) return; e.preventDefault(); const dz = $('#fmdrop'); if (dz) dz.classList.add('hide'); fmUnmark(); const t = fmDropAt(e); if (FMUP) FMUP(e.dataTransfer.files, t ? t.id : undefined); else toast("You can't upload here", 1); });
 }
+const FM_MIME = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
 /* view options remembered per browser (list / grid, sort order); localStorage can be blocked, so both reads and writes are guarded */
 const fmPref = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
 const fmSave = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
@@ -60,7 +66,7 @@ async function pgFolder(id) {
       fi: items.filter(i => (i.file_name + ' ' + i.title + ' ' + fmPathText(folders, i.folder_id)).toLowerCase().includes(t)) };
   };
   const crumbs = fmPath(folders, cur);
-  const crumbHtml = `<nav class="fm-crumbs"><a href="#/folder">Folder</a>${crumbs.map((c, i) => ` <span class="fm-sep">›</span> ${i === crumbs.length - 1 ? `<b>${esc(c.name)}</b>` : `<a href="#/folder/${c.id}">${esc(c.name)}</a>`}`).join('')}</nav>`;
+  const crumbHtml = `<nav class="fm-crumbs"><a href="#/folder" data-fid="0">Folder</a>${crumbs.map((c, i) => ` <span class="fm-sep">›</span> ${i === crumbs.length - 1 ? `<b>${esc(c.name)}</b>` : `<a href="#/folder/${c.id}" data-fid="${c.id}">${esc(c.name)}</a>`}`).join('')}</nav>`;
   $('#main').innerHTML = `<div class="fm" id="fm">
    <div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Folder</h2><div class="mut">Datasheets, BIS certificates and test reports</div></div><span class="sp"></span>
     ${w ? '<button class="btn sec" id="fmnew"><i class="i i-folder"></i> New folder</button><button class="btn" id="fmup"><i class="i i-upload"></i> Upload</button><input type="file" id="fmfile" multiple class="hide" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx">' : ''}</div>
@@ -69,7 +75,7 @@ async function pgFolder(id) {
     <div class="fm-view"><select id="fmsort" aria-label="Sort by">${FM_SORTS.map(([v, l]) => `<option value="${v}" ${FM.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
      <div class="fm-seg" role="group" aria-label="View"><button type="button" data-v="list" class="${FM.view === 'grid' ? '' : 'on'}" title="List view" aria-label="List view"><i class="i i-menu"></i></button><button type="button" data-v="grid" class="${FM.view === 'grid' ? 'on' : ''}" title="Grid view" aria-label="Grid view"><i class="i i-dashboard"></i></button></div></div></div>
    <div class="fm-split" id="fmsplit"><div class="fm-col"><div id="fmlist" class="fm-list"></div><div id="fmbar" class="fm-bar hide"></div></div><section class="fm-pv" id="fmpv" aria-label="Preview"></section></div>
-   <div id="fmdrop" class="fm-drop hide"><i class="i i-upload"></i><div>Drop files to upload into <b>${esc(crumbs.length ? crumbs[crumbs.length - 1].name : 'Folder')}</b></div></div></div>`;
+   <div id="fmdrop" class="fm-drop hide"><div><i class="i i-upload"></i> Drop to upload into <b>${esc(crumbs.length ? crumbs[crumbs.length - 1].name : 'Folder')}</b></div></div></div>`;
   fmDocDrag(); FMUP = null;
   const reload = () => route();
   const clearSel = () => { FM.files.clear(); FM.folders.clear(); };
@@ -78,7 +84,12 @@ async function pgFolder(id) {
   const keyset = k => k[0] === 'd' ? FM.folders : FM.files;
   const itemOf = k => k && (k[0] === 'd' ? folders.find(f => +f.id === +k.slice(1)) : items.find(i => +i.id === +k.slice(1)));
   let order = []; /* keys of the items on screen, in screen order (for Shift+click and the arrow keys) */
-  const tip = fmNarrow() ? '' : ' title="Click to preview · double-click to open"';
+  /* desktop: rows can be dragged (onto a folder to move, out of the browser to save or share) */
+  const tip = fmNarrow() ? '' : ' title="Click to preview · double-click to open · drag to move or share" draggable="true"';
+  const ttip = fmNarrow() ? '' : ' title="Click to preview · double-click to open"';
+  /* the given folders and every folder inside them */
+  const subtree = ids => { const s = new Set(ids.map(Number)); let grew = true; while (grew) { grew = false; folders.forEach(f => { if (!s.has(+f.id) && s.has(+f.parent_id)) { s.add(+f.id); grew = true; } }); } return s; };
+  const fname = id => id ? ((folders.find(f => +f.id === +id) || {}).name || 'folder') : 'Folder';
   const draw = () => {
     const r0 = rowsNow(), box = $('#fmlist'), grid = FM.view === 'grid';
     /* folders always first, each group in the chosen order (folders by name, date, or number of items) */
@@ -151,8 +162,8 @@ async function pgFolder(id) {
       $('#fmpvdl').onclick = () => fmDl(url + '&dl=1');
     } else {
       let nD = 0, nF = 0, bytes = 0;
-      const tree = (pid, depth) => depth > 30 ? '' : sortFo(folders.filter(x => +x.parent_id === pid)).map(x => { nD++; return `<div class="fm-tr fm-trd" data-k="d${x.id}" style="--d:${depth}"${tip}><i class="i i-folder"></i><span>${esc(x.name)}</span></div>${tree(+x.id, depth + 1)}`; }).join('')
-        + sortFi(items.filter(x => +x.folder_id === pid)).map(x => { nF++; bytes += +x.size || 0; return `<div class="fm-tr" data-k="f${x.id}" style="--d:${depth}"${tip}><span class="fm-ty">${esc(fext(x.file_name))}</span><span>${esc(x.file_name)}</span><small>${fsize(x.size)}</small></div>`; }).join('');
+      const tree = (pid, depth) => depth > 30 ? '' : sortFo(folders.filter(x => +x.parent_id === pid)).map(x => { nD++; return `<div class="fm-tr fm-trd" data-k="d${x.id}" style="--d:${depth}"${ttip}><i class="i i-folder"></i><span>${esc(x.name)}</span></div>${tree(+x.id, depth + 1)}`; }).join('')
+        + sortFi(items.filter(x => +x.folder_id === pid)).map(x => { nF++; bytes += +x.size || 0; return `<div class="fm-tr" data-k="f${x.id}" style="--d:${depth}"${ttip}><span class="fm-ty">${esc(fext(x.file_name))}</span><span>${esc(x.file_name)}</span><small>${fsize(x.size)}</small></div>`; }).join('');
       const t = tree(+it.id, 0);
       const sum = [nD ? nD + ' folder' + (nD === 1 ? '' : 's') : '', nF ? nF + ' file' + (nF === 1 ? '' : 's') : '', nF ? fsize(bytes) : ''].filter(Boolean).join(' · ') || 'Empty';
       pv.innerHTML = `<div class="fm-pvh">${back}<div class="fm-pvt"><i class="i i-folder"></i><div><b>${esc(it.name)}</b><small>${esc(fmPathText(folders, it.parent_id))} · ${sum}</small></div>${close}</div>
@@ -177,8 +188,7 @@ async function pgFolder(id) {
     const fl = [...FM.files], fo = [...FM.folders];
     $('#fmclr').onclick = () => { clearSel(); draw(); };
     $('#fmdl').onclick = () => {
-      const inside = new Set(fo.map(Number)); let grew = true;
-      while (grew) { grew = false; folders.forEach(f => { if (!inside.has(+f.id) && inside.has(+f.parent_id)) { inside.add(+f.id); grew = true; } }); }
+      const inside = subtree(fo);
       const pick = items.filter(i => inside.has(+i.folder_id) || (FM.files.has(+i.id) && !inside.has(+i.folder_id)));
       if (!pick.length) { toast('Nothing to download', 1); return; }
       if (pick.reduce((t, i) => t + (+i.size || 0), 0) > 500 * 1048576) { toast('Too much to download at once — select fewer files', 1); return; }
@@ -205,8 +215,7 @@ async function pgFolder(id) {
   };
   const moveDialog = () => {
     const fl = [...FM.files], fo = [...FM.folders];
-    const barred = new Set(fo.map(Number)); let grew = true;
-    while (grew) { grew = false; folders.forEach(f => { if (!barred.has(+f.id) && barred.has(+f.parent_id)) { barred.add(+f.id); grew = true; } }); }
+    const barred = subtree(fo);
     const tree = (pid, depth) => folders.filter(f => (+f.parent_id || 0) === pid && !barred.has(+f.id)).sort((a, b) => a.name.localeCompare(b.name)).map(f => `<label class="fm-pick" style="padding-left:${10 + depth * 18}px"><input type="radio" name="fmto" value="${f.id}"><i class="i i-folder"></i> ${esc(f.name)}</label>${tree(+f.id, depth + 1)}`).join('');
     const m = modal(`<h2 style="margin-top:0">Move ${fl.length + fo.length} item${fl.length + fo.length === 1 ? '' : 's'} to…</h2>
       <div class="fm-picks"><label class="fm-pick"><input type="radio" name="fmto" value="0" checked><i class="i i-folder"></i> Folder (top level)</label>${tree(0, 1)}</div>
@@ -214,19 +223,20 @@ async function pgFolder(id) {
     $('#fmmvx', m).onclick = () => m.remove();
     $('#fmmvok', m).onclick = async () => { const to = +$('input[name=fmto]:checked', m).value; try { await api('folder', 'move', { files: fl, folders: fo, to: to || null }); m.remove(); clearSel(); toast('Moved'); reload(); } catch (e) { } };
   };
-  const upload = async list => {
+  const upload = async (list, to = cur) => {
     list = [...list]; if (!list.length) return;
+    const there = items.filter(i => (+i.folder_id || 0) === to);
     const st = document.createElement('div'); st.className = 'fm-prog'; document.body.appendChild(st);
     let ok = 0, bad = 0, done = 0;
     for (const f of list) {
       done++; st.textContent = `Uploading ${done} of ${list.length}…`;
       if (f.size > 25 * 1048576) { alert(f.name + ' is larger than 25 MB.'); bad++; continue; }
-      if (files.some(x => x.file_name.toLowerCase() === f.name.toLowerCase()) && !confirm(`Replace ${f.name} with the new version? The old one goes to the Recycle bin, and links already sent for it stop working.`)) continue;
-      const fd = new FormData(); fd.append('file', f); fd.append('folder_id', cur ? String(cur) : '');
+      if (there.some(x => x.file_name.toLowerCase() === f.name.toLowerCase()) && !confirm(`Replace ${f.name} in ${fname(to)} with the new version? The old one goes to the Recycle bin, and links already sent for it stop working.`)) continue;
+      const fd = new FormData(); fd.append('file', f); fd.append('folder_id', to ? String(to) : '');
       try { await api('folder', 'upload', fd); ok++; } catch (e) { bad++; }
     }
     st.remove();
-    if (ok || bad) toast((ok ? ok + ' uploaded' : '') + (ok && bad ? ' · ' : '') + (bad ? bad + ' failed' : ''), !ok);
+    if (ok || bad) toast((ok ? ok + ' uploaded' + (to !== cur ? ' to ' + fname(to) : '') : '') + (ok && bad ? ' · ' : '') + (bad ? bad + ' failed' : ''), !ok);
     reload();
   };
   $('#fmq').oninput = e => { FM.q = e.target.value; draw(); };
@@ -261,12 +271,51 @@ async function pgFolder(id) {
       const go = async () => { const v = inp.value.trim(); if (!v) return; try { await api('folder', 'folder_new', { parent_id: cur || null, name: v }); m.remove(); reload(); } catch (e) { } };
       $('#fmnok', m).onclick = go; inp.onkeydown = e => { if (e.key === 'Enter') go(); };
     };
-    const fm = $('#fm'), dz = $('#fmdrop'); let dn = 0;
-    const hasFiles = e => e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
-    fm.ondragenter = e => { if (!hasFiles(e)) return; e.preventDefault(); dn++; dz.classList.remove('hide'); };
-    fm.ondragover = e => { if (hasFiles(e)) e.preventDefault(); };
-    fm.ondragleave = e => { if (!hasFiles(e)) return; if (--dn <= 0) { dn = 0; dz.classList.add('hide'); } };
   }
+  /* ---- drag and drop ----
+     A row / card dragged onto a folder or a breadcrumb moves there (writers; the selection moves when the dragged item is part of it).
+     Dragged out of the browser (Chrome / Edge) onto a computer folder, WhatsApp Desktop or an email, the file itself is saved there:
+     one file as it is (through its public link), several items or a folder as one ZIP. Dropped into a text box: the public links. */
+  lbox.ondragstart = e => {
+    const el = e.target.closest && e.target.closest('#fmlist [data-k]'); if (!el) return;
+    const k = el.dataset.k, inSel = keyset(k).has(+k.slice(1));
+    const fl = inSel ? [...FM.files] : k[0] === 'f' ? [+k.slice(1)] : [], fo = inSel ? [...FM.folders] : k[0] === 'd' ? [+k.slice(1)] : [];
+    FMDRAG = { files: fl, folders: fo };
+    const dt = e.dataTransfer, ds = items.filter(i => fl.includes(+i.id)), safe = s => String(s).replace(/[:\\/*?"<>|\r\n]/g, '_');
+    dt.effectAllowed = 'copyMove'; dt.setData('application/x-solarize-fm', '1');
+    if (fl.length === 1 && !fo.length && ds[0]) dt.setData('DownloadURL', `${FM_MIME[fext(ds[0].file_name).toLowerCase()] || 'application/octet-stream'}:${safe(ds[0].file_name)}:${shareUrl(ds[0])}&dl=1`);
+    else {
+      const inside = subtree(fo), pick = items.filter(i => inside.has(+i.folder_id) || fl.includes(+i.id));
+      if (pick.length && pick.reduce((t, i) => t + (+i.size || 0), 0) <= 500 * 1048576)
+        dt.setData('DownloadURL', `application/zip:${safe(fo.length === 1 && !fl.length ? fname(fo[0]) : 'Files ' + new Date().toISOString().slice(0, 10))}.zip:${baseUrl()}api.php?m=folder&a=zip&files=${fl.join(',')}&folders=${fo.join(',')}`);
+    }
+    if (ds.length && !fo.length) dt.setData('text/plain', ds.length === 1 ? shareUrl(ds[0]) : ds.map(d => d.file_name + '\n' + shareUrl(d)).join('\n\n'));
+    const n = fl.length + fo.length;
+    if (n > 1) { const g = document.createElement('div'); g.className = 'fm-ghost'; g.textContent = n + ' items'; document.body.appendChild(g); dt.setDragImage(g, 14, 14); setTimeout(() => g.remove(), 0); }
+    /* fade the dragged items after the browser has taken its picture of the row */
+    setTimeout(() => $$('[data-k]', lbox).forEach(x => { const xk = x.dataset.k; if ((xk[0] === 'd' ? fo : fl).includes(+xk.slice(1))) x.classList.add('fm-dragging'); }), 0);
+  };
+  lbox.ondragend = () => { FMDRAG = null; fmUnmark(); $$('.fm-dragging').forEach(x => x.classList.remove('fm-dragging')); };
+  /* a move is offered only where it changes something and never into a dragged folder or one inside it */
+  const canMove = id => {
+    if (!w || !FMDRAG || (id && subtree(FMDRAG.folders).has(id))) return false;
+    return FMDRAG.files.some(f => (+(items.find(i => +i.id === f) || {}).folder_id || 0) !== id) || FMDRAG.folders.some(f => (+(folders.find(x => +x.id === f) || {}).parent_id || 0) !== id);
+  };
+  const fm = $('#fm'), dz = $('#fmdrop'), dzName = $('#fmdrop b'); let dn = 0;
+  fm.ondragenter = e => { if (!w || !fmHasFiles(e)) return; e.preventDefault(); dn++; dz.classList.remove('hide'); };
+  fm.ondragleave = e => { if (!w || !fmHasFiles(e)) return; if (--dn <= 0) { dn = 0; dz.classList.add('hide'); fmUnmark(); } };
+  fm.ondragover = e => {
+    const t = fmDropAt(e);
+    $$('.fm-over').forEach(x => { if (!t || x !== t.el) x.classList.remove('fm-over'); });
+    if (fmHasFiles(e)) { if (!w) return; e.preventDefault(); if (t) t.el.classList.add('fm-over'); dzName.textContent = fname(t ? t.id : cur); return; }
+    if (t && canMove(t.id)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; t.el.classList.add('fm-over'); }
+  };
+  fm.ondrop = async e => {
+    if (fmHasFiles(e) || !FMDRAG) return; /* files from the computer: the page-wide handler uploads them */
+    const t = fmDropAt(e); if (!t || !canMove(t.id)) return;
+    e.preventDefault(); const mv = FMDRAG, n = mv.files.length + mv.folders.length; FMDRAG = null; fmUnmark();
+    try { await api('folder', 'move', { files: mv.files, folders: mv.folders, to: t.id || null }); clearSel(); toast(`Moved ${n} item${n === 1 ? '' : 's'} to ${fname(t.id)}`); reload(); } catch (err) { }
+  };
   draw(); preview();
 }
 
