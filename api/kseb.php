@@ -1,12 +1,32 @@
 <?php
 // KSEB documents (Work Completion Report, Annexures 1-3): customer data for the page, per-customer edits, company defaults.
 // Edits live in gen_docs (kind 'kseb_wcr', 'kseb_an1' … 'kseb_an3', 'kseb_agr', 'kseb_chk'); the PDF itself is built in the browser.
-// The Agreement may also fill empty customer profile / plant fields (kseb_fill).
+// Any KSEB or bank document may also fill EMPTY customer profile / plant fields with what was typed in it (kseb_fill).
 
 const KSEB_DOCS = ['cov', 'req', 'wcr', 'an1', 'an2', 'an3', 'doi', 'agr', 'chk'];
-/* profile fields a document may fill when they are still empty (the Agreement tab: KD.fill in assets/app24.js) */
-const KSEB_FILL = ['c' => ['consumer_no', 'kseb_section', 'premises', 'transformer', 'local_body', 'village_survey', 'sanctioned_load', 'gps'],
-  'p' => ['meter_by', 'net_meter_by', 'meter_serial', 'meter_make', 'meter_reading', 'spin']];
+/* profile fields a document may fill when they are still empty (the fields with src in assets/app24.js; KD.fill picks them) */
+const KSEB_FILL = ['c' => ['consumer_no', 'kseb_section', 'premises', 'transformer', 'local_body', 'village_survey', 'sanctioned_load', 'gps',
+    'phone', 'alt_phone', 'email', 'address', 'district', 'pincode', 'phase', 'bank_name', 'bank_ifsc', 'jansamarth_id'],
+  'p' => ['meter_by', 'net_meter_by', 'meter_serial', 'meter_make', 'meter_reading', 'spin', 'capacity', 'panel_make', 'panel_type', 'panel_wattage', 'panel_count',
+    'panel_model', 'panel_efficiency', 'inverter_make', 'inverter_capacity', 'inverter_dc_voltage', 'cell_invoice_no', 'application_no', 'application_date', 'installed_on', 'kseb_reg_no']];
+const KSEB_FILL_NUM = ['sanctioned_load', 'capacity', 'panel_wattage', 'panel_count', 'panel_efficiency', 'inverter_capacity', 'inverter_dc_voltage'];
+/* a value that does not look right for its profile field is not stored there (it stays in the document) */
+function kseb_fill_ok($col, $v) {
+  if (in_array($col, KSEB_FILL_NUM, true)) return is_numeric($v) && (float)$v > 0;
+  if ($col === 'meter_reading') return is_numeric($v) && (float)$v >= 0;
+  if (in_array($col, ['application_date', 'installed_on'], true)) return (bool)preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $v, $m) && checkdate((int)$m[2], (int)$m[3], (int)$m[1]);
+  return match ($col) {
+    'phase' => in_array($v, ['Single phase', 'Three phase'], true),
+    'phone', 'alt_phone' => (bool)preg_match('/^\d{10}$/', $v),
+    'pincode' => (bool)preg_match('/^\d{6}$/', $v),
+    'consumer_no' => (bool)preg_match('/^\d{6,16}$/', $v),
+    'bank_ifsc' => (bool)preg_match('/^[A-Z]{4}0[A-Z0-9]{6}$/', $v),
+    'email' => filter_var($v, FILTER_VALIDATE_EMAIL) !== false,
+    'premises' => in_array($v, ['Owned', 'Leased'], true),
+    'meter_by', 'net_meter_by' => in_array($v, ['Consumer', 'KSEB'], true),
+    default => true,
+  };
+}
 const KSEB_DEFAULTS = [
   'vendor_name' => 'M/S JASPER SOLAR SOLUTIONS',
   'vendor_address' => 'Jasper Building Anad Bank Junction Nedumangad Thiruvananthapuram',
@@ -38,21 +58,18 @@ function kseb_fill($cid, array $list): array {
   foreach (array_slice($list, 0, 40) as $f) {
     if (!is_array($f)) continue;
     $t = (string)($f['t'] ?? ''); $col = (string)($f['col'] ?? ''); $k = (string)($f['k'] ?? '');
-    $v = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($f['v'] ?? ''))), 0, 120);
+    $v = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($f['v'] ?? ''))), 0, $col === 'address' ? 400 : 120);
     if ($v === '' || !preg_match('/^\w{1,40}$/', $k) || !in_array($col, KSEB_FILL[$t] ?? [], true)) continue;
+    if (in_array($col, LOAN_COLS, true) && !can('loans', true)) continue; /* the Jan Samarth ID belongs to the loan details */
     if ($col === 'gps') {
       if (!preg_match('/^(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)$/', $v, $m) || abs((float)$m[1]) > 90 || abs((float)$m[2]) > 180) continue;
       if (!$empty($c['lat'] ?? '') || !$empty($c['lng'] ?? '') || isset($cu['lat'])) continue;
       $cu['lat'] = $m[1]; $cu['lng'] = $m[2];
     } elseif ($t === 'c') {
-      if (!$empty($c[$col] ?? '') || isset($cu[$col])) continue;
-      if ($col === 'sanctioned_load') { if (!is_numeric($v) || (float)$v <= 0) continue; $v = (float)$v; }
-      if ($col === 'premises' && !in_array($v, ['Owned', 'Leased'], true)) continue;
-      $cu[$col] = $v;
+      if (!$empty($c[$col] ?? '') || isset($cu[$col]) || !kseb_fill_ok($col, $v)) continue;
+      $cu[$col] = $col === 'sanctioned_load' ? (float)$v : $v;
     } else {
-      if (trim((string)($pl[$col] ?? '')) !== '' || isset($pu[$col])) continue;
-      if (($col === 'meter_by' || $col === 'net_meter_by') && !in_array($v, ['Consumer', 'KSEB'], true)) continue;
-      if ($col === 'meter_reading' && !is_numeric($v)) continue;
+      if (!$empty($pl[$col] ?? '') || isset($pu[$col]) || !kseb_fill_ok($col, $v)) continue;
       $pu[$col] = $v;
     }
     $done[] = $k;
@@ -68,8 +85,10 @@ function kseb_fill($cid, array $list): array {
     $pl = array_merge($pl, $pu); $pl['panels'] = $pl['panels'] ?? []; $pl['inverters'] = $pl['inverters'] ?? [];
     q('INSERT INTO plant(customer_id,data,updated,updated_by) VALUES(?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(customer_id) DO UPDATE SET data=excluded.data, updated=excluded.updated, updated_by=excluded.updated_by',
       [$cid, json_encode($pl, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']);
+    /* the application no. is also kept on the project (as the Registration page saves it), when the project has none */
+    if (isset($pu['application_no'])) q("UPDATE projects SET application_no=? WHERE id=(SELECT id FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1) AND COALESCE(application_no,'')=''", [$pu['application_no'], $cid]);
   }
-  if ($cu || $pu) audit('update', 'customers', $cid, 'From the KSEB agreement: ' . implode(', ', array_merge(array_keys($cu), array_keys($pu))));
+  if ($cu || $pu) audit('update', 'customers', $cid, 'From the KSEB / bank documents: ' . implode(', ', array_merge(array_keys($cu), array_keys($pu))));
   return $done;
 }
 

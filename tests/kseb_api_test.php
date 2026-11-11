@@ -151,6 +151,34 @@ chk(($s['customer']['transformer'] ?? '') === 'Anad Jn TF' && ($s['plant']['mete
 $s2 = call($admin, 'kseb', 'save', ['customer_id' => $agid, 'doc' => 'agr', 'data' => ['transformer' => 'Other TF'], 'fill' => [['k' => 'transformer', 't' => 'c', 'col' => 'transformer', 'v' => 'Other TF']]]);
 chk(empty($s2['filled']) && ($s2['saved']['data']['transformer'] ?? '') === 'Other TF' && (call($admin, 'customers', 'get', null, "&id=$agid")['transformer'] ?? '') === 'Anad Jn TF', 'a profile value is never overwritten: the agreement keeps its own copy');
 
+/* every KSEB / bank document: what was typed for an EMPTY profile field fills it (made-up customer) */
+$dc = call($admin, 'customers', 'save', ['name' => 'Docs Fill Test', 'phone' => '']); $dcid = (int)($dc['id'] ?? 0);
+call($admin, 'projects', 'save', ['customer_id' => $dcid, 'title' => 'Fill test project', 'kw' => 0]);
+$wf = [['k' => 'cust_phone', 't' => 'c', 'col' => 'phone', 'v' => '9811111111'], ['k' => 'consumer_no', 't' => 'c', 'col' => 'consumer_no', 'v' => '1146910000077'],
+  ['k' => 'phase', 't' => 'c', 'col' => 'phase', 'v' => 'Three phase'], ['k' => 'capacity', 't' => 'p', 'col' => 'capacity', 'v' => '3.3'],
+  ['k' => 'pv_make', 't' => 'p', 'col' => 'panel_make', 'v' => 'Test Panels'], ['k' => 'pv_watt', 't' => 'p', 'col' => 'panel_wattage', 'v' => '550'],
+  ['k' => 'inv_capacity', 't' => 'p', 'col' => 'inverter_capacity', 'v' => '2 × 1 KW (2 KW)'], ['k' => 'cust_address', 't' => 'c', 'col' => 'address', 'v' => 'Test House, Test Lane'],
+  ['k' => 'section', 't' => 'c', 'col' => 'name', 'v' => 'Not A Fill Column']];
+$ws = call($admin, 'kseb', 'save', ['customer_id' => $dcid, 'doc' => 'wcr', 'data' => ['cust_phone' => '9811111111', 'inv_capacity' => '2 × 1 KW (2 KW)', 'date' => '2026-11-11'], 'fill' => $wf]);
+chk(($ws['filled'] ?? []) === ['cust_phone', 'consumer_no', 'phase', 'capacity', 'pv_make', 'pv_watt', 'cust_address'], 'work completion report fills the empty profile fields (not a text that is no number, not a column off the list)');
+$dg = call($admin, 'customers', 'get', null, "&id=$dcid");
+chk(($dg['phone'] ?? '') === '9811111111' && ($dg['consumer_no'] ?? '') === '1146910000077' && ($dg['phase'] ?? '') === 'Three phase' && ($dg['address'] ?? '') === 'Test House, Test Lane' && ($dg['name'] ?? '') === 'Docs Fill Test', 'customer fields filled, name untouched');
+chk(($dg['kseb_section'] ?? '') !== '' && ($dg['kseb_subdivision'] ?? '') !== '', 'the consumer no. typed in a document also fills section and sub division');
+$dp = call($admin, 'plant', 'get', null, "&customer_id=$dcid")['data'] ?? [];
+chk(($dp['capacity'] ?? '') === '3.3' && ($dp['panel_make'] ?? '') === 'Test Panels' && ($dp['panel_wattage'] ?? '') === '550' && empty($dp['inverter_capacity']), 'plant fields filled; "2 × 1 KW (2 KW)" is not stored as a capacity');
+chk(($ws['saved']['data']['inv_capacity'] ?? '') === '2 × 1 KW (2 KW)' && !isset($ws['saved']['data']['cust_phone']), 'what went to the profile is not kept as a document edit; the rest is');
+$bad = call($admin, 'kseb', 'save', ['customer_id' => $dcid, 'doc' => 'doi', 'data' => [], 'fill' => [['k' => 'email', 't' => 'c', 'col' => 'email', 'v' => 'not an email'],
+  ['k' => 'alt_phone', 't' => 'c', 'col' => 'alt_phone', 'v' => '12345'], ['k' => 'bank_ifsc', 't' => 'c', 'col' => 'bank_ifsc', 'v' => 'SBIN0070422'], ['k' => 'dc_voltage', 't' => 'p', 'col' => 'inverter_dc_voltage', 'v' => 'abc']]]);
+chk(($bad['filled'] ?? []) === ['bank_ifsc'], 'a value that does not look right for its field (email, phone, number) is not put in the profile');
+/* bank documentation: the same, with the Jan Samarth ID (loan details) and the application no. also on the project */
+$bs = call($admin, 'bank', 'save', ['customer_id' => $dcid, 'doc' => 'bfr', 'data' => ['portal_id' => 'NP-TEST26-0077'], 'fill' => [['k' => 'portal_id', 't' => 'p', 'col' => 'application_no', 'v' => 'NP-TEST26-0077'],
+  ['k' => 'jansamarth_id', 't' => 'c', 'col' => 'jansamarth_id', 'v' => 'ANS-SOLAR-77-1'], ['k' => 'pincode', 't' => 'c', 'col' => 'pincode', 'v' => '695077'], ['k' => 'consumer_no', 't' => 'c', 'col' => 'consumer_no', 'v' => '1146910000099']]]);
+chk(($bs['filled'] ?? []) === ['portal_id', 'jansamarth_id', 'pincode'], 'bank feasibility report fills empty fields; the consumer no. already filled is kept');
+$bg = call($admin, 'customers', 'get', null, "&id=$dcid");
+chk(($bg['jansamarth_id'] ?? '') === 'ANS-SOLAR-77-1' && ($bg['pincode'] ?? '') === '695077' && ($bg['consumer_no'] ?? '') === '1146910000077', 'bank fill saved; existing consumer no. not overwritten');
+chk((call($admin, 'plant', 'get', null, "&customer_id=$dcid")['data']['application_no'] ?? '') === 'NP-TEST26-0077' && (($bg['projects'][0]['application_no'] ?? '') === 'NP-TEST26-0077'), 'application no. filled in the plant and on the project');
+chk(isset($bs['customer'], $bs['plant']) && !isset($bs['saved']['data']['portal_id']), 'bank save returns the updated profile and keeps no copy of what went to it');
+
 /* total reset (keep last: it wipes customers): nothing keyed by customer id may survive into a new customer #1 */
 call($admin, 'kseb', 'save', ['customer_id' => $cid, 'doc' => 'wcr', 'data' => ['cust_phone' => '111']]);
 $rs = call($admin, 'reset', 'reset', ['password' => $pw, 'confirm' => 'RESET', 'opts' => []]);

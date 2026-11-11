@@ -9,11 +9,11 @@ var KD = (function () {
   var consumerGroup = function () {
     return { g: 'Consumer', fields: [
       { k: 'name', l: 'Name' },
-      { k: 'consumer_no', l: 'Consumer No' },
+      { k: 'consumer_no', l: 'Consumer No', src: 'c.consumer_no' },
       { k: 'category', l: 'Category' },
-      { k: 'phone', l: 'Phone' },
-      { k: 'email', l: 'Email' },
-      { k: 'address', l: 'Address', t: 'area' }
+      { k: 'phone', l: 'Phone', src: 'c.phone' },
+      { k: 'email', l: 'Email', src: 'c.email' },
+      { k: 'address', l: 'Address', src: 'c.address', t: 'area' }
     ] };
   };
   var placeGroup = function () {
@@ -34,46 +34,46 @@ var KD = (function () {
         ] },
         { g: 'Consumer', fields: [
           { k: 'state', l: 'Name of State' },
-          { k: 'district', l: 'Name of District' },
+          { k: 'district', l: 'Name of District', src: 'c.district' },
           { k: 'discom', l: 'Name of DISCOM' },
           { k: 'division', l: 'Electrical Division & Sub Division' },
-          { k: 'section', l: 'Electrical Section' },
-          { k: 'consumer_no', l: 'Consumer No.' },
+          { k: 'section', l: 'Electrical Section', src: 'c.kseb_section' },
+          { k: 'consumer_no', l: 'Consumer No.', src: 'c.consumer_no' },
           { k: 'tariff', l: 'Tariff' },
-          { k: 'load', l: 'Connected load (KW)' },
+          { k: 'load', l: 'Connected load (KW)', src: 'c.sanctioned_load' },
           { k: 'name', l: 'Name of solar plant owner' },
-          { k: 'address', l: 'Address', t: 'area' },
-          { k: 'email', l: 'Email ID' },
-          { k: 'phone', l: 'Phone of consumer' },
-          { k: 'alt_phone', l: 'Alternate contact no.' }
+          { k: 'address', l: 'Address', src: 'c.address', t: 'area' },
+          { k: 'email', l: 'Email ID', src: 'c.email' },
+          { k: 'phone', l: 'Phone of consumer', src: 'c.phone' },
+          { k: 'alt_phone', l: 'Alternate contact no.', src: 'c.alt_phone' }
         ] },
         { g: 'Bank details', fields: [
-          { k: 'bank_name', l: 'Bank name' },
+          { k: 'bank_name', l: 'Bank name', src: 'c.bank_name' },
           { k: 'bank_account', l: 'Account no. & name' },
-          { k: 'bank_ifsc', l: 'IFSC code' }
+          { k: 'bank_ifsc', l: 'IFSC code', src: 'c.bank_ifsc' }
         ] },
         { g: 'Plant details', fields: [
-          { k: 'capacity', l: 'Total capacity of solar plant' },
-          { k: 'panel_make', l: 'Make of panel' },
-          { k: 'panel_type', l: 'Type' },
-          { k: 'panel_watt', l: 'Each panel watt' },
-          { k: 'panel_count', l: 'Number of panels' },
+          { k: 'capacity', l: 'Total capacity of solar plant', src: 'p.capacity' },
+          { k: 'panel_make', l: 'Make of panel', src: 'p.panel_make' },
+          { k: 'panel_type', l: 'Type', src: 'p.panel_type' },
+          { k: 'panel_watt', l: 'Each panel watt', src: 'p.panel_wattage' },
+          { k: 'panel_count', l: 'Number of panels', src: 'p.panel_count' },
           { k: 'panel_total', l: 'Total panel capacity' },
           { k: 'panel_serials', l: 'Panel serial numbers (one per line)', t: 'area', rows: 6 }
         ] },
         { g: 'Inverter', fields: [
-          { k: 'inv_make', l: 'Make of inverters' },
+          { k: 'inv_make', l: 'Make of inverters', src: 'p.inverter_make' },
           { k: 'inv_serials', l: 'Serial number of inverters', t: 'area' },
           { k: 'inv_phase', l: 'Inverter type (single / three phase)' },
           { k: 'inv_capacity', l: 'Inverter capacity' }
         ] },
         { g: 'Application & documents', fields: [
-          { k: 'cell_invoice', l: 'Cell GST invoice no.' },
-          { k: 'app_no', l: 'Application number' },
-          { k: 'app_date', l: 'Application date' },
-          { k: 'kseb_reg', l: 'KSEB registration no. (printed when filled)', opt: true },
+          { k: 'cell_invoice', l: 'Cell GST invoice no.', src: 'p.cell_invoice_no' },
+          { k: 'app_no', l: 'Application number', src: 'p.application_no' },
+          { k: 'app_date', l: 'Application date', src: 'p.application_date' },
+          { k: 'kseb_reg', l: 'KSEB registration no. (printed when filled)', src: 'p.kseb_reg_no', opt: true },
           { k: 'meter', l: 'Energy meter make & serial (printed when filled)', opt: true },
-          { k: 'installed', l: 'Date of installation (printed when filled)', opt: true }
+          { k: 'installed', l: 'Date of installation (printed when filled)', src: 'p.installed_on', opt: true }
         ] }
       ]
     },
@@ -92,9 +92,9 @@ var KD = (function () {
         { g: 'From (consumer)', fields: [
           { k: 'name', l: 'Name' },
           { k: 'consumer_no', l: 'Consumer number', src: 'c.consumer_no' },
-          { k: 'phone', l: 'Consumer phone' },
-          { k: 'pincode', l: 'PIN code' },
-          { k: 'address', l: 'Address', t: 'area' }
+          { k: 'phone', l: 'Consumer phone', src: 'c.phone' },
+          { k: 'pincode', l: 'PIN code', src: 'c.pincode' },
+          { k: 'address', l: 'Address', src: 'c.address', t: 'area' }
         ] },
         { g: 'Vendor', fields: [
           { k: 'vendor_name', l: 'Vendor name' },
@@ -120,21 +120,21 @@ var KD = (function () {
         ] },
         { g: 'Customer data', fields: [
           { k: 'cust_name', l: 'Name of the Customer' },
-          { k: 'cust_address', l: 'Address of the Customer', t: 'area' },
-          { k: 'cust_phone', l: 'Contact No of the Customer' },
-          { k: 'consumer_no', l: 'EB consumer number' },
-          { k: 'section', l: 'Electrical Section' },
-          { k: 'capacity', l: 'Installed Plant Capacity' },
-          { k: 'phase', l: 'Phase' }
+          { k: 'cust_address', l: 'Address of the Customer', src: 'c.address', t: 'area' },
+          { k: 'cust_phone', l: 'Contact No of the Customer', src: 'c.phone' },
+          { k: 'consumer_no', l: 'EB consumer number', src: 'c.consumer_no' },
+          { k: 'section', l: 'Electrical Section', src: 'c.kseb_section' },
+          { k: 'capacity', l: 'Installed Plant Capacity', src: 'p.capacity' },
+          { k: 'phase', l: 'Phase', src: 'c.phase' }
         ] },
         { g: 'SPV module', fields: [
-          { k: 'pv_make', l: 'Make' },
-          { k: 'pv_type', l: 'Type' },
-          { k: 'pv_watt', l: 'Each Module Watt' }
+          { k: 'pv_make', l: 'Make', src: 'p.panel_make' },
+          { k: 'pv_type', l: 'Type', src: 'p.panel_type' },
+          { k: 'pv_watt', l: 'Each Module Watt', src: 'p.panel_wattage' }
         ] },
         { g: 'Inverter', fields: [
-          { k: 'inv_make', l: 'Make' },
-          { k: 'inv_capacity', l: 'Capacity' },
+          { k: 'inv_make', l: 'Make', src: 'p.inverter_make' },
+          { k: 'inv_capacity', l: 'Capacity', src: 'p.inverter_capacity' },
           { k: 'inv_serial', l: 'Serial No', t: 'area' }
         ] },
         { g: 'Signatory', fields: [
@@ -149,8 +149,8 @@ var KD = (function () {
       groups: [
         consumerGroup(),
         { g: 'Plant', fields: [
-          { k: 'load', l: 'Connected load' },
-          { k: 'capacity', l: 'Plant capacity' },
+          { k: 'load', l: 'Connected load', src: 'c.sanctioned_load' },
+          { k: 'capacity', l: 'Plant capacity', src: 'p.capacity' },
           { k: 'other', l: 'Use at other premises' },
           { k: 'mount', l: 'Rooftop or ground' },
           { k: 'days', l: 'Completion period' }
@@ -164,8 +164,8 @@ var KD = (function () {
       groups: [
         consumerGroup(),
         { g: 'Plant', fields: [
-          { k: 'load', l: 'Connected load' },
-          { k: 'capacity', l: 'Plant capacity' },
+          { k: 'load', l: 'Connected load', src: 'c.sanctioned_load' },
+          { k: 'capacity', l: 'Plant capacity', src: 'p.capacity' },
           { k: 'specs', l: 'Panel, inverter & interlock specs attached' },
           { k: 'meters', l: 'Solar & net meter bought by consumer, specs attached' },
           { k: 'drawings', l: 'Technical drawings attached' },
@@ -180,8 +180,8 @@ var KD = (function () {
       groups: [
         consumerGroup(),
         { g: 'Plant', fields: [
-          { k: 'reg_no', l: 'Solar registration number' },
-          { k: 'capacity', l: 'Installed capacity' },
+          { k: 'reg_no', l: 'Solar registration number', src: 'p.kseb_reg_no' },
+          { k: 'capacity', l: 'Installed capacity', src: 'p.capacity' },
           { k: 'type_test', l: 'Type test certificates provided' },
           { k: 'specs', l: 'Panel, inverter & interlock specs attached' },
           { k: 'inspector', l: 'Electrical Inspector approval attached' }
@@ -195,8 +195,8 @@ var KD = (function () {
       groups: [
         { g: 'Consumer', fields: [
           { k: 'name', l: 'Consumer Name' },
-          { k: 'consumer_no', l: 'Consumer Number' },
-          { k: 'section', l: 'Electrical Section Office' }
+          { k: 'consumer_no', l: 'Consumer Number', src: 'c.consumer_no' },
+          { k: 'section', l: 'Electrical Section Office', src: 'c.kseb_section' }
         ] },
         { g: 'Documents', fields: [
           { k: 'items', l: 'Documents (one per line)', t: 'area', rows: 12 }
@@ -210,20 +210,20 @@ var KD = (function () {
       groups: [
         { g: 'Consumer', fields: [
           { k: 'division', l: 'Electrical Division & Sub Division' },
-          { k: 'section', l: 'Electrical Section' },
-          { k: 'consumer_no', l: 'Consumer No' },
+          { k: 'section', l: 'Electrical Section', src: 'c.kseb_section' },
+          { k: 'consumer_no', l: 'Consumer No', src: 'c.consumer_no' },
           { k: 'tariff', l: 'Tariff' },
-          { k: 'load', l: 'Connected load' },
+          { k: 'load', l: 'Connected load', src: 'c.sanctioned_load' },
           { k: 'name', l: 'Name of solar plant owner' },
-          { k: 'address', l: 'Address', t: 'area' },
-          { k: 'email', l: 'Email ID' },
-          { k: 'phone', l: 'Phone of consumer' },
-          { k: 'alt_phone', l: 'Alternate contact no.' }
+          { k: 'address', l: 'Address', src: 'c.address', t: 'area' },
+          { k: 'email', l: 'Email ID', src: 'c.email' },
+          { k: 'phone', l: 'Phone of consumer', src: 'c.phone' },
+          { k: 'alt_phone', l: 'Alternate contact no.', src: 'c.alt_phone' }
         ] },
         { g: 'Bank details', fields: [
           { k: 'bank_name', l: 'Bank name' },
           { k: 'bank_account', l: 'Account no. & name' },
-          { k: 'bank_ifsc', l: 'IFSC code' }
+          { k: 'bank_ifsc', l: 'IFSC code', src: 'c.bank_ifsc' }
         ] },
         { g: 'Supplier / installer', fields: [
           { k: 'installer', l: 'Name & address of supplier / installer', t: 'area' },
@@ -232,13 +232,13 @@ var KD = (function () {
         ] },
         { g: 'Plant details', fields: [
           { k: 'plant_type', l: 'Type of plant' },
-          { k: 'capacity', l: 'Total capacity of solar plant' },
-          { k: 'panel_count', l: 'Number of panels' },
-          { k: 'panel_watt', l: 'Individual capacity' },
+          { k: 'capacity', l: 'Total capacity of solar plant', src: 'p.capacity' },
+          { k: 'panel_count', l: 'Number of panels', src: 'p.panel_count' },
+          { k: 'panel_watt', l: 'Individual capacity', src: 'p.panel_wattage' },
           { k: 'inv_serial', l: 'Make & serial no. of inverters', t: 'area' },
           { k: 'inv_phase', l: 'Inverter type (single / three phase)' },
-          { k: 'inv_capacity', l: 'Inverter capacity' },
-          { k: 'dc_voltage', l: 'DC input voltage' },
+          { k: 'inv_capacity', l: 'Inverter capacity', src: 'p.inverter_capacity' },
+          { k: 'dc_voltage', l: 'DC input voltage', src: 'p.inverter_dc_voltage' },
           { k: 'ac_voltage', l: 'Voltage and number of phase' }
         ] },
         { g: 'Checklist', fields: [
@@ -288,7 +288,7 @@ var KD = (function () {
           { k: 'category', l: 'Category (tariff)' },
           { k: 'premises', l: 'Premises', t: 'opts', opt: true, src: 'c.premises',
             opts: [['Owned', 'Owned by the consumer'], ['Leased', 'Under a valid lease agreement'], ['', 'Not marked (strike out by hand)']] },
-          { k: 'address', l: 'Residing at (permanent address)', t: 'area' }
+          { k: 'address', l: 'Residing at (permanent address)', src: 'c.address', t: 'area' }
         ] },
         { g: 'KSEB Limited (2nd party)', fields: [
           { k: 'section', l: 'Electrical Section', src: 'c.kseb_section' },
@@ -308,7 +308,7 @@ var KD = (function () {
           { k: 'meter_reading', l: 'Initial reading', src: 'p.meter_reading' }
         ] },
         { g: 'Solar plant and premises', fields: [
-          { k: 'capacity', l: 'Capacity of the solar energy system' },
+          { k: 'capacity', l: 'Capacity of the solar energy system', src: 'p.capacity' },
           { k: 'spin', l: 'SPIN (given by KSEB; blank to write by hand)', src: 'p.spin', opt: true },
           { k: 'transformer', l: 'Distribution transformer & HT feeder (HT prosumer)', src: 'c.transformer' },
           { k: 'local_body', l: 'Corporation / Municipality / Panchayath', src: 'c.local_body' },
@@ -333,14 +333,14 @@ var KD = (function () {
       groups: [
         { g: 'Consumer', fields: [
           { k: 'name', l: 'Name of the consumer' },
-          { k: 'consumer_no', l: 'Discom consumer ID' },
+          { k: 'consumer_no', l: 'Discom consumer ID', src: 'c.consumer_no' },
           { k: 'discom_id', l: 'Discom ID' },
-          { k: 'portal_id', l: 'PM Surya Ghar portal ID (NP-KLSEB…)' },
-          { k: 'jansamarth_id', l: 'Jan Samarth ID (ANS-SOLAR-…)' },
-          { k: 'address', l: 'Address for installation', t: 'area' },
-          { k: 'district', l: 'District' },
+          { k: 'portal_id', l: 'PM Surya Ghar portal ID (NP-KLSEB…)', src: 'p.application_no' },
+          { k: 'jansamarth_id', l: 'Jan Samarth ID (ANS-SOLAR-…)', src: 'c.jansamarth_id' },
+          { k: 'address', l: 'Address for installation', src: 'c.address', t: 'area' },
+          { k: 'district', l: 'District', src: 'c.district' },
           { k: 'state', l: 'State' },
-          { k: 'pincode', l: 'PIN code' }
+          { k: 'pincode', l: 'PIN code', src: 'c.pincode' }
         ] },
         { g: 'Vendor', fields: [
           { k: 'oem', l: 'OEM name' },
@@ -354,7 +354,7 @@ var KD = (function () {
         ] },
         { g: 'Plant', fields: [
           { k: 'cap_applied', l: 'RTS capacity applied (kW)' },
-          { k: 'cap_actual', l: 'Actual RTS capacity to be installed (kW)' },
+          { k: 'cap_actual', l: 'Actual RTS capacity to be installed (kW)', src: 'p.capacity' },
           { k: 'status', l: 'Feasibility report status', t: 'opts', opts: ['Feasible', 'Not Feasible'] },
           { k: 'cost', l: 'Project cost (all inclusive)' }
         ] }
@@ -370,20 +370,20 @@ var KD = (function () {
         ] },
         { g: 'Applicant', fields: [
           { k: 'name', l: 'Name' },
-          { k: 'consumer_no', l: 'Consumer number' },
-          { k: 'address', l: 'Residing at', t: 'area' }
+          { k: 'consumer_no', l: 'Consumer number', src: 'c.consumer_no' },
+          { k: 'address', l: 'Residing at', src: 'c.address', t: 'area' }
         ] },
         { g: 'Vendor', fields: [
           { k: 'vendor_name', l: 'Name' },
           { k: 'vendor_address', l: 'Registered / functional office', t: 'area' }
         ] },
         { g: 'RTS system', fields: [
-          { k: 'capacity', l: 'Minimum capacity (kWp)' },
-          { k: 'module_make', l: 'Module make' },
-          { k: 'module_model', l: 'Module model' },
-          { k: 'module_wp', l: 'Module capacity each (Wp)' },
-          { k: 'module_eff', l: 'Module efficiency (%)' },
-          { k: 'inv_make', l: 'Inverter make' },
+          { k: 'capacity', l: 'Minimum capacity (kWp)', src: 'p.capacity' },
+          { k: 'module_make', l: 'Module make', src: 'p.panel_make' },
+          { k: 'module_model', l: 'Module model', src: 'p.panel_model' },
+          { k: 'module_wp', l: 'Module capacity each (Wp)', src: 'p.panel_wattage' },
+          { k: 'module_eff', l: 'Module efficiency (%)', src: 'p.panel_efficiency' },
+          { k: 'inv_make', l: 'Inverter make', src: 'p.inverter_make' },
           { k: 'inv_kw', l: 'Inverter combined output (kW)' }
         ] },
         { g: 'Price and payment', fields: [
@@ -678,28 +678,55 @@ var KD = (function () {
 
   /* fields that are also profile fields (src 'c.col' customer, 'p.col' plant): the overrides typed here for a profile
      field that is still empty, as [{k, t, col, v}] for the server, which fills only fields that are still empty.
-     Numbers lose their unit ("3 KW" -> "3"); GPS "lat, lng" fills the customer's lat and lng. */
+     Every document's fields that are straight copies of one profile field carry src (KSEB and bank documentation alike).
+     The value is put the way the profile keeps it, or left out when it cannot be: numbers lose their unit ("3 KW" -> "3",
+     "550 Wp" -> "550"; "2 × 1 KW (2 KW)" is not one number, so it stays in the document only); "Single" -> "Single phase";
+     dates "07.08.2026" -> "2026-08-07"; phone, PIN, consumer no. and IFSC must look like one; GPS "lat, lng" fills lat and lng. */
+  var NUMCOL = ['sanctioned_load', 'meter_reading', 'capacity', 'panel_wattage', 'panel_count', 'panel_efficiency', 'inverter_capacity', 'inverter_dc_voltage'];
+  var DATECOL = ['application_date', 'installed_on'];
+  K.fillValue = function (col, val) {
+    var m;
+    val = trim(val).replace(/\s+/g, ' ');
+    if (!val) return '';
+    if (NUMCOL.indexOf(col) >= 0) {
+      m = /^(\d+(?:\.\d+)?|\.\d+)\s*(kwp|kw|kwh|wp|w|%|vdc|v|nos?\.?|units?)?$/i.exec(val.replace(/,/g, ''));
+      return m && (+m[1] > 0 || col === 'meter_reading') ? String(+m[1]) : ''; /* a new solar meter may start at 0 kWh */
+    }
+    if (DATECOL.indexOf(col) >= 0) {
+      m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val) || null;
+      var y, mo, d;
+      if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+      else { m = /^(\d{1,2})[.\-\/ ](\d{1,2})[.\-\/ ](\d{4})$/.exec(val); if (!m) return ''; d = +m[1]; mo = +m[2]; y = +m[3]; }
+      var dt = new Date(Date.UTC(y, mo - 1, d));
+      return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d ? y + '-' + (mo < 10 ? '0' : '') + mo + '-' + (d < 10 ? '0' : '') + d : '';
+    }
+    if (col === 'phase') return /^(single|1\s*-?\s*ph)/i.test(val) ? 'Single phase' : /^(three|3\s*-?\s*ph)/i.test(val) ? 'Three phase' : '';
+    if (col === 'phone' || col === 'alt_phone') { m = /^(?:\+?91[\s-]?)?(\d[\d\s-]{8,12}\d)$/.exec(val); var dg = m ? m[1].replace(/\D/g, '') : ''; return dg.length === 10 ? dg : ''; }
+    if (col === 'pincode') return /^\d{3}\s?\d{3}$/.test(val) ? val.replace(/\s/g, '') : '';
+    if (col === 'consumer_no') { var cn = val.replace(/[\s-]/g, ''); return /^\d{6,16}$/.test(cn) ? cn : ''; }
+    if (col === 'bank_ifsc') { var ic = val.replace(/\s/g, '').toUpperCase(); return /^[A-Z]{4}0[A-Z0-9]{6}$/.test(ic) ? ic : ''; }
+    if (col === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) ? val : '';
+    if (col === 'application_no') return val.replace(/\s*-\s*/g, '-');
+    return val;
+  };
   K.fill = function (docKey, o, ctx) {
-    var c = (ctx && ctx.customer) || {}, p = (ctx && ctx.plant) || {}, out = [];
+    var c = (ctx && ctx.customer) || {}, p = (ctx && ctx.plant) || {}, out = [], seen = {};
     o = o || {};
     fieldsOf(docKey).forEach(function (f) {
       if (!f.src || !Object.prototype.hasOwnProperty.call(o, f.k)) return;
       var t = f.src.split('.')[0], col = f.src.split('.')[1], val = trim(o[f.k]).replace(/\s+/g, ' '), m;
-      if (!val) return;
+      if (!val || seen[f.src]) return;
       if (col === 'gps') {
         m = /^(-?\d{1,2}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)$/.exec(val);
         var has = function (x) { return trim(x) !== '' && !(isNum(x) && +x === 0); };
-        if (m && !has(c.lat) && !has(c.lng)) out.push({ k: f.k, t: 'c', col: 'gps', v: m[1] + ',' + m[2] });
+        if (m && !has(c.lat) && !has(c.lng)) { out.push({ k: f.k, t: 'c', col: 'gps', v: m[1] + ',' + m[2] }); seen[f.src] = 1; }
         return;
       }
       var cur = trim((t === 'c' ? c : p)[col]);
-      if (cur && !(col === 'sanctioned_load' && isNum(cur) && +cur === 0)) return;
-      if (col === 'sanctioned_load' || col === 'meter_reading') {
-        m = /^(\d+(?:\.\d+)?|\.\d+)\s*(kw|kwh|units?)?$/i.exec(val.replace(/,/g, ''));
-        if (!m) return;
-        val = m[1];
-      }
-      out.push({ k: f.k, t: t, col: col, v: val });
+      if (cur && !(NUMCOL.indexOf(col) >= 0 && isNum(cur) && +cur === 0)) return; /* filled (masked ones too): never replaced */
+      val = K.fillValue(col, val);
+      if (!val) return;
+      out.push({ k: f.k, t: t, col: col, v: val }); seen[f.src] = 1;
     });
     return out;
   };

@@ -712,3 +712,21 @@ test('request letter: defaults, one page, consumer no. and both phones', async (
   const out = await KD.buildPdf(PDFLib, fs.readFileSync(path.join(ROOT, 'assets/kseb/blank.pdf')), r.ops);
   assert.equal((await PDFLib.PDFDocument.load(out)).getPageCount(), 1);
 });
+
+/* every KSEB / bank document: fields that are straight copies of one profile field fill it when it is still empty */
+test('documents fill empty profile fields, in the form the profile keeps them', () => {
+  const ctx = { customer: { name: 'Test', phone: '', consumer_no: '', phase: '', address: '', email: 'x@example.com', sanctioned_load: 0 }, plant: { capacity: '', panel_wattage: '', inverter_capacity: '' } };
+  const pick = (doc, o) => KD.fill(doc, o, ctx).map(f => [f.k, f.t + '.' + f.col, f.v]);
+  assert.deepEqual(pick('wcr', { cust_phone: '+91 98111 11111', consumer_no: '1146 9100 00077', phase: 'Three', capacity: '3.3 KW', pv_watt: '550 Wp', inv_capacity: '2 × 1 KW (2 KW)', cust_name: 'Other' }),
+    [['cust_phone', 'c.phone', '9811111111'], ['consumer_no', 'c.consumer_no', '1146910000077'], ['capacity', 'p.capacity', '3.3'], ['phase', 'c.phase', 'Three phase'], ['pv_watt', 'p.panel_wattage', '550']],
+    'units go, phase spelled out; a combined inverter capacity and the name are not profile fills');
+  assert.deepEqual(pick('cov', { app_date: '07.08.2026', installed: '31-02-2026', load: '4.3 kW', email: 'new@example.com', bank_ifsc: 'sbin0070422' }),
+    [['load', 'c.sanctioned_load', '4.3'], ['email', 'c.email', 'new@example.com'], ['bank_ifsc', 'c.bank_ifsc', 'SBIN0070422'], ['app_date', 'p.application_date', '2026-08-07']].filter(x => x[0] !== 'email'),
+    'dates become YYYY-MM-DD (a date that does not exist is left out); an email already in the profile is kept');
+  assert.deepEqual(pick('bfr', { portal_id: 'NP - KLSEB26 - 1000001', jansamarth_id: 'ANS-SOLAR-1-2', pincode: '695 001', cap_actual: '3' }).map(x => x[1] + '=' + x[2]),
+    ['p.application_no=NP-KLSEB26-1000001', 'c.jansamarth_id=ANS-SOLAR-1-2', 'c.pincode=695001', 'p.capacity=3']);
+  assert.deepEqual(pick('bag', { module_wp: '550', module_eff: '21.29 %', capacity: '3.3' }).map(x => x[1]), ['p.capacity', 'p.panel_wattage', 'p.panel_efficiency'], 'the agreement for the bank fills the plant');
+  assert.deepEqual(pick('doi', { phone: '12345', dc_voltage: 'abc' }), [], 'something that is not a phone / a number is not put in the profile');
+  assert.deepEqual(KD.fill('wcr', { capacity: '3 KW' }, { customer: {}, plant: { capacity: '5' } }), [], 'a field already in the profile is never changed');
+  assert.deepEqual(pick('an1', { phone: '9800000001', load: '3', capacity: '3 kWp' }).map(x => x[1]), ['c.phone', 'c.sanctioned_load', 'p.capacity'], 'annexures too');
+});

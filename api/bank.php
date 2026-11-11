@@ -33,12 +33,17 @@ function handle_bank($a) {
       $doc = (string)($in['doc'] ?? ''); if (!in_array($doc, BANK_DOCS, true)) fail('Unknown document');
       $cid = (int)($in['customer_id'] ?? 0); if (!row('SELECT 1 FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
       $data = gen_clean((array)($in['data'] ?? []));
+      /* typed for a profile field that is still empty: it goes into the profile instead (as on the KSEB documentation page) */
+      $filled = !empty($in['fill']) && is_array($in['fill']) && can('customers', true) ? kseb_fill($cid, $in['fill']) : [];
+      foreach ($filled as $k) unset($data[$k]);
       $dt = (string)($data['date'] ?? '');
       $issued = preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $dt, $dm) && checkdate((int)$dm[2], (int)$dm[3], (int)$dm[1]) ? $dt : date('Y-m-d');
       q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?) ON CONFLICT(customer_id,kind) DO UPDATE SET issued_on=excluded.issued_on, data=excluded.data, updated=CURRENT_TIMESTAMP, updated_by=excluded.updated_by',
         [$cid, 'bank_' . $doc, '', $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']);
       audit('bank_doc', 'customers', $cid, $doc);
-      out(['ok' => true, 'saved' => bank_saved($cid, $doc)]);
+      $res = ['ok' => true, 'saved' => bank_saved($cid, $doc)];
+      if ($filled) { [$plant] = plant_get($cid); $res += ['filled' => $filled, 'customer' => mask_customer(row('SELECT * FROM customers WHERE id=?', [$cid])), 'plant' => $plant]; }
+      out($res);
   }
   fail('Unknown action', 404);
 }
