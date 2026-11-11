@@ -13,6 +13,7 @@ function pfShown(f, st) {
   if (f.perm === 'fin') return FIN() && !!st.j;
   return true;
 }
+function pfCanEdit(f) { return f.perm === 'loans' ? canW('loans') : f.perm === 'fin' ? FIN() : canW('customers'); }
 function pfMasked(v) { return String(v == null ? '' : v).indexOf('•') >= 0; }
 function pfInput(f, v) {
   const masked = pfMasked(v), val = masked ? '' : v, ph = masked ? ` placeholder="${esc(v + ' — type to replace')}"` : '', k = `data-k="${esc(f.k)}"${masked ? ' data-masked="1"' : ''}`;
@@ -32,10 +33,10 @@ function pfCopy(v, l) {
 function pfRow(f, ctx, edit) {
   const v = PFP.value(f, ctx), need = pfNeed(f, ctx);
   if (f.k === 'gps') {
-    return `<div class="pfr pp-row"><span>${esc(f.l)}</span><div class="pp-val">${v ? pfCopy(v, f.l) : '<em class="mut">—</em>'}${need}<button class="btn sec sm" data-loc="1"><i class="i i-target"></i> ${v ? 'Change' : 'Set'} location</button></div></div>`;
+    return `<div class="pfr pp-row"><span>${esc(f.l)}</span><div class="pp-val">${v ? pfCopy(v, f.l) : '<em class="mut">—</em>'}${need}${canW('customers') ? `<button class="btn sec sm" data-loc="1"><i class="i i-target"></i> ${v ? 'Change' : 'Set'} location</button>` : ''}</div></div>`;
   }
   if (f.ro) return '';
-  const readOnly = (f.perm === 'loans' && !canW('loans')) || (f.k === 'lead_type' && !isAdm());
+  const readOnly = !pfCanEdit(f) || (f.k === 'lead_type' && !isAdm());
   let body;
   if (edit && !readOnly) body = pfInput(f, v) + need;
   else if (f.k === 'lead_type' && v) body = esc((LT_OPTS.find(o => o[0] === v) || [0, v])[1]);
@@ -48,7 +49,8 @@ function pfRow(f, ctx, edit) {
 function renderPfPage(box, st, key, edit, onSaved) {
   const pg = PFP.PAGES.find(p => p.key === key);
   if (!pg) { box.innerHTML = ''; return; }
-  const ctx = pfCtx(st), w = canW('customers');
+  const ctx = pfCtx(st);
+  const w = canW('customers') || (canW('loans') && pg.sections.some(sec => sec.fields.some(f => f.perm === 'loans' && pfShown(f, st))));
   const secs = pg.sections.map(sec => {
     const fields = sec.fields.filter(f => pfShown(f, st));
     if (!fields.length) return '';
@@ -76,7 +78,7 @@ function renderPfPage(box, st, key, edit, onSaved) {
     try {
       const r = await api('profile', 'page_save', { customer_id: st.id, page: key, data });
       st.c = Object.assign({}, st.c, r.customer);
-      st.p = r.plant;
+      if (r.plant) st.p = r.plant;
       if (r.project) st.j = r.project;
       toast('Saved');
       renderPfPage(box, st, key, false, onSaved);
