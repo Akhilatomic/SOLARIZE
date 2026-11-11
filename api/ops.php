@@ -22,10 +22,10 @@ function handle_dashboard() {
   $sub = rows("SELECT id,title,subsidy_status,subsidy_amount FROM projects WHERE stage<>'Project completed' AND (subsidy_status IS NULL OR subsidy_status NOT IN ('Released')) AND application_no<>''$P LIMIT 10");
   if (!can('finance')) foreach ($sub as &$x) unset($x['subsidy_amount']); unset($x);
   $S = settings();
-  $ks = rows("SELECT p.id,p.title, (SELECT COUNT(*) FROM checklist c WHERE c.project_id=p.id AND c.kind='kseb' AND c.status IN ('Approved','NA')) done FROM projects p WHERE p.stage<>'Project completed'$P");
+  $ks = rows("SELECT p.id,p.title,cu.name customer, (SELECT COUNT(*) FROM checklist c WHERE c.project_id=p.id AND c.kind='kseb' AND c.status IN ('Approved','NA')) done FROM projects p LEFT JOIN customers cu ON cu.id=p.customer_id WHERE p.stage<>'Project completed'$P");
   $ktotal = count($S['kseb_items']);
   $kpending = array_values(array_filter(array_map(fn($p) => $p + ['total' => $ktotal], $ks), fn($p) => $p['done'] < $ktotal));
-  $overdue = rows('SELECT p.id,p.title,c.name customer, p.cost - COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) due FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE p.stage NOT IN (\'Customer\',\'KSEB feasibility check\',\'Loan registration\',\'KSEB feasibility payment\',\'PMSG portal registration\') AND due > 1 ORDER BY due DESC LIMIT 10');
+  $overdue = rows('SELECT p.id,p.title,c.name customer, p.cost - COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) due FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE p.stage NOT IN (\'Customer\',\'KSEB feasibility check\',\'Loan registration\',\'KSEB feasibility payment\',\'PMSG portal registration\') AND due > 1 ORDER BY due DESC LIMIT 500'); /* all of them: the dashboard tile counts them and opens the list */
   $td = date('Y-m-d'); $loc = "date(created,'+330 minutes')";
   $cnt = fn($sql, $a = []) => (int)(row($sql, $a)['v'] ?? 0);
   $pct = fn($n, $p) => $p ? (int)round(($n - $p) / $p * 100) : ($n ? 100 : 0);
@@ -50,7 +50,7 @@ function handle_dashboard() {
   if (!can('finance')) { $pipeline = $billed = $paid = $spendM = 0; $overdue = []; }
   out($extra + ['finance' => can('finance') ? 1 : 0, 'leads_month' => $leadsM, 'won_month' => $wonM, 'conversion' => $leadsM ? round($wonM / $leadsM * 100) : 0, 'spend_month' => $spendM,
     'cpl' => $adLeadsM ? round($spendM / $adLeadsM) : 0, 'pipeline' => $pipeline, 'billed' => $billed, 'paid' => $paid, 'outstanding' => max(0, $billed - $paid),
-    'stages' => $stages, 'lead_status' => $lstat, 'followups' => $follow, 'subsidy_open' => $sub, 'kseb_pending' => array_slice($kpending, 0, 10), 'dues' => $overdue,
+    'stages' => $stages, 'lead_status' => $lstat, 'followups' => $follow, 'subsidy_open' => $sub, 'kseb_pending' => array_slice($kpending, 0, 500), 'dues' => $overdue,
     'customers' => (int)row("SELECT COUNT(*) c FROM customers WHERE 1=1$C")['c'], 'projects' => (int)row("SELECT COUNT(*) c FROM projects WHERE 1=1$P")['c']]);
 }
 

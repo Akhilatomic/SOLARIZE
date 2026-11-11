@@ -270,7 +270,7 @@ async function pgDashboard() {
   <div class="dg">
    <div class="s8" id="newleads"></div>
    <div class="s4 card"><div style="display:flex;gap:12px;align-items:center"><div class="avatar"><i class="i i-sun"></i></div><div><b style="font-size:16px">Good ${gm}, ${esc(first)}</b><div class="mut" style="font-size:12px">Your daily summary</div></div></div>
-    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">${[['<i class="i i-calendar"></i>', d.due_today, 'Follow-ups today'], ['<i class="i i-alert"></i>', d.overdue, 'Overdue'], BA() ? ['<i class="i i-project"></i>', d.proj_active, 'Active projects'] : ['<i class="i i-card"></i>', d.dues.length, 'Payments due'], ['<i class="i i-folder"></i>', d.kseb_pending.length, 'Docs pending']].map(([i, n, l]) => `<div class="tile"><span>${i}</span><div><b>${n}</b><small>${l}</small></div></div>`).join('')}</div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">${[['<i class="i i-calendar"></i>', d.due_today, 'Follow-ups today', 'today'], ['<i class="i i-alert"></i>', d.overdue, 'Overdue', 'overdue'], BA() ? ['<i class="i i-project"></i>', d.proj_active, 'Active projects', 'projects'] : ['<i class="i i-card"></i>', d.dues.length, 'Payments due', 'dues'], ['<i class="i i-folder"></i>', d.kseb_pending.length, 'Docs pending', 'docs']].map(([i, n, l, k]) => `<div class="tile go" role="button" tabindex="0" data-dt="${k}" title="Open ${esc(l.toLowerCase())}"><span>${i}</span><div><b>${n}</b><small>${l}</small></div><i class="i i-chev tgo"></i></div>`).join('')}</div>
     <div class="warn"><span>${d.overdue ? d.overdue + ' follow-up' + (d.overdue > 1 ? 's are' : ' is') + ' overdue' : '<i class="i i-check"></i> No overdue follow-ups'}</span>${d.overdue ? '<button class="btn sm" id="vod">View Overdue</button>' : ''}</div></div>
 
    ${card('<i class="i i-target"></i>', 'Active Leads', d.leads_total, d.leads_today, vs(d.leads_vs), '', '#/leads')}${card('<i class="i i-users"></i>', 'Customers', d.cust_total, d.cust_today, vs(d.cust_vs), '', '#/customers')}${card('<i class="i i-project"></i>', 'Active Projects', d.proj_active, d.proj_today, vs(d.proj_vs), '', '#/projects')}${card('<i class="i i-alert"></i>', 'Overdue Follow-ups', d.overdue, d.due_today, d.due_today + ' due today', '', '#/leads')}
@@ -288,12 +288,33 @@ async function pgDashboard() {
    <div class="s4 card" id="cal"></div>
    <div class="s4 card">${head(BA() ? 'Your Recent Activity' : 'Recent Activity')}${lst(d.recent, r => `<div class="act"><b>${esc(r.user)}</b> ${esc(r.action)} ${esc(r.entity)} <span class="mut">${esc(r.detail || '')}</span><br><small>${r.created}</small></div>`, 'No recent activity')}</div>
 
-   <div class="s4 card ${d.finance ? '' : 'hide'}">${head('Payments pending', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}${lst(d.dues, p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
-   <div class="s4 card">${head('KSEB documents pending', `<span class="pill">${d.kseb_pending.length}</span>`)}${lst(d.kseb_pending, p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`, 'All documents complete')}</div>
+   <div class="s4 card ${d.finance ? '' : 'hide'}">${head('Payments pending', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}${lst(d.dues.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
+   <div class="s4 card">${head('KSEB documents pending', `<span class="pill">${d.kseb_pending.length}</span>`)}${lst(d.kseb_pending.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`, 'All documents complete')}</div>
    <div class="s4 card">${head('Subsidy in progress', `<span class="pill">${d.subsidy_open.length}</span>`)}${lst(d.subsidy_open, p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status || 'Not applied', stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`, 'None')}</div>
   </div>`;
   $$('[data-qa]').forEach(b => b.onclick = () => { const q = b.dataset.qa; if (q === 'new') leadModal(0); else if (q === 'quote') { sessionStorage.removeItem('lead2quote'); location.hash = '#/quotes/new'; } else location.hash = q; });
   if ($('#vod')) $('#vod').onclick = () => { LF.appt = 'overdue'; LF.active = 'active'; location.hash = '#/leads'; };
+  /* daily summary tiles: follow-ups open the leads filtered to them; payments due and docs pending open their list,
+     where a project opens its Payments (overview) or KSEB documents tab */
+  const dashList = (title, rows, row, empty) => {
+    const m = modal(`<div class="dlh"><h2>${title}</h2><span class="pill">${rows.length}</span><span class="sp"></span><button class="lvx" id="dlx" aria-label="Close"><i class="i i-x"></i></button></div>
+      ${rows.length ? `<div class="dll">${rows.map((p, i) => `<button class="dlr" data-i="${i}">${row(p)}<i class="i i-chev"></i></button>`).join('')}</div>` : `<p class="mut">${empty}</p>`}`);
+    $('#dlx', m).onclick = () => m.remove();
+    return m;
+  };
+  const tileGo = k => {
+    if (k === 'today' || k === 'overdue') { LF.appt = k; LF.active = 'active'; location.hash = '#/leads'; return; }
+    if (k === 'projects') { location.hash = '#/projects'; return; }
+    if (k === 'dues') {
+      const m = dashList('Payments due', d.dues, p => `<span><b>${esc(p.customer || p.title)}</b><small class="mut">${esc(p.title)}</small></span><b class="over">${inr(p.due)}</b>`, 'No payments due');
+      $$('.dlr', m).forEach(b => b.onclick = () => { m.remove(); TAB.proj = 'overview'; location.hash = '#/projects/' + d.dues[+b.dataset.i].id; });
+    }
+    if (k === 'docs') {
+      const m = dashList('KSEB documents pending', d.kseb_pending, p => `<span><b>${esc(p.customer || p.title)}</b><small class="mut">${esc(p.title)}</small></span><span class="pill">${p.done}/${p.total} done</span>`, 'All KSEB documents are complete');
+      $$('.dlr', m).forEach(b => b.onclick = () => { m.remove(); TAB.proj = 'kseb'; location.hash = '#/projects/' + d.kseb_pending[+b.dataset.i].id; });
+    }
+  };
+  $$('[data-dt]').forEach(t => { t.onclick = () => tileGo(t.dataset.dt); t.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tileGo(t.dataset.dt); } }; });
   // calendar with appointment dots
   let cm = new Date(); cm.setDate(1); let sel = today();
   const drawCal = () => {

@@ -668,3 +668,13 @@ a.fm-cpath:hover{color:var(--pri)}
 .kr-t input[type=checkbox]{width:18px;height:18px;margin:0}.kr-t .i-check{width:16px;height:16px;color:#34c759}
 .kr-t tr.kr-same td{color:var(--mut)}.kr-t tr.kr-diff td{background:#fffaf0}
 .dca [data-rd]{color:var(--pri)}
+/* dashboard daily summary: every tile opens its list */
+.tile.go{cursor:pointer;position:relative;transition:background .15s,box-shadow .15s}
+.tile.go:hover{background:#e8e8ed}.tile.go:focus-visible{outline:2px solid var(--pri);outline-offset:1px}
+.tile.go .tgo{width:14px;height:14px;margin-left:auto;color:var(--mut);opacity:.55}.tile.go:hover .tgo{opacity:1;color:var(--pri)}
+.dlh{display:flex;align-items:center;gap:8px;margin:0 0 12px}.dlh h2{margin:0}.dlh .lvx{position:static}
+.dll{max-height:60vh;overflow-y:auto;border:1px solid var(--bd);border-radius:12px}
+.dlr{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:0;border-bottom:.5px solid rgba(0,0,0,.07);cursor:pointer;text-align:left;font:inherit;color:var(--tx)}
+.dlr:last-child{border-bottom:0}.dlr:hover{background:#f2f7ff}
+.dlr>span:first-child{flex:1;min-width:0}.dlr b{display:block}.dlr small{display:block;font-size:12px}
+.dlr>.i{width:14px;height:14px;color:var(--mut)}
