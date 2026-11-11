@@ -201,7 +201,7 @@ function kdLayout() {
     : o.ln && o.ln[0] !== o.ln[2] && o.ln[1] !== o.ln[3] /* a slanted line (the tick in a box): a thin bar turned to its angle */
       ? `<i class="kd-ln" style="left:${o.ln[0]}px;top:${o.ln[1] - (o.w || .5) / 2}px;width:${Math.hypot(o.ln[2] - o.ln[0], o.ln[3] - o.ln[1])}px;height:${o.w || .5}px;transform-origin:0 50%;transform:rotate(${Math.atan2(o.ln[3] - o.ln[1], o.ln[2] - o.ln[0])}rad);background:${rgb(o.c)}"></i>`
     : o.ln ? `<i class="kd-ln" style="left:${Math.min(o.ln[0], o.ln[2]) - (o.w || .5) / 2}px;top:${Math.min(o.ln[1], o.ln[3]) - (o.w || .5) / 2}px;width:${Math.abs(o.ln[2] - o.ln[0]) + (o.w || .5)}px;height:${Math.abs(o.ln[3] - o.ln[1]) + (o.w || .5)}px;background:${rgb(o.c)}"></i>`
-    : `<span style="left:${o.x}px;top:${+(o.y - 0.8 * o.s).toFixed(2)}px;font:${/B$/.test(o.f) ? '700 ' : ''}${o.s}px ${KD_FONT[o.f]}${o.u ? ';text-decoration:underline' : ''}${o.c ? ';color:' + rgb(o.c) : ''}">${esc(o.t)}</span>`;
+    : `<span style="left:${o.x}px;top:${+(o.y - 0.8 * o.s).toFixed(2)}px;font:${/B$/.test(o.f) ? '700 ' : ''}${o.s}px ${KD_FONT[o.f]}${o.u ? ';text-decoration:underline' : ''}${o.ws ? kdJust(o) : ''}${o.c ? ';color:' + rgb(o.c) : ''}">${esc(o.t)}</span>`;
   const n = Math.max(1, ...L.ops.map(o => (o.p || 0) + 1));
   if ($$('#kdpv .kd-page').length !== n) { /* the agreement grew or shrank by a page */
     $('#kdpvsc').innerHTML = kdPagesHtml(doc, n); $('#kdpvn').innerHTML = kdPvLabel(doc, n); kdScale();
@@ -211,6 +211,8 @@ function kdLayout() {
   $('#kdwarn').hidden = !L.overflow;
   const b = $('#kdpdf'); if (b && !KDS.busy) { b.disabled = L.overflow; b.title = L.overflow ? 'Too much text to fit on the page: shorten the longest field first' : ''; }
 }
+/* a justified line (ws): stretched by the browser to the PDF's width, so it ends at the margin whatever the screen font's widths */
+const kdJust = o => `;width:${(KDS.measure(o.t, o.f, o.s) + (o.t.split(' ').length - 1) * o.ws).toFixed(2)}px;white-space:nowrap;text-align:justify;text-align-last:justify`;
 const kdLayoutSoon = () => { clearTimeout(KDS.t); KDS.t = setTimeout(kdLayout, 120); };
 /* the box keeps the page's aspect ratio in CSS, so scaling never changes the layout (no resize loop) */
 function kdScale() {

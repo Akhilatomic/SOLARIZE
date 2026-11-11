@@ -728,6 +728,18 @@ var KD = (function () {
     return { s: min, fit: false };
   };
   var op = function (t, x, y, f, s, u) { var o = { t: t, x: r2(x), y: r2(y), f: f, s: s }; if (u) o.u = 1; return o; };
+  /* justified text (the agreements): ws = the extra pt added to every space so the line ends exactly at `width`.
+     0 = leave it ragged: a line with no space, one already full, or gaps that would grow wider than 0.6 × the type size
+     (a short line before a long unbreakable value). The paragraph's last line is never justified (callers skip it). */
+  var nsp = function (t) { return (str(t).match(/ /g) || []).length; };
+  K.justify = function (ln, width, f, s, measure) {
+    var n = nsp(ln), extra = width - measure(ln, f, s);
+    if (!n || extra <= 0.01) return 0;
+    var ws = extra / n;
+    return ws > 0.6 * s ? 0 : Math.floor(ws * 1000) / 1000;
+  };
+  /* x of character i in a line drawn at x0 with word spacing ws */
+  var xAt = function (ln, i, x0, ws, f, s, measure) { var t = ln.slice(0, i); return x0 + measure(t, f, s) + nsp(t) * (ws || 0); };
 
   /* Work Completion Report on the letterhead. Ref No. / Date labels end at x 64.2 / 427.3, baseline 185.25;
      footer rule at y 750.8 (measured with PyMuPDF on assets/kseb/letterhead.pdf). */
@@ -1274,13 +1286,15 @@ var KD = (function () {
     var bottom = function () { return p === 0 ? D.firstBottom : D.bottom; };
     var fill = function (t) { return t.replace(/\{(\w+)\}/g, function (m, k) { return clean(v[k] === undefined ? '' : (k === 'date' ? (K.dmy(v.date) || v.date) : v[k])).replace(/\n+/g, ', ') || '__________'; }); };
     var room = function (h) { if (y + h > bottom()) { if (p === 0) ok = false; p++; y = D.top; } };
-    var put = function (t, x, f) { if (t) ops.push(Object.assign(op(t, x, y, f || 'T', s), p ? { p: p } : {})); };
+    var put = function (t, x, f, ws) { if (t) ops.push(Object.assign(op(t, x, y, f || 'T', s), p ? { p: p } : {}, ws ? { ws: ws } : {})); };
     var para = function (text, x, f, label, lx, center) {
-      K.wrap(fill(text), D.x1 - x, f || 'T', s, measure).forEach(function (ln, i) {
+      var lines = K.wrap(fill(text), D.x1 - x, f || 'T', s, measure);
+      lines.forEach(function (ln, i) {
         room(lh);
         y += lh;
         if (i === 0 && label) put(label, lx, 'T');
-        put(ln, center ? (D.x0 + D.x1) / 2 - measure(ln, f || 'T', s) / 2 : x, f);
+        if (center) put(ln, (D.x0 + D.x1) / 2 - measure(ln, f || 'T', s) / 2, f);
+        else put(ln, x, f, i < lines.length - 1 ? K.justify(ln, D.x1 - x, f || 'T', s, measure) : 0);
       });
     };
     var block = function (b) {
@@ -1425,16 +1439,17 @@ var KD = (function () {
     var bottom = function () { return p === 0 ? D.firstBottom : D.bottom; };
     var pg = function (o) { if (p) o.p = p; return o; };
     var room = function (h) { if (y + h > bottom()) { if (p === 0) ok = false; p++; y = D.top; } };
-    var put = function (t, x, f, sz, u) { if (t) ops.push(pg(op(t, x, y, f || 'T', sz || s, u))); };
+    var put = function (t, x, f, sz, u, ws) { if (t) { var o = op(t, x, y, f || 'T', sz || s, u); if (ws) o.ws = ws; ops.push(pg(o)); } };
     var hline = function (x1, x2, yy, w, c) { ops.push(pg({ ln: [r2(x1), r2(yy), r2(x2), r2(yy)], w: w || 0.4, c: c })); };
     var para = function (text, x, f, label, lx, center, ind) {
       f = f || 'T';
-      var R = agrRich(text, v, S), pos = 0;
-      wrapFirst(R.plain, D.x1 - x, ind || 0, f, s, measure).forEach(function (ln, i) {
+      var R = agrRich(text, v, S), pos = 0, lines = wrapFirst(R.plain, D.x1 - x, ind || 0, f, s, measure);
+      lines.forEach(function (ln, i) {
         room(lh); y += lh;
         if (i === 0 && label) put(label, lx, 'T');
         var x0 = center ? (D.x0 + D.x1) / 2 - measure(ln, f, s) / 2 : x + (i === 0 ? ind || 0 : 0);
-        put(ln, x0, f);
+        var ws = center || i === lines.length - 1 ? 0 : K.justify(ln, D.x1 - x0, f, s, measure);
+        put(ln, x0, f, 0, false, ws);
         /* the struck runs of this line, found by its place in the paragraph text */
         while (R.plain[pos] === ' ') pos++;
         if (R.plain.substr(pos, ln.length) !== ln) return;
@@ -1442,7 +1457,7 @@ var KD = (function () {
           if (!R.st[pos + a]) { a++; continue; }
           var b = a; while (b < ln.length && R.st[pos + b]) b++;
           var a2 = a, b2 = b; while (ln[a2] === ' ' && a2 < b2) a2++; while (ln[b2 - 1] === ' ' && b2 > a2) b2--;
-          if (b2 > a2) hline(x0 + measure(ln.slice(0, a2), f, s), x0 + measure(ln.slice(0, b2), f, s), y - 0.27 * s, 0.6);
+          if (b2 > a2) hline(xAt(ln, a2, x0, ws, f, s, measure), xAt(ln, b2, x0, ws, f, s, measure), y - 0.27 * s, 0.6);
           a = b;
         }
         pos += ln.length;
@@ -1593,10 +1608,12 @@ var KD = (function () {
             }
             var t = K.ansi(o.t).replace(/\n/g, ' ');
             if (!t) return;
+            if (o.ws) page.pushOperators(PDFLib.setWordSpacing(o.ws)); /* Tw: justified line (standard fonts: one byte per character, so it applies to every space) */
             page.drawText(t, { x: box.x + o.x, y: box.y + box.height - o.y, size: o.s, font: fonts[o.f], color: col(o.c) });
+            if (o.ws) page.pushOperators(PDFLib.setWordSpacing(0));
             if (o.u) {
               var uy = box.y + box.height - o.y - 0.12 * o.s;
-              page.drawLine({ start: { x: box.x + o.x, y: uy }, end: { x: box.x + o.x + fonts[o.f].widthOfTextAtSize(t, o.s), y: uy }, thickness: 0.06 * o.s + 0.2, color: col(o.c) });
+              page.drawLine({ start: { x: box.x + o.x, y: uy }, end: { x: box.x + o.x + fonts[o.f].widthOfTextAtSize(t, o.s) + nsp(t) * (o.ws || 0), y: uy }, thickness: 0.06 * o.s + 0.2, color: col(o.c) });
             }
           });
           return doc.save({ useObjectStreams: false });

@@ -622,7 +622,7 @@ test('agreement: stamp paper page 1, strike-outs, Schedule table, signatures tog
   const lineOf = (ops, x) => ops.find(t => t.t && (t.p || 0) === (x.p || 0) && Math.abs(x.ln[1] - (t.y - 0.27 * t.s)) < 0.02);
   const struck = ops => ops.filter(x => x.ln && x.ln[1] === x.ln[3] && x.w === 0.6 && lineOf(ops, x)).map(x => {
     const o = lineOf(ops, x);
-    const at = px => { for (let i = 0; i <= o.t.length; i++) if (Math.abs(o.x + measure(o.t.slice(0, i), o.f, o.s) - px) < 0.02) return i; return -1; };
+    const at = px => { for (let i = 0; i <= o.t.length; i++) { const t = o.t.slice(0, i); if (Math.abs(o.x + measure(t, o.f, o.s) + (t.split(' ').length - 1) * (o.ws || 0) - px) < 0.02) return i; } return -1; };
     return o.t.slice(at(x.ln[0]), at(x.ln[2]));
   }).join(' | ');
   const lay = o => KD.layout('agr', Object.assign({}, v, o), measure).ops;
@@ -658,4 +658,27 @@ test('agreement: stamp paper page 1, strike-outs, Schedule table, signatures tog
   const long = KD.layout('agr', Object.assign({}, v, { address: 'PICHIMANGALATHU VEEDU PICHIMANGALAM VENJARAMOODU PULLAMPARA THIRUVANANTHAPURAM KERALA 695607 NEAR THE OLD TEMPLE ROAD JUNCTION' }), measure);
   assert.equal(long.overflow, false);
   assert.ok(long.ops.filter(o => o.t && !o.p).every(o => o.y >= 500 && o.y <= 706));
+});
+
+/* the agreements are justified: every line of a paragraph but its last ends exactly at the right margin (word spacing ws) */
+test('agreements: justified text', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const width = o => o.x + measure(o.t, o.f, o.s) + (o.t.split(' ').length - 1) * (o.ws || 0);
+  for (const [doc, ctx] of [['agr', NET], ['bag', LOAN]]) {
+    const r = KD.layout(doc, KD.values(doc, ctx, {}), measure), text = r.ops.filter(o => o.t);
+    const just = text.filter(o => o.ws);
+    assert.ok(just.length > 50, doc + ': ' + just.length + ' justified lines');
+    for (const o of just) assert.ok(Math.abs(width(o) - 529) < 0.05 && o.ws > 0 && o.ws <= 0.6 * o.s, doc + ' ends at the margin: ' + o.t);
+    for (const o of text) assert.ok(width(o) <= 529.05, doc + ' inside the margin: ' + o.t);
+    /* a paragraph's last line and the centred lines stay as they are */
+    for (const t of ['as first party', 'applicable) and has requested KSEB Limited to provide connectivity to the said plant;', 'AND', 'Between'])
+      for (const o of text.filter(x => x.t.endsWith(t))) assert.ok(!o.ws, doc + ' not justified: ' + o.t);
+  }
+  /* the PDF draws them with Tw word spacing */
+  const r = KD.layout('agr', KD.values('agr', NET, {}), measure);
+  const out = await KD.buildPdf(PDFLib, fs.readFileSync(path.join(ROOT, 'assets/kseb/blank.pdf')), r.ops);
+  const doc = await PDFLib.PDFDocument.load(out), page = doc.getPage(1);
+  const streams = [].concat(page.node.Contents() instanceof PDFLib.PDFArray ? page.node.Contents().asArray().map(x => doc.context.lookup(x)) : [page.node.Contents()]);
+  const raw = streams.map(st => Buffer.from(PDFLib.decodePDFRawStream(st).decode()).toString('latin1')).join('\n');
+  assert.ok(/[\d.]+ Tw/.test(raw) && /\b0 Tw/.test(raw), 'Tw set and reset');
 });
