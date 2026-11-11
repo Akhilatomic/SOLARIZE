@@ -81,7 +81,10 @@ function handle_crud($t, $a) {
         $id = (int)$in['id'];
         if ($t === 'projects') { $prot = ['stage', 'amc_start', 'amc_end', 'amc_interval']; if (!can('finance')) array_push($prot, 'cost', 'subsidy_amount'); foreach ($prot as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $prot)); }
         if ($t === 'leads' && !can('finance')) { unset($v['budget']); $cols = array_values(array_diff($cols, ['budget'])); }
-        if ($t === 'customers') { unset($v['added_by']); $cols = array_values(array_diff($cols, ['added_by'])); if (strpos((string)($v['bank_account'] ?? ''), '•') !== false) { unset($v['bank_account']); $cols = array_values(array_diff($cols, ['bank_account'])); } }
+        if ($t === 'customers') { unset($v['added_by']); $cols = array_values(array_diff($cols, ['added_by'])); if (strpos((string)($v['bank_account'] ?? ''), '•') !== false) { unset($v['bank_account']); $cols = array_values(array_diff($cols, ['bank_account'])); }
+          $drop = []; foreach (['aadhaar_no', 'pan_no'] as $k) if (strpos((string)($v[$k] ?? ''), '•') !== false) $drop[] = $k;
+          if (!can('loans', true)) $drop = array_merge($drop, LOAN_COLS);
+          foreach ($drop as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $drop)); }
         if ($t === 'leads') { $keep = ['added_by','meta_id','meta_form','meta_ad','meta_campaign','notify','assigned_to','claimed_at']; foreach ($keep as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $keep)); }
         $set = implode(',', array_map(fn($c) => "$c=:$c", $cols));
         $v['id'] = $id;

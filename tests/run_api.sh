@@ -22,4 +22,5 @@ RC=0
 "$PHP" "$TMP/tests/comm_api_test.php" "http://localhost:$PORT" || RC=1
 "$PHP" "$TMP/tests/ba_whatsapp_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
 "$PHP" "$TMP/tests/milestone_api_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
+"$PHP" "$TMP/tests/profile_pages_api_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
 exit $RC

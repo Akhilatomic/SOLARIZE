@@ -11,6 +11,7 @@ const PLANT_KEYS = [
   'panel_model', 'panel_efficiency', 'inverter_model', 'inverter_dc_voltage', 'meter_reading',
   'kseb_reg_no', 'spin', 'installed_on', 'inspected_on', 'meter_by', 'net_meter_by',
   'dcr_po_no', 'dcr_po_date', 'cell_maker', 'cell_invoice_no',
+  'applied_kw', 'approved_kw', 'approved_on', 'etoken_id', 'netmeter_on',
   'ir_total', 'ir_earth', 'ir_between', 'earth_resistance', 'earth_max',
 ];
 
@@ -43,6 +44,15 @@ function lead_to_customer_plant($lead, $cid) {
 }
 function plant_get($cid) { $r = row('SELECT data, updated, updated_by FROM plant WHERE customer_id=?', [$cid]); $d = $r ? (json_decode($r['data'], true) ?: []) : []; return [$d, $r]; }
 
+/* merge a few keys into the stored plant JSON (panels / inverters untouched); returns the new plant data */
+function plant_patch(int $cid, array $kv): array {
+  [$d] = plant_get($cid);
+  foreach (PLANT_KEYS as $k) if (array_key_exists($k, $kv)) $d[$k] = mb_substr(trim((string)$kv[$k]), 0, 120);
+  $d['panels'] = $d['panels'] ?? []; $d['inverters'] = $d['inverters'] ?? [];
+  q('INSERT INTO plant(customer_id,data,updated,updated_by) VALUES(?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(customer_id) DO UPDATE SET data=excluded.data, updated=excluded.updated, updated_by=excluded.updated_by', [$cid, json_encode($d, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']);
+  return $d;
+}
+
 function handle_plant($a) {
   $in = body();
   switch ($a) {
@@ -60,11 +70,12 @@ function handle_plant($a) {
     case 'save':
       need('customers', true);
       $cid = (int)($in['customer_id'] ?? 0); if (!row('SELECT 1 FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
-      $v = (array)($in['data'] ?? []); $d = [];
-      foreach (PLANT_KEYS as $k) $d[$k] = mb_substr(trim((string)($v[$k] ?? '')), 0, 120);
+      $v = (array)($in['data'] ?? []); [$d] = plant_get($cid);
+      foreach (PLANT_KEYS as $k) if (array_key_exists($k, $v)) $d[$k] = mb_substr(trim((string)$v[$k]), 0, 120);
       $clean = fn($list, $keys) => array_values(array_map(fn($x) => array_combine($keys, array_map(fn($k) => mb_substr(trim((string)($x[$k] ?? '')), 0, 80), $keys)), array_slice((array)$list, 0, 400)));
-      $d['panels'] = $clean($v['panels'] ?? [], ['make', 'wattage', 'serial']);
-      $d['inverters'] = $clean($v['inverters'] ?? [], ['make', 'type', 'capacity', 'serial']);
+      if (array_key_exists('panels', $v)) $d['panels'] = $clean($v['panels'], ['make', 'wattage', 'serial']);
+      if (array_key_exists('inverters', $v)) $d['inverters'] = $clean($v['inverters'], ['make', 'type', 'capacity', 'serial']);
+      $d['panels'] = $d['panels'] ?? []; $d['inverters'] = $d['inverters'] ?? [];
       $serials = array_filter(array_merge(array_column($d['panels'], 'serial'), array_column($d['inverters'], 'serial')));
       $dup = array_keys(array_filter(array_count_values($serials), fn($c) => $c > 1));
       if ($dup) fail('Duplicate serial number: ' . implode(', ', array_slice($dup, 0, 3)));

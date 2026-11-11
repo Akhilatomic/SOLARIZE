@@ -135,8 +135,11 @@ function sec_password_ok($pw, $username = '') {
 // ---------- sensitive data masking ----------
 function mask_tail($v, $keep = 4) { $v = (string)$v; $n = strlen($v); return $n <= $keep ? $v : str_repeat('•', min(8, $n - $keep)) . substr($v, -$keep); }
 function can_see_bank() { return is_admin() || ($_SESSION['role'] ?? '') === 'assistant_manager' || can('finance'); }
+const LOAN_COLS = ['loan_bank','loan_branch','loan_amount','loan_sanctioned_on'];
 function mask_customer($r) { // full bank account only for admin, assistant manager and finance users (needed for subsidy); others see the last 4 digits
   if (!can_see_bank() && !empty($r['bank_account'])) $r['bank_account'] = mask_tail($r['bank_account']);
+  if (!can_see_bank()) foreach (['aadhaar_no', 'pan_no'] as $k) if (!empty($r[$k])) $r[$k] = mask_tail($r[$k]);
+  if (!can('loans')) foreach (LOAN_COLS as $k) unset($r[$k]);
   return $r;
 }
 
