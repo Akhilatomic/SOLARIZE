@@ -7,7 +7,19 @@ function fmDocDrag() {
   document.addEventListener('dragover', e => { if ($('#fm') && hf(e)) e.preventDefault(); });
   document.addEventListener('drop', e => { if (!$('#fm') || !hf(e)) return; e.preventDefault(); const dz = $('#fmdrop'); if (dz) dz.classList.add('hide'); if (FMUP) FMUP(e.dataTransfer.files); else toast("You can't upload here", 1); });
 }
-let FM = { q: '', cur: 0, files: new Set(), folders: new Set() };
+/* view options remembered per browser (list / grid, sort order); localStorage can be blocked, so both reads and writes are guarded */
+const fmPref = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
+const fmSave = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
+/* hist/pos: the folders opened on this page, for the Back / Forward buttons (kept in step with the browser's own Back) */
+let FM = { q: '', cur: 0, files: new Set(), folders: new Set(), hist: [], pos: -1, view: fmPref('fmView', 'list'), sort: fmPref('fmSort', 'name') };
+const FM_SORTS = [['name', 'Name A–Z'], ['name-d', 'Name Z–A'], ['new', 'Newest first'], ['old', 'Oldest first'], ['big', 'Largest first'], ['small', 'Smallest first']];
+const fmCmp = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }); /* "550 Wp" before "580 Wp" */
+function fmSorted(list, name, date, size) {
+  const s = FM.sort, out = list.slice();
+  out.sort((a, b) => s === 'name-d' ? fmCmp(name(b), name(a)) : s === 'new' ? String(date(b)).localeCompare(String(date(a)))
+    : s === 'old' ? String(date(a)).localeCompare(String(date(b))) : s === 'big' ? size(b) - size(a) : s === 'small' ? size(a) - size(b) : fmCmp(name(a), name(b)));
+  return out;
+}
 const fsize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 const baseUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '');
 const shareUrl = d => `${baseUrl()}api.php?m=share&t=${d.token}`;
@@ -26,6 +38,12 @@ async function pgFolder(id) {
   const cur = +id || 0;
   if (cur && !folders.some(f => +f.id === cur)) { location.hash = '#/folder'; return; }
   if (FM.cur !== cur) { FM.files.clear(); FM.folders.clear(); FM.q = ""; FM.cur = cur; }
+  /* Back / Forward history: a step to the previous or next entry (our buttons or the browser's) moves along it; anything else is a new visit */
+  const H = FM.hist;
+  if (FM.pos >= 0 && H[FM.pos] === cur) { /* same folder (reload after a change) */ }
+  else if (FM.pos > 0 && H[FM.pos - 1] === cur) FM.pos--;
+  else if (FM.pos < H.length - 1 && H[FM.pos + 1] === cur) FM.pos++;
+  else { H.splice(FM.pos + 1); H.push(cur); if (H.length > 50) H.shift(); FM.pos = H.length - 1; }
   for (const i of [...FM.files]) if (!items.some(x => +x.id === i)) FM.files.delete(i);
   for (const i of [...FM.folders]) if (!folders.some(x => +x.id === i)) FM.folders.delete(i);
   const kids = folders.filter(f => (+f.parent_id || 0) === cur), files = items.filter(i => (+i.folder_id || 0) === cur);
@@ -42,27 +60,42 @@ async function pgFolder(id) {
   $('#main').innerHTML = `<div class="fm" id="fm">
    <div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Folder</h2><div class="mut">Datasheets, BIS certificates and test reports</div></div><span class="sp"></span>
     ${w ? '<button class="btn sec" id="fmnew"><i class="i i-folder"></i> New folder</button><button class="btn" id="fmup"><i class="i i-upload"></i> Upload</button><input type="file" id="fmfile" multiple class="hide" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx">' : ''}</div>
-   <div class="fm-top">${crumbHtml}<input id="fmq" type="search" placeholder="Search all folders…" value="${esc(FM.q)}"></div>
+   <div class="fm-top"><div class="fm-nav"><button class="ib" id="fmback" title="Back" aria-label="Back" ${FM.pos > 0 ? '' : 'disabled'}><i class="i i-chev fm-l"></i></button><button class="ib" id="fmfwd" title="Forward" aria-label="Forward" ${FM.pos < H.length - 1 ? '' : 'disabled'}><i class="i i-chev"></i></button><button class="ib" id="fmupl" title="Up one level" aria-label="Up one level" ${cur ? '' : 'disabled'}><i class="i i-chev fm-u"></i></button></div>
+    ${crumbHtml}<input id="fmq" type="search" placeholder="Search all folders…" value="${esc(FM.q)}">
+    <div class="fm-view"><select id="fmsort" aria-label="Sort by">${FM_SORTS.map(([v, l]) => `<option value="${v}" ${FM.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+     <div class="fm-seg" role="group" aria-label="View"><button type="button" data-v="list" class="${FM.view === 'grid' ? '' : 'on'}" title="List view" aria-label="List view"><i class="i i-menu"></i></button><button type="button" data-v="grid" class="${FM.view === 'grid' ? 'on' : ''}" title="Grid view" aria-label="Grid view"><i class="i i-dashboard"></i></button></div></div></div>
    <div id="fmlist" class="fm-list"></div>
    <div id="fmdrop" class="fm-drop hide"><i class="i i-upload"></i><div>Drop files to upload into <b>${esc(crumbs.length ? crumbs[crumbs.length - 1].name : 'Folder')}</b></div></div>
    <div id="fmbar" class="fm-bar hide"></div></div>`;
   fmDocDrag(); FMUP = null;
   const reload = () => route();
   const clearSel = () => { FM.files.clear(); FM.folders.clear(); };
+  const count = f => folders.filter(x => +x.parent_id === +f.id).length + items.filter(x => +x.folder_id === +f.id).length;
   const draw = () => {
-    const r = rowsNow(), box = $('#fmlist');
+    const r0 = rowsNow(), box = $('#fmlist'), grid = FM.view === 'grid';
+    /* folders always first, each group in the chosen order (folders by name, date, or number of items) */
+    const r = { s: r0.s, fo: fmSorted(r0.fo, f => f.name, f => f.created || '', count), fi: fmSorted(r0.fi, d => d.file_name, d => d.updated || d.created || '', d => +d.size || 0) };
+    box.className = grid ? 'fm-g' : 'fm-list';
     const fileRow = d => `<div class="fm-row ${FM.files.has(+d.id) ? 'sel' : ''}"><label class="fm-ck"><input type="checkbox" data-f="${d.id}" ${FM.files.has(+d.id) ? 'checked' : ''}></label>
       <div class="fm-ic"><span class="fm-ty">${esc(fext(d.file_name))}</span></div>
       <div class="fm-nm"><a href="api.php?m=folder&a=get&id=${d.id}" target="_blank" rel="noopener">${esc(d.file_name)}</a>${r.s ? `<small><a href="#/folder/${+d.folder_id || ''}">${esc(fmPathText(folders, d.folder_id))}</a></small>` : ''}</div>
       <div class="fm-sz">${fsize(d.size)}</div><div class="fm-dt">${dmy(d.updated || d.created)}</div><div class="fm-by">${esc(d.user || '')}</div></div>`;
-    const folderRow = f => { const n = folders.filter(x => +x.parent_id === +f.id).length + items.filter(x => +x.folder_id === +f.id).length; return `<div class="fm-row ${FM.folders.has(+f.id) ? 'sel' : ''}"><label class="fm-ck"><input type="checkbox" data-d="${f.id}" ${FM.folders.has(+f.id) ? 'checked' : ''}></label>
+    const fileCard = d => `<div class="fm-card ${FM.files.has(+d.id) ? 'sel' : ''}"><label class="fm-ck"><input type="checkbox" data-f="${d.id}" ${FM.files.has(+d.id) ? 'checked' : ''}></label>
+      <a class="fm-cbody" href="api.php?m=folder&a=get&id=${d.id}" target="_blank" rel="noopener" title="${esc(d.file_name)}"><span class="fm-ty fm-big">${esc(fext(d.file_name))}</span><b>${esc(d.file_name)}</b><small>${fsize(d.size)} · ${dmy(d.updated || d.created)}</small></a>
+      ${r.s ? `<a class="fm-cpath" href="#/folder/${+d.folder_id || ''}">${esc(fmPathText(folders, d.folder_id))}</a>` : ''}</div>`;
+    const folderCard = f => { const n = count(f); return `<div class="fm-card ${FM.folders.has(+f.id) ? 'sel' : ''}"><label class="fm-ck"><input type="checkbox" data-d="${f.id}" ${FM.folders.has(+f.id) ? 'checked' : ''}></label>
+      <a class="fm-cbody" href="#/folder/${f.id}" title="${esc(f.name)}"><i class="i i-folder"></i><b>${esc(f.name)}</b><small>${n} item${n === 1 ? '' : 's'}</small></a>
+      ${r.s ? `<span class="fm-cpath">${esc(fmPathText(folders, f.parent_id))}</span>` : ''}</div>`; };
+    const folderRow = f => { const n = count(f); return `<div class="fm-row ${FM.folders.has(+f.id) ? 'sel' : ''}"><label class="fm-ck"><input type="checkbox" data-d="${f.id}" ${FM.folders.has(+f.id) ? 'checked' : ''}></label>
       <div class="fm-ic"><i class="i i-folder"></i></div>
       <div class="fm-nm"><a href="#/folder/${f.id}"><b>${esc(f.name)}</b></a>${r.s ? `<small>${esc(fmPathText(folders, f.parent_id))}</small>` : ''}</div>
       <div class="fm-sz">${n} item${n === 1 ? '' : 's'}</div><div class="fm-dt">${dmy(f.created)}</div><div class="fm-by">${esc(f.user || '')}</div></div>`; };
     const all = r.fo.length + r.fi.length, ticked = r.fo.filter(f => FM.folders.has(+f.id)).length + r.fi.filter(i => FM.files.has(+i.id)).length;
-    box.innerHTML = all ? `<div class="fm-row fm-hd"><label class="fm-ck"><input type="checkbox" id="fmall" ${ticked === all ? 'checked' : ''}></label><div class="fm-ic"></div><div class="fm-nm">Name</div><div class="fm-sz">Size</div><div class="fm-dt">Modified</div><div class="fm-by">By</div></div>`
-      + r.fo.map(folderRow).join('') + r.fi.map(fileRow).join('')
-      : `<div class="fm-empty">${r.s ? 'Nothing matches your search.' : 'This folder is empty.' + (w ? '<br><span class="mut">Drop files here or use Upload.</span>' : '')}</div>`;
+    const allBox = `<input type="checkbox" id="fmall" ${ticked === all ? 'checked' : ''}>`;
+    box.innerHTML = !all ? `<div class="fm-empty">${r.s ? 'Nothing matches your search.' : 'This folder is empty.' + (w ? '<br><span class="mut">Drop files here or use Upload.</span>' : '')}</div>`
+      : grid ? `<div class="fm-ghd"><label class="fm-ck">${allBox} Select all</label><span class="sp"></span><span>${all} item${all === 1 ? '' : 's'}</span></div><div class="fm-grid">${r.fo.map(folderCard).join('')}${r.fi.map(fileCard).join('')}</div>`
+      : `<div class="fm-row fm-hd"><label class="fm-ck">${allBox}</label><div class="fm-ic"></div><div class="fm-nm">Name</div><div class="fm-sz">Size</div><div class="fm-dt">Modified</div><div class="fm-by">By</div></div>`
+        + r.fo.map(folderRow).join('') + r.fi.map(fileRow).join('');
     $$('[data-f]', box).forEach(c => c.onchange = () => { c.checked ? FM.files.add(+c.dataset.f) : FM.files.delete(+c.dataset.f); draw(); });
     $$('[data-d]', box).forEach(c => c.onchange = () => { c.checked ? FM.folders.add(+c.dataset.d) : FM.folders.delete(+c.dataset.d); draw(); });
     const sa = $('#fmall', box); if (sa) sa.onchange = () => { r.fo.forEach(f => sa.checked ? FM.folders.add(+f.id) : FM.folders.delete(+f.id)); r.fi.forEach(i => sa.checked ? FM.files.add(+i.id) : FM.files.delete(+i.id)); draw(); };
@@ -72,7 +105,7 @@ async function pgFolder(id) {
     const b = $('#fmbar'), n = nsel(); b.classList.toggle('hide', !n); if (!n) { b.innerHTML = ''; return; }
     b.innerHTML = `<b>${n} selected</b><span class="sp"></span>
       <button class="btn sm" id="fmdl"><i class="i i-download"></i> Download</button>
-      ${FM.folders.size === 0 ? '<button class="btn sm ok" id="fmwa"><i class="i i-chat"></i> Share on WhatsApp</button>' : ''}
+      ${FM.folders.size === 0 ? `<button class="btn sm sec" id="fmcp" title="Copy the public link${FM.files.size > 1 ? 's' : ''} — no login needed to open"><i class="i i-link"></i> Copy link${FM.files.size > 1 ? 's' : ''}</button><button class="btn sm ok" id="fmwa"><i class="i i-chat"></i> Share on WhatsApp</button>` : ''}
       ${w && n === 1 ? '<button class="btn sm sec" id="fmrn"><i class="i i-pencil"></i> Rename</button>' : ''}
       ${w ? '<button class="btn sm sec" id="fmmv"><i class="i i-folder"></i> Move</button><button class="btn sm bad" id="fmrm"><i class="i i-trash"></i> Delete</button>' : ''}
       <button class="btn sm sec" id="fmclr">Clear</button>`;
@@ -88,6 +121,9 @@ async function pgFolder(id) {
       const fr = document.createElement('iframe'); fr.style.display = 'none'; fr.src = url; document.body.appendChild(fr); setTimeout(() => fr.remove(), 120000);
     };
     if ($('#fmwa')) $('#fmwa').onclick = () => shareModal(items.filter(i => FM.files.has(+i.id)));
+    /* one file: just its link; several: each file name with its link */
+    if ($('#fmcp')) $('#fmcp').onclick = () => { const ds = items.filter(i => FM.files.has(+i.id)); if (!ds.length) return;
+      copyText(ds.length === 1 ? shareUrl(ds[0]) : ds.map(d => d.file_name + '\n' + shareUrl(d)).join('\n\n'), ds.length === 1 ? 'share link' : ds.length + ' share links'); };
     if ($('#fmrn')) $('#fmrn').onclick = () => {
       const isF = fo.length === 1, it = isF ? folders.find(f => +f.id === fo[0]) : items.find(i => +i.id === fl[0]); if (!it) return;
       const m = modal(`<h2 style="margin-top:0">Rename ${isF ? 'folder' : 'file'}</h2><input id="fmrnv" value="${esc(isF ? it.name : it.file_name)}">${isF ? '' : '<p class="mut" style="font-size:12px;margin:6px 0 0">The file type stays the same.</p>'}
@@ -129,6 +165,12 @@ async function pgFolder(id) {
     reload();
   };
   $('#fmq').oninput = e => { FM.q = e.target.value; draw(); };
+  const goTo = id => { location.hash = id ? '#/folder/' + id : '#/folder'; };
+  $('#fmback').onclick = () => { if (FM.pos > 0) goTo(H[FM.pos - 1]); };
+  $('#fmfwd').onclick = () => { if (FM.pos < H.length - 1) goTo(H[FM.pos + 1]); };
+  $('#fmupl').onclick = () => { if (cur) goTo(+(folders.find(f => +f.id === cur) || {}).parent_id || 0); };
+  $('#fmsort').onchange = e => { FM.sort = e.target.value; fmSave('fmSort', FM.sort); draw(); };
+  $$('.fm-seg button').forEach(b => b.onclick = () => { FM.view = b.dataset.v; fmSave('fmView', FM.view); $$('.fm-seg button').forEach(x => x.classList.toggle('on', x === b)); draw(); });
   FMUP = w ? upload : null;
   if (w) {
     $('#fmup').onclick = () => $('#fmfile').click();
