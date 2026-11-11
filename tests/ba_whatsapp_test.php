@@ -44,7 +44,7 @@ chk(call($ba, 'whatsapp', 'log', ['phone' => '9000000000', 'text' => 'hi'])['_co
 
 // admin ticks WhatsApp for BAs in Settings → User access: it does not stick
 $s = call($admin, 'settings', 'get');
-chk(($s['role_never']['ba'] ?? []) === ['whatsapp'], 'settings tell the screen BAs never get WhatsApp');
+chk(in_array('whatsapp', $s['role_never']['ba'] ?? []), 'settings tell the screen BAs never get WhatsApp');
 $perm = $s['roles_now']; $perm['ba']['read'][] = 'whatsapp'; $perm['ba']['write'][] = 'whatsapp';
 chk(call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => $perm])['_code'] === 200, 'admin saves access with WhatsApp ticked for BAs');
 $s = call($admin, 'settings', 'get');

@@ -29,11 +29,12 @@ test('words: the admin pays, the person receives', () => {
   assert.equal(COMM.words('incentive', true).person, 'Staff member');
 });
 
-test('menu: admin both lists, BA always commission, staff only once something is shared', () => {
-  assert.deepEqual(COMM.nav({ role: 'admin' }).map(x => x[0]), ['commission', 'incentive']);
-  assert.deepEqual(COMM.nav({ role: 'ba', comm_n: 0 }), [['commission', 'Commission received']]);
-  assert.deepEqual(COMM.nav({ role: 'sales', comm_n: 0 }), []);
-  assert.deepEqual(COMM.nav({ role: 'engineer', comm_n: 2 }), [['incentive', 'Incentive received']]);
+test('menu: admin both lists, BA commission, staff by Incentive access', () => {
+  assert.deepEqual(COMM.nav({ role: 'admin', read: '*', write: '*' }).map(x => x[0]), ['commission', 'incentive']);
+  assert.deepEqual(COMM.nav({ role: 'ba', read: ['leads'], write: [] }), [['commission', 'Commission received']]);
+  assert.deepEqual(COMM.nav({ role: 'sales', read: ['leads'], write: [] }), []); // Incentive View taken away
+  assert.deepEqual(COMM.nav({ role: 'engineer', read: ['incentive'], write: [] }), [['incentive', 'Incentive received']]);
+  assert.deepEqual(COMM.nav({ role: 'accounts', read: ['incentive'], write: ['incentive'] }), [['incentive', 'Incentive'], ['mine', 'Incentive received']]);
   assert.deepEqual(COMM.nav(null), []);
 });
 

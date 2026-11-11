@@ -17,21 +17,22 @@ $E = [
 
 // role => [read modules, write modules]; '*' = everything
 // Permission modules. 'finance' = every money figure (project values, payments, balances, ad spend, dashboard money cards).
-const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','loans','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email'];
+const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','loans','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email','incentive'];
+// 'incentive': View = Finance › Incentive received (my customers the admin shared); Edit = manage every staff member's incentive (api/comm.php)
 const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts', 'ba' => 'Business Associate (BA)'];
 // role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
 const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
-  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','settings','recycle','fees','email'], ['attendance','leaves','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','recycle','fees','email']],
-  'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','whatsapp','ads','settings','email'], ['leads','customers','quotes','loans','whatsapp','files','folder','calendar','projects','email']],
-  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','settings','fees','email'], ['projects','checklist','files','customers','folder','calendar','email']],
-  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','ads','whatsapp','settings','finance','fees','email'], ['quotes','payments','loans','ads','calendar','fees','email']],
+  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','settings','recycle','fees','email','incentive'], ['attendance','leaves','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','recycle','fees','email']],
+  'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','whatsapp','ads','settings','email','incentive'], ['leads','customers','quotes','loans','whatsapp','files','folder','calendar','projects','email']],
+  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','settings','fees','email','incentive'], ['projects','checklist','files','customers','folder','calendar','email']],
+  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','ads','whatsapp','settings','finance','fees','email','incentive'], ['quotes','payments','loans','ads','calendar','fees','email']],
   // Business Associate: their own leads and customers, their customers' projects (view only), no money. Rows are limited in claims.php (ba_gate, cust_scope).
   'ba' => [['dashboard','leads','customers','projects'], ['leads','customers']],
 ];
 // Areas a role never gets, whatever is ticked in Settings → User access or granted by "Can see & claim leads".
-// Business Associates are outside partners: no WhatsApp (inbox, business number, message history).
-const ROLE_NEVER = ['ba' => ['whatsapp']];
+// Business Associates are outside partners: no WhatsApp (inbox, business number, message history), and commission instead of incentive.
+const ROLE_NEVER = ['ba' => ['whatsapp', 'incentive']];
 function claim_grants($role) { return array_values(array_diff(CLAIM_GRANTS, ROLE_NEVER[$role] ?? [])); }
 function roles() {
   static $r = null; if ($r !== null) return $r;
@@ -39,7 +40,7 @@ function roles() {
   try { $o = row("SELECT v FROM settings WHERE k='role_perms'"); } catch (Throwable $e) { $o = null; }
   $saved = $o ? (json_decode($o['v'], true) ?: []) : [];
   // areas added after the admin saved custom access start from their defaults
-  $seen = $saved['_modules'] ?? array_values(array_diff(MODULES, ['attendance', 'leaves']));
+  $seen = $saved['_modules'] ?? array_values(array_diff(MODULES, ['attendance', 'leaves', 'incentive']));
   $fresh = array_values(array_diff(MODULES, $seen));
   foreach ($saved as $role => $p) {
     if ($role === '_modules' || $role === 'admin' || !isset(ROLE_DEFAULTS[$role]) || !is_array($p)) continue;

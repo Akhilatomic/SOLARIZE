@@ -1,7 +1,8 @@
 <?php
 // Finance › Commission (customers owned by a Business Associate) and Incentive (customers owned by other staff).
-// The admin types the amount and records it paid in two parts (amount, date, transaction ID). Only the admin sees the lists;
-// a BA / staff member sees just their own customers the admin switched visible, as "Commission received" / "Incentive received".
+// The admin types the amount and records it paid in two parts (amount, date, transaction ID). The admin manages both lists; a user
+// whose role has Incentive "Edit" (Settings → User access) manages the staff incentives too, except their own rows and any commission.
+// A BA / staff member (Incentive "View") sees just their own customers switched visible, as "Commission received" / "Incentive received".
 // One row per customer. Until the first save the person is the customer's owner; the save fixes it on the row, so reassigning
 // the customer later does not move commission already agreed.
 
@@ -47,38 +48,48 @@ function comm_people() {
   return array_map(fn($u) => ['id' => (int)$u['id'], 'name' => $u['name'], 'role' => $u['role'], 'role_name' => ROLE_NAMES[$u['role']] ?? $u['role'], 'active' => (int)$u['active'], 'kind' => comm_kind_of($u['role'])],
     rows("SELECT id, name, role, active FROM users WHERE role<>'admin' ORDER BY active DESC, name COLLATE NOCASE"));
 }
-// non-admins: how many customers the admin has shared with me (decides whether the menu shows "Incentive received")
-function comm_shared_count($uid) { try { return (int)(row('SELECT COUNT(*) n FROM commissions WHERE user_id=? AND visible=1', [(int)$uid])['n'] ?? 0); } catch (Throwable $e) { return 0; } }
+// who manages a list: the admin both; a user with Incentive "Edit" the staff incentives
+function comm_can_manage($kind) { return is_admin() || ($kind === 'incentive' && can('incentive', true)); }
 
 function handle_comm($a) {
   $in = body();
   switch ($a) {
-    case 'list':
-      if (is_admin()) {
-        $kind = isset(COMM_KINDS[$_GET['kind'] ?? '']) ? $_GET['kind'] : 'commission';
+    case 'list': // the whole list for whoever manages it (&mine=1: just my own, as the person paid)
+      $kind = isset(COMM_KINDS[$_GET['kind'] ?? '']) ? $_GET['kind'] : (is_ba() ? 'commission' : 'incentive');
+      if (comm_can_manage($kind) && (is_admin() || empty($_GET['mine']))) {
         $rs = comm_rows("u.role<>'admin' AND " . ($kind === 'commission' ? "u.role='ba'" : "u.role<>'ba'"));
-        out(['kind' => $kind, 'admin' => true, 'rows' => $rs, 'people' => comm_people()]);
+        foreach ($rs as &$r) $r['own'] = !is_admin() && $r['user_id'] === uid() ? 1 : 0; unset($r); // my own row: read-only for me
+        $people = comm_people(); if (!is_admin()) $people = array_values(array_filter($people, fn($p) => $p['kind'] === 'incentive'));
+        out(['kind' => $kind, 'manage' => true, 'admin' => is_admin(), 'rows' => $rs, 'people' => $people]);
       }
       // a BA or staff member: only their own rows the admin made visible, without the admin's note
       $kind = comm_kind_of($_SESSION['role'] ?? '');
+      if ($kind === 'incentive' && !can('incentive')) fail('Not allowed for your role', 403);
       $keep = ['customer_id', 'name', 'district', 'amount', 'p1_amount', 'p1_date', 'p1_ref', 'p2_amount', 'p2_date', 'p2_ref', 'cost', 'received', 'kind'];
       $rs = array_map(fn($r) => array_intersect_key($r, array_flip($keep)), comm_rows('cm.user_id=? AND cm.visible=1', [uid()]));
-      out(['kind' => $kind, 'admin' => false, 'rows' => $rs]);
+      out(['kind' => $kind, 'manage' => false, 'admin' => false, 'rows' => $rs]);
 
-    case 'candidates': // admin: customers on neither list (no owner, or owned by an admin), to add one by hand
-      if (!is_admin()) fail('Not allowed for your role', 403);
+    case 'candidates': // customers on neither list (no owner, or owned by an admin), to add one by hand
+      if (!comm_can_manage('incentive')) fail('Not allowed for your role', 403);
       out(rows("SELECT c.id, c.name, c.phone, c.district FROM customers c LEFT JOIN commissions cm ON cm.customer_id=c.id
         LEFT JOIN users u ON u.id=COALESCE(NULLIF(cm.user_id,0), c.owner_id) WHERE u.id IS NULL OR u.role='admin' ORDER BY c.id DESC LIMIT 2000"));
 
-    case 'save': // admin: any of user_id, amount, p1_*, p2_*, visible, note; fields not sent keep their value
-      if (!is_admin()) fail('Only the admin can record commission and incentive', 403);
+    case 'save': // any of user_id, amount, p1_*, p2_*, visible, note; fields not sent keep their value
+      if (!comm_can_manage('incentive')) fail('Not allowed for your role', 403);
       $cid = (int)($in['customer_id'] ?? 0);
       $c = row('SELECT id, name, owner_id FROM customers WHERE id=?', [$cid]); if (!$c) fail('Customer not found', 404);
       $old = row('SELECT * FROM commissions WHERE customer_id=?', [$cid]);
+      if ($old && !is_admin()) { // an incentive manager: never someone's commission, never their own incentive
+        $was = row('SELECT id, role FROM users WHERE id=?', [(int)$old['user_id']]);
+        if ($was && $was['role'] === 'ba') fail('Only the admin can change commission', 403);
+        if ((int)$old['user_id'] === uid()) fail('You cannot change your own incentive', 403);
+      }
       $f = $old ?: ['user_id' => (int)$c['owner_id'], 'amount' => 0, 'p1_amount' => 0, 'p1_date' => '', 'p1_ref' => '', 'p2_amount' => 0, 'p2_date' => '', 'p2_ref' => '', 'visible' => 0, 'note' => ''];
       if (array_key_exists('user_id', $in)) $f['user_id'] = (int)$in['user_id'];
       $u = row('SELECT id, name, role FROM users WHERE id=?', [(int)$f['user_id']]);
       if (!$u || $u['role'] === 'admin') fail('Choose the Business Associate or staff member this is for');
+      if (!is_admin() && $u['role'] === 'ba') fail('Only the admin can record commission for a Business Associate', 403);
+      if (!is_admin() && (int)$u['id'] === uid()) fail('You cannot change your own incentive', 403);
       $label = COMM_KINDS[comm_kind_of($u['role'])];
       if (array_key_exists('amount', $in)) $f['amount'] = comm_money($in['amount'], $label . ' amount');
       foreach ([1, 2] as $n) {

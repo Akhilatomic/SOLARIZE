@@ -65,7 +65,8 @@ chk(call($sales, 'comm', 'save', ['customer_id' => $cSa, 'amount' => 1])['_code'
 chk(call($ba, 'comm', 'candidates')['_code'] === 403, 'BA cannot list candidates');
 chk(call($anon, 'comm', 'list')['_code'] === 401, 'anonymous is 401');
 chk(call($admin, 'comm', 'save', null, "&customer_id=$cBa")['_code'] === 405, 'save over GET is refused');
-chk((call($sales, 'auth', 'status')['user']['comm_n'] ?? -1) === 0, 'sales: nothing shared yet (comm_n 0)');
+$me = call($sales, 'auth', 'status')['user'] ?? [];
+chk(in_array('incentive', (array)($me['read'] ?? [])) && !in_array('incentive', (array)($me['write'] ?? [])), 'sales: Incentive view by default, no edit');
 
 // validation
 $bad = fn($b) => call($admin, 'comm', 'save', ['customer_id' => $cBa] + $b);
@@ -97,7 +98,6 @@ call($admin, 'comm', 'save', ['customer_id' => $cBa, 'visible' => 1]);
 // incentive for staff; menu flag
 $s = call($admin, 'comm', 'save', ['customer_id' => $cSa, 'amount' => 5000, 'visible' => 1]);
 chk($s['_code'] === 200 && $s['row']['kind'] === 'incentive' && (int)$s['row']['user_id'] === $ids['sales'], 'staff customer saves as incentive for its owner');
-chk((call($sales, 'auth', 'status')['user']['comm_n'] ?? 0) === 1, 'sales: comm_n 1 once shared');
 $S = call($sales, 'comm', 'list', null, '&kind=commission');
 chk($S['kind'] === 'incentive' && count($S['rows']) === 1 && by_cid($S['rows'], $cSa), 'sales sees only their incentive');
 chk(call($eng, 'comm', 'list')['rows'] === [], 'engineer sees nothing');
@@ -132,6 +132,44 @@ chk($row && $row['amount'] == 3000 && (int)$row['user_id'] === $ids['ba'], 'comm
 $tl = call($admin, 'profile', 'timeline', null, "&customer_id=$cBa");
 $tj = json_encode($tl);
 chk($tl['_code'] === 200 && !preg_match('/UTR123|\bcommission\b|\bincentive\b/i', $tj), 'customer timeline shows no commission'); // ("net-meter commissioning" is a pipeline stage)
+
+// Incentive access: View for staff by default; Edit manages staff incentives, never one's own or any commission
+$acc = actor('acc');
+$accId = (int)(call($admin, 'admin', 'user_save', ['name' => 'Ann Accounts', 'username' => 'cmacc', 'role' => 'accounts', 'active' => 1, 'can_claim' => 0, 'password' => $pw])['id'] ?? 0);
+chk($accId && call($acc, 'auth', 'login', ['username' => 'cmacc', 'password' => $pw])['_code'] === 200, 'accounts user signed in');
+$A = call($acc, 'comm', 'list', null, '&kind=incentive');
+chk($A['_code'] === 200 && $A['manage'] === false && $A['rows'] === [], 'accounts (view only): own incentive list, empty');
+chk(call($acc, 'comm', 'save', ['customer_id' => $cSa, 'amount' => 1])['_code'] === 403, 'view only cannot save');
+chk(call($acc, 'comm', 'candidates')['_code'] === 403, 'view only cannot list candidates');
+$perm = call($admin, 'settings', 'get')['roles_now']; $perm['accounts']['write'][] = 'incentive';
+chk(call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => $perm])['_code'] === 200, 'admin gives Accounts Incentive edit');
+$A = call($acc, 'comm', 'list', null, '&kind=incentive');
+chk($A['manage'] === true && $A['admin'] === false && by_cid($A['rows'], $cSa) && !by_cid($A['rows'], $cBa), 'manager: whole incentive list, no commission rows');
+chk(!in_array('commission', array_column($A['people'], 'kind')), 'manager: only staff to choose from');
+$C2 = call($acc, 'comm', 'list', null, '&kind=commission');
+chk($C2['manage'] === false && $C2['kind'] === 'incentive', 'manager: no commission list');
+$s = call($acc, 'comm', 'save', ['customer_id' => $cSa, 'amount' => 6000, 'p1_amount' => 3000, 'p1_date' => '2026-11-08', 'p1_ref' => 'IMPS77']);
+chk($s['_code'] === 200 && $s['row']['amount'] == 6000 && $s['row']['p1_ref'] === 'IMPS77', 'manager records a staff incentive part payment');
+chk(call($acc, 'comm', 'save', ['customer_id' => $cBa, 'amount' => 1])['_code'] === 403, 'manager cannot change a BA commission');
+chk(call($acc, 'comm', 'save', ['customer_id' => $cSa, 'user_id' => $ids['ba']])['_code'] === 403, 'manager cannot move an incentive to a BA');
+$cAc = (int)(call($admin, 'customers', 'save', ['name' => 'Test Customer Four', 'phone' => '9000000004'])['id'] ?? 0);
+chk(call($admin, 'comm', 'save', ['customer_id' => $cAc, 'user_id' => $accId, 'amount' => 4000, 'visible' => 1])['_code'] === 200, 'admin gives the accounts user an incentive');
+$row = by_cid(call($acc, 'comm', 'list', null, '&kind=incentive')['rows'], $cAc);
+chk($row && $row['own'] === 1, 'manager sees their own incentive marked as theirs');
+chk(call($acc, 'comm', 'save', ['customer_id' => $cAc, 'amount' => 9000])['_code'] === 403, 'manager cannot change their own incentive');
+chk(call($acc, 'comm', 'save', ['customer_id' => $cAc, 'visible' => 0])['_code'] === 403, 'manager cannot hide their own incentive');
+chk(call($acc, 'comm', 'save', ['customer_id' => $cSa, 'user_id' => $accId])['_code'] === 403, 'manager cannot give an incentive to themself');
+$M = call($acc, 'comm', 'list', null, '&kind=incentive&mine=1');
+chk($M['manage'] === false && count($M['rows']) === 1 && by_cid($M['rows'], $cAc), 'manager: Incentive received shows just their own');
+chk(call($acc, 'comm', 'candidates')['_code'] === 200, 'manager can add a customer by hand');
+$perm['engineer']['read'] = array_values(array_diff($perm['engineer']['read'], ['incentive'])); $perm['engineer']['write'] = array_values(array_diff($perm['engineer']['write'], ['incentive']));
+call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => $perm]);
+chk(call($eng, 'comm', 'list')['_code'] === 403, 'engineer without Incentive view: refused');
+$st = call($admin, 'settings', 'get');
+chk(in_array('incentive', $st['role_never']['ba'] ?? []) && !in_array('incentive', $st['roles_now']['ba']['read']), 'BA: incentive is not for this role');
+call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => []]); // back to defaults
+chk(call($acc, 'comm', 'save', ['customer_id' => $cSa, 'amount' => 1])['_code'] === 403, 'defaults again: accounts cannot manage');
+chk(call($eng, 'comm', 'list')['_code'] === 200, 'defaults again: engineer sees their own list');
 
 echo "\n$pass passed, $fail failed\n";
 exit($fail ? 1 : 0);
