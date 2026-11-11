@@ -23,7 +23,7 @@ async function pgCustomer(id) {
   const val = (k, t) => { const v = c[k]; if (v === null || v === undefined || v === '') return ''; return t === 'date' ? new Date(String(v).replace(' ', 'T') + 'Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : String(v); };
   const row = (k, l, t) => { const v = val(k, t); return `<div class="pfr"><span>${l}</span>${v ? `<button class="pfv" data-cp="${esc(v)}" data-l="${esc(l)}" title="Click to copy">${esc(v)}<i class="i i-copy"></i></button>` : '<em class="mut">—</em>'}</div>`; };
   /* page state shared by the five profile pages (app28.js PFP, app29.js renderPfPage) */
-  const st = { c, p: (pl && pl.data) || {}, j: (c.projects && c.projects[0]) || null, prog: p0 || null, pipe: tl.pipe, id };
+  const st = { c, p: (pl && pl.data) || {}, j: (c.projects && c.projects[0]) || null, prog: p0 || null, pipe: tl.pipe, refs: tl.refs || [], id };
   const pgKeys = PFP.PAGES.map(x => x.key);
   const cnt0 = PFP.counts(pfCtx(st));
   const sumHtml = n => PFP.PAGES.map((pg, i) => `<button class="pp-sum" data-goto="${esc(pg.key)}"><i class="i i-${esc(pg.icon)}"></i><span>${i + 1} · ${esc(pg.tab)}</span>${n[pg.key] > 0 ? `<b class="pp-need">${n[pg.key]} missing</b>` : '<b class="pp-ok">Complete</b>'}</button>`).join('');

@@ -60,9 +60,13 @@ function renderPfPage(box, st, key, edit, onSaved) {
       ${hi.map(f => pfRow(f, ctx, edit)).join('')}
       <div class="pp-grid">${rest.map(f => pfRow(f, ctx, edit)).join('')}</div></div>`;
   }).join('');
+  /* read-only: references already recorded in the pipeline (not typed twice) */
+  const refs = key === 'reg' && st.refs && st.refs.length ? `<div class="card pfc"><div class="pfch"><i class="i i-${esc(pg.icon)}"></i><h3>Recorded in the pipeline</h3></div>${st.refs.map(r => {
+    const t = [r.ref ? 'Ref ' + r.ref : '', r.date, r.amount ? inr(r.amount) : ''].filter(Boolean).join(' · ');
+    return `<div class="pfr"><span>${esc(r.stage)}</span>${t ? pfCopy(t, r.stage) : '<em class="mut">—</em>'}</div>`; }).join('')}</div>` : '';
   box.innerHTML = `<div class="pp">
     <div class="pp-head"><h2>${esc(pg.tab)}</h2><span class="sp"></span>${w ? (edit ? '<button class="btn sec" id="ppx">Cancel</button><button class="btn" id="pps">Save</button>' : '<button class="btn" id="ppe"><i class="i i-pencil"></i> Edit this page</button>') : ''}</div>
-    ${secs}</div>`;
+    ${secs}${refs}</div>`;
   bindCopy(box);
   const lb = $('[data-loc]', box);
   if (lb) lb.onclick = () => locModal(st.c, st.id);
