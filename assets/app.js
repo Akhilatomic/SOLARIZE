@@ -637,7 +637,7 @@ async function pgCustomers() {
       const run = async a => {
         if (a.startsWith('fadd-') || a.startsWith('fopen-')) return feeMenuRun(a, c);
         const proj = tab => { if (!c.project_id) { toast('No project yet — create one first', true); return; } TAB.proj = tab; location.hash = '#/projects/' + c.project_id; };
-        if (a === 'ed') customerModal(c.id, c);
+        if (a === 'ed') { PFT_OPEN = { id: c.id, key: 'kseb', edit: true }; location.hash = '#/customers/' + c.id; }
         if (a === 'wa') waOpen({ name: c.name, phone: c.phone, customer_id: c.id });
         if (a === 'ds') discOpen(c.id);
         if (a === 'pj') { if (c.project_id) { TAB.proj = 'overview'; location.hash = '#/projects/' + c.project_id; } else if (canW('projects')) startModal({ customer_id: c.id }); else toast('No project yet', true); }
@@ -676,25 +676,17 @@ async function pgCustomers() {
   draw(); DISC.redraw = draw;
   if (!window._custRz) { window._custRz = 1; let tm; addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(() => { if (/^#\/customers\/?$/.test(location.hash) && DISC.redraw) DISC.redraw(); }, 150); }); }
 }
-const CF = [{ g: 'Basic details' }, { k: 'name', l: 'Name' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'lead_type', l: 'Lead type', opts: LT_OPTS }, { k: 'alt_phone', l: 'Alternate phone', t: 'tel' }, { k: 'email', l: 'Email' }, { k: 'address', l: 'Address', full: 1 }, { k: 'district', l: 'District', d: 'Thiruvananthapuram' }, { k: 'pincode', l: 'PIN code' },
-  { k: 'roof_type', l: 'Roof type', opts: ['', 'RCC flat', 'Sheet / tin', 'Tile', 'Other'] }, { k: 'gst_no', l: 'GST no. (if business)' },
-  { g: 'KSEB details' }, { k: 'consumer_no', l: 'KSEB consumer no.' }, { k: 'kseb_section', l: 'KSEB section office' }, { k: 'sanctioned_load', l: 'Sanctioned load (kW)', t: 'number' }, { k: 'phase', l: 'Connection', opts: ['', 'Single phase', 'Three phase'] }, { k: 'tariff', l: 'Tariff', opts: ['', 'LT-1A Domestic', 'LT-6 Non-domestic', 'LT-7 Commercial', 'LT-4 Industrial', 'Other'] }, { k: 'meter_no', l: 'Meter no.' },
-  { k: 'kseb_circle', l: 'Electrical circle', ph: 'e.g. Electrical Circle (Rural) Kattakada' }, { k: 'kseb_division', l: 'Electrical division', ph: 'e.g. Electrical Division Neyyattinkara' }, { k: 'kseb_subdivision', l: 'Electrical sub division' },
-  { k: 'local_body', l: 'Panchayath / Municipality / Corporation' }, { k: 'village_survey', l: 'Village & survey no.' },
-  { k: 'premises', l: 'Premises (for the KSEB agreement)', opts: [['', ''], ['Owned', 'Owned by the consumer'], ['Leased', 'Under a lease agreement']] }, { k: 'transformer', l: 'Distribution transformer / HT feeder', ph: 'e.g. Anad Jn transformer, 11 kV Anad feeder' }, { k: 'jansamarth_id', l: 'Jan Samarth loan ID', ph: 'ANS-SOLAR-…' },
-  { g: 'Bank details (for subsidy)' }, { k: 'bank_holder', l: 'Account holder name' }, { k: 'bank_name', l: 'Bank name' }, { k: 'bank_branch', l: 'Branch' }, { k: 'bank_account', l: 'Account number' }, { k: 'bank_ifsc', l: 'IFSC code' },
-  { g: 'Location' }, { k: 'landmark', l: 'Landmark', full: 1 }];
+/* New customer: only what is needed to start; the rest is filled on the profile pages (1 · KSEB connection ...) */
+const CF = [{ k: 'name', l: 'Consumer name (as on the KSEB bill)' }, { k: 'phone', l: 'Phone', t: 'tel' }, { k: 'lead_type', l: 'Lead type', opts: LT_OPTS }, { k: 'consumer_no', l: 'KSEB consumer no.' }, { k: 'address', l: 'Address', full: 1 }, { k: 'district', l: 'District', d: 'Thiruvananthapuram' }];
 function customerModal(id, c = {}) {
-  /* Meta only comes from a lead: a customer added here is Own lead or Office (one won from a Meta lead keeps Meta) */
-  const cf = CF.filter(f => !(f.k === 'lead_type' && BA())).map(f => f.k === 'lead_type' && c.lead_type !== 'meta' ? { ...f, opts: LT_OPTS.filter(o => o[0] !== 'meta') } : f);
-  const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} customer</h2><div class="two">${cf.map(f => f.g ? `<div class="full cfg">${f.g}</div>` : fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
-   <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button>${id && canW('leads') ? '<span class="sp"></span><button class="btn sec" id="rvl" title="Move this customer back to Leads"><i class="i i-refresh"></i> Revert to lead</button>' : ''}</div>`);
+  /* Meta only comes from a lead: a customer added here is Own lead or Office */
+  const cf = CF.filter(f => !(f.k === 'lead_type' && BA())).map(f => f.k === 'lead_type' ? { ...f, opts: LT_OPTS.filter(o => o[0] !== 'meta') } : f);
+  const m = modal(`<h2 style="margin-top:0">New customer</h2><div class="two">${cf.map(f => fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
+   <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
   $('#cx', m).onclick = () => m.remove();
-  ksebOfficeFill(m);
-  const lt = $('[data-k="lead_type"]', m); if (lt && id && !isAdm()) { lt.disabled = true; lt.title = 'Only the admin changes the lead type of a customer (it decides the incentive)'; }
-  if ($('#rvl', m)) $('#rvl', m).onclick = () => revertToLead(id, c.name, m);
+  const lt = $('[data-k="lead_type"]', m);
   $('#sv', m).onclick = async () => { const o = { ...c, id, ...collect(m) }; if (!o.name) return alert('Name required'); if (BA()) o.lead_type = 'own';
-    if (!o.lead_type) { if (lt) lt.focus(); return alert('Choose the lead type: Own lead, Office or Meta'); } const r = await api('customers', 'save', o); m.remove(); if (id) route(); else location.hash = '#/customers/' + r.id; };
+    if (!o.lead_type) { if (lt) lt.focus(); return alert('Choose the lead type: Own lead or Office'); } const r = await api('customers', 'save', o); m.remove(); location.hash = '#/customers/' + r.id; };
 }
 /* KSEB office: typing the consumer number (11 + section code + …) or picking the section office fills the electrical
    sub division, division and circle (and an empty section). A field the user typed stays; one we filled follows the office.

@@ -14,8 +14,7 @@ const PL_SECTIONS = [
   ['Structure', 'project', [['structure_type', 'Structure type'], ['structure_material', 'Material'], ['panel_arrangement', 'Panel arrangement']]],
   ['Rooftop', 'target', [['system_type', 'System type'], ['rooftop_type', 'Rooftop type'], ['rooftop_age', 'Rooftop age (years)', 'n'], ['building_height', 'Building height (m)', 'n'], ['floors', 'Number of floors', 'n'], ['rooftop_penetration', 'Rooftop penetration'], ['slab_thickness', 'Slab thickness (mm)', 'n'], ['slab_slope', 'Slope of slab (degrees)', 'n']]],
   ['Energy meter', 'gauge', [['meter_type', 'Meter type'], ['meter_make', 'Meter make'], ['meter_serial', 'Meter serial no.'], ['meter_reading', 'Solar meter initial reading (kWh)', 'n'], ['meter_by', 'Solar (energy) meter provided by'], ['net_meter_by', 'Net meter provided by']]],
-  ['Application', 'receipt', [['application_no', 'Application no.'], ['application_date', 'Application date', 'd'], ['gst_invoice_no', 'GST invoice no.'], ['commissioned_on', 'Commissioned on', 'd'], ['warranty_till', 'Warranty till', 'd']]],
-  ['KSEB & dates', 'calendar', [['kseb_reg_no', 'KSEB solar registration no.'], ['spin', 'SPIN (solar plant identification no.)'], ['installed_on', 'Date of installation', 'd'], ['inspected_on', 'Date of joint inspection', 'd']]],
+  ['Invoice & warranty', 'receipt', [['gst_invoice_no', 'GST invoice no.'], ['warranty_till', 'Warranty till', 'd']]],
   ['DCR', 'shield', [['dcr_po_no', 'Purchase order / invoice no.'], ['dcr_po_date', 'Purchase order / invoice date', 'd'], ['cell_maker', 'Cell manufacturer'], ['cell_invoice_no', 'Cell GST invoice no.']]],
   ['Test results', 'check', [['ir_total', 'Insulation resistance, whole installation (MΩ)', 'n'], ['ir_earth', 'Insulation resistance, conductor to earth (MΩ)', 'n'], ['ir_between', 'Insulation resistance, between conductors (MΩ)', 'n'], ['earth_resistance', 'Earth electrode resistance (Ω)', 'n'], ['earth_max', 'Maximum earthing resistance (Ω)', 'n']]],
 ];
@@ -23,12 +22,14 @@ const cpv = (v, l) => v ? `<button class="pfv" data-cp="${esc(v)}" data-l="${esc
 const bindCopy = root => $$('[data-cp]', root).forEach(b => b.onclick = e => { e.preventDefault(); copyText(b.dataset.cp, b.dataset.l || ''); b.classList.add('ok'); setTimeout(() => b.classList.remove('ok'), 900); });
 
 // ---------------- Plant details ----------------
-async function renderPlant(box, c, id, edit) {
+/* st (optional): the profile's page state; with it the view marks empty fields the plant page needs, and a save updates st.p and calls onSaved(st) */
+async function renderPlant(box, c, id, edit, st, onSaved) {
   box.innerHTML = '<p class="mut">Loading…</p>';
   const r = await api('plant', 'get', undefined, '&customer_id=' + id), d = r.data || {}, w = canW('customers');
   d.panels = d.panels || []; d.inverters = d.inverters || [];
-  if (edit) return plantForm(box, c, id, d, r);
-  const field = ([k, l]) => `<div class="plf"><span>${l}</span>${cpv(d[k], l)}</div>`;
+  if (edit) return plantForm(box, c, id, d, r, st, onSaved);
+  const pfs = st ? PFP.PAGES.find(x => x.key === 'plant').sections[0].fields : [], pctx = st ? pfCtx(Object.assign({}, st, { p: d })) : null;
+  const field = ([k, l]) => { const ff = pfs.find(x => x.k === k), v = k === 'rooftop_type' ? (d[k] || c.roof_type) : d[k]; return `<div class="plf"><span>${l}</span>${cpv(v, l)}${ff ? pfNeed(ff, pctx) : ''}</div>`; };
   const pw = d.panels.reduce((a, p) => a + (+p.wattage || +d.panel_wattage || 0), 0);
   const serialList = (list, kind, cols) => list.length ? `<div class="plser">${list.map((x, i) => `<div class="pls"><b>${kind} ${i + 1}</b><span>${cols.map(([k, l, u]) => x[k] ? esc(x[k]) + (u || '') : '').filter(Boolean).join(' · ') || '<em class="mut">—</em>'}</span>${x.serial ? cpv(x.serial, kind + ' ' + (i + 1) + ' serial') : '<em class="mut">no serial</em>'}</div>`).join('')}</div>` : `<p class="mut" style="margin:0;font-size:13px">No ${kind.toLowerCase()}s listed yet.${w ? ' Use <b>Edit</b> to add them with serial numbers.' : ''}</p>`;
   const sec = ([t, ic, fs], extra = '') => `<div class="card pfc"><div class="pfch"><i class="i i-${ic}"></i><h3>${t}</h3></div><div class="plgrid">${fs.map(field).join('')}</div>${extra}</div>`;
@@ -46,12 +47,12 @@ async function renderPlant(box, c, id, edit) {
         <div class="y"><small>Pending</small><b>${inr(pay.pending)}</b></div><div class="n"><small>Status</small><b>${pay.status}</b></div></div></div>` : ''}
     </div>`;
   bindCopy(box);
-  if ($('#pled', box)) $('#pled', box).onclick = () => renderPlant(box, c, id, true);
+  if ($('#pled', box)) $('#pled', box).onclick = () => renderPlant(box, c, id, true, st, onSaved);
   if ($('#plcs', box)) $('#plcs', box).onclick = () => copyText(`${c.name} — serial numbers\n` + d.panels.map((p, i) => `Panel ${i + 1}: ${p.serial || '-'}`).join('\n') + '\n' + d.inverters.map((p, i) => `Inverter ${i + 1}: ${p.serial || '-'}`).join('\n'), 'serial numbers');
 }
 
-function plantForm(box, c, id, d, r) {
-  const inp = ([k, l, t]) => `<div><label>${l}</label><input data-pk="${k}" ${t === 'n' ? 'inputmode="decimal"' : ''} ${t === 'd' ? 'type="date"' : ''} value="${esc(d[k] || PL_DEF[k] || '')}" ${PL_OPTS[k] ? `list="pl-${k}"` : ''}></div>`;
+function plantForm(box, c, id, d, r, st, onSaved) {
+  const inp = ([k, l, t]) => `<div><label>${l}</label><input data-pk="${k}" ${t === 'n' ? 'inputmode="decimal"' : ''} ${t === 'd' ? 'type="date"' : ''} value="${esc(d[k] || (k === 'rooftop_type' ? c.roof_type : '') || PL_DEF[k] || '')}" ${PL_OPTS[k] ? `list="pl-${k}"` : ''}></div>`;
   box.innerHTML = `${Object.entries(PL_OPTS).map(([k, o]) => `<datalist id="pl-${k}">${o.map(x => `<option value="${esc(x)}">`).join('')}</datalist>`).join('')}
     <div class="card plsum"><div class="plsi"><i class="i i-pencil"></i></div><div class="plst"><h3>Edit plant details</h3><div class="mut">Set the number of panels / inverters and the rows below update. Paste serial numbers in one go.</div></div><span class="sp"></span>
      <button class="btn sec" id="plx">Cancel</button><button class="btn" id="plsv">Save</button></div>
@@ -79,9 +80,9 @@ function plantForm(box, c, id, d, r) {
     $('#psok', m).onclick = () => { const s = $('#psx', m).value.split(/[\n,;\t]+/).map(x => x.trim()).filter(Boolean);
       s.forEach((x, i) => { if (!L[i]) L.push(b.dataset.paste === 'panels' ? { make: val('panel_make'), wattage: val('panel_wattage'), serial: '' } : { make: val('inverter_make'), type: val('inverter_type'), capacity: val('inverter_capacity'), serial: '' }); L[i].serial = x; });
       $(`[data-pk="${b.dataset.paste === 'panels' ? 'panel_count' : 'inverter_count'}"]`, box).value = L.length; m.remove(); sync(); toast(`${s.length} serial number${s.length === 1 ? '' : 's'} filled`); }; });
-  $('#plx', box).onclick = () => renderPlant(box, c, id);
+  $('#plx', box).onclick = () => renderPlant(box, c, id, false, st, onSaved);
   $('#plsv', box).onclick = async () => { const data = { panels: P, inverters: V }; $$('[data-pk]', box).forEach(e => data[e.dataset.pk] = e.value.trim());
-    const b = $('#plsv', box); b.disabled = true; try { await api('plant', 'save', { customer_id: id, data }); toast('Plant details saved'); renderPlant(box, c, id); } catch (e) { b.disabled = false; } };
+    const b = $('#plsv', box); b.disabled = true; try { await api('plant', 'save', { customer_id: id, data }); toast('Plant details saved'); if (st) { st.p = Object.assign({}, d, data); if (onSaved) onSaved(st); } renderPlant(box, c, id, false, st, onSaved); } catch (e) { b.disabled = false; } };
 }
 
 // ---------------- Documents ----------------

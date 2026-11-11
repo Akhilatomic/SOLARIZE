@@ -1,10 +1,4 @@
 // Customer profile: 2 columns — left: progress + timeline (timestamps); right: organised details with click-to-copy and location sharing.
-const PF_GROUPS = [
-  ['basic', 'Basic details', 'user', [['name', 'Name'], ['phone', 'Phone', 'tel'], ['alt_phone', 'Alternate phone', 'tel'], ['email', 'Email', 'mail'], ['address', 'Address'], ['district', 'District'], ['pincode', 'PIN code'], ['roof_type', 'Roof type'], ['gst_no', 'GST no.'], ['owner_name', 'Owner'], ['added_by', 'Added by'], ['created', 'Customer since', 'date']]],
-  ['kseb', 'KSEB details', 'sun', [['consumer_no', 'Consumer no.'], ['kseb_section', 'Section office'], ['sanctioned_load', 'Sanctioned load (kW)'], ['phase', 'Connection'], ['tariff', 'Tariff'], ['meter_no', 'Meter no.'],
-    ['kseb_circle', 'Electrical circle'], ['kseb_division', 'Electrical division'], ['kseb_subdivision', 'Electrical sub division'], ['local_body', 'Panchayath / Municipality'], ['village_survey', 'Village & survey no.'], ['premises', 'Premises'], ['transformer', 'Transformer / feeder'], ['jansamarth_id', 'Jan Samarth loan ID']]],
-  ['bank', 'Bank details', 'card', [['bank_holder', 'Account holder'], ['bank_name', 'Bank'], ['bank_branch', 'Branch'], ['bank_account', 'Account no.'], ['bank_ifsc', 'IFSC']]],
-];
 const TL_ICON = { lead: 'target', convert: 'userplus', customer: 'user', edit: 'pencil', project: 'project', stage: 'check', receipt: 'receipt', payment: 'coin', service: 'gear', quote: 'receipt', file: 'file', note: 'note', wa: 'whatsapp', disc: 'chat', event: 'calendar' };
 
 function copyText(t, what) {
@@ -17,15 +11,22 @@ const tlTime = (ts, local) => { const d = local ? new Date(String(ts).replace(' 
 const mapsLink = c => c.lat && c.lng ? `https://www.google.com/maps?q=${c.lat},${c.lng}` : (c.address ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([c.address, c.district, c.pincode].filter(Boolean).join(', ')) : '');
 
 let PFT = 'overview', PFT_ID = 0;
+/* set by the Customers list (Edit): { id, key, edit } - pgCustomer opens that page once, in edit mode, then clears it */
+let PFT_OPEN = null;
 async function pgCustomer(id) {
   if (PFT_ID !== id) { PFT = 'overview'; PFT_ID = id; }
-  const [c, tl] = await Promise.all([api('customers', 'get', undefined, '&id=' + id), api('profile', 'timeline', undefined, '&customer_id=' + id)]);
+  let openEdit = null;
+  if (PFT_OPEN && PFT_OPEN.id === id) { PFT = PFT_OPEN.key; PFT_ID = id; openEdit = PFT_OPEN.edit ? PFT_OPEN.key : null; }
+  PFT_OPEN = null;
+  const [c, tl, pl] = await Promise.all([api('customers', 'get', undefined, '&id=' + id), api('profile', 'timeline', undefined, '&customer_id=' + id), api('plant', 'get', undefined, '&customer_id=' + id)]);
   const w = canW('customers'), p0 = tl.progress[tl.progress.length - 1];
   const val = (k, t) => { const v = c[k]; if (v === null || v === undefined || v === '') return ''; return t === 'date' ? new Date(String(v).replace(' ', 'T') + 'Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : String(v); };
   const row = (k, l, t) => { const v = val(k, t); return `<div class="pfr"><span>${l}</span>${v ? `<button class="pfv" data-cp="${esc(v)}" data-l="${esc(l)}" title="Click to copy">${esc(v)}<i class="i i-copy"></i></button>` : '<em class="mut">—</em>'}</div>`; };
-  const group = ([key, title, icon, fields]) => { const filled = fields.filter(([k, , t]) => val(k, t));
-    return `<div class="card pfc"><div class="pfch"><i class="i i-${icon}"></i><h3>${title}</h3><span class="sp"></span>${filled.length ? `<button class="btn sec sm" data-cpg="${key}" title="Copy all ${title.toLowerCase()}"><i class="i i-copy"></i> Copy all</button>` : ''}</div>
-      ${fields.map(([k, l, t]) => row(k, l, t)).join('')}${key === 'kseb' && tl.refs.length ? `<div class="pfsub">Recorded in the pipeline</div>${tl.refs.map(r => `<div class="pfr"><span>${esc(r.stage)}</span><button class="pfv" data-cp="${esc([r.ref, r.date].filter(Boolean).join(' · ') || (r.amount != null ? String(r.amount) : ''))}" data-l="${esc(r.stage)}" title="Click to copy">${esc([r.ref ? 'Ref ' + r.ref : '', r.date, r.amount ? inr(r.amount) : ''].filter(Boolean).join(' · '))}<i class="i i-copy"></i></button></div>`).join('')}` : ''}</div>`; };
+  /* page state shared by the five profile pages (app28.js PFP, app29.js renderPfPage) */
+  const st = { c, p: (pl && pl.data) || {}, j: (c.projects && c.projects[0]) || null, prog: p0 || null, pipe: tl.pipe, id };
+  const pgKeys = PFP.PAGES.map(x => x.key);
+  const cnt0 = PFP.counts(pfCtx(st));
+  const sumHtml = n => PFP.PAGES.map((pg, i) => `<button class="pp-sum" data-goto="${esc(pg.key)}"><i class="i i-${esc(pg.icon)}"></i><span>${i + 1} · ${esc(pg.tab)}</span>${n[pg.key] > 0 ? `<b class="pp-need">${n[pg.key]} missing</b>` : '<b class="pp-ok">Complete</b>'}</button>`).join('');
   const ml = mapsLink(c), hasPin = c.lat && c.lng;
   const locCard = `<div class="card pfc"><div class="pfch"><i class="i i-target"></i><h3>Location</h3><span class="sp"></span>${w ? '<button class="btn sec sm" id="pfloc"><i class="i i-pencil"></i> ' + (hasPin ? 'Change' : 'Set location') + '</button>' : ''}</div>
      ${hasPin ? `<iframe class="pfmap" loading="lazy" title="Map" referrerpolicy="strict-origin" src="https://www.openstreetmap.org/export/embed.html?bbox=${+c.lng - .004},${+c.lat - .0025},${+c.lng + .004},${+c.lat + .0025}&layer=mapnik&marker=${c.lat},${c.lng}"></iframe>` : `<p class="mut" style="font-size:13px;margin:4px 0 8px">No map pin yet.${w ? ' Use <b>Set location</b> at the site, or paste a Google Maps link.' : ''}</p>`}
@@ -46,11 +47,11 @@ async function pgCustomer(id) {
    <div class="card pfhead"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="mut">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') + ' ' : ''}${c.phone ? `<button class="pfv inl" data-cp="${esc(c.phone)}" data-l="phone">${esc(c.phone)}<i class="i i-copy"></i></button>` : ''}${c.consumer_no ? ` · Consumer no. <button class="pfv inl" data-cp="${esc(c.consumer_no)}" data-l="consumer no.">${esc(c.consumer_no)}<i class="i i-copy"></i></button>` : ''}${ownHtml}</div></div>
     <div class="pfact"><button class="btn sec" id="dsc">${discBtnLabel(id)}</button>${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn ok" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}
      ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}<button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
-   <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ['plant', 'Plant details', 'sun'], ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : [])].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${l}</button>`).join('')}</div>
+   <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, `${i + 1} · ${pg.tab}`, pg.icon]), ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : [])].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${esc(l)}${pgKeys.includes(k) ? ` <span class="ppn" data-ppn="${k}"${cnt0[k] > 0 ? '' : ' hidden'}>${cnt0[k] || 0}</span>` : ''}</button>`).join('')}</div>
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
     <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut" style="margin:0">No project yet.</p></div>`}
-     <div class="pfcols">${PF_GROUPS.map(group).join('')}${locCard}
+     <div class="pfcols"><div class="card pfc"><div class="pfch"><i class="i i-clipboard"></i><h3>Details by page</h3></div><div id="ppsum">${sumHtml(cnt0)}</div></div>${locCard}
      <div class="card pfc"><div class="pfch"><i class="i i-receipt"></i><h3>Quotations</h3><span class="sp"></span>${canW('quotes') ? '<button class="btn sec sm" id="nq">+ New</button>' : ''}</div>${c.quotes.map(q => `<div class="pfdoc"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${q.total != null ? inr(q.total) : ''}<br><small class="mut">${q.date}</small></div>`).join('') || '<p class="mut" style="margin:0;font-size:13px">No quotations</p>'}</div>
      ${c.notes ? `<div class="card pfc"><div class="pfch"><i class="i i-note"></i><h3>Notes</h3></div><div style="font-size:14px;white-space:pre-wrap">${esc(c.notes)}</div></div>` : ''}</div></div>
     <div class="pfright"><div class="card pftl"><div class="pfch"><i class="i i-clock"></i><h3>Timeline</h3><span class="sp"></span><small class="mut">${tl.events.length} events</small></div>
@@ -59,8 +60,6 @@ async function pgCustomer(id) {
     </div>`;
   // click to copy
   $$('[data-cp]').forEach(b => b.onclick = e => { e.preventDefault(); copyText(b.dataset.cp, b.dataset.l || ''); b.classList.add('ok'); setTimeout(() => b.classList.remove('ok'), 900); });
-  $$('[data-cpg]').forEach(b => b.onclick = () => { const g = PF_GROUPS.find(x => x[0] === b.dataset.cpg);
-    copyText(`${c.name} — ${g[1]}\n` + g[3].filter(([k, , t]) => val(k, t)).map(([k, l, t]) => `${l}: ${val(k, t)}`).join('\n') + (g[0] === 'kseb' ? tl.refs.map(r => `\n${r.stage}: ${[r.ref, r.date].filter(Boolean).join(' · ')}`).join('') : ''), g[1].toLowerCase()); });
   // location sharing
   const locText = () => `${c.name}${c.landmark ? ' — ' + c.landmark : ''}\n${[c.address, c.district].filter(Boolean).join(', ')}\n${ml}`;
   if ($('#pfwa')) $('#pfwa').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent(locText()), '_blank');
@@ -69,18 +68,25 @@ async function pgCustomer(id) {
   // actions
   $('#dsc').onclick = () => discOpen(id);
   if ($('#wa')) $('#wa').onclick = () => waOpen({ name: c.name, phone: c.phone, customer_id: id });
-  if ($('#ed')) $('#ed').onclick = () => customerModal(id, c);
+  if ($('#ed')) $('#ed').onclick = () => showTab(pgKeys.includes(PFT) ? PFT : 'kseb', true);
   if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
   if ($('#nq')) $('#nq').onclick = () => { sessionStorage.lead2quote = JSON.stringify({ customer_id: id, name: c.name }); location.hash = '#/quotes/new'; };
   if ($('#up')) $('#up').onclick = () => docUploadModal(c, id);
   const addNote = async () => { const t = $('#tln').value.trim(); if (!t) return; await api('notes', 'add', { entity: 'customers', entity_id: id, text: t }); route(); };
   $('#tlnb').onclick = addNote; $('#tln').onkeydown = e => { if (e.key === 'Enter') addNote(); };
   // tabs
-  const showTab = k => { PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
-    if (k === 'plant') renderPlant(box, c, id); if (k === 'docs') renderDocs(box, c, id); if (k === 'warranty') renderWarranty(box, c, id); if (k === 'mnre') renderMnre(box, c, id); if (k === 'tax') renderTax(box, c, id); };
+  /* a page save: refresh the red counts on the tabs and the Overview card, without reloading the profile */
+  const bindGoto = () => $$('[data-goto]').forEach(b => b.onclick = () => { showTab(b.dataset.goto); scrollTo({ top: 0, behavior: 'smooth' }); });
+  const refresh = s => { const n = PFP.counts(pfCtx(s));
+    $$('[data-ppn]').forEach(e => { const v = n[e.dataset.ppn] || 0; e.textContent = v; e.hidden = !v; });
+    $('#ppsum').innerHTML = sumHtml(n); bindGoto(); };
+  const showTab = (k, edit) => { PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
+    if (k === 'plant') renderPlant(box, st.c, id, !!edit, st, refresh);
+    else if (pgKeys.includes(k)) renderPfPage(box, st, k, !!edit, refresh);
+    if (k === 'docs') renderDocs(box, st.c, id); if (k === 'warranty') renderWarranty(box, st.c, id); if (k === 'mnre') renderMnre(box, st.c, id); if (k === 'tax') renderTax(box, st.c, id); };
   $$('[data-pt]').forEach(b => b.onclick = () => showTab(b.dataset.pt));
-  $$('[data-goto]').forEach(b => b.onclick = () => { showTab(b.dataset.goto); scrollTo({ top: 0, behavior: 'smooth' }); });
-  if (PFT !== 'overview') showTab(PFT);
+  bindGoto();
+  if (PFT !== 'overview') showTab(PFT, openEdit === PFT);
   feeMembers(id);
   if ($('#pfown')) $('#pfown').onclick = async () => { if (await reassignBox('customers', c)) route(); };
   $('#pfmore').onclick = e => { e.stopPropagation(); const old = $('#lmenu'); if (old) { old.remove(); return; }
