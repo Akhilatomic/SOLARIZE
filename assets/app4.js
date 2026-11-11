@@ -1,99 +1,148 @@
-// Folder: product datasheets by category, public share links, WhatsApp sharing, admin-controlled availability
-let FD = { cat: '', q: '', av: '', sel: new Set() };
+// Folder: file manager (nested folders, upload/drag-drop, move/delete/zip), public share links, WhatsApp sharing
+let FM = { q: '', cur: 0, files: new Set(), folders: new Set() };
 const fsize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 const baseUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '');
 const shareUrl = d => `${baseUrl()}api.php?m=share&t=${d.token}`;
 const fext = n => ((n || '').split('.').pop() || '').toUpperCase().slice(0, 4);
-function availBadge(d) { return d.available ? `<span class="av on" title="${esc(d.avail_note || 'Available')}"><i></i>Available${d.avail_note ? ' · ' + esc(d.avail_note) : ''}</span>` : `<span class="av off" title="${esc(d.avail_note || 'Currently unavailable')}"><i></i>Unavailable${d.avail_note ? ' · ' + esc(d.avail_note) : ''}</span>`; }
+/* Path from the top level down to folder `id`: [{id, name}, ...]. Stops if the chain is broken or loops. */
+function fmPath(folders, id) {
+  const by = new Map(folders.map(f => [+f.id, f])), out = []; let c = +id || 0, n = 0;
+  while (c && by.has(c) && n++ < 50) { const f = by.get(c); out.unshift({ id: +f.id, name: f.name }); c = +f.parent_id || 0; }
+  return out;
+}
+const fmPathText = (folders, id) => ['Folder'].concat(fmPath(folders, id).map(p => p.name)).join(' › ');
 
-async function pgFolder() {
-  const data = await api('folder', 'list'); const cats = data.cats, items = data.items;
-  const adm = ME.role === 'admin', w = canW('folder');
-  const counts = Object.fromEntries(cats.map(c => [c, items.filter(i => i.category === c).length]));
+async function pgFolder(id) {
+  const data = await api('folder', 'list'); const folders = data.folders, items = data.items;
+  const w = canW('folder');
+  const cur = +id || 0;
+  if (cur && !folders.some(f => +f.id === cur)) { location.hash = '#/folder'; return; }
+  if (FM.cur !== cur) { FM.files.clear(); FM.folders.clear(); FM.q = ""; FM.cur = cur; }
+  const kids = folders.filter(f => (+f.parent_id || 0) === cur), files = items.filter(i => (+i.folder_id || 0) === cur);
+  const nsel = () => FM.files.size + FM.folders.size;
+  const rowsNow = () => {
+    const t = FM.q.trim().toLowerCase();
+    if (!t) return { fo: kids, fi: files, s: false };
+    return { s: true,
+      fo: folders.filter(f => (f.name + ' ' + fmPathText(folders, f.parent_id)).toLowerCase().includes(t)),
+      fi: items.filter(i => (i.file_name + ' ' + i.title + ' ' + fmPathText(folders, i.folder_id)).toLowerCase().includes(t)) };
+  };
+  const crumbs = fmPath(folders, cur);
+  const crumbHtml = `<nav class="fm-crumbs"><a href="#/folder">Folder</a>${crumbs.map((c, i) => ` <span class="fm-sep">›</span> ${i === crumbs.length - 1 ? `<b>${esc(c.name)}</b>` : `<a href="#/folder/${c.id}">${esc(c.name)}</a>`}`).join('')}</nav>`;
+  $('#main').innerHTML = `<div class="fm" id="fm">
+   <div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Folder</h2><div class="mut">Datasheets, BIS certificates and test reports</div></div><span class="sp"></span>
+    ${w ? '<button class="btn sec" id="fmnew"><i class="i i-folder"></i> New folder</button><button class="btn" id="fmup"><i class="i i-upload"></i> Upload</button><input type="file" id="fmfile" multiple class="hide" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx">' : ''}</div>
+   <div class="fm-top">${crumbHtml}<input id="fmq" type="search" placeholder="Search all folders…" value="${esc(FM.q)}"></div>
+   <div id="fmlist" class="fm-list"></div>
+   <div id="fmdrop" class="fm-drop hide"><i class="i i-upload"></i><div>Drop files to upload into <b>${esc(crumbs.length ? crumbs[crumbs.length - 1].name : 'Folder')}</b></div></div>
+   <div id="fmbar" class="fm-bar hide"></div></div>`;
+  const reload = () => route();
+  const clearSel = () => { FM.files.clear(); FM.folders.clear(); };
   const draw = () => {
-    const t = FD.q.toLowerCase();
-    const rows = items.filter(i => (!FD.cat || i.category === FD.cat) && (!FD.av || String(i.available) === FD.av) && (!t || [i.title, i.brand, i.model, i.notes, i.file_name].join(' ').toLowerCase().includes(t)));
-    $('#dsg').innerHTML = rows.map(d => `<div class="dsc ${FD.sel.has(d.id) ? 'sel' : ''} ${d.available ? '' : 'na'}" data-id="${d.id}">
-      <div class="dsh"><label class="dsk"><input type="checkbox" data-sel="${d.id}" ${FD.sel.has(d.id) ? 'checked' : ''}></label><div class="dsf">${esc(fext(d.file_name))}</div>
-       <div class="dst"><b>${esc(d.title)}</b><div class="mut" style="font-size:13px">${esc([d.brand, d.model].filter(Boolean).join(' · ')) || '&nbsp;'}</div></div></div>
-      <div class="dsm">${pill(d.category)} ${availBadge(d)}</div>
-      ${d.notes ? `<div class="mut" style="font-size:13px;margin-top:8px">${esc(d.notes)}</div>` : ''}
-      <div class="mut" style="font-size:12px;margin-top:8px">${fsize(d.size)} · ${dmy(d.created)}${d.user ? ' · ' + esc(d.user) : ''}</div>
-      <div class="dsa"><a class="btn sm" href="api.php?m=folder&a=get&id=${d.id}&dl=1" title="Download"><i class="i i-download"></i> Download</a>
-       <button class="btn sm ok" data-wa="${d.id}" title="Share on WhatsApp"><i class="i i-chat"></i> WhatsApp</button>
-       <button class="btn sm sec" data-copy="${d.id}" title="Copy share link"><i class="i i-link"></i></button><a class="btn sm sec" href="api.php?m=folder&a=get&id=${d.id}" target="_blank" title="Preview"><i class="i i-eye"></i></a>
-       ${w ? `<button class="btn sm sec" data-edit="${d.id}" title="Edit"><i class="i i-pencil"></i></button>` : ''}</div>
-      ${adm ? `<label class="sw"><input type="checkbox" data-av="${d.id}" ${d.available ? 'checked' : ''}><span class="swt"></span><span class="swl">${d.available ? 'Available — switch off if out of stock' : 'Unavailable — switch on when back in stock'}</span></label>` : ''}</div>`).join('') || `<div class="card mut" style="grid-column:1/-1;text-align:center;padding:30px">No datasheets here yet.${w ? ' Use <b>Upload</b> to add the first one.' : ''}</div>`;
-    $$('[data-sel]').forEach(c => c.onchange = () => { c.checked ? FD.sel.add(+c.dataset.sel) : FD.sel.delete(+c.dataset.sel); c.closest('.dsc').classList.toggle('sel', c.checked); bar(); });
-    $$('[data-wa]').forEach(b => b.onclick = () => shareModal([items.find(i => i.id == b.dataset.wa)]));
-    $$('[data-copy]').forEach(b => b.onclick = async () => { const d = items.find(i => i.id == b.dataset.copy); try { await navigator.clipboard.writeText(shareUrl(d)); toast('Share link copied'); } catch (e) { prompt('Copy this link', shareUrl(d)); } });
-    $$('[data-edit]').forEach(b => b.onclick = () => editModal(items.find(i => i.id == b.dataset.edit), cats));
-    $$('[data-av]').forEach(c => c.onchange = async () => { const d = items.find(i => i.id == c.dataset.av); let note = d.avail_note || ''; if (!c.checked) { const n = prompt('Optional note shown with the badge (e.g. "Back in stock next week"):', note); if (n === null) { c.checked = true; return; } note = n; } else note = ''; await api('folder', 'toggle', { id: d.id, available: c.checked, avail_note: note }); route(); });
+    const r = rowsNow(), box = $('#fmlist');
+    const fileRow = d => `<div class="fm-row ${FM.files.has(+d.id) ? 'sel' : ''}"><label class="fm-ck"><input type="checkbox" data-f="${d.id}" ${FM.files.has(+d.id) ? 'checked' : ''}></label>
+      <div class="fm-ic"><span class="fm-ty">${esc(fext(d.file_name))}</span></div>
+      <div class="fm-nm"><a href="api.php?m=folder&a=get&id=${d.id}" target="_blank" rel="noopener">${esc(d.file_name)}</a>${r.s ? `<small><a href="#/folder/${+d.folder_id || ''}">${esc(fmPathText(folders, d.folder_id))}</a></small>` : ''}</div>
+      <div class="fm-sz">${fsize(d.size)}</div><div class="fm-dt">${dmy(d.updated || d.created)}</div><div class="fm-by">${esc(d.user || '')}</div></div>`;
+    const folderRow = f => { const n = folders.filter(x => +x.parent_id === +f.id).length + items.filter(x => +x.folder_id === +f.id).length; return `<div class="fm-row ${FM.folders.has(+f.id) ? 'sel' : ''}"><label class="fm-ck"><input type="checkbox" data-d="${f.id}" ${FM.folders.has(+f.id) ? 'checked' : ''}></label>
+      <div class="fm-ic"><i class="i i-folder"></i></div>
+      <div class="fm-nm"><a href="#/folder/${f.id}"><b>${esc(f.name)}</b></a>${r.s ? `<small>${esc(fmPathText(folders, f.parent_id))}</small>` : ''}</div>
+      <div class="fm-sz">${n} item${n === 1 ? '' : 's'}</div><div class="fm-dt">${dmy(f.created)}</div><div class="fm-by">${esc(f.user || '')}</div></div>`; };
+    const all = r.fo.length + r.fi.length, ticked = r.fo.filter(f => FM.folders.has(+f.id)).length + r.fi.filter(i => FM.files.has(+i.id)).length;
+    box.innerHTML = all ? `<div class="fm-row fm-hd"><label class="fm-ck"><input type="checkbox" id="fmall" ${ticked === all ? 'checked' : ''}></label><div class="fm-ic"></div><div class="fm-nm">Name</div><div class="fm-sz">Size</div><div class="fm-dt">Modified</div><div class="fm-by">By</div></div>`
+      + r.fo.map(folderRow).join('') + r.fi.map(fileRow).join('')
+      : `<div class="fm-empty">${r.s ? 'Nothing matches your search.' : 'This folder is empty.' + (w ? '<br><span class="mut">Drop files here or use Upload.</span>' : '')}</div>`;
+    $$('[data-f]', box).forEach(c => c.onchange = () => { c.checked ? FM.files.add(+c.dataset.f) : FM.files.delete(+c.dataset.f); draw(); });
+    $$('[data-d]', box).forEach(c => c.onchange = () => { c.checked ? FM.folders.add(+c.dataset.d) : FM.folders.delete(+c.dataset.d); draw(); });
+    const sa = $('#fmall', box); if (sa) sa.onchange = () => { r.fo.forEach(f => sa.checked ? FM.folders.add(+f.id) : FM.folders.delete(+f.id)); r.fi.forEach(i => sa.checked ? FM.files.add(+i.id) : FM.files.delete(+i.id)); draw(); };
     bar();
   };
-  const bar = () => { const n = FD.sel.size; const b = $('#dsbar'); b.classList.toggle('hide', !n); b.querySelector('b').textContent = n + ' selected'; };
-  $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Folder</h2><div class="mut">Product datasheets — download or share on WhatsApp instantly</div></div><span class="sp"></span>${w ? '<button class="btn" id="dsup"><i class="i i-upload"></i> Upload</button>' : ''}</div>
-   <div class="tabs" style="margin-top:12px" id="dstabs"><button data-c="" class="${!FD.cat ? 'on' : ''}">All (${items.length})</button>${cats.map(c => `<button data-c="${esc(c)}" class="${FD.cat === c ? 'on' : ''}">${esc(c)} (${counts[c]})</button>`).join('')}</div>
-   <div class="bar"><input id="dsq" placeholder="Search by name, brand, model…" style="max-width:340px" value="${esc(FD.q)}"><select id="dsav"><option value="">All availability</option><option value="1" ${FD.av === '1' ? 'selected' : ''}>Available</option><option value="0" ${FD.av === '0' ? 'selected' : ''}>Unavailable</option></select></div>
-   <div id="dsg" class="dsg"></div>
-   <div id="dsbar" class="dsbar hide"><b></b><span class="sp"></span><button class="btn sec sm" id="dsclr">Clear</button><button class="btn ok" id="dssh"><i class="i i-chat"></i> Share selected on WhatsApp</button></div>`;
-  $$('#dstabs button').forEach(b => b.onclick = () => { FD.cat = b.dataset.c; route(); });
-  $('#dsq').oninput = e => { FD.q = e.target.value; draw(); }; $('#dsav').onchange = e => { FD.av = e.target.value; draw(); };
-  $('#dsclr').onclick = () => { FD.sel.clear(); draw(); };
-  $('#dssh').onclick = () => shareModal(items.filter(i => FD.sel.has(i.id)));
-  if ($('#dsup')) $('#dsup').onclick = () => uploadModal(cats);
-  draw();
-}
-
-function uploadModal(cats) {
-  let files = [];
-  const m = modal(`<h2 style="margin-top:0">Upload datasheets</h2><div class="two"><div><label>Category</label><select id="uc">${cats.map(c => `<option ${FD.cat === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div><div><label>Brand</label><input id="ub" placeholder="e.g. Waaree, Growatt"></div>
-   <div id="utw"><label>Title <span class="mut">(blank = file name)</span></label><input id="ut"></div><div><label>Model</label><input id="um"></div><div class="full"><label>Notes</label><input id="un2" placeholder="e.g. 550 Wp bifacial, DCR"></div></div>
-   <div id="drop" class="drop"><i class="i i-upload" style="width:26px;height:26px"></i><div><b>Choose files</b> or drop them here</div><small class="mut">PDF, JPG, PNG, DOC, XLS, ZIP · up to 25 MB each · several files at once</small><input type="file" id="uf" multiple class="hide" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.zip"></div><div id="ul" style="margin-top:8px;font-size:14px"></div>
-   <div class="bar" style="margin-top:12px"><button class="btn" id="usv" disabled>Upload</button><button class="btn sec" id="ucx">Cancel</button></div>`);
-  const show = () => { $('#ul', m).innerHTML = files.map(f => `<div class="act">${esc(f.name)} <small>${fsize(f.size)}</small></div>`).join(''); $('#usv', m).disabled = !files.length; $('#utw', m).style.opacity = files.length > 1 ? .4 : 1; $('#ut', m).disabled = files.length > 1; };
-  const drop = $('#drop', m); drop.onclick = () => $('#uf', m).click(); $('#uf', m).onchange = e => { files = [...e.target.files]; show(); };
-  drop.ondragover = e => { e.preventDefault(); drop.classList.add('hov'); }; drop.ondragleave = () => drop.classList.remove('hov'); drop.ondrop = e => { e.preventDefault(); drop.classList.remove('hov'); files = [...e.dataTransfer.files]; show(); };
-  $('#ucx', m).onclick = () => m.remove();
-  $('#usv', m).onclick = async () => {
-    const b = $('#usv', m); b.disabled = true; let ok = 0;
-    for (const [i, f] of files.entries()) {
-      b.textContent = `Uploading ${i + 1}/${files.length}…`;
-      const fd = new FormData(); fd.append('file', f); fd.append('category', $('#uc', m).value); fd.append('brand', $('#ub', m).value); fd.append('model', $('#um', m).value); fd.append('notes', $('#un2', m).value); if (files.length === 1) fd.append('title', $('#ut', m).value);
+  const bar = () => {
+    const b = $('#fmbar'), n = nsel(); b.classList.toggle('hide', !n); if (!n) { b.innerHTML = ''; return; }
+    b.innerHTML = `<b>${n} selected</b><span class="sp"></span>
+      <button class="btn sm" id="fmdl"><i class="i i-download"></i> Download</button>
+      ${FM.folders.size === 0 ? '<button class="btn sm ok" id="fmwa"><i class="i i-chat"></i> Share on WhatsApp</button>' : ''}
+      ${w && n === 1 ? '<button class="btn sm sec" id="fmrn"><i class="i i-pencil"></i> Rename</button>' : ''}
+      ${w ? '<button class="btn sm sec" id="fmmv"><i class="i i-folder"></i> Move</button><button class="btn sm bad" id="fmrm"><i class="i i-trash"></i> Delete</button>' : ''}
+      <button class="btn sm sec" id="fmclr">Clear</button>`;
+    const fl = [...FM.files], fo = [...FM.folders];
+    $('#fmclr').onclick = () => { clearSel(); draw(); };
+    $('#fmdl').onclick = () => { location.href = (fl.length === 1 && !fo.length) ? `api.php?m=folder&a=get&id=${fl[0]}&dl=1` : `api.php?m=folder&a=zip&files=${fl.join(',')}&folders=${fo.join(',')}`; };
+    if ($('#fmwa')) $('#fmwa').onclick = () => shareModal(items.filter(i => FM.files.has(+i.id)));
+    if ($('#fmrn')) $('#fmrn').onclick = () => {
+      const isF = fo.length === 1, it = isF ? folders.find(f => +f.id === fo[0]) : items.find(i => +i.id === fl[0]); if (!it) return;
+      const m = modal(`<h2 style="margin-top:0">Rename ${isF ? 'folder' : 'file'}</h2><input id="fmrnv" value="${esc(isF ? it.name : it.file_name)}">${isF ? '' : '<p class="mut" style="font-size:12px;margin:6px 0 0">The file type stays the same.</p>'}
+        <div class="bar" style="margin-top:12px"><button class="btn" id="fmrnok">Rename</button><button class="btn sec" id="fmrnx">Cancel</button></div>`);
+      const inp = $('#fmrnv', m); inp.focus(); inp.select(); $('#fmrnx', m).onclick = () => m.remove();
+      const go = async () => { const v = inp.value.trim(); if (!v) return; try { await api('folder', isF ? 'folder_rename' : 'rename', { id: it.id, name: v }); m.remove(); clearSel(); reload(); } catch (e) { } };
+      $('#fmrnok', m).onclick = go; inp.onkeydown = e => { if (e.key === 'Enter') go(); };
+    };
+    if ($('#fmmv')) $('#fmmv').onclick = () => moveDialog();
+    if ($('#fmrm')) $('#fmrm').onclick = async () => {
+      if (!confirm(`Delete ${n} item${n === 1 ? '' : 's'}${fo.length ? ' (folders include everything inside them)' : ''}?\n\nThey go to the Recycle bin for 72 hours, then are removed. Share links already sent stop working.`)) return;
+      try { await api('folder', 'delete', { files: fl, folders: fo }); clearSel(); toast('Moved to the Recycle bin'); reload(); } catch (e) { }
+    };
+  };
+  const moveDialog = () => {
+    const fl = [...FM.files], fo = [...FM.folders];
+    const barred = new Set(fo.map(Number)); let grew = true;
+    while (grew) { grew = false; folders.forEach(f => { if (!barred.has(+f.id) && barred.has(+f.parent_id)) { barred.add(+f.id); grew = true; } }); }
+    const tree = (pid, depth) => folders.filter(f => (+f.parent_id || 0) === pid && !barred.has(+f.id)).sort((a, b) => a.name.localeCompare(b.name)).map(f => `<label class="fm-pick" style="padding-left:${10 + depth * 18}px"><input type="radio" name="fmto" value="${f.id}"><i class="i i-folder"></i> ${esc(f.name)}</label>${tree(+f.id, depth + 1)}`).join('');
+    const m = modal(`<h2 style="margin-top:0">Move ${fl.length + fo.length} item${fl.length + fo.length === 1 ? '' : 's'} to…</h2>
+      <div class="fm-picks"><label class="fm-pick"><input type="radio" name="fmto" value="0" checked><i class="i i-folder"></i> Folder (top level)</label>${tree(0, 1)}</div>
+      <div class="bar" style="margin-top:12px"><button class="btn" id="fmmvok">Move here</button><button class="btn sec" id="fmmvx">Cancel</button></div>`);
+    $('#fmmvx', m).onclick = () => m.remove();
+    $('#fmmvok', m).onclick = async () => { const to = +$('input[name=fmto]:checked', m).value; try { await api('folder', 'move', { files: fl, folders: fo, to: to || null }); m.remove(); clearSel(); toast('Moved'); reload(); } catch (e) { } };
+  };
+  const upload = async list => {
+    list = [...list]; if (!list.length) return;
+    const st = document.createElement('div'); st.className = 'fm-prog'; document.body.appendChild(st);
+    let ok = 0, done = 0;
+    for (const f of list) {
+      done++; st.textContent = `Uploading ${done} of ${list.length}…`;
+      if (f.size > 25 * 1048576) { alert(f.name + ' is larger than 25 MB.'); continue; }
+      if (files.some(x => x.file_name.toLowerCase() === f.name.toLowerCase()) && !confirm(`Replace ${f.name} with the new version? The old one goes to the Recycle bin.`)) continue;
+      const fd = new FormData(); fd.append('file', f); fd.append('folder_id', cur ? String(cur) : '');
       try { await api('folder', 'upload', fd); ok++; } catch (e) { break; }
     }
-    if (ok) { toast(ok + ' file' + (ok > 1 ? 's' : '') + ' uploaded'); m.remove(); route(); } else { b.disabled = false; b.textContent = 'Upload'; }
+    st.remove();
+    if (ok) toast(ok + ' file' + (ok > 1 ? 's' : '') + ' uploaded');
+    reload();
   };
-}
-
-function editModal(d, cats) {
-  const adm = ME.role === 'admin';
-  const m = modal(`<h2 style="margin-top:0">Edit datasheet</h2><div class="two"><div class="full"><label>Title</label><input id="et" value="${esc(d.title)}"></div><div><label>Category</label><select id="ec">${cats.map(c => `<option ${d.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div><div><label>Brand</label><input id="eb" value="${esc(d.brand)}"></div>
-   <div><label>Model</label><input id="em" value="${esc(d.model)}"></div><div><label>Notes</label><input id="en" value="${esc(d.notes)}"></div>
-   ${adm ? `<div class="full"><label>Availability note (shown on the badge, optional)</label><input id="ea" value="${esc(d.avail_note)}" placeholder="e.g. 20 units in stock"></div>` : ''}</div>
-   <p class="mut" style="font-size:12px;margin:10px 0 0">File: ${esc(d.file_name)} (${fsize(d.size)}). To replace the file, upload a new one and delete this entry.</p>
-   <div class="bar" style="margin-top:12px"><button class="btn" id="esv">Save</button><button class="btn sec" id="ecx">Cancel</button><span class="sp"></span><button class="btn bad" id="edl">Delete</button></div>`);
-  $('#ecx', m).onclick = () => m.remove();
-  $('#esv', m).onclick = async () => { await api('folder', 'save', { id: d.id, title: $('#et', m).value, category: $('#ec', m).value, brand: $('#eb', m).value, model: $('#em', m).value, notes: $('#en', m).value }); if (adm && $('#ea', m).value !== (d.avail_note || '')) await api('folder', 'toggle', { id: d.id, available: d.available, avail_note: $('#ea', m).value }); m.remove(); route(); };
-  $('#edl', m).onclick = async () => { if (confirm('Delete this datasheet? Any share links already sent will stop working.')) { await api('folder', 'delete', { id: d.id }); FD.sel.delete(d.id); m.remove(); route(); } };
+  $('#fmq').oninput = e => { FM.q = e.target.value; draw(); };
+  if (w) {
+    $('#fmup').onclick = () => $('#fmfile').click();
+    $('#fmfile').onchange = e => { const l = [...e.target.files]; e.target.value = ''; upload(l); };
+    $('#fmnew').onclick = () => {
+      const m = modal(`<h2 style="margin-top:0">New folder</h2><input id="fmnn" placeholder="Folder name"><div class="bar" style="margin-top:12px"><button class="btn" id="fmnok">Create</button><button class="btn sec" id="fmnx">Cancel</button></div>`);
+      const inp = $('#fmnn', m); inp.focus(); $('#fmnx', m).onclick = () => m.remove();
+      const go = async () => { const v = inp.value.trim(); if (!v) return; try { await api('folder', 'folder_new', { parent_id: cur || null, name: v }); m.remove(); reload(); } catch (e) { } };
+      $('#fmnok', m).onclick = go; inp.onkeydown = e => { if (e.key === 'Enter') go(); };
+    };
+    const fm = $('#fm'), dz = $('#fmdrop'); let dn = 0;
+    const hasFiles = e => e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+    fm.ondragenter = e => { if (!hasFiles(e)) return; e.preventDefault(); dn++; dz.classList.remove('hide'); };
+    fm.ondragover = e => { if (hasFiles(e)) e.preventDefault(); };
+    fm.ondragleave = e => { if (!hasFiles(e)) return; if (--dn <= 0) { dn = 0; dz.classList.add('hide'); } };
+    fm.ondrop = e => { if (!hasFiles(e)) return; e.preventDefault(); dn = 0; dz.classList.add('hide'); upload(e.dataTransfer.files); };
+  }
+  draw();
 }
 
 async function shareModal(list) {
   list = list.filter(Boolean); if (!list.length) return;
   const [cs, ls] = await Promise.all([canR('customers') ? list_('customers') : [], canR('leads') ? list_('leads') : []]);
   const contacts = cs.map(c => ({ ...c, type: 'customer' })).concat(ls.filter(l => !l.customer_id).map(l => ({ ...l, type: 'lead' }))).filter(c => c.phone);
-  const compose = (name, incl) => `Hello${name ? ' ' + name : ''}, as requested, here ${list.length > 1 ? 'are the product datasheets' : 'is the product datasheet'} from ${S.company.name}:\n\n` +
-    list.map((d, i) => `${list.length > 1 ? (i + 1) + '. ' : ''}${d.title}${[d.brand, d.model].filter(Boolean).length ? ' (' + [d.brand, d.model].filter(Boolean).join(' ') + ')' : ''}${incl ? (d.available ? ' - In stock' : ' - Currently unavailable') + (d.avail_note ? ' (' + d.avail_note + ')' : '') : ''}\n${shareUrl(d)}`).join('\n\n') + '\n\nPlease let us know if you need anything else.';
+  const compose = name => `Hello${name ? ' ' + name : ''}, as requested, here ${list.length > 1 ? 'are the product datasheets' : 'is the product datasheet'} from ${S.company.name}:\n\n` +
+    list.map((d, i) => `${list.length > 1 ? (i + 1) + '. ' : ''}${d.title}${[d.brand, d.model].filter(Boolean).length ? ' (' + [d.brand, d.model].filter(Boolean).join(' ') + ')' : ''}\n${shareUrl(d)}`).join('\n\n') + '\n\nPlease let us know if you need anything else.';
   const m = modal(`<h2 style="margin-top:0">Share on WhatsApp</h2><p class="mut" style="margin:0 0 6px">${list.map(d => esc(d.title)).join(' · ')}</p>
    <label>Send to (customer / lead) — or type a number</label><input id="sc" list="scl" placeholder="Search name or phone…" autocomplete="off"><datalist id="scl">${contacts.map(c => `<option value="${esc(c.name)} · ${esc(c.phone)}"></option>`).join('')}</datalist>
    <input id="sn" placeholder="Phone number (optional — leave empty to choose the chat in WhatsApp)" style="margin-top:8px" type="tel">
-   <label style="display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px;margin-top:10px"><input type="checkbox" id="sa" style="width:auto" checked> Include availability in the message</label>
    <label>Message (editable)</label><textarea id="sm" rows="9"></textarea>
    <div class="bar" style="margin-top:12px"><button class="btn ok" id="sgo"><i class="i i-chat"></i> Open WhatsApp</button><button class="btn sec" id="scp">Copy message</button><button class="btn sec" id="scx">Cancel</button></div>
    <p class="mut" style="font-size:12px;margin:6px 0 0">Customers get a private link to each file — no login needed.</p>`);
   let who = null; const sm = $('#sm', m);
-  const redo = () => sm.value = compose(who?.name || '', $('#sa', m).checked); redo();
-  $('#sa', m).onchange = redo;
+  const redo = () => sm.value = compose(who?.name || ''); redo();
   $('#sc', m).oninput = e => { const c = contacts.find(x => `${x.name} · ${x.phone}` === e.target.value); who = c || null; if (c) $('#sn', m).value = c.phone; redo(); };
   $('#scx', m).onclick = () => m.remove();
   $('#scp', m).onclick = async () => { try { await navigator.clipboard.writeText(sm.value); toast('Message copied'); } catch (e) { sm.select(); } };
@@ -101,7 +150,7 @@ async function shareModal(list) {
     const num = waNum($('#sn', m).value), text = sm.value;
     waLaunch(num, text);
     if (who && canW('whatsapp')) { try { await api('whatsapp', 'log', { customer_id: who.type === 'customer' ? who.id : null, lead_id: who.type === 'lead' ? who.id : null, phone: who.phone, text }); } catch (e) { } }
-    m.remove(); FD.sel.clear(); route();
+    m.remove(); FM.files.clear(); FM.folders.clear(); route();
   };
 }
 const list_ = m => api(m, 'list');

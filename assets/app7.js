@@ -151,7 +151,7 @@ async function templateModal(c) {
 }
 async function datasheetPicker(c) {
   const d = await api('folder', 'list');
-  const m = modal(`<h2 style="margin-top:0">Send a datasheet</h2><input id="dsq2" placeholder="Search…"><div class="dsp" id="dsl">${d.items.map(x => `<button class="dspi" data-d="${x.id}"><i class="i i-file"></i><span><b>${esc(x.title)}</b><small>${esc([x.category, x.brand, x.model].filter(Boolean).join(' · '))}</small></span>${x.available ? '<span class="av on"><i></i>Available</span>' : '<span class="av off"><i></i>Unavailable</span>'}</button>`).join('') || '<p class="mut">No datasheets in Folder yet.</p>'}</div>
+  const m = modal(`<h2 style="margin-top:0">Send a datasheet</h2><input id="dsq2" placeholder="Search…"><div class="dsp" id="dsl">${d.items.map(x => `<button class="dspi" data-d="${x.id}"><i class="i i-file"></i><span><b>${esc(x.title)}</b><small>${esc(fmPathText(d.folders, x.folder_id))}</small></span></button>`).join('') || '<p class="mut">No datasheets in Folder yet.</p>'}</div>
    <div class="bar" style="margin-top:10px"><button class="btn sec" id="dsx">Close</button></div>`);
   $('#dsq2', m).oninput = e => { const t = e.target.value.toLowerCase(); $$('.dspi', m).forEach(b => b.style.display = b.innerText.toLowerCase().includes(t) ? '' : 'none'); };
   $('#dsx', m).onclick = () => m.remove();
