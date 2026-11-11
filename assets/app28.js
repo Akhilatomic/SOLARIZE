@@ -20,8 +20,8 @@ var PFP = (function () {
   function due(d, x) { return ext({ due: d }, x); }
 
   var PAGES = [
-    { key: 'kseb', tab: 'KSEB connection', icon: 'bolt', sections: [{ paper: 'KSEB bill', fields: [
-      f('name', 'Name as on the KSEB bill', 'c', ALL, { hi: true }),
+    { key: 'kseb', tab: 'KSEB connection', icon: 'gauge', sections: [{ paper: 'KSEB bill', fields: [
+      f('name', 'Consumer name (exactly as on the KSEB bill — printed on every document)', 'c', ALL, { hi: true }),
       f('consumer_no', 'Consumer no.', 'c', ALL),
       f('kseb_section', 'KSEB section', 'c', ['cov', 'req', 'wcr', 'doi', 'agr', 'chk']),
       f('kseb_subdivision', 'Sub division', 'c', ['cov', 'doi']),
@@ -52,7 +52,7 @@ var PFP = (function () {
       f('notes', 'Notes', 'c', [], { t: 'area', opt: true }),
       f('gps', 'GPS location', 'c', ['agr'], { ro: true })
     ] }] },
-    { key: 'reg', tab: 'Registration & feasibility', icon: 'doc', sections: [
+    { key: 'reg', tab: 'Registration & feasibility', icon: 'clipboard', sections: [
       { paper: 'MNRE application acknowledgement & e-token', fields: [
         f('application_no', 'Application no.', 'p', ['cov', 'bfr'], due('pmsg')),
         f('application_date', 'Application date', 'p', ['cov'], due('pmsg', { t: 'date' })),
@@ -82,11 +82,11 @@ var PFP = (function () {
         f('bank_ifsc', 'IFSC', 'c', ['cov', 'doi'], due('kseb_docs'))
       ] },
       { paper: 'Loan papers (Jan Samarth)', fields: [
-        f('jansamarth_id', 'Jan Samarth ID', 'p', ['bfr'], due('loan', { perm: 'loans' })),
-        f('loan_bank', 'Loan bank', 'p', [], due('loan', { perm: 'loans' })),
-        f('loan_branch', 'Loan branch', 'p', [], due('loan', { perm: 'loans', opt: true })),
-        f('loan_amount', 'Loan amount', 'p', [], due('loan', { perm: 'loans', t: 'num' })),
-        f('loan_sanctioned_on', 'Sanctioned on', 'p', [], due('loan', { perm: 'loans', t: 'date' }))
+        f('jansamarth_id', 'Jan Samarth ID', 'c', ['bfr'], due('loan', { perm: 'loans' })),
+        f('loan_bank', 'Loan bank', 'c', [], due('loan', { perm: 'loans' })),
+        f('loan_branch', 'Loan branch', 'c', [], due('loan', { perm: 'loans', opt: true })),
+        f('loan_amount', 'Loan amount', 'c', [], due('loan', { perm: 'loans', t: 'num' })),
+        f('loan_sanctioned_on', 'Sanctioned on', 'c', [], due('loan', { perm: 'loans', t: 'date' }))
       ] }
     ] },
     { key: 'plant', tab: 'Plant details', icon: 'sun', sections: [{ paper: 'Plant details', fields: [

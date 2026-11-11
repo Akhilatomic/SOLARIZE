@@ -96,6 +96,25 @@ test('gps and serials values', function () {
   assert.strictEqual(PFP.value(f, ctx({ p: { panel_count: '2', panels: [{ serial: 'a' }, { serial: 'b' }] } })), 'ok');
 });
 
+test('page icons are defined app icons', function () {
+  var ICONS = 'alert award bank bell calendar card chat check chev clip clipboard clock coin copy dashboard dots download eye file folder gauge gear leave link lock mail megaphone menu note pencil phone pin plus project receipt refresh search shield sun target trash undo upload user userplus users whatsapp x'.split(' ');
+  PFP.PAGES.forEach(function (p) { assert.ok(ICONS.indexOf(p.icon) >= 0, p.key + ' icon ' + p.icon); });
+});
+
+test('loan fields are customer columns', function () {
+  var f = fields('bank').filter(function (x) { return x.k === 'jansamarth_id'; })[0];
+  assert.strictEqual(f.s, 'c');
+  var c = ctx({ c: { jansamarth_id: 'JS-1' }, p: { jansamarth_id: 'wrong' }, prog: { key: 'pmsg' }, j: { loan: 'Yes' } });
+  assert.strictEqual(PFP.value(f, c), 'JS-1');
+  assert.ok(miss('bank', c).indexOf('jansamarth_id') < 0);
+  assert.ok(miss('bank', ctx({ prog: { key: 'pmsg' }, j: { loan: 'Yes' } })).indexOf('jansamarth_id') >= 0);
+});
+
+test('page 1 name label is the binding wording', function () {
+  var f = fields('kseb').filter(function (x) { return x.k === 'name'; })[0];
+  assert.strictEqual(f.l, 'Consumer name (exactly as on the KSEB bill — printed on every document)');
+});
+
 test('later flags needed-but-not-due empties', function () {
   var c = ctx({ prog: { key: 'pmsg' }, j: { loan: 'No' } });
   var f = fields('plant').filter(function (x) { return x.k === 'capacity'; })[0];
