@@ -204,7 +204,7 @@ function handle_wa($a) {
       $c = wa_chat_get($in['chat_id'] ?? 0); $d = row('SELECT * FROM datasheets WHERE id=?', [(int)($in['datasheet_id'] ?? 0)]); if (!$d) fail('Datasheet not found', 404);
       $path = dirname(__DIR__) . '/data/uploads/' . basename($d['path']); if (!is_file($path)) fail('File missing', 404);
       $mime = mime_content_type($path) ?: 'application/pdf';
-      out(['id' => wa_send_file($c, $path, $mime, $d['file_name'], $d['title'] . ($d['available'] ? '' : ' (currently unavailable)'))]);
+      out(['id' => wa_send_file($c, $path, $mime, $d['file_name'], $d['title'])]);
     case 'templates':
       $c = wa_cfg(); if ($c['waba_id'] === '') out([]);
       [$code, $j] = wa_http('GET', $c['waba_id'] . '/message_templates?fields=name,language,status,category,components&limit=100');

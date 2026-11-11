@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 40; // bump when tables/columns change
+const SCHEMA_VERSION = 41; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -253,6 +253,23 @@ function migrate($db) {
   foreach (["appr TEXT DEFAULT ''", "appr_by TEXT DEFAULT ''", "appr_at TEXT DEFAULT ''", 'auto INTEGER DEFAULT 0', "calc TEXT DEFAULT ''"] as $col) { $cn = strtok($col, ' ');
     if ($cmc && !in_array($cn, $cmc)) { try { $db->exec("ALTER TABLE commissions ADD COLUMN $col"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } } }
   $db->exec("UPDATE commissions SET appr='ok' WHERE COALESCE(appr,'')='' AND (amount>0 OR p1_amount>0)");
+  /* v41: the Folder page is a file manager - ds_folders (nested) and datasheets.folder_id; old category files go to "Old uploads" / <category> */
+  $db->exec("CREATE TABLE IF NOT EXISTS ds_folders(id INTEGER PRIMARY KEY AUTOINCREMENT, parent_id INTEGER, name TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP, user TEXT)");
+  $db->exec("CREATE INDEX IF NOT EXISTS ds_folders_parent ON ds_folders(parent_id)");
+  if (!in_array('folder_id', array_column($db->query('PRAGMA table_info(datasheets)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE datasheets ADD COLUMN folder_id INTEGER'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  $db->exec("CREATE INDEX IF NOT EXISTS datasheets_folder ON datasheets(folder_id)");
+  if ($db->query('SELECT 1 FROM datasheets WHERE folder_id IS NULL LIMIT 1')->fetch()) {
+    $old = $db->query("SELECT id FROM ds_folders WHERE parent_id IS NULL AND name='Old uploads' COLLATE NOCASE")->fetchColumn();
+    if (!$old) { $db->exec("INSERT INTO ds_folders(parent_id,name,user) VALUES(NULL,'Old uploads','System')"); $old = (int)$db->lastInsertId(); }
+    $cats = $db->query("SELECT DISTINCT TRIM(category) FROM datasheets WHERE folder_id IS NULL AND TRIM(COALESCE(category,''))<>''")->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($cats as $cat) {
+      $nm = trim(str_replace(['/', '\\'], '-', mb_substr($cat, 0, 80)));
+      $sub = $db->prepare('SELECT id FROM ds_folders WHERE parent_id=? AND name=? COLLATE NOCASE'); $sub->execute([$old, $nm]); $sid = $sub->fetchColumn();
+      if (!$sid) { $db->prepare("INSERT INTO ds_folders(parent_id,name,user) VALUES(?,?,'System')")->execute([$old, $nm]); $sid = (int)$db->lastInsertId(); }
+      $db->prepare('UPDATE datasheets SET folder_id=? WHERE folder_id IS NULL AND TRIM(category)=?')->execute([$sid, $cat]);
+    }
+    $db->prepare('UPDATE datasheets SET folder_id=? WHERE folder_id IS NULL')->execute([$old]);
+  }
   /* v40: customers.pole_no, aadhaar_no, pan_no and the loan_* columns (TEXT, loan_amount kept out of NUMS so blank stays blank) come from the column list above */
   /* v39: customers.premises (Owned / Leased) and customers.transformer (distribution transformer & HT feeder), asked for by the
      KSEB net metering agreement, come from the column list above; plant.meter_by (Consumer / KSEB) lives in the plant JSON */
