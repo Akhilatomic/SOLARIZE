@@ -98,7 +98,7 @@ function renderDocs(box, c, id) {
       return `<div class="card dcard"><button class="dcth" data-v="${i}" title="View">${isImg(f) ? `<img loading="lazy" src="${fileUrl(f)}" alt="">` : `<span class="dcic"><i class="i i-file"></i><b>${esc((f.name.split('.').pop() || '').toUpperCase())}</b></span>`}</button>
         <div class="dcb"><b title="${esc(f.item || f.name)}">${esc(f.item || f.name)}</b><div class="dcm"><span class="mut">${dt(f.created)}</span><span class="dcd ${d <= 30 && f.kind !== 'warranty' ? 'warn' : ''}">● ${f.kind === 'warranty' ? 'Kept forever' : d > 0 ? d + 'd left' : 'expiring'}</span></div>
         ${f.item ? `<small class="mut dcn" title="${esc(f.name)}">${esc(f.name)}</small>` : ''}
-        <div class="dca"><a href="${fileUrl(f, 1)}" download="${esc(f.name)}"><i class="i i-download"></i> Download</a><button data-v="${i}"><i class="i i-eye"></i> View</button><button data-sh="${i}"><i class="i i-link"></i> Share</button>${w ? `<button class="dcdel" data-del="${i}" title="Move to Recycle bin"><i class="i i-trash"></i></button>` : ''}</div></div></div>`; }).join('')
+        <div class="dca"><a href="${fileUrl(f, 1)}" download="${esc(f.name)}"><i class="i i-download"></i> Download</a><button data-v="${i}"><i class="i i-eye"></i> View</button><button data-sh="${i}"><i class="i i-link"></i> Share</button>${isPdf(f) && canW('customers') ? `<button data-rd="${i}" title="Read this PDF (KSEB bill, MNRE / KSEB papers, DCR) and fill the customer’s details"><i class="i i-clipboard"></i> Read &amp; fill</button>` : ''}${w ? `<button class="dcdel" data-del="${i}" title="Move to Recycle bin"><i class="i i-trash"></i></button>` : ''}</div></div></div>`; }).join('')
       || `<div class="card" style="grid-column:1/-1;text-align:center;padding:30px"><p class="mut" style="margin:0 0 10px">No documents yet.</p>${w ? '<button class="btn" id="dcadd2"><i class="i i-plus"></i> Add documents</button>' : ''}</div>`}</div>`;
   const reload = async () => { const nc = await api('customers', 'get', undefined, '&id=' + id); c.files = nc.files; renderDocs(box, c, id); const t = $('[data-pt="docs"]'); if (t) t.innerHTML = `<i class="i i-file"></i> Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`; };
   [$('#dcadd', box), $('#dcadd2', box)].forEach(b => b && (b.onclick = () => docUploadModal(c, id, null, reload)));
@@ -107,6 +107,7 @@ function renderDocs(box, c, id) {
   $$('.dcth img', box).forEach(img => { if (img.complete && !img.naturalWidth) noImg(img); else img.onerror = () => noImg(img); });
   $$('[data-v]', box).forEach(b => b.onclick = () => docViewer(F, +b.dataset.v));
   $$('[data-sh]', box).forEach(b => b.onclick = () => docShare(F[+b.dataset.sh], c));
+  $$('[data-rd]', box).forEach(b => b.onclick = () => docRead(F[+b.dataset.rd], id, () => route()));
   $$('[data-del]', box).forEach(b => b.onclick = async () => { const f = F[+b.dataset.del]; if (!confirm(`Delete "${f.item || f.name}"?\n\nIt goes to the Recycle bin and can be restored for 72 hours.`)) return; await api('files', 'delete', { id: f.id }); toast('Moved to Recycle bin'); reload(); });
 }
 async function docShare(f, c) {
