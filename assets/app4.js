@@ -12,6 +12,113 @@ function fmDocDrag() {
   /* files from the computer: onto a folder → into that folder, anywhere else → into the open folder */
   document.addEventListener('drop', e => { if (!$('#fm') || !fmHasFiles(e)) return; e.preventDefault(); const dz = $('#fmdrop'); if (dz) dz.classList.add('hide'); fmUnmark(); const t = fmDropAt(e); if (FMUP) FMUP(e.dataTransfer.files, t ? t.id : undefined); else toast("You can't upload here", 1); });
 }
+/* ---- Uploads: one queue for the page, shown in a panel with a progress bar, speed and time left.
+   Sent one file at a time with XMLHttpRequest (fetch cannot report upload progress); it keeps going if another page is opened. ---- */
+const FM_OK_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx', 'xls', 'xlsx'], FM_MAX = 25 * 1048576;
+const FMU = { jobs: [], busy: false, xhr: null, samples: [], t0: 0, t1: 0, frame: 0, hideT: 0, min: false, el: null };
+const fmBytes = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B';
+const fmRate = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB/s' : Math.max(1, Math.round(b / 1024)) + ' KB/s';
+const fmLeft = s => s < 60 ? Math.max(1, Math.round(s)) + ' s' : s < 3600 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(1) + ' h';
+const fmWarn = e => { e.preventDefault(); e.returnValue = ''; }; /* closing the tab mid-upload asks first */
+const fmUpLive = j => j.st !== 'bad' && j.st !== 'skip';
+const fmUpDone = () => FMU.jobs.reduce((t, j) => t + (j.st === 'ok' ? j.f.size : j.st === 'up' || j.st === 'save' ? Math.min(j.sent, j.f.size) : 0), 0);
+/* list: files; to / toName: target folder; names: lower-case file names already in that folder (same name = replace, asked once for the batch) */
+function fmUpAdd(list, to, toName, names) {
+  if (!FMU.busy) { FMU.jobs = []; FMU.samples = []; }
+  clearTimeout(FMU.hideT);
+  const fits = f => FM_OK_EXT.includes((f.name.split('.').pop() || '').toLowerCase()) && f.name.includes('.') && f.size <= FM_MAX;
+  const dup = list.filter(f => fits(f) && names.has(f.name.toLowerCase()));
+  const replace = !dup.length || confirm(dup.length === 1
+    ? `${dup[0].name} is already in ${toName}.\n\nReplace it with the new version? The old one goes to the Recycle bin, and links already sent for it stop working.\n\nCancel keeps the old one.`
+    : `${dup.length} of these files are already in ${toName}:\n${dup.slice(0, 8).map(f => '• ' + f.name).join('\n')}${dup.length > 8 ? '\n…' : ''}\n\nReplace them with the new versions? The old ones go to the Recycle bin, and links already sent for them stop working.\n\nCancel keeps the old ones.`);
+  for (const f of list) {
+    const ext = (f.name.split('.').pop() || '').toLowerCase(), j = { f, to, toName, ext, st: 'wait', sent: 0, msg: '', replaced: false };
+    if (!f.name.includes('.') || !FM_OK_EXT.includes(ext)) { j.st = 'bad'; j.msg = 'This type can’t be uploaded — PDF, images, Word or Excel only'; }
+    else if (f.size > FM_MAX) { j.st = 'bad'; j.msg = 'Larger than 25 MB'; }
+    else if (!replace && names.has(f.name.toLowerCase())) { j.st = 'skip'; j.msg = 'Skipped — kept the file already there'; }
+    FMU.jobs.push(j);
+  }
+  FMU.min = false; fmUpPaint(); fmUpRun();
+}
+const fmUpSend = j => new Promise((res, rej) => {
+  const fd = new FormData(); fd.append('file', j.f); fd.append('folder_id', j.to ? String(j.to) : '');
+  const x = FMU.xhr = new XMLHttpRequest();
+  x.open('POST', 'api.php?m=folder&a=upload'); x.setRequestHeader('X-Solarize', '1');
+  x.upload.onprogress = e => { j.sent = e.loaded; fmUpTick(); };
+  x.upload.onload = () => { j.sent = j.f.size; if (j.st === 'up') j.st = 'save'; fmUpTick(); }; /* all bytes sent: the server is saving it */
+  x.onload = () => {
+    FMU.xhr = null; let r; try { r = JSON.parse(x.responseText); } catch (e) { r = { error: 'Bad server response' }; }
+    if (x.status === 401) { boot(); rej(new Error('Signed out — sign in and upload it again')); return; }
+    if (x.status >= 400 || r.error) rej(new Error(r.error || 'Upload failed (error ' + x.status + ')')); else res(r);
+  };
+  x.onerror = () => { FMU.xhr = null; rej(new Error('Connection lost — try again')); };
+  x.onabort = () => { FMU.xhr = null; rej(new Error('Cancelled')); };
+  x.send(fd);
+});
+async function fmUpRun() {
+  if (FMU.busy) return; /* already running: it picks up the new files */
+  FMU.busy = true; FMU.t0 = performance.now(); FMU.t1 = 0; window.addEventListener('beforeunload', fmWarn);
+  let j;
+  while ((j = FMU.jobs.find(x => x.st === 'wait'))) {
+    j.st = 'up'; fmUpTick();
+    try { const r = await fmUpSend(j); j.st = 'ok'; j.replaced = !!r.replaced; }
+    catch (e) { if (j.st !== 'skip') { j.st = 'bad'; j.msg = e.message || 'Upload failed'; } }
+    fmUpTick();
+  }
+  FMU.busy = false; FMU.t1 = performance.now(); window.removeEventListener('beforeunload', fmWarn);
+  fmUpPaint();
+  /* show the new files if the Folder page is open; with nothing failed, the panel tidies itself away */
+  if (FMU.jobs.some(x => x.st === 'ok') && /^#\/folder/.test(location.hash)) route();
+  if (!FMU.jobs.some(x => x.st === 'bad')) FMU.hideT = setTimeout(() => { if (!FMU.busy && FMU.el) { FMU.el.remove(); FMU.el = null; } }, 8000);
+}
+/* speed = bytes sent over the last 3 seconds; repainted at most once per frame */
+function fmUpTick() {
+  const now = performance.now(); FMU.samples.push({ t: now, b: fmUpDone() });
+  while (FMU.samples.length > 2 && now - FMU.samples[0].t > 3000) FMU.samples.shift();
+  if (!FMU.frame) FMU.frame = requestAnimationFrame(() => { FMU.frame = 0; fmUpPaint(); });
+}
+function fmUpPaint() {
+  let el = FMU.el;
+  if (!el || !document.body.contains(el)) {
+    el = FMU.el = document.createElement('div'); el.className = 'fm-up'; el.setAttribute('role', 'status'); document.body.appendChild(el);
+    el.onclick = e => {
+      if (e.target.closest('#fmupmin')) { FMU.min = !FMU.min; fmUpPaint(); }
+      else if (e.target.closest('#fmupx')) { clearTimeout(FMU.hideT); el.remove(); FMU.el = null; }
+      else if (e.target.closest('#fmupstop') && confirm('Stop uploading? Files already uploaded stay.')) {
+        FMU.jobs.forEach(j => { if (j.st === 'wait' || j.st === 'up' || j.st === 'save') { j.st = 'skip'; j.msg = 'Cancelled'; } });
+        if (FMU.xhr) FMU.xhr.abort(); fmUpPaint();
+      }
+    };
+  }
+  const J = FMU.jobs, live = J.filter(fmUpLive), total = live.reduce((t, j) => t + j.f.size, 0), done = fmUpDone();
+  const nOk = J.filter(j => j.st === 'ok').length, nBad = J.filter(j => j.st === 'bad').length, nSkip = J.filter(j => j.st === 'skip').length;
+  const pct = total ? Math.min(100, Math.floor(done / total * 100)) : 100, to = [...new Set(live.map(j => j.toName))];
+  const s = FMU.samples, dt = s.length > 1 ? (s[s.length - 1].t - s[0].t) / 1000 : 0, rate = dt >= 0.4 ? (s[s.length - 1].b - s[0].b) / dt : 0;
+  let head, line;
+  if (FMU.busy) {
+    const k = Math.min(live.length, live.filter(j => j.st === 'ok').length + 1);
+    head = `Uploading ${k} of ${live.length}${to.length === 1 ? ' to ' + esc(to[0]) : ''}`;
+    line = `${pct}% · ${fmBytes(done)} of ${fmBytes(total)}${rate > 0 ? ` · ${fmRate(rate)} · about ${fmLeft((total - done) / rate)} left` : ' · starting…'}`;
+  } else {
+    const secs = FMU.t1 && FMU.t0 ? (FMU.t1 - FMU.t0) / 1000 : 0, sent = J.filter(j => j.st === 'ok').reduce((t, j) => t + j.f.size, 0);
+    const nCan = J.filter(j => j.st === 'skip' && j.msg === 'Cancelled').length;
+    head = [nCan ? 'Cancelled' : '', nOk ? `${nOk} uploaded` : '', nBad ? `${nBad} failed` : '', nSkip - nCan ? `${nSkip - nCan} skipped` : ''].filter(Boolean).join(' · ') || 'Nothing uploaded';
+    line = nOk && secs > 0 ? `${fmBytes(sent)} in ${fmLeft(secs)} · ${fmRate(sent / secs)} on average` : '';
+  }
+  const row = j => {
+    const p = j.f.size ? Math.min(100, Math.floor(Math.min(j.sent, j.f.size) / j.f.size * 100)) : 100;
+    const txt = j.st === 'wait' ? 'Waiting' + (to.length > 1 ? ' · to ' + esc(j.toName) : '')
+      : j.st === 'up' ? `${p}% · ${fmBytes(Math.min(j.sent, j.f.size))} of ${fmBytes(j.f.size)}` : j.st === 'save' ? 'Saving…'
+      : j.st === 'ok' ? (j.replaced ? 'Uploaded — replaced the old version' : 'Uploaded') + (to.length > 1 ? ' to ' + esc(j.toName) : '') : esc(j.msg);
+    return `<div class="fm-upr is-${j.st}"><span class="fm-ty">${esc(j.ext.toUpperCase().slice(0, 4) || '?')}</span><div><b>${esc(j.f.name)}</b><small>${txt}</small>${j.st === 'up' || j.st === 'save' ? `<div class="fm-upbar sm"><i style="width:${j.st === 'save' ? 100 : p}%"></i></div>` : ''}</div>${j.st === 'ok' ? '<i class="i i-check"></i>' : j.st === 'bad' ? '<i class="i i-alert"></i>' : ''}</div>`;
+  };
+  el.className = 'fm-up' + (FMU.busy ? '' : nBad ? ' bad' : ' done');
+  el.innerHTML = `<div class="fm-uph"><b>${head}</b><span class="sp"></span>
+    <button class="ib" id="fmupmin" title="${FMU.min ? 'Show the files' : 'Hide the files'}" aria-label="${FMU.min ? 'Show the files' : 'Hide the files'}"><i class="i i-chev ${FMU.min ? 'fm-u' : 'fm-dn'}"></i></button>
+    ${FMU.busy ? '<button class="btn sm sec" id="fmupstop">Cancel</button>' : '<button class="ib" id="fmupx" title="Close" aria-label="Close"><i class="i i-x"></i></button>'}</div>
+    <div class="fm-upbar"><i style="width:${pct}%"></i></div>${line ? `<div class="fm-upst">${line}</div>` : ''}
+    ${FMU.min ? '' : `<div class="fm-upl">${J.map(row).join('')}</div>`}`;
+}
 const FM_MIME = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
 /* view options remembered per browser (list / grid, sort order); localStorage can be blocked, so both reads and writes are guarded */
 const fmPref = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
@@ -223,21 +330,10 @@ async function pgFolder(id) {
     $('#fmmvx', m).onclick = () => m.remove();
     $('#fmmvok', m).onclick = async () => { const to = +$('input[name=fmto]:checked', m).value; try { await api('folder', 'move', { files: fl, folders: fo, to: to || null }); m.remove(); clearSel(); toast('Moved'); reload(); } catch (e) { } };
   };
-  const upload = async (list, to = cur) => {
+  /* hand the files to the page-wide upload queue (progress panel); `to` = target folder, default the open one */
+  const upload = (list, to = cur) => {
     list = [...list]; if (!list.length) return;
-    const there = items.filter(i => (+i.folder_id || 0) === to);
-    const st = document.createElement('div'); st.className = 'fm-prog'; document.body.appendChild(st);
-    let ok = 0, bad = 0, done = 0;
-    for (const f of list) {
-      done++; st.textContent = `Uploading ${done} of ${list.length}…`;
-      if (f.size > 25 * 1048576) { alert(f.name + ' is larger than 25 MB.'); bad++; continue; }
-      if (there.some(x => x.file_name.toLowerCase() === f.name.toLowerCase()) && !confirm(`Replace ${f.name} in ${fname(to)} with the new version? The old one goes to the Recycle bin, and links already sent for it stop working.`)) continue;
-      const fd = new FormData(); fd.append('file', f); fd.append('folder_id', to ? String(to) : '');
-      try { await api('folder', 'upload', fd); ok++; } catch (e) { bad++; }
-    }
-    st.remove();
-    if (ok || bad) toast((ok ? ok + ' uploaded' + (to !== cur ? ' to ' + fname(to) : '') : '') + (ok && bad ? ' · ' : '') + (bad ? bad + ' failed' : ''), !ok);
-    reload();
+    fmUpAdd(list, to, fname(to), new Set(items.filter(i => (+i.folder_id || 0) === to).map(i => i.file_name.toLowerCase())));
   };
   $('#fmq').oninput = e => { FM.q = e.target.value; draw(); };
   const goTo = id => { location.hash = id ? '#/folder/' + id : '#/folder'; };
