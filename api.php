@@ -30,6 +30,7 @@ require __DIR__ . '/api/bank.php';
 require __DIR__ . '/api/mail.php';
 require __DIR__ . '/api/quotemaker.php';
 require __DIR__ . '/api/comm.php';
+require __DIR__ . '/api/import.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';
@@ -77,6 +78,7 @@ try {
     case 'mail': handle_mail($a);
     case 'qm': handle_qm($a);
     case 'comm': handle_comm($a);
+    case 'import': handle_import($a);
   }
   fail('Unknown module', 404);
 } catch (Throwable $e) {

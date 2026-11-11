@@ -590,7 +590,7 @@ async function pgCustomers() {
   const w = canW('customers');
   if (CUF.ownFor !== ME.id) { CUF.ownFor = ME.id; CUF.own = ownView('customers'); } // Me / All remembered per person
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Customers</h2><div class="mut" id="ccount"></div></div><span class="sp"></span>
-   <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${canW('leads') ? '<button class="btn sec" id="cconv"><i class="i i-userplus"></i> Convert lead</button>' : ''}${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
+   <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${ME.role === 'admin' ? '<button class="btn sec" id="cimp" title="Import customers from a prepared file"><i class="i i-upload"></i> Import</button>' : ''}${canW('leads') ? '<button class="btn sec" id="cconv"><i class="i i-userplus"></i> Convert lead</button>' : ''}${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
    <div class="bar cbar" style="margin-top:12px">${ownSwitch('customers', CUF.own)}<input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
    <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity'], ...(canR('fees') ? [['feas', 'Feasibility expiry']] : [])].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
@@ -668,6 +668,7 @@ async function pgCustomers() {
   $('#cst').onchange = e => { CUF.st = e.target.value; draw(true); }; $('#csort').onchange = e => { CUF.sort = e.target.value; draw(true); };
   ownBind($('.cbar'), 'customers', v => { CUF.own = v; draw(true); });
   $('#cref').onclick = () => route();
+  if ($('#cimp')) $('#cimp').onclick = () => custImport(() => route());
   $('#chov').onchange = e => { try { localStorage.custHover = e.target.checked ? '1' : '0'; } catch (x) { } if (FH) FH.classList.remove('on'); toast('Hover info ' + (e.target.checked ? 'on' : 'off')); };
   if ($('#cconv')) $('#cconv').onclick = convertLeadModal;
   if ($('#cex')) $('#cex').onclick = () => csvDownload('customers-' + today() + '.csv', ['name', 'phone', 'email', 'address', 'district', 'consumer_no', 'kseb_section', 'sanctioned_load', 'roof_type', 'gst_no', 'status', 'kw', 'owner_name', 'added_by', 'created', 'notes'], cs);
