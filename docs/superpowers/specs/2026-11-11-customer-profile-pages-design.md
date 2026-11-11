@@ -143,7 +143,8 @@ Used to decide what counts as "needed". From KD.defaults (`assets/app24.js`):
 
 - Overview keeps progress, location, quotations, notes and the timeline; the three detail cards it shows today (Basic,
   KSEB, Bank) are replaced by a short "Details by page" card with each page's missing count and a link to it.
-- Lead type, GST no. and landmark go on page 2; the customer's roof type joins the Rooftop section of page 5.
+- Lead type, GST no., landmark and notes go on page 2. The customer's roof type (from the lead) is not a separate box any
+  more: page 5's Rooftop type shows it when the plant's own rooftop type is empty, so it is kept and still visible.
 - Aadhaar and PAN numbers are masked exactly like the bank account (last 4 digits for roles that do not see the full account).
 - Loan details on page 4 are shown only to roles that can read `loans` (the Bank documentation permission); the passbook
   part follows the customers permission and the existing masking.
