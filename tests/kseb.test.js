@@ -585,13 +585,14 @@ const NET = {
 
 test('agreement: defaults from the profile and plant', () => {
   const v = KD.defaults('agr', NET);
-  assert.deepEqual([v.date, v.place, v.category, v.voltage, v.load, v.capacity, v.premises, v.meter_by, v.party2],
-    ['2026-11-11', 'Anad', 'LT-1A', '240V', '3 KW', '3 KW', 'Owned', 'Consumer', 'KSEB Limited']);
+  assert.deepEqual([v.date, v.place, v.category, v.voltage, v.load, v.capacity, v.premises, v.meter_by, v.net_meter_by, v.party2],
+    ['2026-11-11', 'Anad', 'LT-1A', '240V', '3 KW', '3 KW', 'Owned', 'Consumer', 'KSEB', 'KSEB Limited'], 'solar meter the consumer\'s, net meter from KSEB');
   assert.deepEqual([v.meter_no, v.meter_make, v.meter_reading, v.gps, v.section, v.local_body], ['17180001', 'VISIONTEK', '0.2794 kWh', '8.63975,77.003603', 'Chullimanoor', 'Anad Grama Panchayath']);
   assert.equal(v.site_address, v.address);
   for (const g of KD.DOCS.agr.groups) for (const f of g.fields) assert.ok(f.k in v, 'agr.' + f.k);
   const t = KD.defaults('agr', { customer: { phase: 'Three phase', premises: 'Leased', tariff: 'Other', lat: '0', lng: '0' }, plant: { meter_by: 'kseb' }, today: '2026-11-11' });
-  assert.deepEqual([t.voltage, t.premises, t.meter_by, t.category, t.gps], ['415V', 'Leased', 'KSEB', '', '']);
+  assert.deepEqual([t.voltage, t.premises, t.meter_by, t.net_meter_by, t.category, t.gps], ['415V', 'Leased', 'KSEB', 'KSEB', '', '']);
+  assert.equal(KD.defaults('agr', { customer: {}, plant: { net_meter_by: 'consumer' } }).net_meter_by, 'Consumer');
   assert.deepEqual(KD.empty('agr', v), ['Distribution transformer & HT feeder (HT prosumer)', 'Village & survey number'], 'SPIN and wheeling are optional');
   assert.equal(KD.placeName('Thiruvananthapuram Corporation'), 'Thiruvananthapuram');
   assert.equal(KD.placeName('Nedumangad Municipality'), 'Nedumangad');
@@ -617,18 +618,28 @@ test('agreement: stamp paper page 1, strike-outs, Schedule table, signatures tog
   assert.equal(text.find(o => /^Whereas, the consumer/.test(o.t)).p, 1, 'Whereas starts page 2');
   for (const t of ['made on this 11-11-2026 at Anad between SUMA DEVI R Consumer number 1146530000002', 'Electrical Section Chullimanoor hereinafter', 'having capacity 3 kW as per', '(SPIN) __________ as scheduled'])
     assert.ok(all.includes(t), t);
-  /* Owned + meters bought by the consumer: the lease words and the meter rent paragraph are struck through */
-  const strikes = o => o.filter(x => x.ln && x.ln[1] === x.ln[3] && x.w === 0.6 && (x.p || 0) < 3);
-  const owned = strikes(r.ops);
-  assert.ok(owned.length >= 4, owned.length + ' strike lines');
-  const leased = strikes(KD.layout('agr', Object.assign({}, v, { premises: 'Leased', meter_by: 'KSEB' }), measure).ops);
-  const none = strikes(KD.layout('agr', Object.assign({}, v, { premises: '', meter_by: '' }), measure).ops);
-  assert.equal(none.length, 0, 'not marked: nothing struck');
-  assert.notDeepEqual(leased.map(x => x.ln), owned.map(x => x.ln));
-  /* the struck line runs through "or owned and possessed by consumer under a valid lease agreement" */
-  const ln = text.find(o => o.t.includes('owned and possessed by consumer under'));
-  const s1 = owned.find(x => (x.p || 0) === (ln.p || 0) && Math.abs(x.ln[1] - (ln.y - 0.27 * ln.s)) < 0.1);
-  assert.ok(s1 && s1.ln[0] > ln.x, 'strike on the lease line, after its start');
+  /* the words under each strike line: the text op on that line, cut where the line starts and ends */
+  const lineOf = (ops, x) => ops.find(t => t.t && (t.p || 0) === (x.p || 0) && Math.abs(x.ln[1] - (t.y - 0.27 * t.s)) < 0.02);
+  const struck = ops => ops.filter(x => x.ln && x.ln[1] === x.ln[3] && x.w === 0.6 && lineOf(ops, x)).map(x => {
+    const o = lineOf(ops, x);
+    const at = px => { for (let i = 0; i <= o.t.length; i++) if (Math.abs(o.x + measure(o.t.slice(0, i), o.f, o.s) - px) < 0.02) return i; return -1; };
+    return o.t.slice(at(x.ln[0]), at(x.ln[2]));
+  }).join(' | ');
+  const lay = o => KD.layout('agr', Object.assign({}, v, o), measure).ops;
+  /* default: owned, solar (energy) meter the consumer's, net meter from KSEB on rent */
+  const dflt = struck(r.ops);
+  assert.ok(/^or owned and possessed by consumer under a valid lease agreement( \| |$)/.test(dflt) || dflt.startsWith('or owned and possessed by consumer under') , dflt);
+  assert.ok(dflt.includes('solar meter and') && dflt.includes('and the net meter'), 'rent "for net meter" only; consumer "provided the solar meter" only: ' + dflt);
+  assert.ok(!dflt.includes('remit the rent') && !dflt.includes('And whereas the consumer has provided'), 'neither meter paragraph struck as a whole');
+  assert.ok(all.includes('remit the rent for solar meter and net meter, as applicable'), 'the wording itself is unchanged');
+  const leased = struck(lay({ premises: 'Leased' }));
+  assert.ok(leased.replace(/ \| /g, ' ').startsWith('owned and possessed by him/her or'), leased);
+  assert.ok(struck(lay({ meter_by: 'Consumer', net_meter_by: 'Consumer' })).includes('And whereas, the consumer shall remit the rent for'), 'both meters the consumer\'s: the rent paragraph');
+  const both = struck(lay({ meter_by: 'KSEB', net_meter_by: 'KSEB' }));
+  assert.ok(both.includes('And whereas the consumer has provided the solar meter') && !both.includes('remit'), 'both from KSEB: the consumer paragraph: ' + both);
+  const rev = struck(lay({ meter_by: 'KSEB', net_meter_by: 'Consumer' }));
+  assert.ok(rev.includes('and net meter') && rev.includes('the solar meter and'), rev);
+  assert.equal(struck(lay({ premises: '', meter_by: '', net_meter_by: 'KSEB' })), '', 'not marked: nothing struck');
   /* the signatures: both parties and four witnesses on one page, after clause 16 */
   const last = text.find(o => o.t === '(2nd party)').p;
   for (const t of ['(1st party)', 'SUMA DEVI R', 'KSEB Limited']) assert.ok(text.some(o => o.t === t && o.p === last), t);

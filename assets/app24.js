@@ -271,8 +271,10 @@ var KD = (function () {
           { k: 'load', l: 'Connected load / contract demand', src: 'c.sanctioned_load' }
         ] },
         { g: 'Solar meter and net meter', fields: [
-          { k: 'meter_by', l: 'Meters provided by', t: 'opts', opt: true, src: 'p.meter_by',
-            opts: [['Consumer', 'The consumer, at own cost'], ['KSEB', 'KSEB Limited (consumer pays meter rent)'], ['', 'Not marked (strike out by hand)']] },
+          { k: 'meter_by', l: 'Solar (energy) meter provided by', t: 'opts', opt: true, src: 'p.meter_by',
+            opts: [['Consumer', 'The consumer, at own cost'], ['KSEB', 'KSEB Limited (consumer pays rent)'], ['', 'Not marked (strike out by hand)']] },
+          { k: 'net_meter_by', l: 'Net meter provided by', t: 'opts', opt: true, src: 'p.net_meter_by',
+            opts: [['KSEB', 'KSEB Limited (consumer pays rent)'], ['Consumer', 'The consumer, at own cost'], ['', 'Not marked (strike out by hand)']] },
           { k: 'meter_no', l: 'Solar meter no.', src: 'p.meter_serial' },
           { k: 'meter_make', l: 'Solar meter make', src: 'p.meter_make' },
           { k: 'meter_reading', l: 'Initial reading', src: 'p.meter_reading' }
@@ -565,8 +567,9 @@ var KD = (function () {
         section: trim(c.kseb_section), party2: 'KSEB Limited',
         voltage: aph === 'three' ? '415V' : aph === 'single' ? '240V' : '',
         load: bare(c.sanctioned_load, 'KW'),
-        /* the consumer buys the meters unless the profile says KSEB (as Annexure 2: "meters bought by the consumer: YES") */
+        /* usual split: the solar (energy) meter is the consumer's scope, the net meter comes from KSEB on rent */
         meter_by: /^kseb/i.test(trim(p.meter_by)) ? 'KSEB' : 'Consumer',
+        net_meter_by: /^consumer/i.test(trim(p.net_meter_by)) ? 'Consumer' : 'KSEB',
         meter_no: trim(p.meter_serial), meter_make: trim(p.meter_make),
         meter_reading: isNum(p.meter_reading) ? trim(p.meter_reading) + ' kWh' : trim(p.meter_reading),
         capacity: cap('KW'), spin: trim(p.spin),
@@ -1318,7 +1321,8 @@ var KD = (function () {
   /* ---- KSEB: Net Metering Agreement (the official wording, 200RS AGREEMENT.docx) ----
      Blocks: t title, p paragraph, w paragraph with its first line indented, c centred, n numbered clause, sig the closing
      "In witness whereof" with the signatures (kept together), sched the Schedule. {field} is filled in (an empty one prints a
-     blank line to fill by hand); {~tag}…{~} is a "strike out whichever is not applicable" part, struck through when chosen. */
+     blank line to fill by hand); {~tag …}…{~} is a "strike out whichever is not applicable" part, struck through when any of its
+     tags is chosen (flat, not nested: each marker sets the tags of the text up to the next one). */
   K.KAGR = [
     ['t', 'Net Metering Agreement for connecting solar energy system to the distribution system of the licensee'],
     ['p', 'This memorandum of agreement is made on this {date} at {place} between {name} Consumer number {consumer_no} (hereinafter referred to as ‘consumer’) residing at {address}, as first party'],
@@ -1330,8 +1334,8 @@ var KD = (function () {
     ['w', 'And whereas, the consumer has assured that in case of a power outage in the system of KSEB Limited, his/her plant will not inject power into the distribution system of the licensee and has produced separately the documents substantiating this assurance which form part of this agreement, as if incorporated herein;'],
     ['w', 'And whereas, the consumer has undertaken that all the equipment connected to the distribution system comply with relevant international (IEEE/IEC) or Indian standards (BIS) and that installations of electrical equipment comply with the relevant provisions of the Central Electricity Authority (Measures relating to Safety and Electric Supply) Regulations, 2010 as amended from time to time;'],
     ['w', 'And whereas, the consumer undertakes that he/she is in possession of all the necessary approvals and clearances, including sanction from the Electrical Inspector, as specified in relevant regulations for connecting the solar energy system to the distribution system for commissioning the solar energy system;'],
-    ['w', '{~rent}And whereas, the consumer shall remit the rent for solar meter and net meter, as applicable, charged by KSEB Limited at the rates approved by the Kerala State Electricity Regulatory Commission from time to time for the satisfactory fulfillment of this agreement.{~} [strike out this portion if the meter is provided by the consumer at his/her cost];'],
-    ['w', '{~cmeter}And whereas the consumer has provided the solar meter and the net meter at his/her cost, which has been tested, certified and installed by KSEB Limited.{~} [strike out this portion if the meter is provided by KSEB Ltd];'],
+    ['w', '{~rent}And whereas, the consumer shall remit the rent for {~rent rs}solar meter{~rent rand} and{~rent rn} net meter{~rent}, as applicable, charged by KSEB Limited at the rates approved by the Kerala State Electricity Regulatory Commission from time to time for the satisfactory fulfillment of this agreement.{~} [strike out this portion if the meter is provided by the consumer at his/her cost];'],
+    ['w', '{~cmeter}And whereas the consumer has provided {~cmeter cs}the solar meter{~cmeter cand} and{~cmeter cn} the net meter{~cmeter} at his/her cost, which has been tested, certified and installed by KSEB Limited.{~} [strike out this portion if the meter is provided by KSEB Ltd];'],
     ['p', 'Now, therefore, both the parties hereby agree as follows:-'],
     ['n', '1.', 'The net-metering connection shall be governed by the provisions contained in the Kerala State Electricity Regulatory Commission (Renewable Energy & Net Metering) Regulations, 2020 as amended from time to time and also subject to the condition that the solar energy system meets the requirements as per the provisions contained in Central Electricity Authority (Technical Standard for Connectivity of the Distributed Generation Resources) Regulations, 2013 as amended from time to time.'],
     ['n', '2.', 'KSEB Limited shall have the sole authority to decide based on the results of necessary studies, the interface/interconnection point to the solar energy system.'],
@@ -1372,11 +1376,18 @@ var KD = (function () {
   /* the docx table: x 55-537, label | value split at 305; the wheeling table's columns at 149 / 277 / 344 */
   var SCH = { x0: 56, c: 306, x1: 539, wc: [56, 150, 278, 345, 539], pad: 4, padX: 5, minH: 19, hInd: 26, max: 10, min: 8.5 };
 
-  /* which {~tag} parts are struck through: the premises not applicable, and the meter paragraph that does not apply */
+  /* which {~tag} parts are struck through: the premises not applicable, and the meter wording that does not apply.
+     Both meters the consumer's: no rent (whole rent paragraph); both KSEB's: nothing provided (whole consumer paragraph).
+     Split (usual: solar meter the consumer's, net meter KSEB's): rent "for net meter" only, "provided the solar meter" only.
+     Either meter not marked: the meter paragraphs are left to strike by hand. */
   var agrStrike = function (v) {
-    var S = {}, pm = trim(v.premises), mb = trim(v.meter_by);
+    var S = {}, pm = trim(v.premises), sm = trim(v.meter_by), nm = trim(v.net_meter_by);
     if (pm === 'Owned') { S.or = 1; S.lease = 1; } else if (pm === 'Leased') { S.own = 1; S.or = 1; }
-    if (mb === 'Consumer') S.rent = 1; else if (mb === 'KSEB') S.cmeter = 1;
+    if (!sm || !nm) return S;
+    if (sm === 'Consumer' && nm === 'Consumer') S.rent = 1;
+    else if (sm === 'KSEB' && nm === 'KSEB') S.cmeter = 1;
+    else if (sm === 'Consumer') { S.rs = S.rand = 1; S.cand = S.cn = 1; }
+    else { S.rn = S.rand = 1; S.cs = S.cand = 1; }
     return S;
   };
   /* filled text without markers (spaces collapsed) and, per character, whether it is struck; a space between two struck
@@ -1389,9 +1400,9 @@ var KD = (function () {
     };
     var filled = text.replace(/\{(\w+)\}/g, function (m, k) { return val(k).replace(/\n+/g, ', ').replace(/\{~/g, '{ ~') || '__________'; });
     var plain = '', st = [], on = false;
-    filled.split(/(\{~\w*\})/).forEach(function (part) {
-      var mk = /^\{~(\w*)\}$/.exec(part);
-      if (mk) { on = !!(mk[1] && S[mk[1]]); return; }
+    filled.split(/(\{~[\w ]*\})/).forEach(function (part) {
+      var mk = /^\{~([\w ]*)\}$/.exec(part);
+      if (mk) { on = mk[1].split(' ').some(function (t) { return t && S[t]; }); return; }
       for (var ch of part) {
         if (/\s/.test(ch)) { if (!plain || plain[plain.length - 1] === ' ') continue; ch = ' '; }
         plain += ch; st.push(on);

@@ -3,15 +3,17 @@ const DOC_TYPES = ['Aadhaar card', 'Aadhaar card back side', 'Aadhaar 2', 'PAN c
   'Loan Quotation', 'Loan Papers', 'Building tax', 'Land tax', 'Agreement', 'Feasibility', 'Acknowledgement', 'Site Photo', 'Geo-tagged Photo', 'Customer Geo Tagged Photo'];
 const PL_OPTS = {
   panel_type: ['Mono PERC', 'TOPCon', 'Bifacial', 'HJT', 'Polycrystalline'], inverter_type: ['Single phase', 'Three phase', 'Hybrid', 'Micro inverter', 'Optimizer (SolarEdge)'],
-  meter_by: ['Consumer', 'KSEB'], meter_type: ['Uni-directional (solar generation meter)'], /* the meter we fit is the uni-directional solar generation meter; the net meter is KSEB's */ structure_type: ['Hot Dip Galvanized', 'GI elevated', 'Aluminium', 'Shed / sheet mount', 'Ground mount'], structure_material: ['Hot-dip galvanised iron', 'Aluminium', 'MS painted'], panel_arrangement: ['Portrait', 'Landscape', 'Mixed'],
+  meter_by: ['Consumer', 'KSEB'], net_meter_by: ['KSEB', 'Consumer'], meter_type: ['Uni-directional (solar generation meter)'], /* the meter we fit is the uni-directional solar generation meter; the net meter is KSEB's */ structure_type: ['Hot Dip Galvanized', 'GI elevated', 'Aluminium', 'Shed / sheet mount', 'Ground mount'], structure_material: ['Hot-dip galvanised iron', 'Aluminium', 'MS painted'], panel_arrangement: ['Portrait', 'Landscape', 'Mixed'],
   system_type: ['On-grid', 'Off-grid', 'Hybrid'], rooftop_type: ['RCC flat', 'RCC sloped', 'Sheet / tin', 'Tile', 'Ground'], rooftop_penetration: ['No (ballasted)', 'Yes (anchored)'],
 };
+/* filled in on an empty plant form: our solar generation meter (consumer's scope) and KSEB's net meter on rent */
+const PL_DEF = { meter_type: PL_OPTS.meter_type[0], meter_by: 'Consumer', net_meter_by: 'KSEB' };
 const PL_SECTIONS = [
   ['Plant', 'sun', [['capacity', 'Solar capacity (kWp)', 'n'], ['panel_make', 'Panel make'], ['panel_type', 'Panel type'], ['panel_wattage', 'Panel wattage (W)', 'n'], ['panel_count', 'Number of panels', 'n'], ['panel_model', 'Panel model no.'], ['panel_efficiency', 'Panel efficiency (%)', 'n']]],
   ['Inverter', 'gear', [['inverter_make', 'Inverter make'], ['inverter_count', 'Number of inverters', 'n'], ['inverter_type', 'Inverter type'], ['inverter_capacity', 'Inverter capacity (kW)', 'n'], ['inverter_model', 'Inverter model'], ['inverter_dc_voltage', 'DC input voltage (V)', 'n']]],
   ['Structure', 'project', [['structure_type', 'Structure type'], ['structure_material', 'Material'], ['panel_arrangement', 'Panel arrangement']]],
   ['Rooftop', 'target', [['system_type', 'System type'], ['rooftop_type', 'Rooftop type'], ['rooftop_age', 'Rooftop age (years)', 'n'], ['building_height', 'Building height (m)', 'n'], ['floors', 'Number of floors', 'n'], ['rooftop_penetration', 'Rooftop penetration'], ['slab_thickness', 'Slab thickness (mm)', 'n'], ['slab_slope', 'Slope of slab (degrees)', 'n']]],
-  ['Energy meter', 'gauge', [['meter_type', 'Meter type'], ['meter_make', 'Meter make'], ['meter_serial', 'Meter serial no.'], ['meter_reading', 'Solar meter initial reading (kWh)', 'n'], ['meter_by', 'Solar & net meter provided by (Consumer / KSEB)']]],
+  ['Energy meter', 'gauge', [['meter_type', 'Meter type'], ['meter_make', 'Meter make'], ['meter_serial', 'Meter serial no.'], ['meter_reading', 'Solar meter initial reading (kWh)', 'n'], ['meter_by', 'Solar (energy) meter provided by'], ['net_meter_by', 'Net meter provided by']]],
   ['Application', 'receipt', [['application_no', 'Application no.'], ['application_date', 'Application date', 'd'], ['gst_invoice_no', 'GST invoice no.'], ['commissioned_on', 'Commissioned on', 'd'], ['warranty_till', 'Warranty till', 'd']]],
   ['KSEB & dates', 'calendar', [['kseb_reg_no', 'KSEB solar registration no.'], ['spin', 'SPIN (solar plant identification no.)'], ['installed_on', 'Date of installation', 'd'], ['inspected_on', 'Date of joint inspection', 'd']]],
   ['DCR', 'shield', [['dcr_po_no', 'Purchase order / invoice no.'], ['dcr_po_date', 'Purchase order / invoice date', 'd'], ['cell_maker', 'Cell manufacturer'], ['cell_invoice_no', 'Cell GST invoice no.']]],
@@ -49,7 +51,7 @@ async function renderPlant(box, c, id, edit) {
 }
 
 function plantForm(box, c, id, d, r) {
-  const inp = ([k, l, t]) => `<div><label>${l}</label><input data-pk="${k}" ${t === 'n' ? 'inputmode="decimal"' : ''} ${t === 'd' ? 'type="date"' : ''} value="${esc(d[k] || (k === 'meter_type' ? PL_OPTS.meter_type[0] : ''))}" ${PL_OPTS[k] ? `list="pl-${k}"` : ''}></div>`;
+  const inp = ([k, l, t]) => `<div><label>${l}</label><input data-pk="${k}" ${t === 'n' ? 'inputmode="decimal"' : ''} ${t === 'd' ? 'type="date"' : ''} value="${esc(d[k] || PL_DEF[k] || '')}" ${PL_OPTS[k] ? `list="pl-${k}"` : ''}></div>`;
   box.innerHTML = `${Object.entries(PL_OPTS).map(([k, o]) => `<datalist id="pl-${k}">${o.map(x => `<option value="${esc(x)}">`).join('')}</datalist>`).join('')}
     <div class="card plsum"><div class="plsi"><i class="i i-pencil"></i></div><div class="plst"><h3>Edit plant details</h3><div class="mut">Set the number of panels / inverters and the rows below update. Paste serial numbers in one go.</div></div><span class="sp"></span>
      <button class="btn sec" id="plx">Cancel</button><button class="btn" id="plsv">Save</button></div>

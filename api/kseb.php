@@ -6,7 +6,7 @@
 const KSEB_DOCS = ['cov', 'wcr', 'an1', 'an2', 'an3', 'doi', 'agr', 'chk'];
 /* profile fields a document may fill when they are still empty (the Agreement tab: KD.fill in assets/app24.js) */
 const KSEB_FILL = ['c' => ['consumer_no', 'kseb_section', 'premises', 'transformer', 'local_body', 'village_survey', 'sanctioned_load', 'gps'],
-  'p' => ['meter_by', 'meter_serial', 'meter_make', 'meter_reading', 'spin']];
+  'p' => ['meter_by', 'net_meter_by', 'meter_serial', 'meter_make', 'meter_reading', 'spin']];
 const KSEB_DEFAULTS = [
   'vendor_name' => 'M/S JASPER SOLAR SOLUTIONS',
   'vendor_address' => 'Jasper Building Anad Bank Junction Nedumangad Thiruvananthapuram',
@@ -51,7 +51,7 @@ function kseb_fill($cid, array $list): array {
       $cu[$col] = $v;
     } else {
       if (trim((string)($pl[$col] ?? '')) !== '' || isset($pu[$col])) continue;
-      if ($col === 'meter_by' && !in_array($v, ['Consumer', 'KSEB'], true)) continue;
+      if (($col === 'meter_by' || $col === 'net_meter_by') && !in_array($v, ['Consumer', 'KSEB'], true)) continue;
       if ($col === 'meter_reading' && !is_numeric($v)) continue;
       $pu[$col] = $v;
     }

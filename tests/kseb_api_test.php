@@ -132,16 +132,17 @@ $fill = [['k' => 'transformer', 't' => 'c', 'col' => 'transformer', 'v' => 'Anad
   ['k' => 'load', 't' => 'c', 'col' => 'sanctioned_load', 'v' => '3'], ['k' => 'gps', 't' => 'c', 'col' => 'gps', 'v' => '8.6,77.01'],
   ['k' => 'local_body', 't' => 'c', 'col' => 'local_body', 'v' => 'Vembayam'], ['k' => 'meter_make', 't' => 'p', 'col' => 'meter_make', 'v' => 'HPL'],
   ['k' => 'meter_by', 't' => 'p', 'col' => 'meter_by', 'v' => 'KSEB'], ['k' => 'meter_reading', 't' => 'p', 'col' => 'meter_reading', 'v' => '1.5'],
+  ['k' => 'net_meter_by', 't' => 'p', 'col' => 'net_meter_by', 'v' => 'Consumer'], ['k' => 'z', 't' => 'p', 'col' => 'net_meter_by', 'v' => 'Neighbour'],
   ['k' => 'x', 't' => 'c', 'col' => 'name', 'v' => 'Hacked'], ['k' => 'y', 't' => 'c', 'col' => 'premises', 'v' => 'Rented']];
 $data = ['date' => '2026-11-11', 'transformer' => 'Anad Jn TF', 'premises' => 'Leased', 'load' => '3', 'gps' => '8.6,77.01', 'local_body' => 'Vembayam', 'meter_make' => 'HPL', 'meter_by' => 'KSEB', 'meter_reading' => '1.5 kWh', 'party2' => 'KSEB Ltd'];
 chk(call($sales, 'kseb', 'save', ['customer_id' => $agid, 'doc' => 'agr', 'data' => $data, 'fill' => $fill])['_code'] === 403, 'sales cannot save the agreement');
 $s = call($admin, 'kseb', 'save', ['customer_id' => $agid, 'doc' => 'agr', 'data' => $data, 'fill' => $fill]);
-chk($s['_code'] === 200 && ($s['filled'] ?? []) === ['transformer', 'premises', 'load', 'gps', 'meter_by', 'meter_reading'], 'only empty, allowed profile fields are filled');
+chk($s['_code'] === 200 && ($s['filled'] ?? []) === ['transformer', 'premises', 'load', 'gps', 'meter_by', 'meter_reading', 'net_meter_by'], 'only empty, allowed profile fields are filled');
 $cg = call($admin, 'customers', 'get', null, "&id=$agid");
 chk(($cg['transformer'] ?? '') === 'Anad Jn TF' && ($cg['premises'] ?? '') === 'Leased' && (float)($cg['sanctioned_load'] ?? 0) === 3.0 && ($cg['lat'] ?? '') == '8.6' && ($cg['lng'] ?? '') == '77.01', 'customer profile now has transformer, premises, load and GPS');
 chk(($cg['local_body'] ?? '') === 'Anad' && ($cg['name'] ?? '') === 'Agreement Test', 'a filled profile field and a field outside the list stay as they were');
 $pg = call($admin, 'plant', 'get', null, "&customer_id=$agid");
-chk(($pg['data']['meter_by'] ?? '') === 'KSEB' && ($pg['data']['meter_reading'] ?? '') === '1.5' && ($pg['data']['meter_make'] ?? '') === 'GENUS' && ($pg['data']['capacity'] ?? '') === '3', 'plant gets meter provider and reading; its meter make stays');
+chk(($pg['data']['meter_by'] ?? '') === 'KSEB' && ($pg['data']['net_meter_by'] ?? '') === 'Consumer' && ($pg['data']['meter_reading'] ?? '') === '1.5' && ($pg['data']['meter_make'] ?? '') === 'GENUS' && ($pg['data']['capacity'] ?? '') === '3', 'plant gets meter provider and reading; its meter make stays');
 $sd = $s['saved']['data'] ?? [];
 chk(!isset($sd['transformer']) && !isset($sd['gps']) && ($sd['local_body'] ?? '') === 'Vembayam' && ($sd['meter_make'] ?? '') === 'HPL' && ($sd['party2'] ?? '') === 'KSEB Ltd', 'filled fields are not kept as edits; the others are');
 chk(($s['customer']['transformer'] ?? '') === 'Anad Jn TF' && ($s['plant']['meter_by'] ?? '') === 'KSEB', 'save returns the updated customer and plant');
