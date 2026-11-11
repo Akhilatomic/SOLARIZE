@@ -550,3 +550,8 @@ tr.cmn-wait td{background:#fbfcff}
 @media(max-width:820px){.pp-grid{grid-template-columns:minmax(0,1fr)}.pp-row.pfr{grid-template-columns:minmax(0,1fr);gap:2px}.pp-row>span{padding-top:0}}
 .ppn{display:inline-block;min-width:18px;padding:0 6px;margin-left:4px;border-radius:9px;background:#d73b3e;color:#fff;font-size:11px;font-weight:600;line-height:18px;text-align:center}.ppn[hidden]{display:none}
 .pp-sum{display:flex;align-items:center;gap:10px;width:100%;padding:9px 2px;background:none;border:0;border-bottom:1px solid var(--line,#e5e5ea);font:inherit;color:inherit;text-align:left;cursor:pointer}.pp-sum:last-child{border-bottom:0}.pp-sum:hover{background:rgba(0,0,0,.03)}.pp-sum>span{flex:1;min-width:0}.pp-sum b{font-size:12.5px;font-weight:500}.pp-ok{color:var(--mut)}
+/* Customer profile timeline: scrolls inside its card (heading and "add a note" box stay put), not the whole page.
+   Wide screens: the right column stays in view below the top bar while the left side scrolls. Phones: a 70vh box. */
+.pfright{position:sticky;top:76px}.pftl{display:flex;flex-direction:column;max-height:max(380px,calc(100vh - 330px))}
+.pftl .tl{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin-right:-8px;padding-right:8px;scrollbar-width:thin}
+@media(max-width:880px){.pfright{position:static}.pftl{max-height:70vh}}
