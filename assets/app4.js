@@ -11,7 +11,11 @@ function fmDocDrag() {
 const fmPref = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
 const fmSave = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 /* hist/pos: the folders opened on this page, for the Back / Forward buttons (kept in step with the browser's own Back) */
-let FM = { q: '', cur: 0, files: new Set(), folders: new Set(), hist: [], pos: -1, view: fmPref('fmView', 'list'), sort: fmPref('fmSort', 'name') };
+/* focus: the item shown in the right-hand preview ({k:'f12'|'d3'}); pvStack: items previewed before it (the preview's back link); anchor: start of a Shift+click range */
+let FM = { q: '', cur: 0, files: new Set(), folders: new Set(), hist: [], pos: -1, view: fmPref('fmView', 'list'), sort: fmPref('fmSort', 'name'), focus: null, pvStack: [], anchor: null };
+/* download through a hidden frame, so a refused download never replaces the page */
+const fmDl = url => { const fr = document.createElement('iframe'); fr.style.display = 'none'; fr.src = url; document.body.appendChild(fr); setTimeout(() => fr.remove(), 120000); };
+const fmNarrow = () => matchMedia('(max-width: 820px)').matches; /* phones: no room for the preview, a tap opens */
 const FM_SORTS = [['name', 'Name A–Z'], ['name-d', 'Name Z–A'], ['new', 'Newest first'], ['old', 'Oldest first'], ['big', 'Largest first'], ['small', 'Smallest first']];
 const fmCmp = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }); /* "550 Wp" before "580 Wp" */
 function fmSorted(list, name, date, size) {
@@ -37,7 +41,7 @@ async function pgFolder(id) {
   const w = canW('folder');
   const cur = +id || 0;
   if (cur && !folders.some(f => +f.id === cur)) { location.hash = '#/folder'; return; }
-  if (FM.cur !== cur) { FM.files.clear(); FM.folders.clear(); FM.q = ""; FM.cur = cur; }
+  if (FM.cur !== cur) { FM.files.clear(); FM.folders.clear(); FM.q = ""; FM.cur = cur; FM.focus = null; FM.pvStack = []; FM.anchor = null; }
   /* Back / Forward history: a step to the previous or next entry (our buttons or the browser's) moves along it; anything else is a new visit */
   const H = FM.hist;
   if (FM.pos >= 0 && H[FM.pos] === cur) { /* same folder (reload after a change) */ }
@@ -64,31 +68,37 @@ async function pgFolder(id) {
     ${crumbHtml}<input id="fmq" type="search" placeholder="Search all folders…" value="${esc(FM.q)}">
     <div class="fm-view"><select id="fmsort" aria-label="Sort by">${FM_SORTS.map(([v, l]) => `<option value="${v}" ${FM.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
      <div class="fm-seg" role="group" aria-label="View"><button type="button" data-v="list" class="${FM.view === 'grid' ? '' : 'on'}" title="List view" aria-label="List view"><i class="i i-menu"></i></button><button type="button" data-v="grid" class="${FM.view === 'grid' ? 'on' : ''}" title="Grid view" aria-label="Grid view"><i class="i i-dashboard"></i></button></div></div></div>
-   <div id="fmlist" class="fm-list"></div>
-   <div id="fmdrop" class="fm-drop hide"><i class="i i-upload"></i><div>Drop files to upload into <b>${esc(crumbs.length ? crumbs[crumbs.length - 1].name : 'Folder')}</b></div></div>
-   <div id="fmbar" class="fm-bar hide"></div></div>`;
+   <div class="fm-split" id="fmsplit"><div class="fm-col"><div id="fmlist" class="fm-list"></div><div id="fmbar" class="fm-bar hide"></div></div><section class="fm-pv" id="fmpv" aria-label="Preview"></section></div>
+   <div id="fmdrop" class="fm-drop hide"><i class="i i-upload"></i><div>Drop files to upload into <b>${esc(crumbs.length ? crumbs[crumbs.length - 1].name : 'Folder')}</b></div></div></div>`;
   fmDocDrag(); FMUP = null;
   const reload = () => route();
   const clearSel = () => { FM.files.clear(); FM.folders.clear(); };
   const count = f => folders.filter(x => +x.parent_id === +f.id).length + items.filter(x => +x.folder_id === +f.id).length;
+  const sortFo = l => fmSorted(l, f => f.name, f => f.created || '', count), sortFi = l => fmSorted(l, d => d.file_name, d => d.updated || d.created || '', d => +d.size || 0);
+  const keyset = k => k[0] === 'd' ? FM.folders : FM.files;
+  const itemOf = k => k && (k[0] === 'd' ? folders.find(f => +f.id === +k.slice(1)) : items.find(i => +i.id === +k.slice(1)));
+  let order = []; /* keys of the items on screen, in screen order (for Shift+click and the arrow keys) */
+  const tip = fmNarrow() ? '' : ' title="Click to preview · double-click to open"';
   const draw = () => {
     const r0 = rowsNow(), box = $('#fmlist'), grid = FM.view === 'grid';
     /* folders always first, each group in the chosen order (folders by name, date, or number of items) */
-    const r = { s: r0.s, fo: fmSorted(r0.fo, f => f.name, f => f.created || '', count), fi: fmSorted(r0.fi, d => d.file_name, d => d.updated || d.created || '', d => +d.size || 0) };
+    const r = { s: r0.s, fo: sortFo(r0.fo), fi: sortFi(r0.fi) };
+    order = r.fo.map(f => 'd' + f.id).concat(r.fi.map(d => 'f' + d.id));
     box.className = grid ? 'fm-g' : 'fm-list';
-    const fileRow = d => `<div class="fm-row ${FM.files.has(+d.id) ? 'sel' : ''}"><label class="fm-ck"><input type="checkbox" data-f="${d.id}" ${FM.files.has(+d.id) ? 'checked' : ''}></label>
+    /* names are not links: a click selects and previews, a double-click (or Enter) opens */
+    const fileRow = d => `<div class="fm-row ${FM.files.has(+d.id) ? 'sel' : ''}" data-k="f${d.id}" tabindex="0"${tip}><label class="fm-ck"><input type="checkbox" data-f="${d.id}" ${FM.files.has(+d.id) ? 'checked' : ''}></label>
       <div class="fm-ic"><span class="fm-ty">${esc(fext(d.file_name))}</span></div>
-      <div class="fm-nm"><a href="api.php?m=folder&a=get&id=${d.id}" target="_blank" rel="noopener">${esc(d.file_name)}</a>${r.s ? `<small><a href="#/folder/${+d.folder_id || ''}">${esc(fmPathText(folders, d.folder_id))}</a></small>` : ''}</div>
+      <div class="fm-nm"><span>${esc(d.file_name)}</span>${r.s ? `<small><a href="#/folder/${+d.folder_id || ''}">${esc(fmPathText(folders, d.folder_id))}</a></small>` : ''}</div>
       <div class="fm-sz">${fsize(d.size)}</div><div class="fm-dt">${dmy(d.updated || d.created)}</div><div class="fm-by">${esc(d.user || '')}</div></div>`;
-    const fileCard = d => `<div class="fm-card ${FM.files.has(+d.id) ? 'sel' : ''}"><label class="fm-ck"><input type="checkbox" data-f="${d.id}" ${FM.files.has(+d.id) ? 'checked' : ''}></label>
-      <a class="fm-cbody" href="api.php?m=folder&a=get&id=${d.id}" target="_blank" rel="noopener" title="${esc(d.file_name)}"><span class="fm-ty fm-big">${esc(fext(d.file_name))}</span><b>${esc(d.file_name)}</b><small>${fsize(d.size)} · ${dmy(d.updated || d.created)}</small></a>
+    const fileCard = d => `<div class="fm-card ${FM.files.has(+d.id) ? 'sel' : ''}" data-k="f${d.id}" tabindex="0"${tip}><label class="fm-ck"><input type="checkbox" data-f="${d.id}" ${FM.files.has(+d.id) ? 'checked' : ''}></label>
+      <div class="fm-cbody"><span class="fm-ty fm-big">${esc(fext(d.file_name))}</span><b>${esc(d.file_name)}</b><small>${fsize(d.size)} · ${dmy(d.updated || d.created)}</small></div>
       ${r.s ? `<a class="fm-cpath" href="#/folder/${+d.folder_id || ''}">${esc(fmPathText(folders, d.folder_id))}</a>` : ''}</div>`;
-    const folderCard = f => { const n = count(f); return `<div class="fm-card ${FM.folders.has(+f.id) ? 'sel' : ''}"><label class="fm-ck"><input type="checkbox" data-d="${f.id}" ${FM.folders.has(+f.id) ? 'checked' : ''}></label>
-      <a class="fm-cbody" href="#/folder/${f.id}" title="${esc(f.name)}"><i class="i i-folder"></i><b>${esc(f.name)}</b><small>${n} item${n === 1 ? '' : 's'}</small></a>
+    const folderCard = f => { const n = count(f); return `<div class="fm-card ${FM.folders.has(+f.id) ? 'sel' : ''}" data-k="d${f.id}" tabindex="0"${tip}><label class="fm-ck"><input type="checkbox" data-d="${f.id}" ${FM.folders.has(+f.id) ? 'checked' : ''}></label>
+      <div class="fm-cbody"><i class="i i-folder"></i><b>${esc(f.name)}</b><small>${n} item${n === 1 ? '' : 's'}</small></div>
       ${r.s ? `<span class="fm-cpath">${esc(fmPathText(folders, f.parent_id))}</span>` : ''}</div>`; };
-    const folderRow = f => { const n = count(f); return `<div class="fm-row ${FM.folders.has(+f.id) ? 'sel' : ''}"><label class="fm-ck"><input type="checkbox" data-d="${f.id}" ${FM.folders.has(+f.id) ? 'checked' : ''}></label>
+    const folderRow = f => { const n = count(f); return `<div class="fm-row ${FM.folders.has(+f.id) ? 'sel' : ''}" data-k="d${f.id}" tabindex="0"${tip}><label class="fm-ck"><input type="checkbox" data-d="${f.id}" ${FM.folders.has(+f.id) ? 'checked' : ''}></label>
       <div class="fm-ic"><i class="i i-folder"></i></div>
-      <div class="fm-nm"><a href="#/folder/${f.id}"><b>${esc(f.name)}</b></a>${r.s ? `<small>${esc(fmPathText(folders, f.parent_id))}</small>` : ''}</div>
+      <div class="fm-nm"><b>${esc(f.name)}</b>${r.s ? `<small>${esc(fmPathText(folders, f.parent_id))}</small>` : ''}</div>
       <div class="fm-sz">${n} item${n === 1 ? '' : 's'}</div><div class="fm-dt">${dmy(f.created)}</div><div class="fm-by">${esc(f.user || '')}</div></div>`; };
     const all = r.fo.length + r.fi.length, ticked = r.fo.filter(f => FM.folders.has(+f.id)).length + r.fi.filter(i => FM.files.has(+i.id)).length;
     const allBox = `<input type="checkbox" id="fmall" ${ticked === all ? 'checked' : ''}>`;
@@ -99,7 +109,62 @@ async function pgFolder(id) {
     $$('[data-f]', box).forEach(c => c.onchange = () => { c.checked ? FM.files.add(+c.dataset.f) : FM.files.delete(+c.dataset.f); draw(); });
     $$('[data-d]', box).forEach(c => c.onchange = () => { c.checked ? FM.folders.add(+c.dataset.d) : FM.folders.delete(+c.dataset.d); draw(); });
     const sa = $('#fmall', box); if (sa) sa.onchange = () => { r.fo.forEach(f => sa.checked ? FM.folders.add(+f.id) : FM.folders.delete(+f.id)); r.fi.forEach(i => sa.checked ? FM.files.add(+i.id) : FM.files.delete(+i.id)); draw(); };
+    paintSel();
+  };
+  /* selection changes from clicks repaint in place (no redraw), so double-clicks and keyboard focus keep working */
+  const paintSel = () => {
+    const box = $('#fmlist');
+    $$('[data-k]', box).forEach(el => { const k = el.dataset.k, on = keyset(k).has(+k.slice(1)); el.classList.toggle('sel', on); el.classList.toggle('foc', !!FM.focus && FM.focus.k === k); const c = $('input[type=checkbox]', el); if (c) c.checked = on; });
+    const sa = $('#fmall', box); if (sa) sa.checked = order.length > 0 && order.every(k => keyset(k).has(+k.slice(1)));
     bar();
+  };
+  /* click: only this item; Ctrl/⌘+click: add or remove it; Shift+click: everything from the last clicked item to this one */
+  const pick = (k, e = {}) => {
+    const many = e.ctrlKey || e.metaKey;
+    if (e.shiftKey && FM.anchor && order.includes(FM.anchor) && order.includes(k)) {
+      const a = order.indexOf(FM.anchor), b = order.indexOf(k);
+      if (!many) clearSel();
+      order.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(x => keyset(x).add(+x.slice(1)));
+    } else if (many) { const s = keyset(k), id = +k.slice(1); s.has(id) ? s.delete(id) : s.add(id); FM.anchor = k; }
+    else { clearSel(); keyset(k).add(+k.slice(1)); FM.anchor = k; }
+    FM.focus = { k }; FM.pvStack = []; paintSel(); preview();
+  };
+  const openKey = k => { const id = +k.slice(1); if (k[0] === 'd') goTo(id); else window.open(`api.php?m=folder&a=get&id=${id}`, '_blank', 'noopener'); };
+  const closePv = () => { FM.focus = null; FM.pvStack = []; preview(); paintSel(); };
+  /* ---- right-hand preview: a file's pages, or everything inside a folder ---- */
+  let pvShown = '';
+  const preview = () => {
+    const pv = $('#fmpv'), it = FM.focus ? itemOf(FM.focus.k) : null;
+    if (!it) { FM.focus = null; FM.pvStack = []; pvShown = ''; $('#fmsplit').classList.remove('pv'); pv.innerHTML = ''; return; }
+    const k = FM.focus.k, sig = k + '|' + FM.pvStack.join(',');
+    $('#fmsplit').classList.add('pv'); if (sig === pvShown) return; pvShown = sig;
+    const prev = FM.pvStack.length ? itemOf(FM.pvStack[FM.pvStack.length - 1]) : null;
+    const back = prev ? `<button type="button" class="fm-pvback" id="fmpvb">‹ ${esc(prev.name || prev.file_name)}</button>` : '';
+    const close = '<button class="ib" id="fmpvx" title="Close preview" aria-label="Close preview"><i class="i i-x"></i></button>';
+    if (k[0] === 'f') {
+      const url = `api.php?m=folder&a=get&id=${it.id}`, ext = fext(it.file_name).toLowerCase();
+      const body = ext === 'pdf' ? `<iframe src="${url}#view=FitH&navpanes=0" aria-label="${esc(it.file_name)}"></iframe>`
+        : ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? `<div class="fm-pvimg"><img src="${url}" alt="${esc(it.file_name)}"></div>`
+        : `<div class="fm-pvnone"><span class="fm-ty fm-big">${esc(ext.toUpperCase())}</span><b>No preview for ${esc(ext.toUpperCase())} files</b><span class="mut">Use Open or Download to see it.</span></div>`;
+      pv.innerHTML = `<div class="fm-pvh">${back}<div class="fm-pvt"><span class="fm-ty">${esc(fext(it.file_name))}</span><div><b>${esc(it.file_name)}</b><small>${esc(fmPathText(folders, it.folder_id))} · ${fsize(it.size)} · ${dmy(it.updated || it.created)}</small></div>${close}</div>
+        <div class="fm-pva"><a class="btn sm" href="${url}" target="_blank" rel="noopener"><i class="i i-eye"></i> Open</a><button class="btn sm sec" id="fmpvdl"><i class="i i-download"></i> Download</button></div></div><div class="fm-pvb">${body}</div>`;
+      $('#fmpvdl').onclick = () => fmDl(url + '&dl=1');
+    } else {
+      let nD = 0, nF = 0, bytes = 0;
+      const tree = (pid, depth) => depth > 30 ? '' : sortFo(folders.filter(x => +x.parent_id === pid)).map(x => { nD++; return `<div class="fm-tr fm-trd" data-k="d${x.id}" style="--d:${depth}"${tip}><i class="i i-folder"></i><span>${esc(x.name)}</span></div>${tree(+x.id, depth + 1)}`; }).join('')
+        + sortFi(items.filter(x => +x.folder_id === pid)).map(x => { nF++; bytes += +x.size || 0; return `<div class="fm-tr" data-k="f${x.id}" style="--d:${depth}"${tip}><span class="fm-ty">${esc(fext(x.file_name))}</span><span>${esc(x.file_name)}</span><small>${fsize(x.size)}</small></div>`; }).join('');
+      const t = tree(+it.id, 0);
+      const sum = [nD ? nD + ' folder' + (nD === 1 ? '' : 's') : '', nF ? nF + ' file' + (nF === 1 ? '' : 's') : '', nF ? fsize(bytes) : ''].filter(Boolean).join(' · ') || 'Empty';
+      pv.innerHTML = `<div class="fm-pvh">${back}<div class="fm-pvt"><i class="i i-folder"></i><div><b>${esc(it.name)}</b><small>${esc(fmPathText(folders, it.parent_id))} · ${sum}</small></div>${close}</div>
+        <div class="fm-pva"><button class="btn sm" id="fmpvo"><i class="i i-folder"></i> Open folder</button>${nF ? '<button class="btn sm sec" id="fmpvdl"><i class="i i-download"></i> Download all</button>' : ''}</div></div>
+        <div class="fm-pvb fm-tree">${t || '<div class="fm-empty">This folder is empty.</div>'}</div>`;
+      $('#fmpvo').onclick = () => goTo(+it.id);
+      if ($('#fmpvdl')) $('#fmpvdl').onclick = () => bytes > 500 * 1048576 ? toast('Too much to download at once — select fewer files', 1) : fmDl(`api.php?m=folder&a=zip&files=&folders=${it.id}`);
+      /* inside the folder preview: click shows that item here (with a back link), double-click opens it */
+      $$('.fm-tr', pv).forEach(el => { el.onclick = () => { FM.pvStack.push(FM.focus.k); FM.focus = { k: el.dataset.k }; preview(); paintSel(); }; el.ondblclick = () => openKey(el.dataset.k); });
+    }
+    $('#fmpvx').onclick = closePv;
+    if ($('#fmpvb')) $('#fmpvb').onclick = () => { FM.focus = { k: FM.pvStack.pop() }; preview(); paintSel(); };
   };
   const bar = () => {
     const b = $('#fmbar'), n = nsel(); b.classList.toggle('hide', !n); if (!n) { b.innerHTML = ''; return; }
@@ -118,7 +183,7 @@ async function pgFolder(id) {
       if (!pick.length) { toast('Nothing to download', 1); return; }
       if (pick.reduce((t, i) => t + (+i.size || 0), 0) > 500 * 1048576) { toast('Too much to download at once — select fewer files', 1); return; }
       const url = (fl.length === 1 && !fo.length) ? `api.php?m=folder&a=get&id=${fl[0]}&dl=1` : `api.php?m=folder&a=zip&files=${fl.join(',')}&folders=${fo.join(',')}`;
-      const fr = document.createElement('iframe'); fr.style.display = 'none'; fr.src = url; document.body.appendChild(fr); setTimeout(() => fr.remove(), 120000);
+      fmDl(url);
     };
     if ($('#fmwa')) $('#fmwa').onclick = () => shareModal(items.filter(i => FM.files.has(+i.id)));
     /* one file: just its link; several: each file name with its link */
@@ -169,6 +234,21 @@ async function pgFolder(id) {
   $('#fmback').onclick = () => { if (FM.pos > 0) goTo(H[FM.pos - 1]); };
   $('#fmfwd').onclick = () => { if (FM.pos < H.length - 1) goTo(H[FM.pos + 1]); };
   $('#fmupl').onclick = () => { if (cur) goTo(+(folders.find(f => +f.id === cur) || {}).parent_id || 0); };
+  /* list / grid: click selects + previews (a tap opens on phones), double-click or Enter opens; checkboxes and path links work as before */
+  const lbox = $('#fmlist'), hit = e => e.target.closest('.fm-ck, a') ? null : e.target.closest('[data-k]');
+  lbox.onclick = e => { const el = hit(e); if (!el) return; if (fmNarrow()) openKey(el.dataset.k); else pick(el.dataset.k, e); };
+  lbox.ondblclick = e => { const el = hit(e); if (el && !fmNarrow()) openKey(el.dataset.k); };
+  lbox.onkeydown = e => {
+    const el = e.target.closest('[data-k]'); if (!el || e.target !== el) return; /* only when the row itself has focus, not its checkbox */
+    const k = el.dataset.k, i = order.indexOf(k);
+    if (e.key === 'Enter') { e.preventDefault(); openKey(k); }
+    else if (e.key === ' ') { e.preventDefault(); pick(k, { ctrlKey: true }); }
+    else if (e.key === 'Escape') { if (FM.focus) closePv(); }
+    else if (/^Arrow(Up|Down|Left|Right)$/.test(e.key)) {
+      const j = i + (e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1), nx = order[j] && $(`[data-k="${order[j]}"]`, lbox); if (!nx) return;
+      e.preventDefault(); nx.focus(); pick(order[j], { shiftKey: e.shiftKey });
+    }
+  };
   $('#fmsort').onchange = e => { FM.sort = e.target.value; fmSave('fmSort', FM.sort); draw(); };
   $$('.fm-seg button').forEach(b => b.onclick = () => { FM.view = b.dataset.v; fmSave('fmView', FM.view); $$('.fm-seg button').forEach(x => x.classList.toggle('on', x === b)); draw(); });
   FMUP = w ? upload : null;
@@ -187,7 +267,7 @@ async function pgFolder(id) {
     fm.ondragover = e => { if (hasFiles(e)) e.preventDefault(); };
     fm.ondragleave = e => { if (!hasFiles(e)) return; if (--dn <= 0) { dn = 0; dz.classList.add('hide'); } };
   }
-  draw();
+  draw(); preview();
 }
 
 async function shareModal(list) {
