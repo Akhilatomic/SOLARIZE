@@ -102,5 +102,24 @@ chk($r['_code'] === 200 && (float)($r['project']['subsidy_amount'] ?? 0) === 780
 $t = call($admin, 'profile', 'timeline', null, "&customer_id=$pid");
 chk(($t['pipe'][0] ?? '') === 'customer' && ($t['progress'][0]['key'] ?? null) === 'customer' && array_key_exists('loan', $t['progress'][0] ?? []), 'timeline has pipe, key, loan');
 
+
+/* fix round 1 */
+$dbf = $argv[2] ?? '';
+$pdo = new PDO('sqlite:' . $dbf);
+$pdo->prepare('UPDATE projects SET stage=? WHERE customer_id=?')->execute(['Not A Stage', $pid]);
+$t = call($admin, 'profile', 'timeline', null, "&customer_id=$pid");
+chk(($t['progress'][0]['key'] ?? 'x') === '', 'unknown stage gives empty key');
+chk(call($ba, 'profile', 'page_save', ['customer_id' => $bid, 'page' => 'bank', 'data' => ['loan_bank' => 'X']])['_code'] === 403, 'ba loan key 403');
+$r = call($ba, 'profile', 'page_save', ['customer_id' => $bid, 'page' => 'contact', 'data' => ['landmark' => 'Gate']]);
+chk($r['_code'] === 200 && !array_key_exists('jansamarth_id', $r['customer'] ?? []), 'ba page_save customer has no jansamarth_id');
+call($admin, 'customers', 'save', ['id' => $bid, 'name' => 'Test Person Two', 'phone' => '9000000002', 'jansamarth_id' => 'ANS-SOLAR-TEST-1']);
+$gb = call($ba, 'customers', 'get', null, "&id=$bid"); $gb['landmark'] = 'Back gate';
+call($ba, 'customers', 'save', $gb);
+chk((call($admin, 'customers', 'get', null, "&id=$bid")['jansamarth_id'] ?? '') === 'ANS-SOLAR-TEST-1', 'ba save keeps jansamarth_id');
+call($admin, 'customers', 'save', ['id' => $pid, 'name' => 'Page Person', 'phone' => '9800000011', 'jansamarth_id' => 'ANS-SOLAR-TEST-2']);
+$ge = call($eng, 'customers', 'get', null, "&id=$pid"); $ge['landmark'] = 'Eng gate';
+call($eng, 'customers', 'save', $ge);
+chk((call($admin, 'customers', 'get', null, "&id=$pid")['jansamarth_id'] ?? '') === 'ANS-SOLAR-TEST-2', 'engineer save keeps jansamarth_id');
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail ? 1 : 0);

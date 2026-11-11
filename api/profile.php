@@ -15,7 +15,7 @@ function profile_page_save($cid, $old) {
   if (!isset(PF_PAGES[$page])) fail('Unknown page');
   if (!is_array($data)) fail('Nothing to save');
   $spec = PF_PAGES[$page]; $cc = $spec['c'] ?? []; $pc = $spec['p'] ?? []; $jc = $spec['j'] ?? [];
-  $loanKeys = array_merge(['jansamarth_id'], LOAN_COLS);
+  $loanKeys = LOAN_COLS;
   $proj = row('SELECT * FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid]);
   foreach ($data as $k => $v) {
     if (!in_array($k, array_merge($cc, $pc, $jc), true)) fail('Not on this page: ' . $k);
@@ -89,7 +89,7 @@ function handle_profile($a) {
     foreach (rows('SELECT * FROM services WHERE project_id=? ORDER BY id', [$p['id']]) as $sv) $add($sv['date'] . ' 00:00:00', 'service', $sv['type'] . ' — ' . $sv['status'], trim(($sv['technician'] ? 'by ' . $sv['technician'] : '') . ($sv['notes'] ? ' · ' . $sv['notes'] : ''), ' ·'), $sv['user'], ['local' => 1]);
     $idx = array_search($p['stage'], $labels, true);
     $done = []; foreach ($steps as $s) $done[$s['stage']] = $s['created'];
-    $progress[] = ['id' => (int)$p['id'], 'title' => $p['title'], 'kw' => $p['kw'], 'stage' => $p['stage'], 'idx' => $idx === false ? -1 : $idx, 'key' => PIPE[$idx][0] ?? '', 'loan' => (string)($p['loan'] ?? ''), 'total' => count($labels),
+    $progress[] = ['id' => (int)$p['id'], 'title' => $p['title'], 'kw' => $p['kw'], 'stage' => $p['stage'], 'idx' => $idx === false ? -1 : $idx, 'key' => $idx === false ? '' : (PIPE[$idx][0] ?? ''), 'loan' => (string)($p['loan'] ?? ''), 'total' => count($labels),
       'stages' => array_map(fn($lb, $i) => ['label' => $lb, 'step' => defined('PIPE') ? PIPE[$i][2] : 0, 'at' => $done[$lb] ?? null], $labels, array_keys($labels))];
   }
   foreach (rows('SELECT * FROM quotes WHERE customer_id=? ORDER BY id', [$cid]) as $q) $add($q['created'], 'quote', 'Quotation ' . $q['number'], $q['status'] . $money($q['total']), '', ['link' => '#/quotes/' . $q['id']]);
