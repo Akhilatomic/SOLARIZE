@@ -6,7 +6,7 @@
 // Saving rule: only the fields that differ from the profile are stored (KD.overrides), plus the date, so a corrected
 // profile prints corrected. UI classes start with .kd (assets/kseb.css). Every value shown in HTML goes through esc().
 const KDS = { book: 'kseb', tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
-const KD_TABS = [['cov', 'Cover page'], ['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['doi', 'Details of installation'], ['agr', 'Agreement'], ['chk', 'Checklist sheet'], ['mnre', 'MNRE warranty card']];
+const KD_TABS = [['cov', 'Cover page'], ['req', 'Request letter'], ['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['doi', 'Details of installation'], ['agr', 'Agreement'], ['chk', 'Checklist sheet'], ['mnre', 'MNRE warranty card']];
 const BK_TABS = [['bfr', 'Feasibility report'], ['bag', 'Vendor–customer agreement']];
 const KD_BOOKS = {
   kseb: { tabs: KD_TABS, def: 'wcr', api: 'kseb', perm: 'checklist', hash: '#/kseb/', what: 'profile and plant details' },

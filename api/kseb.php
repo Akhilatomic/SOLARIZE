@@ -3,7 +3,7 @@
 // Edits live in gen_docs (kind 'kseb_wcr', 'kseb_an1' … 'kseb_an3', 'kseb_agr', 'kseb_chk'); the PDF itself is built in the browser.
 // The Agreement may also fill empty customer profile / plant fields (kseb_fill).
 
-const KSEB_DOCS = ['cov', 'wcr', 'an1', 'an2', 'an3', 'doi', 'agr', 'chk'];
+const KSEB_DOCS = ['cov', 'req', 'wcr', 'an1', 'an2', 'an3', 'doi', 'agr', 'chk'];
 /* profile fields a document may fill when they are still empty (the Agreement tab: KD.fill in assets/app24.js) */
 const KSEB_FILL = ['c' => ['consumer_no', 'kseb_section', 'premises', 'transformer', 'local_body', 'village_survey', 'sanctioned_load', 'gps'],
   'p' => ['meter_by', 'net_meter_by', 'meter_serial', 'meter_make', 'meter_reading', 'spin']];

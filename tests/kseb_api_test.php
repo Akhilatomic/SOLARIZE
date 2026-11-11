@@ -128,6 +128,8 @@ $ag = call($admin, 'customers', 'save', ['name' => 'Agreement Test', 'phone' => 
 $agid = (int)($ag['id'] ?? 0);
 call($admin, 'plant', 'save', ['customer_id' => $agid, 'data' => ['capacity' => '3', 'meter_make' => 'GENUS', 'panels' => [], 'inverters' => []]]);
 chk(array_key_exists('agr', call($admin, 'kseb', 'get', null, "&customer_id=$agid")['saved'] ?? []), 'agreement is a KSEB document');
+chk(call($admin, 'kseb', 'save', ['customer_id' => $agid, 'doc' => 'req', 'data' => ['vendor_phone' => '0471 000000', 'date' => '2026-11-11']])['_code'] === 200
+  && (call($admin, 'kseb', 'get', null, "&customer_id=$agid")['saved']['req']['data']['vendor_phone'] ?? '') === '0471 000000', 'request letter saves and comes back');
 $fill = [['k' => 'transformer', 't' => 'c', 'col' => 'transformer', 'v' => 'Anad Jn TF'], ['k' => 'premises', 't' => 'c', 'col' => 'premises', 'v' => 'Leased'],
   ['k' => 'load', 't' => 'c', 'col' => 'sanctioned_load', 'v' => '3'], ['k' => 'gps', 't' => 'c', 'col' => 'gps', 'v' => '8.6,77.01'],
   ['k' => 'local_body', 't' => 'c', 'col' => 'local_body', 'v' => 'Vembayam'], ['k' => 'meter_make', 't' => 'p', 'col' => 'meter_make', 'v' => 'HPL'],

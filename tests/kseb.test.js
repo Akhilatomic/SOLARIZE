@@ -682,3 +682,33 @@ test('agreements: justified text', async () => {
   const raw = streams.map(st => Buffer.from(PDFLib.decodePDFRawStream(st).decode()).toString('latin1')).join('\n');
   assert.ok(/[\d.]+ Tw/.test(raw) && /\b0 Tw/.test(raw), 'Tw set and reset');
 });
+
+/* ---- KSEB: Request letter (covering letter for registration) with the consumer no. and both phone numbers ---- */
+test('request letter: defaults, one page, consumer no. and both phones', async () => {
+  const ctx = { customer: { name: 'SUMA DEVI R', phone: '9800000002', consumer_no: '1146530000002', address: 'Sreekovil, Pandarakonam, Anad P O', district: 'Thiruvananthapuram', pincode: '695541', kseb_section: 'Chullimanoor' },
+    plant: {}, project: null, defaults: { vendor_name: 'M/S JASPER SOLAR SOLUTIONS', vendor_phone: '0960 552 5552' }, today: '2026-11-11' };
+  const v = KD.values('req', ctx, {});
+  assert.deepEqual([v.section, v.name, v.consumer_no, v.phone, v.pincode, v.address, v.vendor_name, v.vendor_phone],
+    ['Chullimanoor', 'SUMA DEVI R', '1146530000002', '9800000002', '695541', 'Sreekovil, Pandarakonam, Anad P O, Thiruvananthapuram', 'M/S JASPER SOLAR SOLUTIONS', '0960 552 5552']);
+  assert.ok(v.body.includes('Consumer No. 1146530000002') && v.body.endsWith('Thank you for your attention and support.'));
+  for (const g of KD.DOCS.req.groups) for (const f of g.fields) assert.ok(f.k in v, 'req.' + f.k);
+  assert.deepEqual(KD.empty('req', v), []);
+  const measure = await KD.measurer(PDFLib);
+  const r = KD.layout('req', v, measure), text = r.ops.filter(o => o.t), at = t => text.find(o => o.t === t);
+  assert.equal(r.overflow, false); assert.equal(r.size, 12);
+  for (const o of text) assert.ok(!o.p && o.x >= 72 && o.x + measure(o.t, o.f, o.s) + (o.t.split(' ').length - 1) * (o.ws || 0) <= 523.05 && o.y <= 770, o.t);
+  assert.ok(Math.abs(at('Date: 11.11.2026').x + measure('Date: 11.11.2026', 'T', 12) - 523) < 0.01, 'date at the right margin');
+  for (const t of ['Chullimanoor', 'Consumer No: 1146530000002', 'Pin Code: 695541', 'SUMA DEVI R, Phone: 9800000002', 'M/S JASPER SOLAR SOLUTIONS, Phone: 0960 552 5552'])
+    assert.ok(at(t), t);
+  for (const t of ['From', 'Subject: Request for Registration of Solar Power Plant', 'Respected Sir,', 'Contact details:', 'Sincerely,']) assert.equal(at(t).f, 'TB', t);
+  assert.ok(text.some(o => o.ws), 'the letter text is justified');
+  assert.equal(at('Thank you for your attention and support.').ws, undefined, 'a last line is not');
+  /* the order: To, From, Subject, text, contacts, signature */
+  const ys = ['To,', 'From', 'Subject: Request for Registration of Solar Power Plant', 'Respected Sir,', 'Contact details:', 'Sincerely,'].map(t => at(t).y);
+  assert.deepEqual(ys, ys.slice().sort((a, b) => a - b));
+  /* an empty consumer number or phone leaves a line to write on */
+  const bare = KD.layout('req', Object.assign({}, v, { consumer_no: '', phone: '' }), measure).ops.map(o => o.t || '');
+  assert.ok(bare.includes('Consumer No: __________') && bare.includes('SUMA DEVI R, Phone: __________'));
+  const out = await KD.buildPdf(PDFLib, fs.readFileSync(path.join(ROOT, 'assets/kseb/blank.pdf')), r.ops);
+  assert.equal((await PDFLib.PDFDocument.load(out)).getPageCount(), 1);
+});

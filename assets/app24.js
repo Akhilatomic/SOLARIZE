@@ -77,6 +77,34 @@ var KD = (function () {
         ] }
       ]
     },
+    /* Request letter: the consumer's covering letter to the Assistant Engineer asking to register the solar plant
+       (req letter.docx), with the consumer number and the consumer's and vendor's phone numbers. Plain A4, Times 12. */
+    req: {
+      key: 'req', tab: 'Request letter', file: 'Request Letter', page: 'blank',
+      groups: [
+        { g: 'Letter', fields: [
+          { k: 'date', l: 'Date', t: 'date' },
+          { k: 'subject', l: 'Subject' }
+        ] },
+        { g: 'To', fields: [
+          { k: 'section', l: 'KSEB Electrical Section', src: 'c.kseb_section' }
+        ] },
+        { g: 'From (consumer)', fields: [
+          { k: 'name', l: 'Name' },
+          { k: 'consumer_no', l: 'Consumer number', src: 'c.consumer_no' },
+          { k: 'phone', l: 'Consumer phone' },
+          { k: 'pincode', l: 'PIN code' },
+          { k: 'address', l: 'Address', t: 'area' }
+        ] },
+        { g: 'Vendor', fields: [
+          { k: 'vendor_name', l: 'Vendor name' },
+          { k: 'vendor_phone', l: 'Vendor phone' }
+        ] },
+        { g: 'Letter text', fields: [
+          { k: 'body', l: 'Text (a blank line starts a new paragraph)', t: 'area', rows: 6 }
+        ] }
+      ]
+    },
     wcr: {
       key: 'wcr', tab: 'Work completion report', file: 'Work Completion Report', page: 'letterhead',
       groups: [
@@ -489,6 +517,18 @@ var KD = (function () {
           cost: amt ? 'Rs.' + inrS(amt) + ' + KSEB Charges.' : '', pay1: '60', pay2: '30', pay3: '10'
         };
       }
+    } else if (docKey === 'req') {
+      var raddr = trim(c.address), rdist = trim(c.district);
+      if (rdist && raddr.toLowerCase().indexOf(rdist.toLowerCase()) < 0) raddr = [raddr, rdist].filter(Boolean).join(', ');
+      v = {
+        date: today, subject: 'Request for Registration of Solar Power Plant',
+        section: trim(c.kseb_section),
+        name: trim(c.name), consumer_no: trim(c.consumer_no), phone: trim(c.phone), pincode: trim(c.pincode), address: raddr,
+        vendor_name: trim(sd.vendor_name), vendor_phone: trim(sd.vendor_phone),
+        body: 'I am submitting herewith the required documents for the registration of my solar power plant installed at the premises with Consumer No. '
+          + (trim(c.consumer_no) || '__________') + '. The installation has been completed in accordance with the approved feasibility report, and I kindly request you to process the registration at the earliest convenience.'
+          + '\n\nThank you for your attention and support.'
+      };
     } else if (docKey === 'cov') {
       var cph = trim(c.phase) || trim(p.inverter_type), csg = /single/i.test(cph), cth = /three/i.test(cph), cip = K.invPhase(p, c);
       var cinv = Array.isArray(p.inverters) ? p.inverters : [], cpan = Array.isArray(p.panels) ? p.panels : [];
@@ -1570,7 +1610,65 @@ var KD = (function () {
     return { ops: r.ops, fit: r.last - first < 3, last: r.last };
   };
 
+  /* ---- KSEB: Request letter (req letter.docx): Times 12 on a plain A4 page, 1 inch margins. Date at the right; To, From
+     (with the consumer number), Subject, the letter text (justified), the contact numbers of the consumer and the vendor,
+     then "Sincerely," with room to sign. One size from 12 down to 10 pt so it stays on one page. ---- */
+  var REQ = { x0: 72, x1: 523, top: 96, bottom: 770, max: 12, min: 10 };
+  var layoutReq = function (v, measure) {
+    var D = REQ, r;
+    var blank = function (t) { return clean(t) || '__________'; };
+    for (var s = D.max; s >= D.min; s -= 0.5) {
+      var ops = [], lh = 1.17 * s, y = D.top;
+      var lines = function (t, f, x, just) {
+        f = f || 'T'; x = x || D.x0;
+        var ls = K.wrap(t, D.x1 - x, f, s, measure);
+        ls.forEach(function (ln, i) {
+          var o = op(ln, x, y, f, s), ws = just && i < ls.length - 1 ? K.justify(ln, D.x1 - x, f, s, measure) : 0;
+          if (ws) o.ws = ws;
+          if (ln) ops.push(o);
+          y += lh;
+        });
+      };
+      var gap = function (n) { y += (n === undefined ? 1 : n) * lh; };
+      var date = 'Date: ' + (K.dmy(v.date).replace(/-/g, '.') || clean(v.date));
+      ops.push(op(date, D.x1 - measure(date, 'T', s), y, 'T', s));
+      gap(2);
+      ['To,', 'The Assistant Engineer', 'KSEB Electrical Section', blank(v.section)].forEach(function (t) { lines(t); });
+      gap();
+      lines('From', 'TB'); lines(blank(v.name), 'TB');
+      clean(v.address).split('\n').map(trim).filter(Boolean).forEach(function (t) { lines(t); });
+      if (clean(v.pincode)) lines('Pin Code: ' + clean(v.pincode));
+      lines('Consumer No: ' + blank(v.consumer_no));
+      gap();
+      lines('Subject: ' + clean(v.subject), 'TB');
+      gap();
+      lines('Respected Sir,', 'TB');
+      gap(0.6);
+      clean(v.body).split(/\n\s*\n/).map(function (p) { return p.replace(/\s*\n\s*/g, ' ').trim(); }).filter(Boolean).forEach(function (p, i) {
+        if (i) gap(0.6);
+        lines(p, 'T', D.x0, true);
+      });
+      /* the contact numbers: Consumer / Vendor, colons in one column */
+      gap(0.6);
+      lines('Contact details:', 'TB');
+      var rows = [['Consumer', blank(v.name) + ', Phone: ' + blank(v.phone)], ['Vendor', blank(v.vendor_name) + ', Phone: ' + blank(v.vendor_phone)]];
+      var cx = D.x0 + Math.max.apply(null, rows.map(function (rw) { return measure(rw[0], 'T', s); })) + 8;
+      rows.forEach(function (rw) {
+        ops.push(op(rw[0], D.x0, y, 'T', s)); ops.push(op(':', cx, y, 'T', s));
+        lines(rw[1], 'T', cx + 8);
+      });
+      gap();
+      lines('Sincerely,', 'TB');
+      gap(2.2);
+      lines(blank(v.name), 'TB');
+      r = { ops: ops, size: s, overflow: y - lh > D.bottom };
+      if (!r.overflow) break;
+    }
+    return r;
+  };
+
   K.layout = function (docKey, values, measure) {
+    if (docKey === 'req') return layoutReq(values || {}, measure);
     values = values || {};
     if (docKey === 'bfr') return layoutBfr(values, measure);
     if (docKey === 'bag') return layoutBag(values, measure);
