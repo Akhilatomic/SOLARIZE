@@ -33,7 +33,7 @@ function ds_folder($id) { return row('SELECT * FROM ds_folders WHERE id=?', [(in
 function ds_name($v) {
   $n = trim((string)$v);
   if ($n === '' || mb_strlen($n) > 80) fail('Names must be 1 to 80 characters');
-  if (strpbrk($n, '/\\') !== false) fail('Folder names cannot contain / or \\');
+  if (strpbrk($n, '/\\') !== false) fail('Names cannot contain / or \\');
   if ($n === '.' || $n === '..' || preg_match('/[\x00-\x1f\x7f]/', $n)) fail('That name is not allowed');
   return $n;
 }
@@ -70,6 +70,7 @@ function ds_trash_file($r, $label, $needParent = true) {
 function ds_zip_entries(array $fileIds, array $folderIds) {
   $out = []; $used = [];
   $add = function ($path, $r) use (&$out, &$used) {
+    $path = implode('/', array_map(fn($s) => preg_replace('/[:*?"<>|]/', '_', $s), explode('/', $path)));
     $p = ds_dir() . '/' . basename($r['path']); if (!is_file($p)) return;
     $ext = pathinfo($path, PATHINFO_EXTENSION); $base = $ext === '' ? $path : substr($path, 0, -(strlen($ext) + 1)); $n = $path; $k = 2;
     while (isset($used[mb_strtolower($n)])) $n = $base . ' (' . $k++ . ')' . ($ext === '' ? '' : ".$ext");
@@ -83,7 +84,8 @@ function ds_zip_entries(array $fileIds, array $folderIds) {
     foreach (rows('SELECT * FROM ds_folders WHERE parent_id=? ORDER BY name COLLATE NOCASE', [$fid]) as $f) $walk($f['id'], $prefix . $f['name'] . '/');
   };
   foreach ($folderIds as $id) if ($f = ds_folder($id)) $walk($f['id'], $f['name'] . '/');
-  if ($fileIds) foreach (rows('SELECT * FROM datasheets WHERE id IN (' . ds_in($fileIds) . ') ORDER BY file_name COLLATE NOCASE') as $r) $add($r['file_name'], $r);
+  $inside = $folderIds ? ds_subtree($folderIds) : [];
+  if ($fileIds) foreach (rows('SELECT * FROM datasheets WHERE id IN (' . ds_in($fileIds) . ') ORDER BY file_name COLLATE NOCASE') as $r) { if ($r['folder_id'] && in_array((int)$r['folder_id'], $inside)) continue; $add($r['file_name'], $r); }
   return $out;
 }
 
@@ -116,7 +118,7 @@ function handle_folder($a) {
       $name = 'ds-' . bin2hex(random_bytes(10)) . '.' . $ext;
       if (!move_uploaded_file($fl['tmp_name'], ds_dir() . "/$name")) fail('Could not save file', 500);
       $replaced = false;
-      if ($old = ds_file_clash($folder, $fname)) { $o = row('SELECT * FROM datasheets WHERE id=?', [$old['id']]); ds_trash_file($o, $o['file_name'] . ' (replaced by a new version)', false); $replaced = true; }
+      if ($old = ds_file_clash($folder, $fname)) { $o = row('SELECT * FROM datasheets WHERE id=?', [$old['id']]); ds_trash_file($o, $o['file_name'] . ' (replaced by a new version)'); $replaced = true; }
       q('INSERT INTO datasheets(folder_id,category,title,brand,model,notes,file_name,path,size,available,avail_note,token,user) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
         [$folder, '', pathinfo($fname, PATHINFO_FILENAME), '', '', '', $fname, $name, $fl['size'], 1, '', bin2hex(random_bytes(12)), $_SESSION['name'] ?? '']);
       $id = (int)db()->lastInsertId(); audit('upload', 'datasheet', $id, $fname); out(['id' => $id, 'replaced' => $replaced]);
@@ -129,9 +131,12 @@ function handle_folder($a) {
       audit('update', 'datasheet', $r['id'], $name); out(['ok' => true]);
     case 'move':
       $files = ds_ids($in['files'] ?? []); $folders = ds_ids($in['folders'] ?? []); $to = ds_fid($in['to'] ?? 0);
+      if (!$files && !$folders) fail('Nothing selected');
       if ($to && !ds_folder($to)) fail('Folder not found', 404);
-      if ($to && in_array($to, ds_subtree($folders))) fail('A folder cannot go inside itself');
+      $sub = ds_subtree($folders);
+      if ($to && in_array($to, $sub)) fail('A folder cannot go inside itself');
       $fr = $files ? rows('SELECT * FROM datasheets WHERE id IN (' . ds_in($files) . ')') : [];
+      $fr = array_values(array_filter($fr, fn($r) => !($r['folder_id'] && in_array((int)$r['folder_id'], $sub))));
       $dr = $folders ? rows('SELECT * FROM ds_folders WHERE id IN (' . ds_in($folders) . ')') : [];
       $bad = []; $seen = [];
       foreach ($fr as $r) { $k = 'f:' . mb_strtolower($r['file_name']); if (isset($seen[$k]) || ds_file_clash($to, $r['file_name'], $r['id'])) $bad[] = $r['file_name']; $seen[$k] = 1; }
@@ -146,6 +151,7 @@ function handle_folder($a) {
       out(['ok' => true]);
     case 'delete':
       $files = ds_ids($in['files'] ?? []); $folders = ds_ids($in['folders'] ?? []);
+      if (!$files && !$folders) fail('Nothing selected');
       // a selected folder that sits inside another selected folder goes with its parent
       $top = [];
       foreach ($folders as $id) {
@@ -167,6 +173,7 @@ function handle_folder($a) {
       }
       out(['ok' => true]);
     case 'zip':
+      @set_time_limit(0);
       $files = ds_ids($_GET['files'] ?? ''); $folders = ds_ids($_GET['folders'] ?? '');
       $es = ds_zip_entries($files, $folders); if (!$es) fail('Nothing to download', 404);
       $total = array_sum(array_column($es, 2)); if ($total > DS_ZIP_MAX) fail('Too much to download at once — select fewer files', 413);

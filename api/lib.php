@@ -258,18 +258,44 @@ function migrate($db) {
   $db->exec("CREATE INDEX IF NOT EXISTS ds_folders_parent ON ds_folders(parent_id)");
   if (!in_array('folder_id', array_column($db->query('PRAGMA table_info(datasheets)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE datasheets ADD COLUMN folder_id INTEGER'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   $db->exec("CREATE INDEX IF NOT EXISTS datasheets_folder ON datasheets(folder_id)");
-  if ($db->query('SELECT 1 FROM datasheets WHERE folder_id IS NULL LIMIT 1')->fetch()) {
-    $old = $db->query("SELECT id FROM ds_folders WHERE parent_id IS NULL AND name='Old uploads' COLLATE NOCASE")->fetchColumn();
-    if (!$old) { $db->exec("INSERT INTO ds_folders(parent_id,name,user) VALUES(NULL,'Old uploads','System')"); $old = (int)$db->lastInsertId(); }
-    $cats = $db->query("SELECT DISTINCT TRIM(category) FROM datasheets WHERE folder_id IS NULL AND TRIM(COALESCE(category,''))<>''")->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($cats as $cat) {
-      $nm = trim(preg_replace('/[\x00-\x1f\x7f]/', '', str_replace(['/', '\\'], '-', mb_substr($cat, 0, 80))));
-      if ($nm === '' || $nm === '.' || $nm === '..') $nm = 'Other';
-      $sub = $db->prepare('SELECT id FROM ds_folders WHERE parent_id=? AND name=? COLLATE NOCASE'); $sub->execute([$old, $nm]); $sid = $sub->fetchColumn();
-      if (!$sid) { $db->prepare("INSERT INTO ds_folders(parent_id,name,user) VALUES(?,?,'System')")->execute([$old, $nm]); $sid = (int)$db->lastInsertId(); }
-      $db->prepare('UPDATE datasheets SET folder_id=? WHERE folder_id IS NULL AND TRIM(category)=?')->execute([$sid, $cat]);
-    }
-    $db->prepare('UPDATE datasheets SET folder_id=? WHERE folder_id IS NULL')->execute([$old]);
+  /* the sweep below runs exactly once (flag ds_fm_migrated); later schema bumps must not touch top-level files */
+  if (!$db->query("SELECT 1 FROM settings WHERE k='ds_fm_migrated'")->fetch()) {
+    $db->exec('BEGIN IMMEDIATE');
+    try {
+      if (!$db->query("SELECT 1 FROM settings WHERE k='ds_fm_migrated'")->fetch()) {
+        $legacy = array_column($db->query('SELECT id FROM datasheets WHERE folder_id IS NULL')->fetchAll(), 'id');
+        if ($legacy) {
+          $old = $db->query("SELECT id FROM ds_folders WHERE parent_id IS NULL AND name='Old uploads' COLLATE NOCASE")->fetchColumn();
+          if (!$old) { $db->exec("INSERT INTO ds_folders(parent_id,name,user) VALUES(NULL,'Old uploads','System')"); $old = (int)$db->lastInsertId(); }
+          $cats = $db->query("SELECT DISTINCT TRIM(category) FROM datasheets WHERE folder_id IS NULL AND TRIM(COALESCE(category,''))<>''")->fetchAll(PDO::FETCH_COLUMN);
+          foreach ($cats as $cat) {
+            $nm = trim(preg_replace('/[\x00-\x1f\x7f]/', '', str_replace(['/', '\\'], '-', mb_substr($cat, 0, 80))));
+            if ($nm === '' || $nm === '.' || $nm === '..') $nm = 'Other';
+            $sub = $db->prepare('SELECT id FROM ds_folders WHERE parent_id=? AND name=? COLLATE NOCASE'); $sub->execute([$old, $nm]); $sid = $sub->fetchColumn();
+            if (!$sid) { $db->prepare("INSERT INTO ds_folders(parent_id,name,user) VALUES(?,?,'System')")->execute([$old, $nm]); $sid = (int)$db->lastInsertId(); }
+            $db->prepare('UPDATE datasheets SET folder_id=? WHERE folder_id IS NULL AND TRIM(category)=?')->execute([$sid, $cat]);
+          }
+          $db->prepare('UPDATE datasheets SET folder_id=? WHERE folder_id IS NULL')->execute([$old]);
+          /* keep the names staff gave: file_name becomes the title (when it differs from the file-name stem) plus the original extension */
+          $rs = $db->query('SELECT id,folder_id,title,file_name FROM datasheets WHERE id IN (' . implode(',', array_map('intval', $legacy)) . ') ORDER BY id')->fetchAll();
+          $want = []; $used = [];
+          foreach ($rs as $r) {
+            $ext = pathinfo($r['file_name'], PATHINFO_EXTENSION); $stem = pathinfo($r['file_name'], PATHINFO_FILENAME);
+            $t = trim(mb_substr(trim(preg_replace('/[\x00-\x1f\x7f]/', '', str_replace(['/', '\\'], '', (string)$r['title']))), 0, 80));
+            if ($t === '' || $t === '.' || $t === '..' || $t === $stem) { $used[(int)$r['folder_id']][mb_strtolower($r['file_name'])] = 1; continue; }
+            $want[] = [$r['id'], (int)$r['folder_id'], $t, $ext];
+          }
+          foreach ($want as [$id, $fo, $t, $ext]) {
+            $sfx = $ext === '' ? '' : ".$ext"; $n = $t . $sfx; $k = 2;
+            while (isset($used[$fo][mb_strtolower($n)])) $n = $t . ' (' . $k++ . ')' . $sfx;
+            $used[$fo][mb_strtolower($n)] = 1;
+            $db->prepare('UPDATE datasheets SET file_name=? WHERE id=?')->execute([$n, $id]);
+          }
+        }
+        $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('ds_fm_migrated','1')");
+      }
+      $db->exec('COMMIT');
+    } catch (Throwable $e) { try { $db->exec('ROLLBACK'); } catch (Throwable $e2) { } throw $e; }
   }
   /* v40: customers.pole_no, aadhaar_no, pan_no and the loan_* columns (TEXT, loan_amount kept out of NUMS so blank stays blank) come from the column list above */
   /* v39: customers.premises (Owned / Leased) and customers.transformer (distribution transformer & HT feeder), asked for by the

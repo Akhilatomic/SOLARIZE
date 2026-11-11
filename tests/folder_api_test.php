@@ -166,6 +166,24 @@ $dup = upload($sales, 'loose.pdf', $pdf2, $sp); /* same name as the loose file, 
 $zd = zip_read(raw($eng, 'folder', 'zip', "&files=$loose," . (int)$dup['id'])[1]);
 chk(isset($zd['loose.pdf']) && isset($zd['loose (2).pdf']), 'a repeated path gets (2) before the extension');
 
+/* ZIP names Windows refuses get _, the CRM keeps the real names; a file inside a selected folder is not repeated at the root */
+$od = call($sales, 'folder', 'folder_new', ['parent_id' => null, 'name' => 'Odd:name']); $odid = (int)$od['id'];
+upload($sales, 'what?.pdf', $pdf1, $odid);
+$zo = zip_read(raw($eng, 'folder', 'zip', "&folders=$odid")[1]);
+chk(is_array($zo) && isset($zo['Odd_name/what_.pdf']), 'zip entry names replace : and ? with _');
+chk(fid(call($sales, 'folder', 'list'), 'Odd:name') === $odid, 'the CRM name keeps the colon');
+$zi = zip_read(raw($eng, 'folder', 'zip', "&files=$fid2&folders=$sp")[1]);
+chk(is_array($zi) && isset($zi[$entry]) && !isset($zi['ReNew 550 datasheet.pdf']) && !isset($zi['ReNew 550 datasheet (2).pdf']), 'a selected file inside a selected folder is not repeated at the zip root');
+$ma = call($sales, 'folder', 'folder_new', ['parent_id' => null, 'name' => 'MvA']); $maid = (int)$ma['id'];
+$mb = call($sales, 'folder', 'folder_new', ['parent_id' => null, 'name' => 'MvB']); $mbid = (int)$mb['id'];
+$mi = upload($sales, 'mvinner.pdf', $pdf1, $maid); $miid = (int)$mi['id'];
+chk(call($sales, 'folder', 'move', ['files' => [$miid], 'folders' => [$maid], 'to' => $mbid])['_code'] === 200, 'move a folder and a file inside it together');
+$l = call($sales, 'folder', 'list'); $mvf = null; $mvd = null; foreach ($l['items'] as $x) if ((int)$x['id'] === $miid) $mvf = $x; foreach ($l['folders'] as $x) if ((int)$x['id'] === $maid) $mvd = $x;
+chk($mvf && $mvd && (int)$mvf['folder_id'] === $maid && (int)$mvd['parent_id'] === $mbid, 'the file moved with its folder, not out of it');
+chk(call($sales, 'folder', 'delete', [])['_code'] === 400 && call($sales, 'folder', 'delete', ['id' => $miid])['_code'] === 400, 'delete with nothing selected is 400 (old tabs)');
+chk(call($sales, 'folder', 'move', ['files' => [], 'folders' => [], 'to' => $mbid])['_code'] === 400, 'move with nothing selected is 400');
+call($sales, 'folder', 'delete', ['files' => [], 'folders' => [$mbid, $odid]]);
+
 /* delete a single file, then its folder: restore order */
 $sf = call($sales, 'folder', 'folder_new', ['parent_id' => $other, 'name' => 'Pair']); $pair = (int)$sf['id'];
 $pf = upload($sales, 'pair.pdf', $pdf1, $pair); $pfid = (int)$pf['id'];
@@ -225,15 +243,20 @@ chk(count(call($admin, 'trash', 'list')['rows']) === $tr0 + 1, 'that is one Recy
 /* migration */
 if ($dbPath !== '') {
   $pdo = new PDO('sqlite:' . $dbPath); $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-  $pdo->exec("INSERT INTO datasheets(category,title,file_name,path,size,token,folder_id) VALUES('Solar Panel','Legacy panel','legacy.pdf','ds-legacy.pdf',10,'" . bin2hex(random_bytes(12)) . "',NULL)");
-  $pdo->exec("INSERT INTO datasheets(category,title,file_name,path,size,token,folder_id) VALUES('','Legacy plain','legacy2.pdf','ds-legacy2.pdf',10,'" . bin2hex(random_bytes(12)) . "',NULL)");
+  $pdo->exec("INSERT INTO datasheets(category,title,file_name,path,size,token,folder_id) VALUES('Solar Panel','legacy','legacy.pdf','ds-legacy.pdf',10,'" . bin2hex(random_bytes(12)) . "',NULL)");
+  $pdo->exec("INSERT INTO datasheets(category,title,file_name,path,size,token,folder_id) VALUES('','legacy2','legacy2.pdf','ds-legacy2.pdf',10,'" . bin2hex(random_bytes(12)) . "',NULL)");
+  $pdo->exec("INSERT INTO datasheets(category,title,file_name,path,size,token,folder_id) VALUES('Solar Panel','ReNew 550 BIS','IMG_0012.pdf','ds-legacy4.pdf',10,'" . bin2hex(random_bytes(12)) . "',NULL)");
+  $pdo->exec("INSERT INTO datasheets(category,title,file_name,path,size,token,folder_id) VALUES('Dup Cat','Same Title','a1.pdf','ds-legacy5.pdf',10,'" . bin2hex(random_bytes(12)) . "',NULL)");
+  $pdo->exec("INSERT INTO datasheets(category,title,file_name,path,size,token,folder_id) VALUES('Dup Cat','Same Title','a2.pdf','ds-legacy6.pdf',10,'" . bin2hex(random_bytes(12)) . "',NULL)");
+  $pdo->exec("DELETE FROM settings WHERE k='ds_fm_migrated'");
   $pdo->exec('PRAGMA user_version=40'); $pdo = null;
   $l = call($admin, 'folder', 'list');
   $oldId = fid($l, 'Old uploads'); $catId = 0; foreach ($l['folders'] as $f) if ($f['name'] === 'Solar Panel' && (int)$f['parent_id'] === $oldId) $catId = (int)$f['id'];
   $by = []; foreach ($l['items'] as $x) $by[$x['file_name']] = $x;
   chk($oldId > 0 && $catId > 0 && (int)$by['legacy.pdf']['folder_id'] === $catId, 'migration: category file lands in Old uploads / Solar Panel');
   chk((int)$by['legacy2.pdf']['folder_id'] === $oldId, 'migration: file with no category lands in Old uploads');
-  $pdo = new PDO('sqlite:' . $dbPath); $pdo->exec("INSERT INTO datasheets(category,title,file_name,path,size,token,folder_id) VALUES('Solar Panel','Legacy again','legacy3.pdf','ds-legacy3.pdf',10,'" . bin2hex(random_bytes(12)) . "',NULL)");
+  $pdo = new PDO('sqlite:' . $dbPath); $pdo->exec("INSERT INTO datasheets(category,title,file_name,path,size,token,folder_id) VALUES('Solar Panel','legacy3','legacy3.pdf','ds-legacy3.pdf',10,'" . bin2hex(random_bytes(12)) . "',NULL)");
+  $pdo->exec("DELETE FROM settings WHERE k='ds_fm_migrated'");
   $pdo->exec('PRAGMA user_version=40'); $pdo = null;
   $l = call($admin, 'folder', 'list');
   $n1 = count(array_filter($l['folders'], fn($f) => $f['name'] === 'Old uploads' && $f['parent_id'] === null));
@@ -241,6 +264,16 @@ if ($dbPath !== '') {
   $by = []; foreach ($l['items'] as $x) $by[$x['file_name']] = $x;
   chk($n1 === 1 && $n2 === 1 && (int)$by['legacy3.pdf']['folder_id'] === $catId, 'migration run again: still one Old uploads and one Solar Panel folder');
   chk((int)$by['ReNew 550 datasheet.pdf']['folder_id'] === $wp, 'migration never touches files already in a folder');
+  $dupId = 0; foreach ($l['folders'] as $f) if ($f['name'] === 'Dup Cat' && (int)$f['parent_id'] === $oldId) $dupId = (int)$f['id'];
+  chk(isset($by['ReNew 550 BIS.pdf']) && (int)$by['ReNew 550 BIS.pdf']['folder_id'] === $catId && !isset($by['IMG_0012.pdf']), 'migration: legacy title becomes the file name (keeps .pdf)');
+  chk($dupId > 0 && isset($by['Same Title.pdf']) && isset($by['Same Title (2).pdf']) && (int)$by['Same Title (2).pdf']['folder_id'] === $dupId, 'migration: repeated titles in one category get (2)');
+  /* with the flag set a later bump leaves top-level files alone */
+  $stay = upload($admin, 'stay.pdf', $pdf1, 0); $stayId = (int)$stay['id'];
+  $pdo = new PDO('sqlite:' . $dbPath); $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  $has = $pdo->query("SELECT COUNT(*) FROM settings WHERE k='ds_fm_migrated'")->fetchColumn();
+  $pdo->exec('PRAGMA user_version=40'); $pdo = null;
+  $l = call($admin, 'folder', 'list'); $by = []; foreach ($l['items'] as $x) $by[$x['file_name']] = $x;
+  chk((int)$has === 1 && (function () use ($l, $stayId) { foreach ($l['items'] as $x) if ((int)$x['id'] === $stayId) return $x['folder_id'] === null; return false; })(), 'with ds_fm_migrated set and user_version=40, a top-level file stays at the top level');
 }
 
 /* permissions */

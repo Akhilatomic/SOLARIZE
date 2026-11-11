@@ -26,6 +26,8 @@ async function pgFolder(id) {
   const cur = +id || 0;
   if (cur && !folders.some(f => +f.id === cur)) { location.hash = '#/folder'; return; }
   if (FM.cur !== cur) { FM.files.clear(); FM.folders.clear(); FM.q = ""; FM.cur = cur; }
+  for (const i of [...FM.files]) if (!items.some(x => +x.id === i)) FM.files.delete(i);
+  for (const i of [...FM.folders]) if (!folders.some(x => +x.id === i)) FM.folders.delete(i);
   const kids = folders.filter(f => (+f.parent_id || 0) === cur), files = items.filter(i => (+i.folder_id || 0) === cur);
   const nsel = () => FM.files.size + FM.folders.size;
   const rowsNow = () => {
@@ -39,7 +41,7 @@ async function pgFolder(id) {
   const crumbHtml = `<nav class="fm-crumbs"><a href="#/folder">Folder</a>${crumbs.map((c, i) => ` <span class="fm-sep">›</span> ${i === crumbs.length - 1 ? `<b>${esc(c.name)}</b>` : `<a href="#/folder/${c.id}">${esc(c.name)}</a>`}`).join('')}</nav>`;
   $('#main').innerHTML = `<div class="fm" id="fm">
    <div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Folder</h2><div class="mut">Datasheets, BIS certificates and test reports</div></div><span class="sp"></span>
-    ${w ? '<button class="btn sec" id="fmnew"><i class="i i-folder"></i> New folder</button><button class="btn" id="fmup"><i class="i i-upload"></i> Upload</button><input type="file" id="fmfile" multiple class="hide" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx">' : ''}</div>
+    ${w ? '<button class="btn sec" id="fmnew"><i class="i i-folder"></i> New folder</button><button class="btn" id="fmup"><i class="i i-upload"></i> Upload</button><input type="file" id="fmfile" multiple class="hide" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx">' : ''}</div>
    <div class="fm-top">${crumbHtml}<input id="fmq" type="search" placeholder="Search all folders…" value="${esc(FM.q)}"></div>
    <div id="fmlist" class="fm-list"></div>
    <div id="fmdrop" class="fm-drop hide"><i class="i i-upload"></i><div>Drop files to upload into <b>${esc(crumbs.length ? crumbs[crumbs.length - 1].name : 'Folder')}</b></div></div>
@@ -76,7 +78,15 @@ async function pgFolder(id) {
       <button class="btn sm sec" id="fmclr">Clear</button>`;
     const fl = [...FM.files], fo = [...FM.folders];
     $('#fmclr').onclick = () => { clearSel(); draw(); };
-    $('#fmdl').onclick = () => { location.href = (fl.length === 1 && !fo.length) ? `api.php?m=folder&a=get&id=${fl[0]}&dl=1` : `api.php?m=folder&a=zip&files=${fl.join(',')}&folders=${fo.join(',')}`; };
+    $('#fmdl').onclick = () => {
+      const inside = new Set(fo.map(Number)); let grew = true;
+      while (grew) { grew = false; folders.forEach(f => { if (!inside.has(+f.id) && inside.has(+f.parent_id)) { inside.add(+f.id); grew = true; } }); }
+      const pick = items.filter(i => inside.has(+i.folder_id) || (FM.files.has(+i.id) && !inside.has(+i.folder_id)));
+      if (!pick.length) { toast('Nothing to download', 1); return; }
+      if (pick.reduce((t, i) => t + (+i.size || 0), 0) > 500 * 1048576) { toast('Too much to download at once — select fewer files', 1); return; }
+      const url = (fl.length === 1 && !fo.length) ? `api.php?m=folder&a=get&id=${fl[0]}&dl=1` : `api.php?m=folder&a=zip&files=${fl.join(',')}&folders=${fo.join(',')}`;
+      const fr = document.createElement('iframe'); fr.style.display = 'none'; fr.src = url; document.body.appendChild(fr); setTimeout(() => fr.remove(), 120000);
+    };
     if ($('#fmwa')) $('#fmwa').onclick = () => shareModal(items.filter(i => FM.files.has(+i.id)));
     if ($('#fmrn')) $('#fmrn').onclick = () => {
       const isF = fo.length === 1, it = isF ? folders.find(f => +f.id === fo[0]) : items.find(i => +i.id === fl[0]); if (!it) return;
@@ -110,7 +120,7 @@ async function pgFolder(id) {
     for (const f of list) {
       done++; st.textContent = `Uploading ${done} of ${list.length}…`;
       if (f.size > 25 * 1048576) { alert(f.name + ' is larger than 25 MB.'); bad++; continue; }
-      if (files.some(x => x.file_name.toLowerCase() === f.name.toLowerCase()) && !confirm(`Replace ${f.name} with the new version? The old one goes to the Recycle bin.`)) continue;
+      if (files.some(x => x.file_name.toLowerCase() === f.name.toLowerCase()) && !confirm(`Replace ${f.name} with the new version? The old one goes to the Recycle bin, and links already sent for it stop working.`)) continue;
       const fd = new FormData(); fd.append('file', f); fd.append('folder_id', cur ? String(cur) : '');
       try { await api('folder', 'upload', fd); ok++; } catch (e) { bad++; }
     }
