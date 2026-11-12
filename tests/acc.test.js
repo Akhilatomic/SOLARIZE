@@ -130,3 +130,15 @@ test('material list: no double rule on continuation pages, no dangling | in the 
   assert.ok(sub.length >= 2 && sub.join(' ').includes('GSTIN: 32TESTX0000X1ZX'));
   sub.forEach(t => assert.ok(!/^\s*\||\|\s*$/.test(t), JSON.stringify(t)));
 });
+test('who paid: a Loan-mode payment defaults to the bank, any other mode keeps the choice', () => {
+  assert.equal(ACC.payFrom('Loan', 'customer'), 'bank');
+  assert.equal(ACC.payFrom('UPI', 'bank'), 'bank');
+  assert.equal(ACC.payFrom('Bank transfer', 'customer'), 'customer');
+  assert.equal(ACC.payFrom('UPI', undefined), 'customer');
+});
+test('reminder amount: the customer part on a loan project, else what is due', () => {
+  assert.equal(ACC.remindDue({ due: 290000, cust_due: 20000 }), 20000);
+  assert.equal(ACC.remindDue({ due: 120000.456 }), 120000.46);
+  assert.equal(ACC.remindDue({ due: 300000, cust_due: null }), 300000);
+  assert.equal(ACC.remindDue({ due: 270000, cust_due: 0 }), 0);
+});

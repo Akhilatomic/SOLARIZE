@@ -20,6 +20,10 @@ const ACC = {
     return { before, cost, comm, profit, margin: before ? ACC.r2(profit / before * 100) : 0 };
   },
   exBefore(e) { return ACC.r2((Number(e.amount) || 0) / (1 + (Number(e.gst) || 0) / 100)); },
+  /* who paid, when the payment form's mode changes: a Loan payment is the bank's disbursement; any other mode keeps the choice */
+  payFrom(mode, cur) { return mode === 'Loan' ? 'bank' : cur === 'bank' ? 'bank' : 'customer'; },
+  /* {pending} in the payment reminder: a pending row's cust_due (on a loan project only the customer's own part), else its due */
+  remindDue(r) { return ACC.r2(r && r.cust_due !== undefined && r.cust_due !== null ? r.cust_due : r && r.due); },
   /* KSEB / stamp paper fees: each customer's own (Finance › Fees), added on a cost sheet with this note; never copied between projects */
   FEE_NAMES: ['KSEB feasibility', 'KSEB registration', 'Stamp paper'],
   FEE_NOTE: 'From Finance › Fees',

@@ -50,9 +50,19 @@ $m2 = call($acct, 'acc', 'ac_materials');
 $tp = find_by($m2, 'name', 'Test Panel 550'); $sd = find_by($m2, 'id', $seedId);
 chk($tp && (float)$tp['rate'] == 9000 && $tp['grp'] === 'Solar panels', 'new line was added to materials with its rate');
 chk($sd && (float)$sd['rate'] == 50000, 'priced line updated its material rate');
-call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'lines' => [['grp' => 'Solar panels', 'name' => 'Test Panel 550', 'qty' => 4, 'rate' => 9100, 'gst' => 5]]]);
+/* version guard (Review Focus 5): a save with the version the sheet was opened at replaces every line; a save with an older version is 409 and writes nothing */
+$v1 = (string)($cs['version'] ?? '');
+chk($v1 !== '' && (string)(call($acct, 'acc', 'ac_cost', null, "&project_id=$pid")['version'] ?? '') === $v1, 'ac_cost and cost_save give the same version for the sheet');
+$s2 = call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'version' => $v1, 'lines' => [['grp' => 'Solar panels', 'name' => 'Test Panel 550', 'qty' => 4, 'rate' => 9100, 'gst' => 5]]]);
+$v2 = (string)($s2['version'] ?? '');
+chk($s2['_code'] === 200 && $v2 !== '' && $v2 !== $v1, 'a save with the fresh version is accepted and gives a new version (same second)');
+$st = call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'version' => $v1, 'lines' => [['grp' => 'Solar panels', 'name' => 'Stale Only Panel', 'qty' => 9, 'rate' => 1, 'gst' => 5], ['grp' => 'Solar panels', 'name' => 'Test Panel 550', 'qty' => 7, 'rate' => 1, 'gst' => 5]]]);
+chk($st['_code'] === 409 && ($st['error'] ?? '') === 'This cost sheet was changed since you opened it — reload to see the latest', 'a save with a stale version is 409 with the reload message');
 $g = call($acct, 'acc', 'ac_cost', null, "&project_id=$pid");
-chk($g['_code'] === 200 && count($g['lines']) === 1 && (float)$g['lines'][0]['qty'] == 4, 'second save replaces all lines (1 line)');
+chk($g['_code'] === 200 && count($g['lines']) === 1 && (float)$g['lines'][0]['qty'] == 4 && (string)$g['version'] === $v2, 'the stale save wrote nothing: the fresh save replaced all lines (1 line) and stays');
+chk(find_by(call($acct, 'acc', 'ac_materials'), 'name', 'Stale Only Panel') === null, 'the stale save added no material');
+$s3 = call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'lines' => [['grp' => 'Solar panels', 'name' => 'Test Panel 550', 'qty' => 4, 'rate' => 9100, 'gst' => 5]]]);
+chk($s3['_code'] === 200 && (string)$s3['version'] !== $v2, 'a save with no version (older page) is still accepted and moves the version on');
 $cnt = 0; foreach (call($acct, 'acc', 'ac_materials') as $x) if (is_array($x) && ($x['name'] ?? '') === 'Test Panel 550') $cnt++;
 chk($cnt === 1, 'no duplicate material created on re-save');
 chk(call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'lines' => [['grp' => 'Solar panels', 'name' => 'X', 'qty' => 1, 'rate' => -5, 'gst' => 5]]])['_code'] === 400, 'negative rate refused');
@@ -77,9 +87,15 @@ chk($n['_code'] === 200 && $nid > 0, 'material_save adds a material');
 call($acct, 'acc', 'material_save', ['id' => $nid, 'grp' => 'Services and charges', 'name' => 'Test Service', 'unit' => 'Job', 'gst' => 18, 'rate' => 150, 'hidden' => 1]);
 $hit = find_by(call($acct, 'acc', 'ac_materials'), 'id', $nid);
 chk($hit && (float)$hit['rate'] == 150 && (int)$hit['hidden'] === 1, 'material edited and hidden, still listed');
+$svcLine = ['material_id' => $nid, 'grp' => 'Services and charges', 'name' => 'Test Service', 'qty' => 1, 'unit' => 'Job', 'rate' => 150, 'gst' => 18];
+call($acct, 'acc', 'cost_save', ['project_id' => $pidM, 'lines' => [$svcLine]]);
 chk(call($sales, 'acc', 'material_delete', ['id' => $nid])['_code'] === 403, 'sales cannot delete materials');
 chk(call($acct, 'acc', 'material_delete', ['id' => $nid])['_code'] === 200, 'material_delete ok');
 chk(find_by(call($acct, 'acc', 'ac_materials'), 'id', $nid) === null, 'deleted material is gone');
+/* a cost line of a deleted material keeps its name and never brings the material back, however often the sheet is saved */
+call($acct, 'acc', 'cost_save', ['project_id' => $pidM, 'lines' => [$svcLine]]);
+$sv2 = call($acct, 'acc', 'cost_save', ['project_id' => $pidM, 'lines' => (call($acct, 'acc', 'ac_cost', null, "&project_id=$pidM")['lines'] ?? [])]);
+chk($sv2['_code'] === 200 && count($sv2['lines']) === 1 && $sv2['lines'][0]['name'] === 'Test Service' && find_by(call($acct, 'acc', 'ac_materials'), 'name', 'Test Service') === null, 'saving a line of a deleted material (twice) keeps the line and creates no material');
 
 /* bank fields */
 call($admin, 'profile', 'page_save', ['customer_id' => $cid, 'page' => 'bank', 'data' => ['loan_bank_email' => 'loans@test.example', 'loan_mgr_name' => 'Test Manager', 'loan_mgr_phone' => '9000000099']]);
@@ -96,6 +112,17 @@ $pay = call($admin, 'payments', 'save', ['project_id' => $pid, 'date' => '2026-1
 $pl = call($admin, 'payments', 'list', null, "&project_id=$pid");
 $px = find_by($pl, 'id', (int)($pay['id'] ?? -1));
 chk($px && ($px['src'] ?? null) === 'bank', 'payment stores src = bank');
+/* src is always stored as exactly 'bank' or 'customer' */
+$srcIds = [];
+foreach ([['Bank', 'bank'], ['someone', 'customer'], ['', 'customer'], [null, 'customer']] as [$in, $want]) {
+  $b = ['project_id' => $pid, 'date' => '2026-11-01', 'amount' => 10, 'mode' => 'UPI']; if ($in !== null) $b['src'] = $in;
+  $sid = (int)(call($admin, 'payments', 'save', $b)['id'] ?? 0); $srcIds[] = $sid;
+  $sx = find_by(call($admin, 'payments', 'list', null, "&project_id=$pid"), 'id', $sid);
+  chk($sx && $sx['src'] === $want, 'payments/save with src ' . var_export($in, true) . " stores '$want'");
+}
+call($admin, 'payments', 'save', ['id' => $srcIds[0], 'project_id' => $pid, 'date' => '2026-11-01', 'amount' => 10, 'mode' => 'UPI', 'src' => 'nonsense']);
+chk((find_by(call($admin, 'payments', 'list', null, "&project_id=$pid"), 'id', $srcIds[0])['src'] ?? '') === 'customer', 'editing a payment normalises src too');
+foreach ($srcIds as $sid) call($admin, 'payments', 'delete', ['id' => $sid]);
 
 /* ---- pending, received, profit, expenses, overview ---- */
 echo "Accounts: money lists\n";
@@ -187,11 +214,21 @@ chk(count($ex['rows']) === 1 && $ex['rows'][0]['cat'] === 'AI tools' && $ex['ads
 $ov = call($acct, 'acc', 'ac_overview', null, '&period=2026-11');
 chk($ov['_code'] === 200 && (float)$ov['expenses']['ai'] == 1000 && (float)$ov['expenses']['ads'] == 5000 && (float)$ov['expenses']['total'] == 6000 && (float)$ov['expenses']['other'] == 0, 'ac_overview: AI 1000, ads 5000, total 6000');
 chk((float)$ov['profit'] == 40000 - $cm - 6000, 'ac_overview: profit = counted profit - expenses');
+chk(($ov['no_cost_n'] ?? null) === 1 && ($ov['profit_n'] ?? null) === 1, 'ac_overview: 1 billed project counted, 1 billed without cost (left out of the profit)');
 $pp = call($acct, "acc", "ac_pending");
 chk((float)$ov['received'] == (float)$rc['total'] && $ov['received_n'] === count($rc['rows']) && $ov["pending_n"] === count($pp["rows"]) && count($ov['top']) <= 10 && abs($ov['pending'] - array_sum(array_column($pp['rows'], 'due'))) < 0.01, 'ac_overview: received and pending match the lists');
 chk(call($acct, 'acc', 'cats_save', ['cats' => ['Ads', 'AI tools', 'Rent']])['_code'] === 403, 'cats_save is admin only');
 chk(call($admin, 'acc', 'cats_save', ['cats' => ['Ads', 'AI tools', 'Rent', 'Rent', ' ']])['cats'] === ['Ads', 'AI tools', 'Rent'], 'cats_save (admin) cleans the list');
 chk(call($acct, 'acc', 'expense_save', ['date' => '2026-11-12', 'cat' => 'Rent', 'amount' => 500, 'gst' => 0])['_code'] === 200, 'new category usable');
+/* paise: the server rounds each cost line and each expense like the screens do (ACC.lineAmount / ACC.exBefore) */
+foreach (['07-01', '07-02', '07-03'] as $dd) call($acct, 'acc', 'expense_save', ['date' => "2026-$dd", 'cat' => 'Rent', 'amount' => 10, 'gst' => 18]);
+$ovJ = call($acct, 'acc', 'ac_overview', null, '&period=2026-07');
+chk((float)$ovJ['expenses']['other'] == 25.41 && (float)$ovJ['expenses']['total'] == 25.41, 'ac_overview: expenses before GST are rounded per entry (3 × 8.47 = 25.41, not 25.42)');
+[$cidK, $pidK] = $mkc('Round Kilo', '9000000019', 'Electrical installation', 10000, 1);
+call($acct, 'acc', 'cost_save', ['project_id' => $pidK, 'lines' => array_map(fn($n) => ['grp' => 'DC cables & connectors', 'name' => "Round Wire $n", 'qty' => 1.25, 'unit' => 'm', 'rate' => 0.33, 'gst' => 18], ['A', 'B', 'C'])]);
+call($admin, 'gen', 'save', ['kind' => 'tax', 'early' => 1, 'customer_id' => $cidK, 'issued_on' => '2026-08-10', 'number' => 'T3-005', 'data' => ['taxable' => 1000, 'grand' => 1089]]);
+$pk = find_by(call($acct, 'acc', 'ac_profit', null, '&period=2026-08')['rows'] ?? [], 'project_id', $pidK);
+chk($pk && (float)$pk['cost'] == 1.23 && (float)$pk['profit'] == 998.77, 'ac_profit: cost is the sum of the lines rounded to paise (3 × 0.41 = 1.23, not 1.24)');
 $ov2 = call($acct, 'acc', 'ac_overview', null, '&period=2026-11');
 chk((float)$ov2['expenses']['other'] == 500, 'ac_overview: other categories counted under other');
 chk(call($acct, 'acc', 'expense_delete', ['id' => $e1['id']])['_code'] === 200 && count(call($acct, 'acc', 'ac_expenses', null, '&period=2026-11')['rows']) === 1, 'expense_delete removes it');
@@ -250,6 +287,26 @@ chk($lk && $lk['locked'] === true && $lk['why'] === 'loan_amount' && $lk['msg'] 
 [$cidQ, $pidQ] = $mkl('Lock Quebec', '9000000026', 300000, '400000');
 $lk = $lockOf($cidQ);
 chk($lk && $lk['locked'] === false && $lk['why'] === 'bank_left', 'lock: loan larger than cost -> share 0 -> unlocked');
+/* pending rows: on a loan project the reminder asks only for the customer's part (same rule as the lock) */
+$pe = call($acct, 'acc', 'ac_pending')['rows'] ?? [];
+$rN = find_by($pe, 'id', $pidN); $rO = find_by($pe, 'id', $pidO); $rP = find_by($pe, 'id', $pidP); $rQ = find_by($pe, 'id', $pidQ); $rA = find_by($pe, 'id', $pidA);
+chk($rN && (float)$rN['due'] == 270000 && (float)$rN['cust_due'] == 0 && $rN['bank_only'] === true, "ac_pending: loan, customer's share paid -> cust_due 0, bank's part only");
+chk($rO && (float)$rO['due'] == 230000 && (float)$rO['cust_due'] == 10000 && $rO['bank_only'] === false, 'ac_pending: loan, customer paid 20000 of 30000 (bank money not counted) -> cust_due 10000');
+chk($rP && (float)$rP['cust_due'] == (float)$rP['due'] && (float)$rP['due'] == 300000 && $rP['bank_only'] === false, 'ac_pending: loan with blank loan amount -> cust_due is the whole due');
+chk($rQ && (float)$rQ['cust_due'] == 0 && $rQ['bank_only'] === true, "ac_pending: loan larger than the price -> share 0 -> bank's part only");
+chk($rA && (float)$rA['cust_due'] == (float)$rA['due'] && $rA['bank_only'] === false, 'ac_pending: not a loan -> cust_due is the due');
+/* v42 backfill: Loan-mode payments with no source on loan projects become bank payments (once; the WHERE keeps it idempotent) */
+[$cidS, $pidS] = $mkl('Fill Sierra', '9000000028', 200000, '150000');
+[$cidT, $pidT] = $mkc('Fill Tango', '9000000029', 'Electrical installation', 200000);
+foreach ([[$pidS, 'Loan', null, 'fill-a'], [$pidS, 'Loan', '', 'fill-b'], [$pidS, 'UPI', null, 'fill-c'], [$pidS, 'Loan', 'customer', 'fill-d'], [$pidT, 'Loan', null, 'fill-e']] as [$fp, $fm, $fs, $fn])
+  $dbq('INSERT INTO payments(project_id,date,amount,mode,src,note) VALUES(?,?,?,?,?,?)', [$fp, '2026-10-20', 100, $fm, $fs, $fn]);
+$dbq('PRAGMA user_version=41');
+call($acct, 'acc', 'ac_tpl'); /* the next request upgrades the database again */
+$fill = []; foreach ($dbq("SELECT note, src FROM payments WHERE note LIKE 'fill-%'")->fetchAll(PDO::FETCH_ASSOC) as $x) $fill[$x['note']] = $x['src'];
+chk($dbq('PRAGMA user_version')->fetchColumn() == 42 && ($fill['fill-a'] ?? '') === 'bank' && ($fill['fill-b'] ?? '') === 'bank', 'backfill: Loan-mode payments with no source on a loan project are now bank');
+chk(array_key_exists('fill-c', $fill) && $fill['fill-c'] === null && ($fill['fill-d'] ?? '') === 'customer' && array_key_exists('fill-e', $fill) && $fill['fill-e'] === null,'backfill: other modes, a set source and non-loan projects are left alone');
+$ixs = $dbq("SELECT name FROM sqlite_master WHERE type='index'")->fetchAll(PDO::FETCH_COLUMN);
+chk(!array_diff(['pay_date', 'spend_date', 'accl_kind'], $ixs), 'indexes on payments(date), ad_spend(date), acc_log(kind, project_id)');
 
 /* receipt data */
 [$cidR, $pidR] = $mkc('Rcpt Romeo', '9000000027', 'Electrical installation', 100000, 4);
@@ -306,6 +363,16 @@ chk(call($admin, 'acc', 'tpl_save', ['rc_subject' => 'My subject {receipt_no}', 
 $t1 = call($acct, 'acc', 'ac_tpl');
 chk($t1['rc_subject'] === 'My subject {receipt_no}' && $t1['remind'] === 'R' && $t1['tb_body'] === 'B2', 'ac_tpl returns the saved templates');
 chk(($t1['defaults']['rc_subject'] ?? '') === $t0['rc_subject'], 'ac_tpl defaults stay the built-in text after a save');
+
+/* no cap on the Pending payments tab (it draws lazily); the Dashboard list keeps its 500 */
+$pdo = new PDO('sqlite:' . $dbPath); $pdo->beginTransaction();
+$ci = $pdo->prepare('INSERT INTO customers(name, phone) VALUES(?, ?)'); $pi = $pdo->prepare('INSERT INTO projects(customer_id, title, cost, stage) VALUES(?, ?, ?, ?)');
+for ($i = 0; $i < 505; $i++) { $ci->execute(["Bulk Owing $i", '9000000000']); $pi->execute([(int)$pdo->lastInsertId(), "Bulk Owing $i plant", 100, 'Electrical installation']); }
+$pdo->commit(); $pdo = null;
+$np = count(call($acct, 'acc', 'ac_pending')['rows'] ?? []); $npe = count(call($acct, 'acc', 'ac_pending', null, '&early=1')['rows'] ?? []);
+chk($np > 505 && $npe > $np, "ac_pending lists every owing project (no 500 cap): $np, with early stages $npe");
+chk(count(call($admin, 'dashboard', 'get')['dues'] ?? []) === 500, 'the Dashboard dues list keeps its 500 cap');
+$dbq("DELETE FROM projects WHERE title LIKE 'Bulk Owing %'"); $dbq("DELETE FROM customers WHERE name LIKE 'Bulk Owing %'");
 
 echo "\n$pass ok, $fail FAIL\n";
 exit($fail ? 1 : 0);

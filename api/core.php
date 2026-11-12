@@ -69,6 +69,7 @@ function handle_crud($t, $a) {
     case 'save':
       $v = pick($in, $cols);
       if ($t === 'leads' || $t === 'customers') $v['lead_type'] = lead_type_save($t, $in, (int)($in['id'] ?? 0));
+      if ($t === 'payments') $v['src'] = strtolower($v['src']) === 'bank' ? 'bank' : 'customer'; /* who paid: always exactly 'bank' (loan disbursement) or 'customer' */
       /* KSEB sub division / division / circle follow the consumer number or section office (api/kseb_offices.php) */
       if ($t === 'customers') $v = kseb_autofill($v, !empty($in['id']) ? row('SELECT consumer_no, kseb_section, kseb_subdivision, kseb_division, kseb_circle FROM customers WHERE id=?', [(int)$in['id']]) : null);
       if (isset($v['name']) && $v['name'] === '') fail('Name required');

@@ -319,7 +319,8 @@ async function renderTax(box, c, id) {
       let nid = 0; try { nid = (await api('payments', 'save', pay)).id; } catch (x) { }
       await reload(); if (!nid) return;
       if (isCash(pay) || pay.ref_no) { toast('Payment added'); openReceipt(nid); } else toast('Payment added. Add its reference number (Edit) to make the receipt.', true); };
-    if ($('#tpm', box)) $('#tpm', box).onchange = () => { $('#tpref', box).placeholder = $('#tpm', box).value === 'Cash' ? 'Reference no. (optional for cash)' : REF_PH; };
+    if ($('#tpm', box)) $('#tpm', box).onchange = () => { const md = $('#tpm', box).value, s = $('#tpsrc', box); $('#tpref', box).placeholder = md === 'Cash' ? 'Reference no. (optional for cash)' : REF_PH;
+      if (s) s.value = ACC.payFrom(md, s.value); }; /* mode Loan: from the bank */
     $$('[data-pedit]', box).forEach(b => b.onclick = () => editPayment(b.dataset.pedit));
     $$('[data-prc]', box).forEach(b => b.onclick = () => openReceipt(b.dataset.prc));
     $$('[data-pdel]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this payment? It goes to the Recycle bin for 72 hours.')) return; try { await api('payments', 'delete', { id: +b.dataset.pdel }); toast('Payment deleted'); } catch (x) { } reload(); }); };
@@ -342,6 +343,7 @@ async function renderTax(box, c, id) {
       ${p.receipt_no ? '<p class="mut" style="font-size:12.5px;margin:8px 0 0">The receipt keeps its number. Open it again after saving to get the corrected copy.</p>' : ''}
       <div class="bar" style="margin-top:12px"><button class="btn" id="pe_s">Save</button><button class="btn sec" id="pe_x">Cancel</button></div>`);
     if (why) setTimeout(() => $('#pe_r', m).focus(), 50);
+    $('#pe_m', m).onchange = () => { const s = $('#pe_src', m); if (s) s.value = ACC.payFrom($('#pe_m', m).value, s.value); }; /* mode Loan: from the bank */
     $('#pe_x', m).onclick = () => m.remove();
     $('#pe_s', m).onclick = async e => { const amt = +$('#pe_a', m).value || 0; if (amt <= 0) return toast('Enter the amount', true); e.currentTarget.disabled = true;
       /* src is always sent: a save without it would turn a bank payment into a customer one */
@@ -403,11 +405,15 @@ async function renderTax(box, c, id) {
     const bk = isLoan && canR('loans'), sb = (via, to, icon, label) => `<button class="btn sec sm" data-via="${via}" data-to="${to}"><i class="i i-${icon}"></i> ${label}</button>`;
     el.innerHTML = `<div class="acx-tsh"><div class="bar"><b>Send the bill</b><span class="sp"></span>${sb('pdf', 'customer', 'download', 'PDF')}${sb('email', 'customer', 'mail', 'Email')}${sb('whatsapp', 'customer', 'whatsapp', 'WhatsApp')}${bk ? sb('email', 'bank', 'bank', 'Email to bank') + sb('whatsapp', 'bank', 'whatsapp', 'WhatsApp to bank') : ''}</div>
       <div class="acx-shl">${acSharedHtml(g.shared || [])}</div></div>`;
-    $$('[data-via]', el).forEach(btn => btn.onclick = () => acShareBtn(btn, async () => { const k = calc(), Q = g.qm || {}, cu = g.customer || c, name = acFileName('Tax invoice', g.doc.number, c.name);
+    /* the bill is sent as saved: with changes on the form that are not saved yet, the share waits for Save (Print shows the form as it is) */
+    $$('[data-via]', el).forEach(btn => btn.onclick = () => formSnap() !== savedSnap ? toast('Save the changes first', true) : acShareBtn(btn, async () => { const k = calc(), Q = g.qm || {}, cu = g.customer || c, name = acFileName('Tax invoice', g.doc.number, c.name);
       const blob = await acPdfFromHtml(`<div class="doc dtax">${html()}</div>`, DOC_CSS + ACX_A4_FILL, name); /* one A4 page, as printed */
       return { kind: 'tax', via: btn.dataset.via, to_whom: btn.dataset.to, blob, name, cust: cu, customer_id: id, project_id: A.project_id, payment_id: 0,
         vars: acVars({ customer: cu, company: { name: Q.name || co.name, phone: Q.phone || co.phone }, bill: { no: g.doc.number, date: g.doc.issued_on, total: k.grand }, received_total: A.paid, kw: kwTxt || (g.project || {}).kw }),
         onLogged: s => { g.shared = [s].concat(g.shared || []); drawShare(); } }; })); };
+  /* the bill form as it is now (what Save would send, with the number and date); savedSnap = as loaded, i.e. as saved (a save draws the tab again) */
+  const formSnap = () => JSON.stringify([val(), ($('#tno', box) || {}).value || '', $('#tdate', box).value]);
+  const savedSnap = formSnap();
   drawIssue(); drawShare();
 }
 

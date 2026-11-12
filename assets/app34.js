@@ -161,16 +161,21 @@ async function acCsSave() {
   const btn = $('#acx_save'), tb = $('#acx_tb');
   if (btn) btn.disabled = true;
   $$('input,select,button', tb).forEach(x => { x.disabled = true; }); /* no typing into lines that the answer is about to replace */
-  let ok = false;
+  let ok = false, stale = null;
   try {
-    const r = await api('acc', 'cost_save', { project_id: ACS.pid, lines: ACS.lines.map(acOut) });
+    /* version: the sheet as this page loaded it; if someone saved it since, the server refuses (409, stale) and writes nothing */
+    const r = await api('acc', 'cost_save', { project_id: ACS.pid, version: ACS.d && ACS.d.version, lines: ACS.lines.map(acOut) });
     ACS.d = r; ACS.lines = acSort((r.lines || []).map(acIn)); ACS.mats = null; /* new materials and rates are on the list now */
     ok = true;
-  } catch (e) { /* api() has shown the reason */ }
+  } catch (e) { if (e && e.stale) stale = e; /* else api() has shown the reason */ }
   ACS.busy = false;
   if (btn && btn.isConnected) btn.disabled = false;
   if ($('#acx_cs')) { acCsTable(); acCsTiles(); }
   if (ok) { acDirty(false); toast('Cost sheet saved'); }
+  if (stale && $('#acx_cs')) {
+    if (confirm(`${stale.error || 'This cost sheet was changed since you opened it — reload to see the latest'}.\n\nReload it now? Your changes here are not saved and will be lost. Press Cancel to keep them on screen (note them down, then reload).`)) { ACS.dirty = false; acCostSheet(ACS.pid); }
+    else toast('Not saved: someone else saved this cost sheet. Reload the page to see their lines.', true);
+  }
   return ok;
 }
 

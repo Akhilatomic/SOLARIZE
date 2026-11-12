@@ -43,6 +43,7 @@ function acc_cost_get($pid) {
     'company' => array_intersect_key(acc_company(), array_flip(['name', 'address', 'phone', 'gstin'])), /* the material list PDF's header */
     'plant' => $plant,
     'lines' => $lines,
+    'version' => (string)(int)($p['cost_ver'] ?? 0), /* send it back with cost_save: a save from an older copy of the sheet is refused (409) */
     'auto' => ['comm' => $comm, 'fees' => $fees],
     'taxable' => $taxable,
     'quote_no' => (string)($q['number'] ?? ''),
@@ -83,23 +84,36 @@ function acc_range() {
   return ["$s-01", date('Y-m-t', strtotime("$s-01"))];
 }
 
-/* projects still owing money: {id,title,customer_id,customer,phone,kw,loan,stage,cost,paid,due,last_pay,last_remind,early}. The Dashboard "dues" list uses this too. */
-function acc_pending_rows($withEarly = false, $limit = 500) { /* $limit 0 = no cap (the overview totals every owing project) */
+/* customers.loan_amount is free text (Bank & loan page): '2,70,000' or '₹270000' -> 270000; blank -> 0 */
+function acc_loan_amt($v) { return (float)str_replace([',', '₹', ' '], '', (string)$v); }
+
+/* projects still owing money: {id,title,customer_id,customer,phone,kw,loan,stage,cost,paid,due,cust_due,bank_only,last_pay,last_remind,early}.
+   cust_due = what the customer still owes: on a loan project their own share (price - loan amount) less the payments marked Customer, the
+   rule of acc_bill_lock (a blank loan amount = not known, so the whole due); bank_only = a loan project where only the bank's part is left.
+   $limit 0 = no cap (the overview totals every owing project, the Pending tab draws lazily); the Dashboard "dues" list keeps 500 and
+   needs no last reminder ($withRemind false). */
+function acc_pending_rows($withEarly = false, $limit = 500, $withRemind = true) {
   $early = "'" . implode("','", ACC_EARLY) . "'";
   $rs = rows("SELECT * FROM (SELECT p.id, p.title, p.customer_id, c.name customer, c.phone, p.kw, p.loan, p.stage, p.cost,
       COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid,
       p.cost - COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) due,
+      CASE WHEN p.loan='Yes' THEN COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id AND COALESCE(src,'')<>'bank'),0) ELSE 0 END cust_paid,
+      CASE WHEN p.loan='Yes' THEN c.loan_amount ELSE '' END loan_amt,
       (SELECT MAX(date) FROM payments WHERE project_id=p.id) last_pay,
       p.stage IN ($early) early
     FROM projects p JOIN customers c ON c.id=p.customer_id WHERE " . cust_scope('c') . ")
     WHERE due > 1" . ($withEarly ? '' : ' AND early=0') . ' ORDER BY due DESC' . ($limit > 0 ? ' LIMIT ' . (int)$limit : ''));
   $rem = [];
-  foreach (rows("SELECT l.project_id, l.created, u.name FROM acc_log l LEFT JOIN users u ON u.id=l.user_id WHERE l.id IN (SELECT MAX(id) FROM acc_log WHERE kind='remind' GROUP BY project_id)") as $l)
+  if ($withRemind) foreach (rows("SELECT l.project_id, l.created, u.name FROM acc_log l LEFT JOIN users u ON u.id=l.user_id WHERE l.id IN (SELECT MAX(id) FROM acc_log WHERE kind='remind' GROUP BY project_id)") as $l)
     $rem[(int)$l['project_id']] = ['at' => $l['created'], 'by' => (string)$l['name']];
   foreach ($rs as &$r) {
     foreach (['id', 'customer_id', 'early'] as $k) $r[$k] = (int)$r[$k];
     foreach (['cost', 'paid', 'due'] as $k) $r[$k] = round((float)$r[$k], 2);
-    $r['last_remind'] = $rem[$r['id']] ?? null; /* {at: when, by: user name}, null if never reminded */
+    $r['cust_due'] = $r['due']; $r['bank_only'] = false;
+    $loan = $r['loan'] === 'Yes' ? acc_loan_amt($r['loan_amt']) : 0;
+    if ($loan > 0) { $left = max(0, max(0, $r['cost'] - $loan) - (float)$r['cust_paid']); $r['cust_due'] = round(min($left, $r['due']), 2); $r['bank_only'] = $left <= 1; }
+    unset($r['cust_paid'], $r['loan_amt']);
+    if ($withRemind) $r['last_remind'] = $rem[$r['id']] ?? null; /* {at: when, by: user name}, null if never reminded */
   } unset($r);
   return $rs;
 }
@@ -109,12 +123,13 @@ function acc_cats() {
   return is_array($c) && $c ? array_values(array_map('strval', $c)) : ACC_DEF_CATS;
 }
 
-function acc_received_rows($from, $to) {
+/* payments dated in the period, newest first; $withShares false = no share ticks (the overview only adds them up) */
+function acc_received_rows($from, $to, $withShares = true) {
   $rs = rows("SELECT pa.id, pa.project_id, p.customer_id, c.name customer, pa.date, pa.amount, pa.mode, pa.ref_no, pa.receipt_no, pa.src, p.loan
     FROM payments pa JOIN projects p ON p.id=pa.project_id JOIN customers c ON c.id=p.customer_id
     WHERE pa.date >= ? AND pa.date <= ? AND " . cust_scope('c') . ' ORDER BY pa.date DESC, pa.id DESC', [$from, $to]);
   $sh = [];
-  foreach (rows("SELECT payment_id, via, to_whom, created FROM acc_log WHERE kind<>'remind' AND payment_id IS NOT NULL AND payment_id IN (SELECT id FROM payments WHERE date >= ? AND date <= ?) ORDER BY id", [$from, $to]) as $l)
+  if ($withShares) foreach (rows("SELECT payment_id, via, to_whom, created FROM acc_log WHERE kind<>'remind' AND payment_id IS NOT NULL AND payment_id IN (SELECT id FROM payments WHERE date >= ? AND date <= ?) ORDER BY id", [$from, $to]) as $l)
     $sh[(int)$l['payment_id']][] = ['via' => $l['via'], 'to_whom' => $l['to_whom'], 'created' => $l['created']];
   foreach ($rs as &$r) {
     foreach (['id', 'project_id', 'customer_id'] as $k) $r[$k] = (int)$r[$k];
@@ -134,7 +149,8 @@ function acc_profit_get($from, $to) {
   $rows = []; $noCost = []; $cnt = ['before' => 0.0, 'cost' => 0.0, 'comm' => 0.0, 'profit' => 0.0];
   foreach ($bills as $b) {
     $pid = (int)$b['project_id'];
-    $ln = row('SELECT COUNT(*) n, COALESCE(SUM(qty*rate),0) cost, COALESCE(SUM(qty > 0 AND rate <= 0),0) missing FROM acc_costs WHERE project_id=' . $pid);
+    /* each line rounded to paise first, as the cost sheet shows it (ACC.lineAmount) */
+    $ln = row('SELECT COUNT(*) n, COALESCE(SUM(ROUND(qty*rate,2)),0) cost, COALESCE(SUM(qty > 0 AND rate <= 0),0) missing FROM acc_costs WHERE project_id=' . $pid);
     if ((int)$ln['n'] === 0) { $noCost[] = ['project_id' => $pid, 'customer' => $b['customer'], 'bill_no' => $b['number']]; continue; }
     $taxable = (float)((json_decode((string)$b['data'], true) ?: [])['taxable'] ?? 0);
     $before = $taxable > 0 ? round($taxable, 2) : round((float)$b['price'] / 1.089, 2);
@@ -172,7 +188,7 @@ function acc_bill_lock($cid) {
   if ($due <= 1) return ['locked' => false, 'due' => $due, 'msg' => '', 'why' => 'paid'];
   $isLoan = $g['project_id'] && row('SELECT loan FROM projects WHERE id=?', [$g['project_id']])['loan'] === 'Yes';
   if (!$isLoan) return ['locked' => true, 'due' => $due, 'msg' => acc_inr($due) . ' still due', 'why' => 'due'];
-  $loan = (float)str_replace([',', '₹', ' '], '', (string)(row('SELECT loan_amount FROM customers WHERE id=?', [(int)$cid])['loan_amount'] ?? ''));
+  $loan = acc_loan_amt(row('SELECT loan_amount FROM customers WHERE id=?', [(int)$cid])['loan_amount'] ?? '');
   if ($loan <= 0) return ['locked' => true, 'due' => $due, 'msg' => 'Enter the loan amount on the Bank & loan page', 'why' => 'loan_amount'];
   $share = max(0, $cost - $loan);
   $custPaid = (float)row("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE project_id=? AND COALESCE(src,'') <> 'bank'", [$g['project_id']])['s'];
@@ -265,25 +281,33 @@ function handle_acc($a) {
       $pid = (int)($in['project_id'] ?? 0); acc_project($pid);
       $lines = $in['lines'] ?? null; if (!is_array($lines)) fail('Nothing to save');
       if (count($lines) > ACC_MAX_LINES) fail('At most ' . ACC_MAX_LINES . ' lines');
-      $clean = []; foreach (array_values($lines) as $i => $l) $clean[] = acc_line($l, $i); // validate everything before touching the database
+      $clean = []; foreach (array_values($lines) as $i => $l) $clean[] = acc_line($l, $i); /* validate everything before touching the database */
+      /* version = the sheet's cost_ver when the page loaded it (ac_cost). Someone else saved since: 409, nothing written (their lines stay).
+         No version at all (a page loaded before this check) is still accepted. */
+      $ver = $in['version'] ?? null; $stale = false;
       db()->exec('BEGIN IMMEDIATE');
       try {
-        q('DELETE FROM acc_costs WHERE project_id=?', [$pid]);
-        $nextSort = (int)q('SELECT COALESCE(MAX(sort),0) FROM acc_materials')->fetchColumn();
-        foreach ($clean as $i => $l) {
-          $mid = $l['material_id'];
-          if ($mid && !row('SELECT 1 FROM acc_materials WHERE id=?', [$mid])) $mid = 0;
-          if (!$mid) {
-            $m = row('SELECT id FROM acc_materials WHERE grp=? AND lower(name)=lower(?)', [$l['grp'], $l['name']]);
-            if ($m) $mid = (int)$m['id'];
-            else { q('INSERT INTO acc_materials(grp,name,unit,gst,rate,sort) VALUES(?,?,?,?,?,?)', [$l['grp'], $l['name'], $l['unit'] !== '' ? $l['unit'] : 'Nos', $l['gst'], $l['rate'], ++$nextSort]); $mid = (int)db()->lastInsertId(); }
+        $stale = $ver !== null && (string)$ver !== (string)(int)(row('SELECT cost_ver FROM projects WHERE id=?', [$pid])['cost_ver'] ?? 0);
+        if (!$stale) {
+          q('DELETE FROM acc_costs WHERE project_id=?', [$pid]);
+          $nextSort = (int)q('SELECT COALESCE(MAX(sort),0) FROM acc_materials')->fetchColumn();
+          foreach ($clean as $i => $l) {
+            $mid = $l['material_id'];
+            if (!$mid) { /* typed on the sheet: the material with that group + name, else it goes on the Materials list */
+              $m = row('SELECT id FROM acc_materials WHERE grp=? AND lower(name)=lower(?)', [$l['grp'], $l['name']]);
+              if ($m) $mid = (int)$m['id'];
+              else { q('INSERT INTO acc_materials(grp,name,unit,gst,rate,sort) VALUES(?,?,?,?,?,?)', [$l['grp'], $l['name'], $l['unit'] !== '' ? $l['unit'] : 'Nos', $l['gst'], $l['rate'], ++$nextSort]); $mid = (int)db()->lastInsertId(); }
+              $onList = true;
+            } else $onList = (bool)row('SELECT 1 FROM acc_materials WHERE id=?', [$mid]); /* a deleted material: the line keeps its name and id, the material is not made again */
+            if ($l['rate'] > 0 && $onList) q('UPDATE acc_materials SET rate=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$l['rate'], $mid]);
+            q('INSERT INTO acc_costs(project_id,material_id,grp,name,qty,unit,rate,gst,supplier,bill_no,bill_date,note,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+              [$pid, $mid, $l['grp'], $l['name'], $l['qty'], $l['unit'], $l['rate'], $l['gst'], $l['supplier'], $l['bill_no'], $l['bill_date'], $l['note'], $i + 1]);
           }
-          if ($l['rate'] > 0) q('UPDATE acc_materials SET rate=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$l['rate'], $mid]);
-          q('INSERT INTO acc_costs(project_id,material_id,grp,name,qty,unit,rate,gst,supplier,bill_no,bill_date,note,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
-            [$pid, $mid, $l['grp'], $l['name'], $l['qty'], $l['unit'], $l['rate'], $l['gst'], $l['supplier'], $l['bill_no'], $l['bill_date'], $l['note'], $i + 1]);
+          q('UPDATE projects SET cost_ver=COALESCE(cost_ver,0)+1 WHERE id=?', [$pid]);
         }
-        db()->exec('COMMIT');
+        db()->exec($stale ? 'ROLLBACK' : 'COMMIT');
       } catch (Throwable $e) { try { db()->exec('ROLLBACK'); } catch (Throwable $e2) { } throw $e; }
+      if ($stale) out(['error' => 'This cost sheet was changed since you opened it — reload to see the latest', 'stale' => 1, 'quiet' => 1], 409);
       audit('acc_cost_save', 'projects', $pid, count($clean) . ' line(s)');
       out(acc_cost_get($pid));
     }
@@ -321,7 +345,7 @@ function handle_acc($a) {
     }
 
     case 'ac_pending':
-      out(['rows' => acc_pending_rows(!empty($_GET['early']))]);
+      out(['rows' => acc_pending_rows(!empty($_GET['early']), 0)]); /* every owing project: the tab draws its rows lazily */
 
     case 'ac_received': {
       [$f, $t] = acc_range(); $rs = acc_received_rows($f, $t);
@@ -379,18 +403,19 @@ function handle_acc($a) {
 
     case 'ac_overview': {
       [$f, $t] = acc_range();
-      $rec = acc_received_rows($f, $t); $pend = acc_pending_rows(false, 0);
+      $rec = acc_received_rows($f, $t, false); $pend = acc_pending_rows(false, 0);
       $x = ['ads' => 0.0, 'ai' => 0.0, 'other' => 0.0];
       foreach (rows('SELECT cat, amount, gst FROM acc_expenses WHERE date >= ? AND date <= ?', [$f, $t]) as $e) {
-        $b = (float)$e['amount'] / (1 + (float)$e['gst'] / 100);
+        $b = round((float)$e['amount'] / (1 + (float)$e['gst'] / 100), 2); /* each entry rounded, as the Expenses tab shows it (ACC.exBefore) */
         $x[$e['cat'] === 'Ads' ? 'ads' : ($e['cat'] === 'AI tools' ? 'ai' : 'other')] += $b;
       }
       foreach (acc_ads_by_month($f, $t) as $m) $x['ads'] += $m['spend'];
       $x = array_map(fn($v) => round($v, 2), $x); $x['total'] = round($x['ads'] + $x['ai'] + $x['other'], 2);
       $pf = acc_profit_get($f, $t);
+      /* profit_n = billed projects counted in the profit; no_cost_n = billed projects with no cost lines, left out (the Profit tab lists them) */
       out(['received' => round(array_sum(array_column($rec, 'amount')), 2), 'received_n' => count($rec),
         'pending' => round(array_sum(array_column($pend, 'due')), 2), 'pending_n' => count($pend), 'pending_loan_n' => count(array_filter($pend, fn($r) => $r['loan'] === 'Yes')),
-        'expenses' => $x, 'profit' => round($pf['counted']['profit'] - $x['total'], 2), 'top' => array_slice($pend, 0, 10)]);
+        'expenses' => $x, 'profit' => round($pf['counted']['profit'] - $x['total'], 2), 'profit_n' => count($pf['rows']), 'no_cost_n' => count($pf['no_cost']), 'top' => array_slice($pend, 0, 10)]);
     }
   }
   fail('Unknown action', 404);

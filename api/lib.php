@@ -314,6 +314,13 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS acc_log(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, payment_id INTEGER, customer_id INTEGER, project_id INTEGER, via TEXT, to_whom TEXT, to_addr TEXT DEFAULT '', user_id INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec('CREATE INDEX IF NOT EXISTS accl_proj ON acc_log(project_id)');
   $db->exec('CREATE INDEX IF NOT EXISTS accl_pay ON acc_log(payment_id)');
+  /* the Accounts lists filter by date (payments received, campaign spend) and the pending list reads the last reminder per project */
+  foreach (['pay_date ON payments(date)', 'spend_date ON ad_spend(date)', 'accl_kind ON acc_log(kind, project_id)'] as $ix) $db->exec("CREATE INDEX IF NOT EXISTS $ix");
+  /* projects.cost_ver: the cost sheet's version, +1 on every acc/cost_save (two people saving the same sheet: the older page gets 409).
+     Not in the projects column list, so a project save never touches it. */
+  if (!in_array('cost_ver', array_column($db->query('PRAGMA table_info(projects)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE projects ADD COLUMN cost_ver INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  /* payments.src is new: a Loan-mode payment on a loan project recorded before it was the bank's disbursement (only rows with no source, so a rerun changes nothing) */
+  $db->exec("UPDATE payments SET src='bank' WHERE (src IS NULL OR src='') AND mode='Loan' AND project_id IN (SELECT id FROM projects WHERE loan='Yes')");
   require_once __DIR__ . '/acc_seed.php';
   acc_seed($db); // only fills an empty materials list
   require_once __DIR__ . '/qm_seed.php';

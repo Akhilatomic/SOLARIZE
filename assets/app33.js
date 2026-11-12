@@ -112,13 +112,15 @@ function acFill(tb, rows, html, empty) {
 /* ---------- pending projects (Overview's top 10 and the Pending payments tab) ---------- */
 const acPendHead = rem => `<thead><tr><th>Customer</th><th class="num">Plant</th><th class="num">Project price</th><th class="num">Received</th><th class="num">Pending</th><th>Last payment</th>${rem ? '<th>Last reminder</th>' : ''}<th><span class="acx-sr">Actions</span></th></tr></thead><tbody></tbody>`;
 const acRemCell = r => r.last_remind ? `${acDt(acDay(r.last_remind.at))}${r.last_remind.by ? `<span class="mut"> · ${esc(r.last_remind.by)}</span>` : ''}` : '<span class="mut">—</span>';
+/* r.cust_due = what the customer still owes (on a loan project only their own share, price − loan amount); r.bank_only = a loan project
+   where only the bank's part is left: no reminder (the customer owes nothing) */
 function acPendRow(r, rem) {
-  const kw = acKw(r.kw), n = r.last_pay ? acDays(r.last_pay) : 0;
-  const acts = (!r.early && acCanRemind() ? '<button type="button" class="btn sec sm" data-acx-a="remind" title="WhatsApp payment reminder: opens WhatsApp with the message ready"><i class="i i-whatsapp"></i> Reminder</button>' : '')
+  const kw = acKw(r.kw), n = r.last_pay ? acDays(r.last_pay) : 0, part = r.loan === 'Yes' && !r.bank_only && +r.cust_due < +r.due;
+  const acts = (!r.early && !r.bank_only && acCanRemind() ? `<button type="button" class="btn sec sm" data-acx-a="remind" title="WhatsApp payment reminder for ${esc(inr2(ACC.remindDue(r)))}: opens WhatsApp with the message ready"><i class="i i-whatsapp"></i> Reminder</button>` : '')
     + (canW('payments') ? '<button type="button" class="btn sec sm" data-acx-a="pay" title="Record a payment received"><i class="i i-plus"></i> Payment</button>' : '')
     + `<a class="ib" href="#/customers/${+r.customer_id}" title="Open customer" aria-label="Open customer"><i class="i i-user"></i></a>`;
-  return `<tr data-id="${+r.id}"><td class="acx-cn"><a href="#/customers/${+r.customer_id}">${esc(r.customer || r.title || '')}</a>${acLoan(r)}${r.stage ? `<small>${esc(r.stage)}</small>` : ''}</td>
-    <td class="num">${kw ? esc(kw) + ' kW' : '<span class="mut">—</span>'}</td><td class="num">${inr2(r.cost)}</td><td class="num">${inr2(r.paid)}</td><td class="num over">${inr2(r.due)}</td>
+  return `<tr data-id="${+r.id}"><td class="acx-cn"><a href="#/customers/${+r.customer_id}">${esc(r.customer || r.title || '')}</a>${acLoan(r)}${r.bank_only ? ' <span class="pill b acx-tag" title="The customer has paid their share; the rest comes from the loan bank, so there is no reminder">Bank\'s part only</span>' : ''}${r.stage ? `<small>${esc(r.stage)}</small>` : ''}</td>
+    <td class="num">${kw ? esc(kw) + ' kW' : '<span class="mut">—</span>'}</td><td class="num">${inr2(r.cost)}</td><td class="num">${inr2(r.paid)}</td><td class="num over">${inr2(r.due)}${part ? `<small class="acx-cp" title="The customer's own share (price − loan amount) still unpaid; the rest comes from the bank">customer ${inr2(r.cust_due)}</small>` : ''}</td>
     <td>${r.last_pay ? `${acDt(r.last_pay)} <span class="${n > 30 ? 'acx-late' : 'mut'}">· ${acAgo(n)}</span>` : '<span class="mut">None yet</span>'}</td>
     ${rem ? `<td data-acx-rm>${acRemCell(r)}</td>` : ''}<td class="acx-act">${acts}</td></tr>`;
 }
@@ -134,10 +136,12 @@ function acPendBind(tb, rows, reload) {
   };
 }
 
-/* WhatsApp payment reminder. r = a pending row {id: project, customer_id, customer, phone, kw, due}. The admin's template (ac_tpl.remind) is
-   filled in and WhatsApp opens to the customer with the message ready (staff press send there); then it is logged (acc/log kind 'remind')
-   and done(r) runs with r.last_remind set. A log that fails never stops the reminder. */
+/* WhatsApp payment reminder. r = a pending row {id: project, customer_id, customer, phone, kw, due, cust_due, bank_only}. The admin's template
+   (ac_tpl.remind) is filled in ({pending} = ACC.remindDue: on a loan project only the customer's own part, never the bank's money) and WhatsApp
+   opens to the customer with the message ready (staff press send there); then it is logged (acc/log kind 'remind') and done(r) runs with
+   r.last_remind set. A log that fails never stops the reminder. */
 async function acRemind(r, done) {
+  if (r.bank_only || !(ACC.remindDue(r) > 0)) { toast("Only the bank's part is left on this project, so the customer owes nothing.", true); return false; }
   if (!String(r.phone || '').replace(/\D/g, '')) { toast('This customer has no phone number. Add it on the customer page.', true); return false; }
   /* the window opens right at the click: a pop-up opened after the template arrives can be blocked */
   const win = window.open('', '_blank');
@@ -146,7 +150,7 @@ async function acRemind(r, done) {
   try { T = await acTpl(); }
   catch (e) { if (win && !win.closed) win.close(); if (!(e && e.error)) toast('Could not load the reminder message. Check the connection and try again.', true); return false; }
   const co = T.company || {}, bank = acBankLine(co);
-  const text = ACC.fill(String(T.remind || '').trim() ? T.remind : ACX_REMIND, { customer: r.customer || '', pending: ACC.r2(r.due), kw: acKw(r.kw), company: co.name || '', bank_details: bank, bank });
+  const text = ACC.fill(String(T.remind || '').trim() ? T.remind : ACX_REMIND, { customer: r.customer || '', pending: ACC.remindDue(r), kw: acKw(r.kw), company: co.name || '', bank_details: bank, bank });
   const url = ACC.waLink(r.phone, text);
   if (win && !win.closed) win.location.href = url;
   else {
@@ -182,9 +186,10 @@ function acPayForm(j, p, o = {}) {
      <div class="full"><label for="acx_yn">Note</label><input id="acx_yn" maxlength="120" value="${esc(p ? p.note || '' : '')}" ${SPELL}></div></div>
     <p class="acx-note acx-top8">A receipt needs the reference number (UTR / cheque / transaction no.) unless the payment is in cash.${p && p.receipt_no ? ' The receipt keeps its number.' : ''}</p>
     <div class="bar acx-mft"><button type="button" class="btn" id="acx_ygo">${p ? 'Save' : 'Save payment'}</button><button type="button" class="btn sec" data-x>Cancel</button></div>`);
-  const amt = $('#acx_ya', m), ref = $('#acx_yr', m), mode = $('#acx_ym', m);
+  const amt = $('#acx_ya', m), ref = $('#acx_yr', m), mode = $('#acx_ym', m), from = $('#acx_ys', m);
   const ph = () => { ref.placeholder = mode.value === 'Cash' ? 'Optional for cash' : 'UTR / cheque / transaction no.'; };
-  mode.onchange = ph; ph();
+  mode.onchange = () => { ph(); if (from) from.value = ACC.payFrom(mode.value, from.value); }; /* mode Loan: from the bank */
+  ph();
   $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
   if ($('#acx_yfull', m)) $('#acx_yfull', m).onclick = () => { amt.value = String(ACC.r2(due)); amt.focus(); };
   $('#acx_ygo', m).onclick = async e => {
@@ -210,12 +215,14 @@ function acPayForm(j, p, o = {}) {
 ACCT_TABS.overview = async (box, P) => {
   const d = await api('acc', 'ac_overview', undefined, acPer(P));
   if (!box.isConnected) return;
-  const x = d.expenses || {}, top = d.top || [], n = +d.pending_n || 0;
+  const x = d.expenses || {}, top = d.top || [], n = +d.pending_n || 0, nc = +d.no_cost_n || 0;
+  /* billed projects with no cost lines are left out of the profit: said on the tile, so a missing cost sheet never reads as a loss or a gain */
+  const pSub = `before GST · ${acPl(+d.profit_n || 0, 'project')} counted${nc ? ` · <span class="acx-late">${acPl(nc, 'billed project')} without cost — left out</span>` : ''}`;
   box.innerHTML = `<div class="acx-view"><div class="acx-tiles">
       ${acTile('Received', inr2(d.received), `${acPl(+d.received_n || 0, 'payment')} in ${esc(P.label)}`, '', '#/accounts/received')}
       ${acTile('Pending', inr2(d.pending), `${acPl(n, 'project')} · ${+d.pending_loan_n || 0} loan`, +d.pending > 0 ? 'acx-neg' : '', '#/accounts/pending', 'Still due today, whatever the period')}
       ${acTile('Expenses', inr2(x.total), `Ads ${inr2(x.ads)} · AI ${inr2(x.ai)} · Other ${inr2(x.other)}`, '', '#/accounts/expenses', 'Before GST. Ads include the campaign spend from Meta Ads.')}
-      ${acTile('Profit (projects billed − expenses)', acSigned(d.profit), 'before GST', acTone(d.profit), '#/accounts/profit', 'Profit of the projects whose tax bill was issued in the period, less the company expenses')}</div>
+      ${acTile('Profit (projects billed − expenses)', acSigned(d.profit), pSub, acTone(d.profit), '#/accounts/profit', 'Profit of the projects whose tax bill was issued in the period, less the company expenses' + (nc ? '. Projects billed without a cost sheet are left out until their cost is entered (see Project profit).' : ''))}</div>
     <div class="acx-ch"><h3>Pending payments</h3><span class="mut acx-small">${n ? 'biggest first' : ''}</span><span class="sp"></span>${n > top.length ? `<a class="btn sec sm" href="#/accounts/pending">See all ${n}</a>` : ''}</div>
     <div class="card tw"><table class="acx-pt" data-min="900">${acPendHead(false)}</table></div></div>`;
   const tb = $('table', box);
@@ -246,7 +253,7 @@ ACCT_TABS.pending = async box => {
     $('.acx-sum', box).textContent = `${acPl(L.length, 'project')} · ${inr2(ACC.r2(L.reduce((s, r) => s + (+r.due || 0), 0)))} pending`;
     $('[data-acx-note]', box).textContent = ACXP.f === 'early'
       ? 'Projects still in an early stage (Customer, KSEB feasibility check, Loan registration, KSEB feasibility payment, PMSG portal registration). They are not in the pending total and get no reminder.'
-      : 'Projects past the early stages with money still due: the same list as the Dashboard, biggest first. Reminder opens WhatsApp with the message ready; press send there.';
+      : "Projects past the early stages with money still due: the same list as the Dashboard, biggest first. Reminder opens WhatsApp with the message ready; press send there. On a loan project it asks only for the customer's own share (price − loan amount); Bank's part only = the customer has paid theirs, so there is no reminder.";
     acFill(tb, L, r => acPendRow(r, true), rows.length ? 'Nothing matches.' : 'Nothing pending.');
   };
   const reload = async () => { try { rows = await load(); } catch (e) { return; } if (box.isConnected) draw(); };

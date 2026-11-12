@@ -25,7 +25,7 @@ function handle_dashboard() {
   $ks = rows("SELECT p.id,p.title,cu.name customer, (SELECT COUNT(*) FROM checklist c WHERE c.project_id=p.id AND c.kind='kseb' AND c.status IN ('Approved','NA')) done FROM projects p LEFT JOIN customers cu ON cu.id=p.customer_id WHERE p.stage<>'Project completed'$P");
   $ktotal = count($S['kseb_items']);
   $kpending = array_values(array_filter(array_map(fn($p) => $p + ['total' => $ktotal], $ks), fn($p) => $p['done'] < $ktotal));
-  $overdue = can('finance') ? array_map(fn($r) => ['id' => $r['id'], 'title' => $r['title'], 'customer' => $r['customer'], 'due' => $r['due']], acc_pending_rows()) : []; /* the same list as Accounts > Pending; all of them (up to 500): the dashboard tile counts them and opens the list */
+  $overdue = can('finance') ? array_map(fn($r) => ['id' => $r['id'], 'title' => $r['title'], 'customer' => $r['customer'], 'due' => $r['due']], acc_pending_rows(false, 500, false)) : []; /* the same list as Accounts > Pending, up to 500 (the dashboard tile counts them and opens the list); no last-reminder lookup */
   $td = date('Y-m-d'); $loc = "date(created,'+330 minutes')";
   $cnt = fn($sql, $a = []) => (int)(row($sql, $a)['v'] ?? 0);
   $pct = fn($n, $p) => $p ? (int)round(($n - $p) / $p * 100) : ($n ? 100 : 0);
