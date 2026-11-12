@@ -325,6 +325,12 @@ function migrate($db) {
   $db->exec("UPDATE payments SET src='bank' WHERE (src IS NULL OR src='') AND mode='Loan' AND project_id IN (SELECT id FROM projects WHERE loan='Yes')");
   require_once __DIR__ . '/acc_seed.php';
   acc_seed($db); // only fills an empty materials list
+  /* v43: KSEB fees and stamp paper are passed on at cost, so their price list items get 0 % profit where the % is blank. Once
+     (flag acc_fee_pct0), after the seed so a new database gets it too; a % the owner clears later stays blank. Same names as ACC.FEE_NAMES. */
+  if (!$db->query("SELECT 1 FROM settings WHERE k='acc_fee_pct0'")->fetch()) {
+    $db->exec("UPDATE acc_materials SET profit=0 WHERE profit IS NULL AND lower(trim(name)) IN ('kseb feasibility','kseb registration','stamp paper')");
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_fee_pct0','1')");
+  }
   require_once __DIR__ . '/qm_seed.php';
   qm_seed($db); // only fills an empty catalogue
   $db->exec('ANALYZE'); // give the query planner row counts for the new indexes

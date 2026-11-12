@@ -45,7 +45,7 @@ $pid = (int)(call($admin, 'projects', 'save', ['customer_id' => $cid, 'title' =>
 chk($cid > 0 && $pid > 0, 'customer and project created');
 $seedId = (int)$m[0]['id'];
 $cs = call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'lines' => [
-  ['material_id' => $seedId, 'grp' => $m[0]['grp'], 'name' => $m[0]['name'], 'qty' => 1, 'unit' => 'Nos', 'rate' => 50000, 'gst' => 5],
+  ['material_id' => $seedId, 'grp' => $m[0]['grp'], 'name' => $m[0]['name'], 'qty' => 1, 'unit' => 'Nos', 'rate' => 50000, 'gst' => 5, 'price_typed' => 1],
   ['grp' => 'Solar panels', 'name' => 'Test Panel 550', 'unit' => 'Nos', 'qty' => 6, 'rate' => 9000, 'gst' => 5],
 ]]);
 chk($cs['_code'] === 200 && count($cs['lines'] ?? []) === 2, 'cost_save returns 2 lines');
@@ -53,7 +53,7 @@ chk(($cs['project']['cost'] ?? 0) == 108900 && ($cs['customer']['name'] ?? '') =
 $m2 = $mats();
 $tp = find_by($m2, 'name', 'Test Panel 550'); $sd = find_by($m2, 'id', $seedId);
 chk($tp && (float)$tp['rate'] == 9000 && $tp['grp'] === 'Solar panels', 'new line was added to materials with its rate');
-chk($sd && (float)$sd['rate'] == 50000, 'priced line updated its material rate');
+chk($sd && (float)$sd['rate'] == 50000, 'a dealer price typed on the sheet (price_typed) updates the item');
 /* version guard (Review Focus 5): a save with the version the sheet was opened at replaces every line; a save with an older version is 409 and writes nothing */
 $v1 = (string)($cs['version'] ?? '');
 chk($v1 !== '' && (string)(call($acct, 'acc', 'ac_cost', null, "&project_id=$pid")['version'] ?? '') === $v1, 'ac_cost and cost_save give the same version for the sheet');
@@ -451,6 +451,43 @@ chk(is_array($zc) && $zc['kind'] === '' && $zc['person'] === '' && (float)$zc['a
 call($admin, 'gen', 'save', ['kind' => 'tax', 'early' => 1, 'customer_id' => $cidX, 'issued_on' => '2026-06-10', 'number' => 'T3-090', 'data' => ['taxable' => 400000, 'grand' => 435600]]);
 $xp = find_by(call($acct, 'acc', 'ac_profit', null, '&period=2026-06')['rows'] ?? [], 'project_id', $pidX);
 chk($xp && (float)$xp['cost'] == 16 * 14200 + 8000 + 27500 && (float)$xp['comm'] == 15000 && (float)$xp['profit'] == 400000 - (16 * 14200 + 8000 + 27500) - 15000, 'ac_profit: cost = Σ qty × dealer price, commission subtracted (profit % plays no part)');
+
+/* fix round 1: the price list keeps its dealer price unless a line's price is typed on the sheet (and differs from what the sheet had) */
+echo "Accounts: price list write-back, fees at 0 %, duplicate product\n";
+$wb = (int)(call($acct, 'acc', 'material_save', ['grp' => 'Solar panels', 'name' => 'Wb Panel 540', 'unit' => 'Nos', 'gst' => 5, 'rate' => 13000, 'profit' => ''])['id'] ?? 0);
+$wb2 = (int)(call($acct, 'acc', 'material_save', ['grp' => 'Solar panels', 'name' => 'Wb Panel 545', 'unit' => 'Nos', 'gst' => 5, 'rate' => 11000, 'profit' => ''])['id'] ?? 0);
+$rateOf = fn($id) => (float)(find_by($mats(), 'id', $id)['rate'] ?? -1);
+[$cidW, $pidW] = $mkc('Wb Whiskey', '9000000034', 'Electrical installation', 300000, 5);
+$wl = ['material_id' => $wb, 'grp' => 'Solar panels', 'name' => 'Wb Panel 540', 'qty' => 9, 'unit' => 'Nos', 'rate' => 13500, 'gst' => 5, 'profit' => 15];
+chk(call($acct, 'acc', 'cost_save', ['project_id' => $pidW, 'lines' => [$wl + ['price_typed' => 1]]])['_code'] === 200 && $rateOf($wb) === 13500.0, 'a price typed on a new line updates the price list (13,500)');
+call($acct, 'acc', 'material_save', ['id' => $wb, 'grp' => 'Solar panels', 'name' => 'Wb Panel 540', 'unit' => 'Nos', 'gst' => 5, 'rate' => 14200]);
+$wg = call($acct, 'acc', 'ac_cost', null, "&project_id=$pidW");
+$ws = call($acct, 'acc', 'cost_save', ['project_id' => $pidW, 'version' => $wg['version'], 'lines' => array_map(fn($l) => array_merge($l, ['bill_no' => 'B-77']), $wg['lines'])]);
+chk($ws['_code'] === 200 && $ws['lines'][0]['bill_no'] === 'B-77' && $rateOf($wb) === 14200.0, 'the owner sets 14,200 on the list; re-saving the old sheet (a bill no. added) keeps 14,200');
+call($acct, 'acc', 'cost_save', ['project_id' => $pidW, 'lines' => [$wl + ['price_typed' => 1]]]);
+chk($rateOf($wb) === 14200.0, 'a line flagged typed but still at the price the sheet had (13,500) does not write back');
+call($acct, 'acc', 'cost_save', ['project_id' => $pidW, 'lines' => [$wl, ['material_id' => $wb2, 'grp' => 'Solar panels', 'name' => 'Wb Panel 545', 'qty' => 2, 'unit' => 'Nos', 'rate' => 9999, 'gst' => 5]]]);
+chk($rateOf($wb2) === 11000.0, 'a line that arrives with a price but not typed here (Copy from another project) leaves the list alone');
+call($acct, 'acc', 'cost_save', ['project_id' => $pidW, 'lines' => [['rate' => 15000, 'price_typed' => 1] + $wl]]);
+chk($rateOf($wb) === 15000.0, 'typing a new price (15,000) on the line still updates the item');
+/* KSEB fee items are pass-through costs: 0 % profit (once, only where the % was blank) */
+/* null = blank (the default), else the % as a float (JSON gives a whole number as an int) */
+$feeP = function ($name) use ($mats) { $x = find_by($mats(), 'name', $name); return $x ? ($x['profit'] === null ? null : (float)$x['profit']) : 'missing'; };
+chk($feeP('KSEB feasibility') === 0.0 && $feeP('KSEB registration') === 0.0, 'v43: the seeded KSEB feasibility and registration items have 0 % profit');
+$feeLi = find_by($mats(), 'name', 'KSEB liaisoning, documentation and subsidy process');
+chk($feeLi && $feeLi['profit'] === null, 'v43: other services keep the default (blank)');
+$stp = (int)(call($acct, 'acc', 'material_save', ['grp' => 'Services and charges', 'name' => 'Stamp paper', 'unit' => 'Nos', 'gst' => 0, 'rate' => 100, 'profit' => ''])['id'] ?? 0);
+$reg = find_by($mats(), 'name', 'KSEB registration');
+call($acct, 'acc', 'material_save', ['id' => $reg['id'], 'grp' => $reg['grp'], 'name' => $reg['name'], 'unit' => $reg['unit'], 'gst' => $reg['gst'], 'rate' => $reg['rate'], 'profit' => 5]);
+$dbq("DELETE FROM settings WHERE k='acc_fee_pct0'"); $dbq('PRAGMA user_version=42'); call($acct, 'acc', 'ac_tpl');
+chk($stp > 0 && $feeP('Stamp paper') === 0.0 && $feeP('KSEB registration') === 5.0, 'the fee step sets a blank Stamp paper item to 0 % and leaves a typed % (5) alone');
+$fea = find_by($mats(), 'name', 'KSEB feasibility');
+call($acct, 'acc', 'material_save', ['id' => $fea['id'], 'grp' => $fea['grp'], 'name' => $fea['name'], 'unit' => $fea['unit'], 'gst' => $fea['gst'], 'rate' => $fea['rate'], 'profit' => '']);
+$dbq('PRAGMA user_version=42'); call($acct, 'acc', 'ac_tpl');
+chk($feeP('KSEB feasibility') === null, 'it runs once: a fee item the owner set back to blank stays blank after a later upgrade');
+/* a product someone else added meanwhile: 409 with the existing item's id, no pop-up (the Add window reuses it) */
+$dup = call($acct, 'acc', 'material_save', ['grp' => 'Solar panels', 'name' => 'wb panel 540', 'unit' => 'Nos', 'gst' => 5, 'rate' => 1]);
+chk($dup['_code'] === 409 && (int)($dup['dup_id'] ?? 0) === $wb && !empty($dup['quiet']) && ($dup['error'] ?? '') === 'wb panel 540 is already in Solar panels', 'material_save 409 carries dup_id (and quiet) for a group + name already on the list');
 
 echo "\n$pass ok, $fail FAIL\n";
 exit($fail ? 1 : 0);

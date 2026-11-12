@@ -28,11 +28,14 @@ const acGi = g => { const i = ACC.GROUPS.indexOf(g); return i < 0 ? ACC.GROUPS.l
 const acSort = ls => ls.map((l, i) => [l, i]).sort((a, b) => acGi(a[0].grp) - acGi(b[0].grp) || (acGi(a[0].grp) === ACC.GROUPS.length ? String(a[0].grp || '').localeCompare(String(b[0].grp || '')) : 0) || a[1] - b[1]).map(x => x[0]);
 const acIn = l => ({ material_id: +l.material_id || 0, grp: String(l.grp || ''), name: String(l.name || ''), qty: +l.qty || 0, unit: String(l.unit || ''), rate: +l.rate || 0, gst: ACX_GSTS.includes(+l.gst) ? +l.gst : 18,
   profit: ACC.pctSet(l.profit) ? +l.profit : null, supplier: String(l.supplier || ''), bill_no: String(l.bill_no || ''), bill_date: String(l.bill_date || ''), note: String(l.note || '') });
-const acOut = l => ({ material_id: l.material_id, grp: l.grp, name: l.name, qty: l.qty, unit: l.unit, rate: l.rate, gst: l.gst, profit: l.profit, supplier: l.supplier, bill_no: l.bill_no, bill_date: l.bill_date, note: l.note });
+/* price_typed: the Dealer price box of this line was edited on this sheet (l.typed, never loaded from the server); only then can the
+   price go back on the price list. Picked, copied and fee lines and unchanged re-saves leave the owner's price list alone. */
+const acOut = l => ({ material_id: l.material_id, grp: l.grp, name: l.name, qty: l.qty, unit: l.unit, rate: l.rate, gst: l.gst, profit: l.profit, supplier: l.supplier, bill_no: l.bill_no, bill_date: l.bill_date, note: l.note, price_typed: l.typed ? 1 : 0 });
 /* the sheet's default profit % (settings acc_profit_default, as ac_cost sent it) */
 const acDef = () => ACC.pctOf(ACS.d && ACS.d.profit_default, ACS.mdef);
-/* a price list item as a sheet line with the quantity typed: its dealer price, and its profit % (blank = today's default, copied) */
-const acFromMat = (m, qty) => acIn({ material_id: m.id, grp: m.grp, name: m.name, qty, unit: m.unit, rate: m.rate, gst: m.gst, profit: ACC.pctOf(m.profit, acDef()) });
+/* a price list item as a sheet line with the quantity typed: its dealer price, and its profit % (ACC.addPct: its own; blank = 0 for a
+   KSEB / stamp paper fee, else today's default, copied) */
+const acFromMat = (m, qty) => acIn({ material_id: m.id, grp: m.grp, name: m.name, qty, unit: m.unit, rate: m.rate, gst: m.gst, profit: ACC.addPct(m, acDef()) });
 const acMats = async fresh => {
   if (fresh || !ACS.mats) { const r = await api('acc', 'ac_materials'); ACS.mats = r.rows || []; ACS.mdef = ACC.pctOf(r.profit_default, null); }
   return ACS.mats;
@@ -86,6 +89,7 @@ async function acCostSheet(pid) {
       const n = acNum(el.value);
       el.classList.toggle('acx-bad', n === null); el.title = n === null ? 'Enter a number' : '';
       if (f === 'qty') el.classList.toggle('acx-need', n !== null && !(n > 0));
+      else l.typed = true; /* a dealer price typed here may update the price list when saved */
       l[f] = n || 0;
     } else if (f === 'profit') {
       const n = acPctIn(el.value), bad = Number.isNaN(n);
@@ -182,8 +186,8 @@ function acCsTiles() {
     + t('expense', 'Expense', inr2(T.expense), `purchases ${inr2(T.purchases)} · services ${inr2(T.services)} · ${ck} ${inr2(T.comm)}${T.missing ? ` · <span class="acx-late">${acPl(T.missing, 'line')} without a dealer price</span>` : ''}`, T.missing ? 'acx-warn' : '', 'Before GST: quantity × dealer price of every line, plus the commission / incentive')
     + t('profit', 'Profit', P.profit < 0 ? '−' + inr2(-P.profit) : inr2(P.profit), priced ? `${P.margin.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% margin · before GST` : 'project price not set', P.profit < 0 ? 'acx-neg' : P.profit > 0 ? 'acx-pos' : '',
       `Project price before GST ${inr2(P.before)}${+d.taxable > 0 ? ' (from the tax bill)' : +p.cost ? ` (${inr2(p.cost)} ÷ ${ACC.GST_DIV})` : ''} − expense ${inr2(T.expense)}`)
-    + t('list', 'Customer price from the list', inr2(T.cust), !priced ? 'project price not set' : G.word === 'matches' ? `matches the agreed ${inr2(P.before)} before GST` : `agreed price (${inr2(P.before)} before GST) is ${inr2(Math.abs(G.diff))} ${G.word}`,
-      priced && G.word === 'less' ? 'acx-warn' : '', 'Every line: quantity × dealer price + its profit %');
+    + t('list', 'Customer price from the list', inr2(T.cust), (!priced ? 'project price not set' : G.word === 'matches' ? `matches the agreed ${inr2(P.before)} before GST` : `agreed price (${inr2(P.before)} before GST) is ${inr2(Math.abs(G.diff))} ${G.word}`) + ' (before commission / incentive)',
+      priced && G.word === 'less' ? 'acx-warn' : '', 'Every line: quantity × dealer price + its profit %. The commission / incentive is not in it.');
 }
 
 /* KSEB fees recorded under Finance › Fees and not on the sheet yet: added as ordinary lines (one each), the paid amount taken back to before GST */
@@ -198,7 +202,7 @@ function acFeeBar() {
     miss.forEach(f => {
       const g = ACX_GSTS.includes(+f.gst) ? +f.gst : 18, m = mats.find(x => x.grp === ACX_SVC && x.name.toLowerCase() === String(f.name).toLowerCase());
       ACS.lines.push(acIn({ material_id: m ? m.id : 0, grp: ACX_SVC, name: f.name, qty: 1, unit: m ? m.unit : 'Job', rate: ACC.r2((+f.amount || 0) / (1 + g / 100)), gst: g,
-        profit: ACC.pctOf(m && m.profit, acDef()), supplier: f.kind === 'stamp' ? '' : 'KSEB', note: ACC.FEE_NOTE }));
+        profit: ACC.addPct(m || { name: f.name, note: ACC.FEE_NOTE }, acDef()), supplier: f.kind === 'stamp' ? '' : 'KSEB', note: ACC.FEE_NOTE })); /* fees: 0 % unless the item has its own */
     });
     acChanged(); toast(`${acPl(miss.length, 'fee line')} added. Save to keep ${miss.length === 1 ? 'it' : 'them'}.`);
   };
@@ -323,7 +327,18 @@ async function acCsAdd() {
     busy = true; upd();
     let r;
     try { r = await api('acc', 'material_save', { grp, name, unit, gst, rate: acNum(nr.value) || 0, profit: acPctIn(np.value) ?? '', hidden: 0 }); }
-    catch (er) { busy = false; upd(); return; } /* api() has shown why */
+    catch (er) {
+      busy = false;
+      /* 409: someone put the same group + name on the list meanwhile: use that item (its own price), as for one found above */
+      const dupId = er && +er.dup_id;
+      if (dupId) {
+        try { mats = await acMats(true); } catch (e2) { }
+        const ex2 = mats.find(x => x.id === dupId);
+        if (ex2) { addLine(acFromMat(ex2, qty)); toast(`“${ex2.name}” was just added to the price list by someone else, so that one was added with its own price`); qIn.value = ''; nn.value = ''; nr.value = ''; np.value = ''; draw(); upd(); return; }
+        toast((er && er.error) || 'That product is already on the price list', true);
+      }
+      upd(); return; /* any other refusal: api() has shown why */
+    }
     busy = false;
     try { mats = await acMats(true); } catch (er) { }
     const item = r.item || mats.find(x => x.id === +r.id) || { id: +r.id, grp, name, unit, gst, rate: acNum(nr.value) || 0, profit: acPctIn(np.value) };
@@ -392,7 +407,7 @@ async function acMaterials(box) {
       <div class="tabs acx-mf">${[['all', 'All'], ['shown', 'In use'], ['hidden', 'Hidden']].map(([k, l]) => `<button type="button" data-acx-mf="${k}" class="${ACM.f === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <span class="mut" id="acx_mn"></span><span class="sp"></span>${w ? '<button type="button" class="btn" id="acx_madd"><i class="i i-plus"></i> Add item</button>' : ''}</div>
     <div class="card tw"><table class="acx-mt" id="acx_mt" data-min="780"></table></div>
-    <p class="acx-note">Materials and services with the dealer price (what we pay, before GST) and the profit % added for the customer. Expense sheets pick from this list; saving a sheet with a dealer price updates the item's. Hidden items stay here but are not offered on Expense sheets. A deleted item goes to the Recycle bin; sheets that use it keep their lines.</p>`;
+    <p class="acx-note">Materials and services with the dealer price (what we pay, before GST) and the profit % added for the customer. Expense sheets pick from this list; a new dealer price typed on a sheet updates the item's when the sheet is saved (re-saving a sheet never undoes a price set here). KSEB fees and stamp paper start at 0 % profit. Hidden items stay here but are not offered on Expense sheets. A deleted item goes to the Recycle bin; sheets that use it keep their lines.</p>`;
   const tb = $('#acx_mt', box), nc = w ? 7 : 6;
   const draw = () => {
     const q = ACM.q.trim().toLowerCase().split(/\s+/).filter(Boolean), def = ACS.mdef;
@@ -477,7 +492,7 @@ function acMatForm(x, mats, done) {
     const b = e.currentTarget; b.disabled = true;
     try {
       await api('acc', 'material_save', { id: x.id || 0, grp: $('#acx_fg', m).value, name, unit: $('#acx_fu', m).value.trim() || 'Nos', gst: +$('#acx_ft', m).value, rate, profit: pct ?? '', hidden: $('#acx_fh', m).checked ? 1 : 0 });
-    } catch (er) { b.disabled = false; return; } /* e.g. already on the list (shown by api()) */
+    } catch (er) { b.disabled = false; if (er && er.quiet && er.error) toast(er.error, true); return; } /* already on the list (409, quiet: said here); anything else api() has shown */
     m.remove(); toast(x.id ? 'Item saved' : `“${name}” added to the price list`);
     ACS.mats = null; done();
   };

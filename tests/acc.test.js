@@ -178,13 +178,23 @@ test('sheet totals: purchases, services, commission, expense, customer total', (
     { grp: 'Solar panels', qty: 2, rate: 0, profit: 15 },
   ];
   const t = ACC.sheetTotals(lines, 12000, 20);
-  assert.deepEqual(t, { purchases: 254700, services: 8000, comm: 12000, expense: 274700, cust: 249920 + 33000 + 8000, n: 4, missing: 1, noQty: 0 });
+  assert.deepEqual(t, { purchases: 254700, services: 8000, comm: 12000, expense: 274700, cust: 249920 + 33000 + 8000, n: 4, missing: 1 });
   /* the Profit tile uses the same numbers as ACC.profit (Accounts › Profit) */
   const P = ACC.profit({ price: 0, taxable: 300000, lines, comm: 12000 });
   assert.equal(P.cost + P.comm, t.expense);
   assert.equal(P.profit, ACC.r2(300000 - t.expense));
-  assert.equal(ACC.sheetTotals([{ grp: 'Solar panels', qty: 0, rate: 10 }, { grp: 'Solar panels', qty: '', rate: 5 }], 0, 15).noQty, 2);
-  assert.deepEqual(ACC.sheetTotals(null, null, null), { purchases: 0, services: 0, comm: 0, expense: 0, cust: 0, n: 0, missing: 0, noQty: 0 });
+  assert.deepEqual(ACC.sheetTotals(null, null, null), { purchases: 0, services: 0, comm: 0, expense: 0, cust: 0, n: 0, missing: 0 });
+});
+test('profit % a new line gets: the item\'s own, else 0 for a KSEB / stamp paper fee, else the default', () => {
+  assert.equal(ACC.addPct({ name: 'Test Panel', profit: 12 }, 15), 12);
+  assert.equal(ACC.addPct({ name: 'Test Panel', profit: null }, 15), 15);
+  assert.equal(ACC.addPct({ name: 'KSEB feasibility', profit: null }, 15), 0);
+  assert.equal(ACC.addPct({ name: 'kseb registration ', profit: '' }, 20), 0);
+  assert.equal(ACC.addPct({ name: 'Stamp paper' }, 15), 0);
+  assert.equal(ACC.addPct({ name: 'Typed fee', note: 'From Finance › Fees' }, 15), 0);
+  assert.equal(ACC.addPct({ name: 'KSEB feasibility', profit: 5 }, 15), 5, 'a fee item\'s own % is kept');
+  assert.equal(ACC.addPct({ name: 'KSEB liaisoning, documentation and subsidy process', profit: null }, 15), 15, 'a service that is not a fee takes the default');
+  assert.equal(ACC.addPct(null, 18), 18);
 });
 test('commission / incentive line: label and status', () => {
   assert.equal(ACC.commLabel({ kind: 'commission', person: 'Test Ba' }), 'Commission — Test Ba');

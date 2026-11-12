@@ -53,18 +53,19 @@ const ACC = {
   pctSet: p => p !== null && p !== undefined && String(p).trim() !== '' && isFinite(Number(p)),
   /* a profit % as stored: blank (null / '') = the default (def, else 15); a typed 0 stays 0 */
   pctOf(p, def) { return ACC.pctSet(p) ? Number(p) : ACC.pctSet(def) ? Number(def) : ACC.PROFIT_DEF; },
+  /* the profit % a new sheet line gets from a price list item: the item's own; a blank % = 0 for a KSEB / stamp paper fee (passed on
+     at cost), else the default */
+  addPct(item, def) { return ACC.pctSet(item && item.profit) ? Number(item.profit) : ACC.isFee(item) ? 0 : ACC.pctOf(null, def); },
   custPrice(dealer, pct) { return ACC.r2((Number(dealer) || 0) * (1 + (Number(pct) || 0) / 100)); },
   lineExpense(l) { return ACC.lineAmount(l); },
   lineCust(l, def) { return ACC.r2((Number(l && l.qty) || 0) * (Number(l && l.rate) || 0) * (1 + ACC.pctOf(l && l.profit, def) / 100)); },
   /* the sheet's money: purchases (every group but services), services, commission / incentive, expense (all three), customer total from the list */
   sheetTotals(lines, comm, def) {
-    const t = { purchases: 0, services: 0, comm: ACC.r2(comm), expense: 0, cust: 0, n: 0, missing: 0, noQty: 0 };
+    const t = { purchases: 0, services: 0, comm: ACC.r2(comm), expense: 0, cust: 0, n: 0, missing: 0 };
     (lines || []).forEach(l => {
-      const q = Number(l.qty) || 0;
       t[l.grp === ACC.SVC ? 'services' : 'purchases'] += ACC.lineAmount(l);
       t.cust += ACC.lineCust(l, def); t.n++;
-      if (q > 0 && !((Number(l.rate) || 0) > 0)) t.missing++;
-      if (!(q > 0)) t.noQty++;
+      if ((Number(l.qty) || 0) > 0 && !((Number(l.rate) || 0) > 0)) t.missing++;
     });
     t.purchases = ACC.r2(t.purchases); t.services = ACC.r2(t.services); t.cust = ACC.r2(t.cust);
     t.expense = ACC.r2(t.purchases + t.services + t.comm);

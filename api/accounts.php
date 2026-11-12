@@ -96,7 +96,8 @@ function acc_line($l, $i) {
   return ['material_id' => (int)($l['material_id'] ?? 0), 'grp' => $t('grp', 100), 'name' => $name, 'qty' => $qty,
     'unit' => $t('unit', 20), 'rate' => acc_money($l['rate'] ?? 0, "Line " . ($i + 1) . " rate"), 'gst' => $gst,
     'profit' => acc_pct($l['profit'] ?? null, 'Line ' . ($i + 1) . " ($name)"),
-    'supplier' => $t('supplier', 120), 'bill_no' => $t('bill_no', 60), 'bill_date' => $t('bill_date', 10), 'note' => $t('note', 300)];
+    'supplier' => $t('supplier', 120), 'bill_no' => $t('bill_no', 60), 'bill_date' => $t('bill_date', 10), 'note' => $t('note', 300),
+    'price_typed' => !empty($l['price_typed'])]; /* the dealer price was typed on this sheet (the browser sets it on a Dealer price edit only) */
 }
 
 function acc_materials_list() {
@@ -334,6 +335,11 @@ function handle_acc($a) {
       try {
         $stale = $ver !== null && (string)$ver !== (string)(int)(row('SELECT cost_ver FROM projects WHERE id=?', [$pid])['cost_ver'] ?? 0);
         if (!$stale) {
+          /* the dealer prices this sheet had per item, before it is replaced: a price only goes back on the price list when it was
+             typed on the sheet AND is not one the sheet already had (re-saving an old sheet never undoes the owner's price list) */
+          $had = [];
+          foreach (rows('SELECT material_id, rate FROM acc_costs WHERE project_id=?', [$pid]) as $h) $had[(int)$h['material_id']][] = round((float)$h['rate'], 2);
+          $isNew = fn($mid, $rate) => !array_filter($had[$mid] ?? [], fn($r) => abs($r - $rate) < 0.005);
           q('DELETE FROM acc_costs WHERE project_id=?', [$pid]);
           $nextSort = (int)q('SELECT COALESCE(MAX(sort),0) FROM acc_materials')->fetchColumn();
           foreach ($clean as $i => $l) {
@@ -344,8 +350,9 @@ function handle_acc($a) {
               else { q('INSERT INTO acc_materials(grp,name,unit,gst,rate,profit,sort) VALUES(?,?,?,?,?,?,?)', [$l['grp'], $l['name'], $l['unit'] !== '' ? $l['unit'] : 'Nos', $l['gst'], $l['rate'], $l['profit'], ++$nextSort]); $mid = (int)db()->lastInsertId(); }
               $onList = true;
             } else $onList = (bool)row('SELECT 1 FROM acc_materials WHERE id=?', [$mid]); /* a deleted material: the line keeps its name and id, the material is not made again */
-            /* a typed dealer price becomes the item's dealer price; a line's profit % is this project's own and leaves the price list alone */
-            if ($l['rate'] > 0 && $onList) q('UPDATE acc_materials SET rate=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$l['rate'], $mid]);
+            /* a dealer price typed on this sheet (and new to it) becomes the item's dealer price; picked, copied, fee and unchanged lines
+               leave it alone. A line's profit % is this project's own and never changes the price list. */
+            if ($l['price_typed'] && $l['rate'] > 0 && $onList && $isNew($mid, round($l['rate'], 2))) q('UPDATE acc_materials SET rate=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$l['rate'], $mid]);
             q('INSERT INTO acc_costs(project_id,material_id,grp,name,qty,unit,rate,gst,profit,supplier,bill_no,bill_date,note,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
               [$pid, $mid, $l['grp'], $l['name'], $l['qty'], $l['unit'], $l['rate'], $l['gst'], $l['profit'], $l['supplier'], $l['bill_no'], $l['bill_date'], $l['note'], $i + 1]);
           }
@@ -371,7 +378,8 @@ function handle_acc($a) {
       /* profit %: blank = the default; not sent at all (an older page) = an existing item keeps its own */
       $hasPct = array_key_exists('profit', $in); $pct = $hasPct ? acc_pct($in['profit'], 'Profit %') : null;
       $dup = row('SELECT id FROM acc_materials WHERE grp=? AND lower(name)=lower(?) AND id<>?', [$grp, $name, $id]);
-      if ($dup) fail("$name is already in $grp", 409);
+      /* dup_id: the item already there (the Add item window uses it); quiet: the page says so itself (no browser pop-up) */
+      if ($dup) out(['error' => "$name is already in $grp", 'dup_id' => (int)$dup['id'], 'quiet' => 1], 409);
       if ($id) {
         $old = row('SELECT profit FROM acc_materials WHERE id=?', [$id]);
         if (!$old) fail('Material not found', 404);
