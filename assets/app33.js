@@ -35,10 +35,11 @@ async function pgAccounts() {
   const tab = ACCT_TAB_NAMES.some(t => t[0] === part[1]) ? part[1] : 'overview', label = ACCT_TAB_NAMES.find(t => t[0] === tab)[1];
   $('#title').innerHTML = `<span class="ft t-accounts"><i class="i i-coin"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› ${esc(label)}</span>`;
   const main = $('#main');
-  main.innerHTML = `<div class="acx-pg"><div class="tabs acx-tabs" role="tablist">${ACCT_TAB_NAMES.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-acx-tab="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>
+  main.innerHTML = `<div class="acx-pg"><div class="acx-hd"><div class="tabs acx-tabs" role="tablist">${ACCT_TAB_NAMES.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-acx-tab="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>${ME.role === 'admin' ? '<button type="button" class="btn sec sm" data-acx-tpl title="Edit the email and WhatsApp wording"><i class="i i-gear"></i> Templates</button>' : ''}</div>
     <div class="acx-per" id="acx_per"></div><div id="acx_box"><p class="mut">Loading…</p></div></div>`;
   $$('[data-acx-tab]', main).forEach(b => b.onclick = () => { location.hash = '#/accounts/' + b.dataset.acxTab; });
   const box = $('#acx_box', main), per = $('#acx_per', main);
+  const gear = $('[data-acx-tpl]', main); if (gear) gear.onclick = () => acTplEditor();
   const run = async () => {
     const key = acPerKey(), P = Object.assign({ key }, ACC.period(key)), now = today(), month = now.slice(0, 7), fy = 'fy-' + acFy(now);
     per.hidden = ACCT_NOPER.includes(tab);
@@ -444,5 +445,34 @@ function acCatsForm(cats, done) {
     const b = e.currentTarget; b.disabled = true;
     try { await api('acc', 'cats_save', { cats: out }); } catch (er) { b.disabled = false; return; }
     m.remove(); toast('Categories saved'); done();
+  };
+}
+
+/* ---------- templates editor (admin): bank emails and the payment reminder ---------- */
+const ACX_TPL_BOXES = [
+  ['rc_subject', 'Receipt email to the bank: subject', 1, 'rc'], ['rc_body', 'Receipt email to the bank: message', 8, 'rc'],
+  ['tb_subject', 'Tax bill email to the bank: subject', 1, 'rc'], ['tb_body', 'Tax bill email to the bank: message', 8, 'rc'],
+  ['remind', 'WhatsApp payment reminder to the customer', 5, 'rm']];
+const ACX_TPL_VARS = {
+  rc: '{manager} {bank} {customer} {consumer_no} {loan_ref} {amount} {amount_words} {date} {receipt_no} {mode_ref} {bill_no} {bill_total} {received_total} {kw} {company} {sender} {sender_phone}',
+  rm: '{customer} {pending} {kw} {company} {bank_details} {bank}' };
+async function acTplEditor() {
+  let T;
+  try { T = await api('acc', 'ac_tpl'); } catch (e) { if (!(e && e.error)) toast('Could not load the templates.', true); return; }
+  const D = T.defaults || {};
+  const m = modal(`<div class="mh"><h3>Email and WhatsApp templates</h3></div>
+    <p class="mut acx-small">Words in braces are filled in when the message is made. The receipt and tax bill emails go to the loan bank manager. A box left empty uses the default.</p>
+    ${ACX_TPL_BOXES.map(([k, l, rows, g]) => `<div class="acx-tpf"><label>${l}</label><textarea data-k="${k}" rows="${rows}" maxlength="4000" ${SPELL}>${esc(T[k] || '')}</textarea>
+      <div class="acx-tpv mut">Placeholders: ${esc(ACX_TPL_VARS[g])}</div>
+      <button type="button" class="acx-link" data-acx-reset="${k}">Reset to default</button></div>`).join('')}
+    <div class="bar"><button type="button" class="btn" data-acx-save>Save</button><button type="button" class="btn sec" data-acx-x>Cancel</button></div>`, true);
+  $$('[data-acx-reset]', m).forEach(b => b.onclick = () => { $(`[data-k="${b.dataset.acxReset}"]`, m).value = D[b.dataset.acxReset] || ''; });
+  $('[data-acx-x]', m).onclick = () => m.remove();
+  const sv = $('[data-acx-save]', m);
+  sv.onclick = async () => {
+    const body = {}; ACX_TPL_BOXES.forEach(([k]) => { const v = $(`[data-k="${k}"]`, m).value.trim(); body[k] = v || D[k] || ''; });
+    sv.disabled = true;
+    try { await api('acc', 'tpl_save', body); ACX_TPL = null; m.remove(); toast('Templates saved'); }
+    catch (e) { sv.disabled = false; if (!(e && e.error)) toast('Could not save the templates.', true); }
   };
 }

@@ -300,10 +300,12 @@ chk(abs($rcvd['total'] - $rcvd2['total'] - 25000) < 0.01 && $dbq('SELECT COUNT(*
 $t0 = call($acct, 'acc', 'ac_tpl');
 chk($t0['_code'] === 200 && strpos($t0['rc_subject'] ?? '', '{receipt_no}') !== false && strpos($t0['remind'] ?? '', '{pending}') !== false && isset($t0['company']['name']), 'ac_tpl: defaults and company');
 chk(call($sales, 'acc', 'ac_tpl')['_code'] === 200 && call($ba, 'acc', 'ac_tpl')['_code'] === 403, 'ac_tpl: sales (payments) allowed, ba refused');
+chk(($t0['defaults']['rc_subject'] ?? '') === $t0['rc_subject'] && strpos($t0['defaults']['remind'] ?? '', '{bank_details}') !== false && count($t0['defaults']) === 5, 'ac_tpl: carries the default texts for Reset');
 chk(call($acct, 'acc', 'tpl_save', ['rc_subject' => 'X'])['_code'] === 403, 'tpl_save by accounts role is 403');
 chk(call($admin, 'acc', 'tpl_save', ['rc_subject' => 'My subject {receipt_no}', 'rc_body' => 'B1', 'tb_subject' => 'S2', 'tb_body' => 'B2', 'remind' => 'R'])['_code'] === 200, 'tpl_save by admin ok');
 $t1 = call($acct, 'acc', 'ac_tpl');
 chk($t1['rc_subject'] === 'My subject {receipt_no}' && $t1['remind'] === 'R' && $t1['tb_body'] === 'B2', 'ac_tpl returns the saved templates');
+chk(($t1['defaults']['rc_subject'] ?? '') === $t0['rc_subject'], 'ac_tpl defaults stay the built-in text after a save');
 
 echo "\n$pass ok, $fail FAIL\n";
 exit($fail ? 1 : 0);

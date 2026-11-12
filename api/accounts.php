@@ -205,7 +205,7 @@ function handle_acc($a) {
   $in = body();
   switch ($a) {
     case 'ac_tpl':
-      out(kv_get('acc_tpl', ACC_TPL_DEFAULT) + ['company' => acc_company()]);
+      out(kv_get('acc_tpl', ACC_TPL_DEFAULT) + ['company' => acc_company(), 'defaults' => ACC_TPL_DEFAULT]);
 
     case 'tpl_save': {
       if (!is_admin()) fail('Only the admin can change the templates', 403);

@@ -124,4 +124,9 @@ table.acx-ex.stack tr.acx-auto{background:#fbfaf3}
 .acx-fx{justify-content:space-between;padding:8px 12px;background:#f5f5f7;border-radius:9px;font-size:13.5px}
 .acx-fx .i{width:14px;height:14px;opacity:.45}
 .acx-top8{margin-top:8px}
+.acx-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.acx-hd .tabs{margin:0}
+.acx-tpf{margin:0 0 12px}
+.acx-tpf textarea{width:100%;box-sizing:border-box;font-family:inherit}
+.acx-tpv{font-size:12px;margin:3px 0 0;word-break:break-word}
 @media(max-width:600px){.acx-fbar input[type=search]{max-width:none;flex:1 1 100%}.acx-fbar .tabs{flex:1 1 100%}.acx-nc li{flex-wrap:wrap}}
