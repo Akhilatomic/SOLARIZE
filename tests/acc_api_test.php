@@ -307,7 +307,7 @@ foreach ([[$pidS, 'Loan', null, 'fill-a'], [$pidS, 'Loan', '', 'fill-b'], [$pidS
 $dbq('PRAGMA user_version=41');
 call($acct, 'acc', 'ac_tpl'); /* the next request upgrades the database again */
 $fill = []; foreach ($dbq("SELECT note, src FROM payments WHERE note LIKE 'fill-%'")->fetchAll(PDO::FETCH_ASSOC) as $x) $fill[$x['note']] = $x['src'];
-chk($dbq('PRAGMA user_version')->fetchColumn() == 44 &&($fill['fill-a'] ?? '') === 'bank' && ($fill['fill-b'] ?? '') === 'bank', 'backfill: Loan-mode payments with no source on a loan project are now bank');
+chk($dbq('PRAGMA user_version')->fetchColumn() == 45 &&($fill['fill-a'] ?? '') === 'bank' && ($fill['fill-b'] ?? '') === 'bank', 'backfill: Loan-mode payments with no source on a loan project are now bank');
 chk(array_key_exists('fill-c', $fill) && $fill['fill-c'] === null && ($fill['fill-d'] ?? '') === 'customer' && array_key_exists('fill-e', $fill) && $fill['fill-e'] === null,'backfill: other modes, a set source and non-loan projects are left alone');
 $ixs = $dbq("SELECT name FROM sqlite_master WHERE type='index'")->fetchAll(PDO::FETCH_COLUMN);
 chk(!array_diff(['pay_date', 'spend_date', 'accl_kind'], $ixs), 'indexes on payments(date), ad_spend(date), acc_log(kind, project_id)');
@@ -383,7 +383,7 @@ echo "Accounts: expense sheet and price list\n";
 $cols = fn($t) => $dbq("PRAGMA table_info($t)")->fetchAll(PDO::FETCH_COLUMN, 1);
 chk(in_array('profit', $cols('acc_materials'), true) && in_array('profit', $cols('acc_costs'), true), 'v43: acc_materials.profit and acc_costs.profit exist');
 $dbq('PRAGMA user_version=42');
-chk(call($acct, 'acc', 'ac_tpl')['_code'] === 200 && $dbq('PRAGMA user_version')->fetchColumn() == 44, 'the v43 upgrade runs again on a database that already has the columns (idempotent)');
+chk(call($acct, 'acc', 'ac_tpl')['_code'] === 200 && $dbq('PRAGMA user_version')->fetchColumn() == 45, 'the v43 upgrade runs again on a database that already has the columns (idempotent)');
 chk(count(array_keys($cols('acc_costs'), 'profit')) === 1 && count(array_keys($cols('acc_materials'), 'profit')) === 1, 'each profit column exists once after the rerun');
 /* default profit % (Settings › Price list) */
 chk(call($acct, 'acc', 'profit_default_save', null, '&pct=20')['_code'] === 405, 'profit_default_save over GET is refused');
@@ -556,6 +556,45 @@ chk(find_by($mats(), 'name', 'Tpl Rail') === null, 'saving a template does not a
 $dbq('PRAGMA user_version=43'); call($acct, 'acc', 'ac_tpl');
 $cnt = (int)$dbq('SELECT COUNT(*) FROM acc_tpls')->fetchColumn();
 chk($cnt === count($tplList()) && (int)$dbq("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='acct_name'")->fetchColumn() === 1 && (int)$dbq('PRAGMA user_version')->fetchColumn() >= 44, 'v44: re-running the upgrade keeps the templates and the unique name index');
+
+/* v45: Expense lines marked Purchased (bought, bought_on) */
+echo "Accounts: purchased lines\n";
+chk(in_array('bought', $cols('acc_costs'), true) && in_array('bought_on', $cols('acc_costs'), true), 'v45: acc_costs.bought and bought_on exist');
+[$cidP, $pidP] = $mkc('Pur Papa', '9000000040', 'Electrical installation', 200000, 5);
+$pl = fn($n, $x = []) => $x + ['grp' => 'Solar panels', 'name' => $n, 'qty' => 2, 'unit' => 'Nos', 'rate' => 100, 'gst' => 5];
+$ps = call($acct, 'acc', 'cost_save', ['project_id' => $pidP, 'lines' => [
+  $pl('Pur A', ['bought' => 1, 'bought_on' => '2026-11-12', 'supplier' => 'Test Supplier', 'bill_no' => 'B-1', 'bill_date' => '2026-11-12']),
+  $pl('Pur B'),
+  $pl('Pur C', ['bought' => 1, 'bought_on' => '2026-11-10'])]]);
+$pr = $ps['lines'] ?? [];
+chk($ps['_code'] === 200 && count($pr) === 3 && $pr[0]['bought'] === 1 && $pr[0]['bought_on'] === '2026-11-12' && $pr[1]['bought'] === 0 && $pr[1]['bought_on'] === '' && $pr[2]['bought'] === 1, 'cost_save stores bought / bought_on; ac_cost returns them as 1/0 and a date');
+$pg = call($acct, 'acc', 'ac_cost', null, "&project_id=$pidP")['lines'] ?? [];
+chk(($pg[0]['bought'] ?? null) === 1 && ($pg[0]['bought_on'] ?? '') === '2026-11-12' && ($pg[0]['supplier'] ?? '') === 'Test Supplier' && ($pg[1]['bought'] ?? null) === 0, 'ac_cost returns the saved status');
+$noDate = call($acct, 'acc', 'cost_save', ['project_id' => $pidP, 'lines' => [$pl('Pur D', ['bought' => 1])]]);
+chk($noDate['_code'] === 400 && ($noDate['error'] ?? '') === 'Enter the purchase date for Pur D', 'a purchased line without its date is refused: "Enter the purchase date for <name>"');
+foreach (['2026-02-31', '12/11/2026', 'x', '2026-11-1'] as $bd) chk(call($acct, 'acc', 'cost_save', ['project_id' => $pidP, 'lines' => [$pl('Pur D', ['bought' => 1, 'bought_on' => $bd])]])['_code'] === 400, "an invalid purchase date '$bd' is refused");
+chk(call($acct, 'acc', 'cost_save', ['project_id' => $pidP, 'lines' => [$pl('Pur D', ['bought' => 0, 'bought_on' => 'junk'])]])['_code'] === 400, 'an invalid date is refused even on a To buy line');
+chk(count(call($acct, 'acc', 'ac_cost', null, "&project_id=$pidP")['lines'] ?? []) === 3, 'a refused save leaves the sheet as it was');
+$un = call($acct, 'acc', 'cost_save', ['project_id' => $pidP, 'lines' => [$pl('Pur A', ['bought' => 0, 'bought_on' => '2026-11-12', 'supplier' => 'Test Supplier'])]]);
+chk($un['_code'] === 200 && $un['lines'][0]['bought'] === 0 && $un['lines'][0]['bought_on'] === '' && $un['lines'][0]['supplier'] === 'Test Supplier', 'Undo (bought 0) clears the date and keeps the supplier text');
+$old = call($acct, 'acc', 'cost_save', ['project_id' => $pidP, 'lines' => [$pl('Pur Old')]]);
+chk($old['_code'] === 200 && $old['lines'][0]['bought'] === 0 && $old['lines'][0]['bought_on'] === '', 'an older page sending no status saves To buy lines');
+chk(call($acct, 'acc', 'cost_save', ['project_id' => $pidP, 'lines' => [$pl('Pur Zero', ['qty' => 0, 'bought' => 1, 'bought_on' => '2026-11-12'])]])['_code'] === 400, 'the quantity rule still applies to purchased lines');
+/* the price-list write-back rule is the same for a purchased line */
+$pm = (int)(call($acct, 'acc', 'material_save', ['grp' => 'Solar panels', 'name' => 'Pur Panel 500', 'unit' => 'Nos', 'gst' => 5, 'rate' => 8000, 'profit' => ''])['id'] ?? 0);
+$bl = ['material_id' => $pm, 'grp' => 'Solar panels', 'name' => 'Pur Panel 500', 'qty' => 4, 'unit' => 'Nos', 'rate' => 8200, 'gst' => 5, 'bought' => 1, 'bought_on' => '2026-11-12'];
+call($acct, 'acc', 'cost_save', ['project_id' => $pidP, 'lines' => [$bl + ['price_typed' => 1]]]);
+chk($rateOf($pm) === 8200.0, 'a price typed when marking purchased updates the price list');
+call($acct, 'acc', 'cost_save', ['project_id' => $pidP, 'lines' => [array_merge($bl, ['rate' => 8300])]]);
+chk($rateOf($pm) === 8200.0, 'the same price without price_typed leaves the price list alone');
+/* copy / template: the browser sends no status for those lines, and the stored template has none */
+$tp = call($acct, 'acc', 'tpl_put', ['name' => 'Pur Tpl', 'items' => [['material_id' => $pm, 'grp' => 'Solar panels', 'name' => 'Pur Panel 500', 'unit' => 'Nos', 'qty' => 4, 'bought' => 1, 'bought_on' => '2026-11-12', 'supplier' => 'S']]]);
+$tg = call($acct, 'acc', 'ac_tpl_get', null, '&id=' . (int)($tp['id'] ?? 0));
+chk(!isset($tg['items'][0]['bought']) && !isset($tg['items'][0]['bought_on']) && !isset($tg['items'][0]['supplier']), 'a template stores product + quantity only (no status)');
+/* v45 migration re-run: nothing duplicated, the purchased lines survive */
+$dbq('PRAGMA user_version=44'); call($acct, 'acc', 'ac_tpl');
+chk((int)$dbq('PRAGMA user_version')->fetchColumn() === 45 && count(array_keys($cols('acc_costs'), 'bought')) === 1 && count(array_keys($cols('acc_costs'), 'bought_on')) === 1, 'v45: re-running the upgrade adds the columns once');
+chk((int)$dbq('SELECT bought FROM acc_costs WHERE project_id=? AND name=?', [$pidP, 'Pur Panel 500'])->fetchColumn() === 1, 'v45: a re-run keeps the purchased status');
 
 echo "\n$pass ok, $fail FAIL\n";
 exit($fail ? 1 : 0);

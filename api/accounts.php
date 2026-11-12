@@ -55,7 +55,7 @@ function acc_cost_get($pid) {
   $p = acc_project($pid); $cid = (int)$p['customer_id'];
   [$plant] = plant_get($cid);
   $lines = rows('SELECT * FROM acc_costs WHERE project_id=? ORDER BY sort, id', [(int)$pid]);
-  foreach ($lines as &$l) { foreach (['id', 'project_id', 'material_id', 'sort'] as $k) $l[$k] = (int)$l[$k]; foreach (['qty', 'rate', 'gst'] as $k) $l[$k] = (float)$l[$k]; $l['profit'] = acc_pct_out($l['profit'] ?? null); } unset($l);
+  foreach ($lines as &$l) { foreach (['id', 'project_id', 'material_id', 'sort', 'bought'] as $k) $l[$k] = (int)($l[$k] ?? 0); $l['bought_on'] = (string)($l['bought_on'] ?? ''); foreach (['qty', 'rate', 'gst'] as $k) $l[$k] = (float)$l[$k]; $l['profit'] = acc_pct_out($l['profit'] ?? null); } unset($l);
   $cmx = acc_comm($cid, $p['c_owner_id'] ?? 0); $comm = $cmx['amount'];
   $fees = [];
   $fk = ['feasibility' => ['KSEB feasibility', 18], 'registration' => ['KSEB registration', 18], 'stamp' => ['Stamp paper', 0]];
@@ -93,7 +93,11 @@ function acc_line($l, $i) {
   $t = fn($k, $n) => mb_substr(trim((string)($l[$k] ?? '')), 0, $n);
   $qty = acc_money($l['qty'] ?? 0, "Line " . ($i + 1) . " quantity");
   if ($qty <= 0) fail("Enter the quantity for $name"); /* every project is different: no line without its quantity */
-  return ['material_id' => (int)($l['material_id'] ?? 0), 'grp' => $t('grp', 100), 'name' => $name, 'qty' => $qty,
+  /* Purchased / Paid: bought_on is the purchase day (Y-m-d), required when bought; a To buy line keeps none (Undo clears it) */
+  $bought = !empty($l['bought']) ? 1 : 0; $on = trim((string)($l['bought_on'] ?? ''));
+  if ($on !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $on) || date('Y-m-d', strtotime($on)) !== $on)) fail("The purchase date for $name is not a valid date");
+  if ($bought && $on === '') fail("Enter the purchase date for $name");
+  return ['bought' => $bought, 'bought_on' => $bought ? $on : '', 'material_id' => (int)($l['material_id'] ?? 0), 'grp' => $t('grp', 100), 'name' => $name, 'qty' => $qty,
     'unit' => $t('unit', 20), 'rate' => acc_money($l['rate'] ?? 0, "Line " . ($i + 1) . " rate"), 'gst' => $gst,
     'profit' => acc_pct($l['profit'] ?? null, 'Line ' . ($i + 1) . " ($name)"),
     'supplier' => $t('supplier', 120), 'bill_no' => $t('bill_no', 60), 'bill_date' => $t('bill_date', 10), 'note' => $t('note', 300),
@@ -378,8 +382,8 @@ function handle_acc($a) {
             /* a dealer price typed on this sheet (and new to it) becomes the item's dealer price; picked, copied, fee and unchanged lines
                leave it alone. A line's profit % is this project's own and never changes the price list. */
             if ($l['price_typed'] && $l['rate'] > 0 && $onList && $isNew($mid, round($l['rate'], 2))) q('UPDATE acc_materials SET rate=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$l['rate'], $mid]);
-            q('INSERT INTO acc_costs(project_id,material_id,grp,name,qty,unit,rate,gst,profit,supplier,bill_no,bill_date,note,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-              [$pid, $mid, $l['grp'], $l['name'], $l['qty'], $l['unit'], $l['rate'], $l['gst'], $l['profit'], $l['supplier'], $l['bill_no'], $l['bill_date'], $l['note'], $i + 1]);
+            q('INSERT INTO acc_costs(project_id,material_id,grp,name,qty,unit,rate,gst,profit,supplier,bill_no,bill_date,note,sort,bought,bought_on) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+              [$pid, $mid, $l['grp'], $l['name'], $l['qty'], $l['unit'], $l['rate'], $l['gst'], $l['profit'], $l['supplier'], $l['bill_no'], $l['bill_date'], $l['note'], $i + 1, $l['bought'], $l['bought_on']]);
           }
           q('UPDATE projects SET cost_ver=COALESCE(cost_ver,0)+1 WHERE id=?', [$pid]);
         }

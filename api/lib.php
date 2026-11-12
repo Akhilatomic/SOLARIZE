@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 44; // bump when tables/columns change
+const SCHEMA_VERSION = 45; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -321,6 +321,8 @@ function migrate($db) {
   if (!in_array('cost_ver', array_column($db->query('PRAGMA table_info(projects)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE projects ADD COLUMN cost_ver INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   /* v43: the price list's profit % per item and the Expense sheet's profit % per line (NULL = the default, settings acc_profit_default) */
   foreach (['acc_materials', 'acc_costs'] as $tb) if (!in_array('profit', array_column($db->query("PRAGMA table_info($tb)")->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE $tb ADD COLUMN profit REAL"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  /* v45: an Expense line marked Purchased / Paid (bought 0/1) and the day it was bought (Y-m-d, blank while To buy). Idempotent like v43. */
+  foreach (['bought INTEGER DEFAULT 0', "bought_on TEXT DEFAULT ''"] as $def) { $cn = strtok($def, ' '); if (!in_array($cn, array_column($db->query('PRAGMA table_info(acc_costs)')->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE acc_costs ADD COLUMN $def"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } } }
   /* v44: material templates for the Expense sheet (Settings › Material templates): items = JSON [{material_id, grp, name, unit, qty}], names unique in any case */
   $db->exec("CREATE TABLE IF NOT EXISTS acc_tpls(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, items TEXT DEFAULT '[]', updated_by TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS acct_name ON acc_tpls(lower(name))');

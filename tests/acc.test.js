@@ -178,12 +178,12 @@ test('sheet totals: purchases, services, commission, expense, customer total', (
     { grp: 'Solar panels', qty: 2, rate: 0, profit: 15 },
   ];
   const t = ACC.sheetTotals(lines, 12000, 20);
-  assert.deepEqual(t, { purchases: 254700, services: 8000, comm: 12000, expense: 274700, cust: 249920 + 33000 + 8000, n: 4, missing: 1 });
+  assert.deepEqual(t, { purchases: 254700, services: 8000, comm: 12000, expense: 274700, cust: 249920 + 33000 + 8000, n: 4, missing: 1, bought: 0, tobuy: 262700 });
   /* the Profit tile uses the same numbers as ACC.profit (Accounts › Profit) */
   const P = ACC.profit({ price: 0, taxable: 300000, lines, comm: 12000 });
   assert.equal(P.cost + P.comm, t.expense);
   assert.equal(P.profit, ACC.r2(300000 - t.expense));
-  assert.deepEqual(ACC.sheetTotals(null, null, null), { purchases: 0, services: 0, comm: 0, expense: 0, cust: 0, n: 0, missing: 0 });
+  assert.deepEqual(ACC.sheetTotals(null, null, null), { purchases: 0, services: 0, comm: 0, expense: 0, cust: 0, n: 0, missing: 0, bought: 0, tobuy: 0 });
 });
 test('profit % a new line gets: the item\'s own, else 0 for a KSEB / stamp paper fee, else the default', () => {
   assert.equal(ACC.addPct({ name: 'Test Panel', profit: 12 }, 15), 12);
@@ -278,4 +278,86 @@ test('Add item with several products: pickPlan needs every ticked product to hav
   const c = ACC.pickPlan([{ id: 2, qty: '4' }, { id: 1, qty: 2 }, { id: 99, qty: '' }], mats);
   assert.equal(c.ok, true); assert.equal(c.need, 0); assert.deepEqual(c.rows.map(r => r.item.id), [2, 1]);
   assert.equal(ACC.pickPlan([{ id: 1, qty: -2 }], mats).ok, false);
+});
+
+/* ---- Purchased / To buy (Expense lines marked as bought) ---- */
+test('status words: To buy / Purchased for materials, To pay / Paid for services', () => {
+  assert.deepEqual([ACC.statusWord({ grp: 'Solar panels' }), ACC.statusWord({ grp: 'Solar panels', bought: 1 })], ['To buy', 'Purchased']);
+  assert.deepEqual([ACC.statusWord({ grp: ACC.SVC }), ACC.statusWord({ grp: ACC.SVC, bought: 1 })], ['To pay', 'Paid']);
+  assert.equal(ACC.statusWord(null), 'To buy');
+  assert.ok(ACC.isBought({ bought: 1 }) && ACC.isBought({ bought: '1' }) && !ACC.isBought({ bought: 0 }) && !ACC.isBought({}) && !ACC.isBought(null));
+});
+test('sheetTotals: purchased and to-buy before GST, commission in neither, planned totals unchanged', () => {
+  const lines = [
+    { grp: 'Solar panels', qty: 2, rate: 1000, bought: 1 },
+    { grp: 'Solar panels', qty: 1, rate: 500 },
+    { grp: ACC.SVC, qty: 1, rate: 300, bought: 1 },
+    { grp: ACC.SVC, qty: 1, rate: 200, bought: 0 }];
+  const t = ACC.sheetTotals(lines, 700, 15);
+  assert.equal(t.bought, 2300); assert.equal(t.tobuy, 700);
+  assert.equal(t.expense, 3000 + 700); assert.equal(t.purchases, 2500); assert.equal(t.services, 500);
+  assert.equal(ACC.r2(t.bought + t.tobuy), ACC.r2(t.purchases + t.services));
+});
+test('markBought: status, date, supplier, bill, bill date (default = purchase date), price paid; the input is not changed', () => {
+  const lines = [
+    { name: 'A', grp: 'Solar panels', qty: 2, rate: 100, supplier: 'Old', bill_no: 'X1', bill_date: '2026-01-01', profit: 10 },
+    { name: 'B', grp: 'Solar panels', qty: 1, rate: 50 },
+    { name: 'C', grp: 'Solar panels', qty: 1, rate: 70 }];
+  const before = JSON.stringify(lines);
+  const r = ACC.markBought(lines, [0, 2], { date: '2026-11-12', supplier: 'Test Supplier', bill_no: 'B-9', bill_date: '', rates: { 0: 120, 2: 70 } });
+  assert.equal(JSON.stringify(lines), before);
+  assert.deepEqual([r[0].bought, r[0].bought_on, r[0].supplier, r[0].bill_no, r[0].bill_date, r[0].rate], [1, '2026-11-12', 'Test Supplier', 'B-9', '2026-11-12', 120]);
+  assert.equal(r[0].typed, true, 'a changed price counts as a typed dealer price');
+  assert.ok(!r[2].typed, 'an unchanged price does not');
+  assert.equal(r[2].rate, 70); assert.equal(r[0].profit, 10);
+  assert.ok(!r[1].bought && r[1].supplier === undefined, 'a line not chosen is untouched');
+  assert.equal(ACC.markBought(lines, [1], { date: '2026-11-12', supplier: 'S', bill_no: '', bill_date: '2026-11-10', rates: {} })[1].bill_date, '2026-11-10');
+  assert.equal(ACC.markBought(lines, [1], { date: '2026-11-12', supplier: 'S', bill_no: '', bill_date: '', rates: {} })[1].rate, 50, 'no price given: the rate stays');
+  assert.deepEqual(ACC.markBought(null, [0], {}), []);
+});
+test('markBought keeps typed on a line that was already typed, and ignores indexes outside the sheet', () => {
+  const r = ACC.markBought([{ name: 'A', qty: 1, rate: 5, typed: true }], [0, 7], { date: '2026-11-12', rates: { 0: 5 } });
+  assert.equal(r.length, 1); assert.equal(r[0].typed, true);
+});
+test('boughtCheck: date required, prices must be numbers >= 0, at least one line', () => {
+  const ok = { date: '2026-11-12', rates: { 0: 10 } };
+  assert.equal(ACC.boughtCheck([0], ok), '');
+  assert.match(ACC.boughtCheck([], ok), /line/i);
+  assert.match(ACC.boughtCheck([0], { date: '', rates: {} }), /purchase date/i);
+  assert.match(ACC.boughtCheck([0], { date: '2026-02-31', rates: {} }), /purchase date/i);
+  assert.match(ACC.boughtCheck([0], { date: '2026-11-12', rates: { 0: -1 } }), /price/i);
+  assert.match(ACC.boughtCheck([0], { date: '2026-11-12', rates: { 0: null } }), /price/i);
+  assert.match(ACC.boughtCheck([0], { date: '2026-11-12', bill_date: '12/11/2026', rates: {} }), /bill date/i);
+});
+test('undoBought clears status and date, keeps supplier and bill text', () => {
+  const l = ACC.undoBought({ name: 'A', bought: 1, bought_on: '2026-11-12', supplier: 'S', bill_no: 'B', bill_date: '2026-11-12', rate: 9 });
+  assert.deepEqual([l.bought, l.bought_on, l.supplier, l.bill_no, l.bill_date, l.rate], [0, '', 'S', 'B', '2026-11-12', 9]);
+});
+test('sharedValue: the common value of the chosen lines, else blank', () => {
+  const lines = [{ supplier: 'S1' }, { supplier: 'S1' }, { supplier: 'S2' }, {}];
+  assert.equal(ACC.sharedValue(lines, [0, 1], 'supplier'), 'S1');
+  assert.equal(ACC.sharedValue(lines, [0, 2], 'supplier'), '');
+  assert.equal(ACC.sharedValue(lines, [0, 3], 'supplier'), '');
+  assert.equal(ACC.sharedValue(lines, [], 'supplier'), '');
+});
+test('material list filter: items still to buy, services out; ask only when a material is purchased', () => {
+  const lines = [{ grp: 'Solar panels', name: 'A', bought: 1 }, { grp: 'Solar panels', name: 'B' }, { grp: ACC.SVC, name: 'S' }, { grp: 'Solar panels', name: ' ', bought: 0 }];
+  assert.deepEqual(ACC.mlLines(lines, false).map(l => l.name), ['A', 'B']);
+  assert.deepEqual(ACC.mlLines(lines, true).map(l => l.name), ['B']);
+  assert.equal(ACC.hasBoughtMaterial(lines), true);
+  assert.equal(ACC.hasBoughtMaterial([{ grp: ACC.SVC, bought: 1 }, { grp: 'Solar panels' }]), false, 'a paid service does not count');
+  assert.equal(ACC.hasBoughtMaterial(null), false);
+});
+test('copy and template loads give To buy lines, nothing of the source status', () => {
+  const src = [{ material_id: 1, grp: 'Solar panels', name: 'P', qty: 2, rate: 10, gst: 5, bought: 1, bought_on: '2026-11-12', supplier: 'S', bill_no: 'B', bill_date: '2026-11-12' }];
+  const c = ACC.copyLines(src, [], true).lines[0];
+  assert.ok(!c.bought && !c.bought_on && !c.supplier && !c.bill_no && !c.bill_date);
+  const t = ACC.tplToLines({ items: [{ material_id: 1, grp: 'Solar panels', name: 'P', qty: 2, bought: 1 }] }, [{ id: 1, grp: 'Solar panels', name: 'P', rate: 10, gst: 5 }], [], 'add', 15).lines[0];
+  assert.ok(!t.bought && !t.bought_on);
+  assert.deepEqual(ACC.tplFromLines(src), [{ material_id: 1, grp: 'Solar panels', name: 'P', unit: '', qty: 2 }]);
+});
+test('material list title block says (items still to buy) only when filtered', () => {
+  const mk = partial => ACC.mlLayout({ company: { name: 'Test Co' }, no: 'N', date: 'd', partial, lines: [{ grp: 'Solar panels', name: 'Item', qty: 1, unit: 'Nos' }] });
+  const has = L => L.pages[0].ops.some(o => o.t === 'text' && /\(items still to buy\)/.test(o.txt));
+  assert.equal(has(mk(true)), true); assert.equal(has(mk(false)), false); assert.equal(has(mk(undefined)), false);
 });

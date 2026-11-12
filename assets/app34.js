@@ -3,6 +3,8 @@
                      quotation (ACC.GROUPS): qty × dealer price = expense, + the line's profit % = customer price. The commission (Business
                      Associate) or incentive (staff) of the customer is an automatic line. Tiles: income, expense, profit, customer price from
                      the list. Saving replaces every line (acc/cost_save); every line needs its quantity; a typed dealer price becomes the item's.
+   Purchased: a line is To buy / Purchased (services: To pay / Paid). Tick lines (or press Mark purchased on one) for the Mark purchased window: date,
+                     supplier, bill no., bill date and the price paid per line (ACC.markBought); saved with the sheet. Undo puts a line back to To buy.
    acCsAdd()         Add item: a product from the price list + its quantity, or a new product (saved to the price list at once) + quantity.
    acCsTplSave / acCsTplLoad  Save as template / Load from template (items + quantities; loads at today's price list, ACC.tplFromLines / tplToLines).
    acTemplates(box)  Settings › Material templates: list, New, Edit (acTplEdit, uses the Add item window), Duplicate, Delete.
@@ -13,10 +15,10 @@
 const ACX_SVC = 'Services and charges';
 const ACX_GSTS = [0, 5, 12, 18, 28];
 const ACX_UNITS = ['Nos', 'm', 'kg', 'kW', 'Job', 'Set', 'Lot', 'Pair', 'Roll', 'Box', 'Bag'];
-const ACX_COLS = 13;
+const ACX_COLS = 14;
 /* the open Expense sheet: d = the ac_cost answer, lines = the lines being edited (in group order);
    mats / mdef = the price list and its default profit % as last loaded (acMats) */
-const ACS = { pid: 0, d: null, lines: [], dirty: false, hash: '', w: false, busy: false, mats: null, mdef: ACC.PROFIT_DEF, emb: null, seq: 0 };
+const ACS = { pid: 0, d: null, lines: [], dirty: false, hash: '', w: false, busy: false, mats: null, mdef: ACC.PROFIT_DEF, emb: null, seq: 0, sel: new Set() };
 
 /* a typed amount: '' = 0, '1,250.50' = 1250.5, anything else (or below 0) = null */
 const acNum = v => { const s = String(v ?? '').replace(/[,₹\s]/g, ''); if (s === '') return 0; const n = Number(s); return isFinite(n) && n >= 0 ? n : null; };
@@ -29,10 +31,11 @@ const acGi = g => { const i = ACC.GROUPS.indexOf(g); return i < 0 ? ACC.GROUPS.l
 /* quotation group order, groups not in ACC.GROUPS last (by name); lines keep their order inside a group */
 const acSort = ls => ls.map((l, i) => [l, i]).sort((a, b) => acGi(a[0].grp) - acGi(b[0].grp) || (acGi(a[0].grp) === ACC.GROUPS.length ? String(a[0].grp || '').localeCompare(String(b[0].grp || '')) : 0) || a[1] - b[1]).map(x => x[0]);
 const acIn = l => ({ material_id: +l.material_id || 0, grp: String(l.grp || ''), name: String(l.name || ''), qty: +l.qty || 0, unit: String(l.unit || ''), rate: +l.rate || 0, gst: ACX_GSTS.includes(+l.gst) ? +l.gst : 18,
-  profit: ACC.pctSet(l.profit) ? +l.profit : null, supplier: String(l.supplier || ''), bill_no: String(l.bill_no || ''), bill_date: String(l.bill_date || ''), note: String(l.note || '') });
+  profit: ACC.pctSet(l.profit) ? +l.profit : null, supplier: String(l.supplier || ''), bill_no: String(l.bill_no || ''), bill_date: String(l.bill_date || ''), note: String(l.note || ''),
+  bought: +l.bought === 1 ? 1 : 0, bought_on: +l.bought === 1 ? String(l.bought_on || '') : '' });
 /* price_typed: the Dealer price box of this line was edited on this sheet (l.typed, never loaded from the server); only then can the
    price go back on the price list. Picked, copied and fee lines and unchanged re-saves leave the owner's price list alone. */
-const acOut = l => ({ material_id: l.material_id, grp: l.grp, name: l.name, qty: l.qty, unit: l.unit, rate: l.rate, gst: l.gst, profit: l.profit, supplier: l.supplier, bill_no: l.bill_no, bill_date: l.bill_date, note: l.note, price_typed: l.typed ? 1 : 0 });
+const acOut = l => ({ material_id: l.material_id, grp: l.grp, name: l.name, qty: l.qty, unit: l.unit, rate: l.rate, gst: l.gst, profit: l.profit, supplier: l.supplier, bill_no: l.bill_no, bill_date: l.bill_date, note: l.note, bought: l.bought ? 1 : 0, bought_on: l.bought ? l.bought_on : '', price_typed: l.typed ? 1 : 0 });
 /* the sheet's default profit % (settings acc_profit_default, as ac_cost sent it) */
 const acDef = () => ACC.pctOf(ACS.d && ACS.d.profit_default, ACS.mdef);
 /* a price list item as a sheet line with the quantity typed: its dealer price, and its profit % (ACC.addPct: its own; blank = 0 for a
@@ -57,6 +60,8 @@ function acDirty(on) {
 }
 /* lines added, removed or copied: back into group order and drawn again */
 function acChanged() { ACS.lines = acSort(ACS.lines); acCsTable(); acCsTiles(); acDirty(true); }
+/* the status cell text for a purchased line: date · supplier · bill no. */
+const acBSum = l => [l.bought_on ? fdt(l.bought_on) : '', l.supplier, l.bill_no && 'Bill ' + l.bill_no].filter(Boolean).join(' · ');
 
 /* emb: a box element = the sheet inside the customer profile's Purchases and services tab (no page title, no back link to Accounts, an
    "Open as full page" link); omitted = the Expense page in #main */
@@ -68,7 +73,7 @@ async function acCostSheet(pid, emb) {
   try { d = await api('acc', 'ac_cost', undefined, `&project_id=${pid}`); }
   catch (e) { if (nav === ROUTE_N && seq === ACS.seq && main.isConnected) main.innerHTML = `<p class="over">${esc((e && e.error) || 'Could not open the Expense sheet')}</p>`; return; }
   if (nav !== ROUTE_N || seq !== ACS.seq || !main.isConnected) return; /* the user moved on while it loaded */
-  Object.assign(ACS, { emb: emb || null, pid, d, lines: acSort((d.lines || []).map(acIn)), hash: location.hash, w: canW('accounts'), busy: false, dirty: false });
+  Object.assign(ACS, { emb: emb || null, pid, d, lines: acSort((d.lines || []).map(acIn)), hash: location.hash, w: canW('accounts'), busy: false, dirty: false, sel: new Set() });
   const p = d.project || {}, cu = d.customer || {}, kw = acKw(p.kw), w = ACS.w;
   acUnits();
   main.innerHTML = `<div class="acx-pg${emb ? ' acx-emb' : ''}" id="acx_cs">
@@ -79,9 +84,10 @@ async function acCostSheet(pid, emb) {
       <button type="button" class="btn sec" id="acx_pdf"><i class="i i-download"></i> Download material list</button>${w ? '<button type="button" class="btn" id="acx_save"><i class="i i-check"></i> Save</button>' : ''}</div>
     <div class="acx-tiles" id="acx_tiles"></div>
     <div class="acx-ch"><h3>Purchases and services</h3><span class="sp"></span>${w ? '<button type="button" class="btn sec" id="acx_copy"><i class="i i-copy"></i> Copy from another project</button><button type="button" class="btn sec" id="acx_tload"><i class="i i-folder"></i> Load from template</button><button type="button" class="btn sec" id="acx_tsave"><i class="i i-file"></i> Save as template</button><button type="button" class="btn" id="acx_add"><i class="i i-plus"></i> Add item</button>' : ''}</div>
-    <div class="card tw"><table class="acx-cst" id="acx_tb" data-min="1160"></table></div>
+    <div class="acx-bsel" id="acx_bsel" aria-live="polite"></div>
+    <div class="card tw"><table class="acx-cst" id="acx_tb" data-min="1330"></table></div>
     <div id="acx_fee"></div>
-    <p class="acx-note">Dealer prices and expense are before GST. Customer price = dealer price + the line's profit % (blank = the default, ${esc(acPctTxt(acDef()))}). Profit = project price before GST − expense (purchases, services and the commission / incentive). ${w ? 'A product added here goes on the price list, and the dealer price you type becomes its dealer price. ' : ''}The material list PDF has every material with its quantity, no prices, and leaves out services.</p>
+    <p class="acx-note">Dealer prices and expense are before GST. Customer price = dealer price + the line's profit % (blank = the default, ${esc(acPctTxt(acDef()))}). Profit = project price before GST − expense (purchases, services and the commission / incentive). ${w ? 'A product added here goes on the price list, and the dealer price you type becomes its dealer price. ' : ''}The material list PDF has every material with its quantity, no prices, and leaves out services. ${w ? 'Tick lines and press <b>Mark purchased</b> when they are bought: the date, supplier, bill and the price paid are kept on the line.' : ''}</p>
   </div>`;
   acCsTable(); acCsTiles(); acDirty(false);
   const tb = $('#acx_tb');
@@ -99,24 +105,52 @@ async function acCostSheet(pid, emb) {
       const n = acPctIn(el.value), bad = Number.isNaN(n);
       el.classList.toggle('acx-bad', bad); el.title = bad ? 'Enter a profit % from 0 to 500, or leave it blank for the default' : '';
       l.profit = bad ? l.profit : n;
-    } else { l[f] = f === 'gst' ? +el.value : el.value; acDirty(true); return; }
+    } else {
+      l[f] = f === 'gst' ? +el.value : el.value; acDirty(true);
+      if (f === 'bought_on') el.classList.toggle('acx-need', !el.value);
+      if (l.bought && (f === 'bought_on' || f === 'supplier' || f === 'bill_no')) { const sm = $('.acx-bsum', tr); if (sm) sm.textContent = acBSum(l); }
+      return;
+    }
     $('.acx-amt', tr).textContent = inr2(ACC.lineExpense(l)); $('.acx-cpr', tr).textContent = inr2(ACC.lineCust(l, acDef()));
     acGsum(); acCsTiles(); acDirty(true);
   };
   tb.addEventListener('input', onEdit); tb.addEventListener('change', onEdit);
+  tb.addEventListener('change', e => {
+    const c = e.target.closest('[data-acx-sel]'), tr = c && c.closest('tr[data-i]'), l = tr && ACS.lines[+tr.dataset.i];
+    if (!l) return;
+    if (c.checked) ACS.sel.add(l); else ACS.sel.delete(l);
+    acSelBar();
+  });
   tb.addEventListener('click', e => {
+    const bb = e.target.closest('[data-acx-buy]'), ub = e.target.closest('[data-acx-undo]');
+    if (bb || ub) {
+      const i = +(bb || ub).closest('tr').dataset.i, l = ACS.lines[i]; if (!l) return;
+      if (bb) { acCsBuy([l]); return; }
+      ACS.sel.delete(l); ACS.lines[i] = ACC.undoBought(l); acChanged();
+      toast(`“${l.name}” is back to ${ACC.statusWord(ACS.lines[i]).toLowerCase()}. Save to keep it.`);
+      return;
+    }
     const b = e.target.closest('[data-acx-del]'); if (!b) return;
     const i = +b.closest('tr').dataset.i, l = ACS.lines[i]; if (!l) return;
-    if ((l.rate || l.supplier || l.bill_no || l.note) && !confirm(`Remove “${l.name}” from this Expense sheet?`)) return;
-    ACS.lines.splice(i, 1); acChanged();
+    if ((l.rate || l.supplier || l.bill_no || l.note || l.bought) && !confirm(`Remove “${l.name}” from this Expense sheet?`)) return;
+    ACS.sel.delete(l); ACS.lines.splice(i, 1); acChanged();
+  });
+  $('#acx_bsel').addEventListener('click', e => {
+    const b = e.target.closest('[data-acx-b]'); if (!b) return;
+    if (b.dataset.acxB === 'go') acCsBuy([...ACS.sel].filter(l => ACS.lines.includes(l)));
+    else if (b.dataset.acxB === 'clr') { ACS.sel.clear(); acCsTable(); }
+    else if (b.dataset.acxB === 'all') { ACS.lines.filter(l => !l.bought).forEach(l => ACS.sel.add(l)); acCsTable(); }
   });
   /* Download material list; with unsaved changes the button reads Save & download and saves first (a failed save downloads nothing) */
   $('#acx_pdf').onclick = async e => {
     const b = e.currentTarget; if (b.disabled) return;
     b.disabled = true;
     try {
+      /* some materials already purchased: ask for all items or only the ones still to buy (nothing purchased: no question) */
+      let only = false;
+      if (ACC.hasBoughtMaterial(ACS.lines)) { const c = await acPdfAsk(); if (!c) return; only = c === 'tobuy'; }
       if (ACS.w && ACS.dirty && !(await acCsSave())) return;
-      await acMaterialPdf(Object.assign({}, ACS.d, { lines: ACS.lines }));
+      await acMaterialPdf(Object.assign({}, ACS.d, { lines: ACS.lines, onlyToBuy: only }));
     } catch (x) { toast((x && (x.message || x.error)) || 'Could not make the PDF', true); }
     finally { if (b.isConnected) b.disabled = false; }
   };
@@ -133,12 +167,13 @@ async function acCostSheet(pid, emb) {
 function acCsTable() {
   const tb = $('#acx_tb'); if (!tb) return;
   const w = ACS.w, n = w ? ACX_COLS : ACX_COLS - 1, def = acDef(), dp = esc(String(def));
-  const cols = [['', ''], [58, 'num'], [72, ''], [94, 'num'], [100, 'num'], [60, 'num'], [106, 'num'], [60, 'num'], [104, ''], [80, ''], [124, ''], [104, '']].concat(w ? [[36, '']] : []);
+  const cols = [['', ''], [152, ''], [58, 'num'], [72, ''], [94, 'num'], [100, 'num'], [60, 'num'], [106, 'num'], [60, 'num'], [104, ''], [80, ''], [124, ''], [104, '']].concat(w ? [[36, '']] : []);
   let body = '', g = null, gi = -1;
   ACS.lines.forEach((l, i) => {
     if (gi < 0 || l.grp !== g) { g = l.grp; gi++; body += `<tr class="acx-grp"><td colspan="${n}"><b>${esc(g || 'Other')}</b><span class="acx-gsum" data-acx-g="${gi}"></span></td></tr>`; }
     const exp = inr2(ACC.lineExpense(l)), cp = inr2(ACC.lineCust(l, def));
-    body += w ? `<tr data-i="${i}" data-g="${gi}"><td class="acx-nm">${esc(l.name)}${l.material_id ? '' : ' <span class="pill acx-new" title="Goes on the price list when you save">new</span>'}</td>
+    body += w ? `<tr data-i="${i}" data-g="${gi}"${l.bought ? ' class="acx-bgt"' : ''}><td class="acx-nm">${l.bought ? '' : `<input type="checkbox" class="acx-bck" data-acx-sel${ACS.sel.has(l) ? ' checked' : ''} aria-label="Choose ${esc(l.name)} for Mark purchased"> `}${esc(l.name)}${l.material_id ? '' : ' <span class="pill acx-new" title="Goes on the price list when you save">new</span>'}</td>
+      <td class="acx-bt">${acBCell(l, true)}</td>
       <td class="num"><input data-f="qty" inputmode="decimal" value="${acV(l.qty)}" placeholder="Qty" class="${l.qty > 0 ? '' : 'acx-need'}" aria-label="Quantity of ${esc(l.name)}"></td>
       <td><input data-f="unit" value="${esc(l.unit)}" list="acx_units" maxlength="20" aria-label="Unit"></td>
       <td class="num"><input data-f="rate" inputmode="decimal" value="${acV(l.rate)}" placeholder="0" aria-label="Dealer price before GST"></td>
@@ -151,15 +186,30 @@ function acCsTable() {
       <td><input data-f="bill_date" type="date" value="${esc(l.bill_date)}" aria-label="Bill date"></td>
       <td><input data-f="note" value="${esc(l.note)}" maxlength="300" aria-label="Note" ${SPELL}></td>
       <td><button type="button" class="ib" data-acx-del title="Remove this line" aria-label="Remove ${esc(l.name)}"><i class="i i-trash"></i></button></td></tr>`
-      : `<tr data-i="${i}" data-g="${gi}"><td class="acx-nm">${esc(l.name)}</td><td class="num">${l.qty > 0 ? esc(acV(l.qty)) : '<span class="acx-late">—</span>'}</td><td>${esc(l.unit)}</td><td class="num">${l.rate ? inr2(l.rate) : '<span class="mut">—</span>'}</td>
+      : `<tr data-i="${i}" data-g="${gi}"${l.bought ? ' class="acx-bgt"' : ''}><td class="acx-nm">${esc(l.name)}</td><td class="acx-bt">${acBCell(l, false)}</td><td class="num">${l.qty > 0 ? esc(acV(l.qty)) : '<span class="acx-late">—</span>'}</td><td>${esc(l.unit)}</td><td class="num">${l.rate ? inr2(l.rate) : '<span class="mut">—</span>'}</td>
       <td class="num acx-amt">${exp}</td><td class="num">${ACC.pctSet(l.profit) ? esc(acPctTxt(l.profit)) : `<span class="mut">${esc(acPctTxt(def))}</span>`}</td><td class="num acx-cpr">${cp}</td><td class="num">${l.gst}</td>
       <td>${esc(l.supplier)}</td><td>${esc(l.bill_no)}</td><td>${l.bill_date ? fdt(l.bill_date) : ''}</td><td>${esc(l.note)}</td></tr>`;
   });
   if (!ACS.lines.length) body += `<tr><td colspan="${n}" class="mut">No lines yet.${w ? ' Use <b>Add item</b> or <b>Copy from another project</b>.' : ''}</td></tr>`;
   body += acCommRow(n);
   tb.innerHTML = `<colgroup>${cols.map(([wd]) => `<col${wd ? ` style="width:${wd}px"` : ''}>`).join('')}</colgroup>
-    <thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Dealer price</th><th class="num">Expense</th><th class="num">Profit %</th><th class="num">Customer price</th><th class="num">GST %</th><th>Supplier</th><th>Bill no.</th><th>Bill date</th><th>Note</th>${w ? '<th><span class="acx-sr">Remove</span></th>' : ''}</tr></thead><tbody>${body}</tbody>`;
-  acGsum(); acFeeBar();
+    <thead><tr><th>Item</th><th>Status</th><th class="num">Qty</th><th>Unit</th><th class="num">Dealer price</th><th class="num">Expense</th><th class="num">Profit %</th><th class="num">Customer price</th><th class="num">GST %</th><th>Supplier</th><th>Bill no.</th><th>Bill date</th><th>Note</th>${w ? '<th><span class="acx-sr">Remove</span></th>' : ''}</tr></thead><tbody>${body}</tbody>`;
+  acGsum(); acFeeBar(); acSelBar();
+}
+/* the Status cell: To buy / Purchased badge (services: To pay / Paid); w = can edit: Mark purchased button, the purchase date box and Undo */
+function acBCell(l, w) {
+  const word = ACC.statusWord(l), svc = l.grp === ACX_SVC;
+  if (!l.bought) return `<span class="pill y acx-bpill">${esc(word)}</span>${w ? ` <button type="button" class="acx-link acx-small" data-acx-buy>${svc ? 'Mark paid' : 'Mark purchased'}</button>` : ''}`;
+  return `<span class="pill g acx-bpill">${esc(word)}</span>${w ? ` <button type="button" class="acx-link acx-small" data-acx-undo title="Back to ${svc ? 'To pay' : 'To buy'}">Undo</button>` : ''}
+    <span class="acx-bsum mut acx-small">${esc(acBSum(l))}</span>${w ? `<input data-f="bought_on" type="date" value="${esc(l.bought_on)}" class="${l.bought_on ? '' : 'acx-need'}" aria-label="${svc ? 'Paid' : 'Purchased'} on, ${esc(l.name)}">` : ''}`;
+}
+/* the bar above the table: tick all items to buy, or N chosen with Mark purchased / Clear */
+function acSelBar() {
+  const box = $('#acx_bsel'); if (!box) return;
+  ACS.sel.forEach(l => { if (!ACS.lines.includes(l) || l.bought) ACS.sel.delete(l); });
+  const n = ACS.sel.size, open = ACS.lines.filter(l => !l.bought).length;
+  box.innerHTML = !ACS.w ? '' : n ? `<b>${esc(acPl(n, 'line'))} chosen</b> <button type="button" class="btn sm" data-acx-b="go"><i class="i i-check"></i> Mark purchased</button> <button type="button" class="acx-link acx-small" data-acx-b="clr">Clear</button>`
+    : open > 1 ? `<button type="button" class="acx-link acx-small" data-acx-b="all">Choose all ${open} lines still to buy</button>` : '';
 }
 /* the automatic commission (Business Associate) / incentive (staff) line, from Finance › Commission / Incentive; counts in the expense */
 function acCommRow(n) {
@@ -167,8 +217,8 @@ function acCommRow(n) {
   const why = c.person ? `<span class="pill ${ACX_CST[st] || ''} acx-tag">${esc(st)}</span>${+c.p1 || +c.p2 ? ` <span class="mut">paid ${inr2(ACC.r2((+c.p1 || 0) + (+c.p2 || 0)))}</span>` : ''}`
     : `<span class="mut">${+c.amount ? 'From Finance' : 'No Business Associate or staff owner, so no commission or incentive'}</span>`;
   /* data-label set here: the stacked (narrow) layout labels cells by position, which the colspans would throw off */
-  return `<tr class="acx-auto"><td class="acx-nm" data-label="">${esc(ACC.commLabel(c))} <span class="pill acx-tag">auto</span></td><td colspan="3">${why}${adm ? ` <a class="acx-link acx-small" href="#/comm/${c.kind}">Open in Finance</a>` : ''}</td>
-    <td class="num acx-amt" data-label="Expense">${inr2(c.amount)}</td><td colspan="${n - 5}"></td></tr>`;
+  return `<tr class="acx-auto"><td class="acx-nm" data-label="">${esc(ACC.commLabel(c))} <span class="pill acx-tag">auto</span></td><td colspan="4">${why}${adm ? ` <a class="acx-link acx-small" href="#/comm/${c.kind}">Open in Finance</a>` : ''}</td>
+    <td class="num acx-amt" data-label="Expense">${inr2(c.amount)}</td><td colspan="${n - 6}"></td></tr>`;
 }
 /* the commission / incentive of the open sheet: ac_cost's comm, or auto.comm from an older answer */
 const acComm = () => { const d = ACS.d || {}; return d.comm || { amount: +(d.auto || {}).comm || 0, kind: '', person: '', p1: 0, p2: 0 }; };
@@ -189,7 +239,7 @@ function acCsTiles() {
   const paid = +d.paid || 0, priced = +p.cost > 0 || +d.taxable > 0;
   const t = (k, label, val, sub, cls, tip) => `<div class="card acx-t ${cls || ''}" data-acx-t="${k}"${tip ? ` title="${esc(tip)}"` : ''}><small>${label}</small><b>${val}</b><em>${sub}</em></div>`;
   box.innerHTML = t('income', 'Income', inr2(paid), +p.cost ? `of ${inr2(p.cost)} price${paid >= +p.cost - 1 ? ' · fully paid' : ''}` : 'project price not set', '', 'Payments received for this project (Tax bill tab and Accounts)')
-    + t('expense', 'Expense', inr2(T.expense), `purchases ${inr2(T.purchases)} · services ${inr2(T.services)} · ${ck} ${inr2(T.comm)}${T.missing ? ` · <span class="acx-late">${acPl(T.missing, 'line')} without a dealer price</span>` : ''}`, T.missing ? 'acx-warn' : '', 'Before GST: quantity × dealer price of every line, plus the commission / incentive')
+    + t('expense', 'Expense', inr2(T.expense), `purchases ${inr2(T.purchases)} · services ${inr2(T.services)} · ${ck} ${inr2(T.comm)}${T.n ? `<br><span class="acx-bpt">Purchased ${inr2(T.bought)} · To buy ${inr2(T.tobuy)}</span>` : ''}${T.missing ? ` · <span class="acx-late">${acPl(T.missing, 'line')} without a dealer price</span>` : ''}`, T.missing ? 'acx-warn' : '', 'Before GST: quantity × dealer price of every line, plus the commission / incentive')
     + t('profit', 'Profit', P.profit < 0 ? '−' + inr2(-P.profit) : inr2(P.profit), priced ? `${P.margin.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% margin · before GST` : 'project price not set', P.profit < 0 ? 'acx-neg' : P.profit > 0 ? 'acx-pos' : '',
       `Project price before GST ${inr2(P.before)}${+d.taxable > 0 ? ' (from the tax bill)' : +p.cost ? ` (${inr2(p.cost)} ÷ ${ACC.GST_DIV})` : ''} − expense ${inr2(T.expense)}`)
     + t('list', 'Customer price from the list', inr2(T.cust), (!priced ? 'project price not set' : G.word === 'matches' ? `matches the agreed ${inr2(P.before)} before GST` : `agreed price (${inr2(P.before)} before GST) is ${inr2(Math.abs(G.diff))} ${G.word}`) + ' (before commission / incentive)',
@@ -222,6 +272,12 @@ async function acCsSave() {
   if (nq >= 0) {
     toast(`Enter the quantity for ${ACS.lines[nq].name}`, true);
     const q = $(`#acx_tb tr[data-i="${nq}"] input[data-f="qty"]`); if (q) { q.scrollIntoView({ block: 'center' }); q.focus(); }
+    return false;
+  }
+  const nd = ACS.lines.findIndex(l => l.bought && !l.bought_on);
+  if (nd >= 0) {
+    toast(`Enter the purchase date for ${ACS.lines[nd].name}`, true);
+    const q = $(`#acx_tb tr[data-i="${nd}"] input[data-f="bought_on"]`); if (q) { q.scrollIntoView({ block: 'center' }); q.focus(); }
     return false;
   }
   ACS.busy = true;
@@ -403,6 +459,66 @@ async function acCsAdd(ctx) {
     if (row) row.scrollIntoView({ block: 'center' });
   });
   count(); draw(); drawSel(); upd(); $('#acx_q', m).focus();
+}
+
+/* Mark purchased (one line, or the ticked ones): purchase date, supplier, bill no., bill date and the price paid per line. Confirm puts it on the
+   lines (ACC.markBought); the sheet is then unsaved and Save keeps it. A price different from the line's counts as typed (can update the price list). */
+function acCsBuy(chosen) {
+  if (!ACS.w || ACS.busy || !chosen.length) return;
+  const idxs = chosen.map(l => ACS.lines.indexOf(l)).filter(i => i >= 0); if (!idxs.length) return;
+  const all = idxs.map(i => ACS.lines[i]), svcOnly = all.every(l => l.grp === ACX_SVC), word = svcOnly ? 'paid' : 'purchased';
+  const m = modal(`<div class="mh"><h3>Mark ${word}</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
+    <p class="mut acx-small acx-top0">${esc(acPl(all.length, 'line'))}. The date, supplier and bill are put on every line chosen. Check the price actually paid for each. Press Save on the sheet afterwards to keep it.</p>
+    <div class="two"><div><label for="acx_bwd">${svcOnly ? 'Paid on' : 'Purchase date'}</label><input id="acx_bwd" type="date" value="${esc(today())}"></div>
+    <div><label for="acx_bwb">Bill date</label><input id="acx_bwb" type="date" value="${esc(today())}"></div>
+    <div><label for="acx_bws">Supplier</label><input id="acx_bws" maxlength="120" autocomplete="off" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'supplier'))}" ${SPELL}></div>
+    <div><label for="acx_bwn">Bill no.</label><input id="acx_bwn" maxlength="60" autocomplete="off" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'bill_no'))}"></div></div>
+    <div class="card tw acx-bwl"><table class="acx-mt" id="acx_bwt" data-min="420"><colgroup><col><col style="width:90px"><col style="width:150px"></colgroup>
+      <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Price paid, each (₹, before GST)</th></tr></thead>
+      <tbody>${idxs.map(i => { const l = ACS.lines[i]; return `<tr data-bi="${i}"><td class="acx-nm">${esc(l.name)}</td><td class="num">${esc(acV(l.qty))} ${esc(l.unit)}</td><td class="num"><input data-bp inputmode="decimal" autocomplete="off" value="${acV(l.rate)}" placeholder="0" aria-label="Price paid for ${esc(l.name)}"></td></tr>`; }).join('')}</tbody></table></div>
+    <div class="acx-fcp mut" id="acx_bwm" aria-live="polite"></div>
+    <div class="bar acx-mft"><span class="sp"></span><button type="button" class="btn sec" data-x>Cancel</button><button type="button" class="btn" id="acx_bwg"><i class="i i-check"></i> Mark ${word}</button></div>`, true);
+  const wd = $('#acx_bwd', m), wb = $('#acx_bwb', m);
+  let billTyped = false; /* until the bill date is changed by hand it follows the purchase date */
+  wb.oninput = () => { billTyped = true; };
+  wd.oninput = () => { if (!billTyped) wb.value = wd.value; };
+  const form = () => {
+    const rates = {};
+    $$('tr[data-bi]', m).forEach(tr => { const v = acNum($('[data-bp]', tr).value); rates[+tr.dataset.bi] = v === null ? NaN : v; });
+    return { date: wd.value, bill_date: wb.value, supplier: $('#acx_bws', m).value, bill_no: $('#acx_bwn', m).value, rates };
+  };
+  const upd = () => {
+    $$('[data-bp]', m).forEach(i => { const bad = acNum(i.value) === null; i.classList.toggle('acx-bad', bad); i.title = bad ? 'Enter a number, 0 or more' : ''; });
+    const f = form(), why = ACC.boughtCheck(idxs, f);
+    $('#acx_bwg', m).disabled = !!why; $('#acx_bwg', m).title = why;
+    const tot = ACC.r2(idxs.reduce((a, i) => a + ACC.r2((ACS.lines[i].qty || 0) * (f.rates[i] || 0)), 0));
+    $('#acx_bwm', m).textContent = why || `Total paid before GST ${inr2(tot)}`;
+  };
+  m.addEventListener('input', upd); m.addEventListener('change', upd);
+  $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
+  $('#acx_bwg', m).onclick = () => {
+    const f = form(), why = ACC.boughtCheck(idxs, f);
+    if (why) { toast(why, true); return; }
+    ACS.lines = ACC.markBought(ACS.lines, idxs, f);
+    ACS.sel.clear(); m.remove(); acChanged();
+    toast(`${acPl(idxs.length, 'line')} marked ${word}. Save to keep ${idxs.length === 1 ? 'it' : 'them'}.`);
+  };
+  upd(); (all.length === 1 && !wd.value ? wd : $('#acx_bws', m)).focus();
+}
+/* material list PDF: when some materials are purchased, all items or only the ones still to buy (resolves 'all', 'tobuy', or null = cancelled) */
+function acPdfAsk() {
+  return new Promise(res => {
+    let done = false;
+    const fin = v => { if (done) return; done = true; ob.disconnect(); if (m.isConnected) m.remove(); res(v); };
+    const ob = new MutationObserver(() => { if (!m.isConnected) fin(null); }); /* closed by a click outside */
+    const m = modal(`<div class="mh"><h3>Download material list</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
+      <p class="mut acx-small acx-top0">Some items are already purchased. Which items should the list have?</p>
+      <div class="bar acx-mft"><button type="button" class="btn" id="acx_pq1"><i class="i i-download"></i> Only items still to buy</button><button type="button" class="btn sec" id="acx_pq2">All items</button><span class="sp"></span><button type="button" class="btn sec" data-x>Cancel</button></div>`);
+    $('#acx_pq1', m).onclick = () => fin('tobuy'); $('#acx_pq2', m).onclick = () => fin('all');
+    $$('[data-x]', m).forEach(b => b.onclick = () => fin(null));
+    ob.observe(document.body, { childList: true });
+    $('#acx_pq1', m).focus();
+  });
 }
 
 /* Copy from another project: a similar plant's items, quantities and profit % (dealer prices when ticked); supplier, bill and note stay behind */
@@ -719,8 +835,8 @@ const acPdfDate = s => /^\d{4}-\d\d-\d\d$/.test(String(s || '')) ? fdt(s) : Stri
 
 /* d = an ac_cost answer with the lines to print (the Expense sheet as it is on screen) */
 async function acMaterialPdf(d) {
-  const lines = (d.lines || []).filter(l => l.grp !== ACX_SVC && String(l.name || '').trim());
-  if (!lines.length) { toast('No materials on this sheet yet (services are not on the material list)', true); return; }
+  const lines = ACC.mlLines(d.lines, !!d.onlyToBuy);
+  if (!lines.length) { toast(d.onlyToBuy ? 'Every material on this sheet is already purchased, so there is nothing left to buy' : 'No materials on this sheet yet (services are not on the material list)', true); return; }
   await qpLibs();
   const p = d.project || {}, cu = d.customer || {}, pl = d.plant || {}, co0 = (typeof S === 'object' && S && S.company) || {}, co = d.company || {};
   const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
@@ -732,7 +848,7 @@ async function acMaterialPdf(d) {
   const pre = String(co0.quote_prefix || '').trim() || 'JS';
   const L = ACC.mlLayout({
     company: { name: co.name || co0.name || '', address: co.address || co0.address || '', phone: co.phone || co0.phone || '', gstin: co.gstin || co0.gstin || '' },
-    no: `${pre}/ML/${acFy(today())}/${p.id}`, date: fdt(today()),
+    no: `${pre}/ML/${acFy(today())}/${p.id}`, date: fdt(today()), partial: !!d.onlyToBuy,
     customer: { name: cu.name, phone: cu.phone, address: j([cu.address, cu.district, cu.pincode], ', '), consumer_no: cu.consumer_no, section: cu.kseb_section, landmark: cu.landmark,
       map: +cu.lat && +cu.lng ? `https://maps.google.com/?q=${+cu.lat},${+cu.lng}` : '' },
     project: { kw, phase: cu.phase, system: pl.system_type, panels: pMake ? j([+pl.panel_count ? pl.panel_count + ' ×' : '', pMake]) : +pl.panel_count ? `${pl.panel_count} panels` : p.panel,
@@ -752,7 +868,7 @@ async function acMaterialPdf(d) {
       } else if (o.t === 'box') { pdf.setDrawColor('#555555'); pdf.setLineWidth(0.25); pdf.rect(o.x, o.y, o.w, o.h, 'S'); }
     });
   });
-  const name = acFileName('Material list', '', j([cu.name, kw && kw + ' kW']));
+  const name = acFileName(d.onlyToBuy ? 'Material list to buy' : 'Material list', '', j([cu.name, kw && kw + ' kW']));
   pdf.setProperties({ title: name.replace(/\.pdf$/i, ''), subject: 'Material list: purchase and site delivery check' });
   pdf.save(name);
   return L.pages.length;

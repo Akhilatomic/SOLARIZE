@@ -98,18 +98,54 @@ const ACC = {
     const need = rows.filter(r => r.qty === null).length;
     return { rows, ok: rows.length > 0 && need === 0, need };
   },
+  /* ---- Purchased / To buy: a line is bought (1) or not; services say To pay / Paid ---- */
+  isBought: l => !!l && Number(l.bought) === 1,
+  statusWord(l) { const svc = !!l && l.grp === ACC.SVC; return ACC.isBought(l) ? (svc ? 'Paid' : 'Purchased') : (svc ? 'To pay' : 'To buy'); },
+  /* the common value of a field over the chosen lines (idxs), blank when they differ or any is blank */
+  sharedValue(lines, idxs, key) {
+    const vs = (idxs || []).map(i => String(((lines || [])[i] || {})[key] || '').trim());
+    return vs.length && vs.every(v => v === vs[0]) ? vs[0] : '';
+  },
+  /* form = {date, supplier, bill_no, bill_date, rates: {lineIndex: price paid}}; '' when it can be applied, else what to fix */
+  boughtCheck(idxs, form) {
+    const f = form || {}, ok = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) && new Date(d + 'T00:00:00Z').toISOString().slice(0, 10) === d;
+    if (!(idxs || []).length) return 'Choose at least one line';
+    if (!ok(f.date)) return 'Enter the purchase date';
+    if (String(f.bill_date || '') !== '' && !ok(f.bill_date)) return 'The bill date is not a valid date';
+    for (const i of idxs) { const r = (f.rates || {})[i]; if (r !== undefined && !(typeof r === 'number' && isFinite(r) && r >= 0)) return 'The price paid must be a number, 0 or more'; }
+    return '';
+  },
+  /* Mark purchased: new lines (the input is not changed); the chosen ones get status, date, supplier, bill no., bill date (blank = the purchase
+     date) and the price paid; a price different from the line's counts as a typed dealer price (typed), so it can update the price list on Save */
+  markBought(lines, idxs, form) {
+    const f = form || {}, pick = new Set((idxs || []).map(Number));
+    return (lines || []).map((l, i) => {
+      if (!pick.has(i)) return l;
+      const n = Object.assign({}, l, { bought: 1, bought_on: String(f.date || ''), supplier: String(f.supplier || '').trim(), bill_no: String(f.bill_no || '').trim(), bill_date: String(f.bill_date || '') || String(f.date || '') });
+      const r = (f.rates || {})[i];
+      if (r !== undefined && r !== null && isFinite(Number(r))) { if (Math.abs(Number(r) - (Number(l.rate) || 0)) > 0.0001) n.typed = true; n.rate = Number(r); }
+      return n;
+    });
+  },
+  /* Undo: back to To buy; supplier and bill text stay */
+  undoBought: l => Object.assign({}, l, { bought: 0, bought_on: '' }),
+  /* the material list's lines: materials only (no services, no blank names); onlyToBuy also drops the purchased ones */
+  mlLines(lines, onlyToBuy) { return (lines || []).filter(l => l.grp !== ACC.SVC && String(l.name || '').trim() && !(onlyToBuy && ACC.isBought(l))); },
+  /* true when a material (not a service) is already purchased: only then the PDF asks All items / Only items still to buy */
+  hasBoughtMaterial: lines => (lines || []).some(l => l.grp !== ACC.SVC && ACC.isBought(l)),
   custPrice(dealer, pct) { return ACC.r2((Number(dealer) || 0) * (1 + (Number(pct) || 0) / 100)); },
   lineExpense(l) { return ACC.lineAmount(l); },
   lineCust(l, def) { return ACC.r2((Number(l && l.qty) || 0) * (Number(l && l.rate) || 0) * (1 + ACC.pctOf(l && l.profit, def) / 100)); },
   /* the sheet's money: purchases (every group but services), services, commission / incentive, expense (all three), customer total from the list */
   sheetTotals(lines, comm, def) {
-    const t = { purchases: 0, services: 0, comm: ACC.r2(comm), expense: 0, cust: 0, n: 0, missing: 0 };
+    const t = { purchases: 0, services: 0, comm: ACC.r2(comm), expense: 0, cust: 0, n: 0, missing: 0, bought: 0, tobuy: 0 };
     (lines || []).forEach(l => {
       t[l.grp === ACC.SVC ? 'services' : 'purchases'] += ACC.lineAmount(l);
+      t[ACC.isBought(l) ? 'bought' : 'tobuy'] += ACC.lineAmount(l); /* purchased / paid vs still to buy / pay: before GST, commission in neither */
       t.cust += ACC.lineCust(l, def); t.n++;
       if ((Number(l.qty) || 0) > 0 && !((Number(l.rate) || 0) > 0)) t.missing++;
     });
-    t.purchases = ACC.r2(t.purchases); t.services = ACC.r2(t.services); t.cust = ACC.r2(t.cust);
+    t.purchases = ACC.r2(t.purchases); t.services = ACC.r2(t.services); t.cust = ACC.r2(t.cust); t.bought = ACC.r2(t.bought); t.tobuy = ACC.r2(t.tobuy);
     t.expense = ACC.r2(t.purchases + t.services + t.comm);
     return t;
   },
@@ -176,10 +212,11 @@ const ACC = {
     const newPage = first => {
       ops = []; pages.push({ ops }); y = M + 4;
       text(M, y, first ? 15 : 11, co.name || '', { b: 1 });
-      text(R, y, 13, 'MATERIAL LIST', { b: 1, a: 'r' });
+      text(R, y, d.partial && !first ? 11 : 13, d.partial && !first ? 'MATERIAL LIST (items still to buy)' : 'MATERIAL LIST', { b: 1, a: 'r' });
       if (first) {
         text(R, y + 4.5, 8, 'Purchase & site delivery check', { a: 'r', c: '#555555' });
-        const y0 = y + 9;
+        if (d.partial) text(R, y + 9, 9, '(items still to buy)', { b: 1, a: 'r' });
+        const y0 = y + (d.partial ? 13.5 : 9);
         [d.no && 'No: ' + d.no, d.date && 'Date: ' + d.date].filter(Boolean).forEach((l, i) => text(R, y0 + i * 4, 9, l, { a: 'r' }));
         const sub = [co.address, co.phone && 'Ph: ' + co.phone, co.gstin && 'GSTIN: ' + co.gstin].filter(Boolean).join('  |  ');
         y += 1;

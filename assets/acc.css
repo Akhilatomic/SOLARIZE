@@ -169,3 +169,18 @@ table.acx-cst.stack td[colspan]{grid-column:1/-1}
 .acx-srow{display:grid;grid-template-columns:1fr 110px 44px auto;align-items:center;gap:8px}.acx-sn{display:flex;flex-direction:column;min-width:0;font-size:13.5px;overflow-wrap:anywhere}.acx-sn small{color:var(--mut);font-size:12px}.acx-srow input{margin:0;width:100%}.acx-su{font-size:13px}
 @media(max-width:600px){.acx-srow{grid-template-columns:1fr 90px auto}.acx-su{display:none}}
 .acx-addbar[hidden]{display:none}
+/* Purchased / To buy on the Expense sheet (app34.js): Status cell, the choose-lines bar, the Mark purchased window */
+.acx-bsel{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;min-height:0;font-size:13.5px}
+.acx-bsel:empty{display:none}
+.acx-bck{width:16px;height:16px;margin:0 6px 0 0;vertical-align:-3px;accent-color:var(--pri)}
+.acx-bt{white-space:normal;line-height:1.35}
+.acx-bt .acx-bpill{margin-right:4px}
+.acx-bt .acx-bsum{display:block;margin:3px 0 4px;overflow-wrap:anywhere}
+.acx-bt input[type=date]{width:100%;box-sizing:border-box}
+.acx-cst tr.acx-bgt>td.acx-bt{background:#f4fbf6}
+table.acx-cst.stack tr.acx-bgt{background:#f4fbf6}
+.acx-bpt{color:#1e7a37;font-variant-numeric:tabular-nums}
+.acx-bwl{margin-top:12px}
+.acx-bwl table{table-layout:fixed}
+.acx-bwl td.num input{width:100%;box-sizing:border-box;text-align:right;padding:5px 7px;border-radius:7px;font-size:13px;margin:0}
+.acx-bwl td.acx-nm{overflow-wrap:anywhere}
