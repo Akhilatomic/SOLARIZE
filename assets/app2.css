@@ -497,6 +497,9 @@ label.msec{margin-top:14px;font-size:12px;font-weight:600;color:#1d1d1f;text-tra
 .merr{margin-top:6px;padding:8px 10px;border-radius:10px;background:#fff6f5;border:1px solid #ffd9d6;color:var(--tx);font-size:12.5px;line-height:1.45;max-width:760px}
 .merr small{display:block;color:var(--mut,#6e6e73);font-size:11.5px}.merr p{margin:4px 0 0}
 /* Finance › Commission / Incentive (assets/app27.js) */
+/* customer profile › Commission / Incentive tab (commProfileTab) */
+.cmn-pt .pfch{flex-wrap:wrap;gap:8px}.cmn-pt .pfch .btn{margin:0}.cmn-pt .pfr{grid-template-columns:180px minmax(0,1fr);align-items:start}.cmn-pu{font-size:12px;margin:8px 0 0}
+@media(max-width:600px){.cmn-pt .pfr{grid-template-columns:minmax(0,1fr)}}
 .t-comm{--tc:#af52de}.t-inc{--tc:#32ade6}
 .cmn-tb td{vertical-align:middle}.cmn-tb .fval small{white-space:nowrap}
 .cmn-amt{font-weight:650;font-size:13.5px;color:#1d1d1f}

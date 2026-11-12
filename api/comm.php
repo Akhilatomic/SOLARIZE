@@ -145,6 +145,19 @@ function handle_comm($a) {
         'scheme' => $ym >= INC_START, 'earned' => $m['company_amt'] + $m['own_amt'], 'own_rate' => INC_OWN_RATE,
         'tiers' => array_map(fn($t) => [$t[0] === PHP_INT_MAX ? null : $t[0], $t[1]], INC_TIERS)]);
 
+    case 'for_customer': // GET, admin: one customer's commission / incentive for the customer profile tab (row null = no BA or staff member assigned yet)
+      if (!is_admin()) fail('Not allowed for your role', 403);
+      inc_recalc();
+      $cid = (int)($_GET['customer_id'] ?? 0);
+      $c = row('SELECT id, name FROM customers WHERE id=?', [$cid]); if (!$c) fail('Customer not found', 404);
+      $r = comm_rows('c.id=' . $cid)[0] ?? null;
+      if ($r && $r['user_role'] === 'admin') $r = null; /* owned by an admin: on neither list until someone is assigned */
+      if ($r && $r['pending']) { /* the approval preview needs the person's month, so work it out over the whole incentive list */
+        $all = comm_rows("u.role NOT IN ('admin','ba')"); inc_previews($all);
+        foreach ($all as $x) if ($x['customer_id'] === $cid) { $r = $x; break; }
+      }
+      out(['customer' => ['id' => (int)$c['id'], 'name' => $c['name']], 'row' => $r, 'people' => comm_people(), 'start' => INC_START, 'lead_types' => LEAD_TYPES]);
+
     case 'candidates': // customers on neither list (no owner, or owned by an admin), to add one by hand
       if (!comm_can_manage('incentive')) fail('Not allowed for your role', 403);
       out(rows("SELECT c.id, c.name, c.phone, c.district, " . INC_MONTH . " ym, EXISTS(SELECT 1 FROM leads l WHERE l.customer_id=c.id) from_lead FROM customers c LEFT JOIN commissions cm ON cm.customer_id=c.id

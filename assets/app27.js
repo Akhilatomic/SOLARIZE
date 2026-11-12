@@ -245,3 +245,40 @@ async function commPick(d, done, reload) {
     if (d.admin && d.kind === 'incentive' && c.ym >= d.start) return commApprove({ customer_id: c.id, name: c.name, user_id: 0, lead_type: 'office', ym: c.ym, kw: 0, appr: '', from_lead: +c.from_lead }, d.people, reload);
     commEdit({ customer_id: c.id, name: c.name, user_id: 0, amount: 0, p1_amount: 0, p2_amount: 0, visible: 0, note: '', cost: 0, received: 0 }, d.people, done); };
 }
+
+/* customer profile › Commission / Incentive (admin only, app11.js): this customer's one record — who it is paid to (a Business Associate earns
+   commission, a staff member an incentive), the amount, the two part payments and the status. Assign, edit and approve with the same windows as
+   Finance › Commission / Incentive (commEdit / commApprove), so both places always show the same record. */
+async function commProfileTab(box, c, cid) {
+  box.innerHTML = '<p class="mut">Loading…</p>';
+  let d; try { d = await api('comm', 'for_customer', undefined, '&customer_id=' + (+cid)); }
+  catch (e) { if (box.isConnected) box.innerHTML = `<div class="card pfc"><p class="over" style="margin:0">${esc((e && (e.error || e.message)) || 'Could not load the commission / incentive')}</p></div>`; return; }
+  if (!box.isConnected || !$('[data-pt="comm"].on')) return; /* another tab was opened meanwhile */
+  const r = d.row, people = d.people || [], reload = () => commProfileTab(box, c, cid);
+  const head = (t, extra) => `<div class="pfch"><i class="i i-users"></i><h3>${t}</h3>${extra || ''}</div>`;
+  if (!r) {
+    box.innerHTML = `<div class="card pfc">${head('Commission / Incentive')}
+      <p class="mut" style="margin:0 0 12px">No Business Associate or staff member is assigned to this customer yet. Assign a Business Associate for a commission, or a staff member for an incentive.</p>
+      <div class="bar"><button type="button" class="btn" id="cmpa"><i class="i i-userplus"></i> Assign and set the amount</button></div></div>`;
+    $('#cmpa', box).onclick = () => commEdit({ customer_id: +cid, name: d.customer.name, user_id: 0, amount: 0, p1_amount: 0, p1_date: '', p1_ref: '', p2_amount: 0, p2_date: '', p2_ref: '', visible: 0, note: '', cost: 0, received: 0 }, people, reload);
+    return;
+  }
+  const W = COMM.words(r.kind, true), p = people.find(x => x.id === +r.user_id) || {}, s = COMM.status(r), paid = COMM.paid(r);
+  const pill = { approve: ['Waiting for approval', 'y'], no: ['Not eligible', 'r'], unset: ['Amount not set', ''], due: [paid > 0 ? 'Part paid' : 'To pay', 'y'], paid: ['Paid', 'g'] }[s] || ['', ''];
+  const part = n => +r['p' + n + '_amount'] > 0 ? `<b>${inr(r['p' + n + '_amount'])}</b> <span class="mut">· ${r['p' + n + '_date'] ? fdt(r['p' + n + '_date']) : 'no date'}${r['p' + n + '_ref'] ? ' · ' + esc(r['p' + n + '_ref']) : ''}</span>` : '<span class="mut">Not paid yet</span>';
+  const row = (l, v) => `<div class="pfr"><span>${l}</span><div>${v}</div></div>`;
+  box.innerHTML = `<div class="card pfc cmn-pt">${head(W.K, `<span class="pill ${pill[1]}">${pill[0]}</span><span class="sp"></span>
+      ${r.pending ? '<button type="button" class="btn" id="cmpap"><i class="i i-check"></i> Approve</button>' : ''}
+      <button type="button" class="btn${r.pending ? ' sec' : ''}" id="cmped"><i class="i i-pencil"></i> Edit</button>
+      <a class="btn sec" href="#/comm/${r.kind === 'commission' ? 'commission' : 'incentive'}">Open in Finance</a>`)}
+    ${row('Paid to', `<b>${esc(r.user_name)}</b> <span class="mut">· ${esc(p.role_name || (r.kind === 'commission' ? 'Business Associate' : 'Staff'))}${+r.user_active ? '' : ' · inactive'}</span>`)}
+    ${row('Type', r.kind === 'commission' ? 'Commission (Business Associate)' : 'Incentive (staff)' + (r.scheme ? ` · ${esc(COMM.LT[r.lead_type] || r.lead_type)}${r.ym ? ' · won ' + cmYm(r.ym) : ''}` : ''))}
+    ${row(W.K + ' amount', +r.amount > 0 ? `<b>${inr(r.amount)}</b>${r.auto && r.calc ? ` <span class="mut">· ${esc(r.calc)}</span>` : ''}` : '<span class="mut">Not set</span>')}
+    ${row('Part 1', part(1))}${row('Part 2', part(2))}
+    ${+r.amount > 0 ? row('Balance', `Paid <b>${inr(paid)}</b> of <b>${inr(r.amount)}</b> · Balance <b class="${+r.amount - paid > 0.005 ? 'cmn-due' : ''}">${inr(Math.max(0, +r.amount - paid))}</b>`) : ''}
+    ${row('Visible to the person', r.visible ? `Yes — ${esc(r.user_name)} sees it under “${W.K} received”` : '<span class="mut">No</span>')}
+    ${r.note ? row('Note', esc(r.note)) : ''}
+    ${r.updated ? `<p class="mut cmn-pu">Last changed ${esc(fdt(String(r.updated).slice(0, 10)))}${r.updated_by ? ' by ' + esc(r.updated_by) : ''}</p>` : ''}</div>`;
+  $('#cmped', box).onclick = () => commEdit(r, people, reload);
+  if ($('#cmpap', box)) $('#cmpap', box).onclick = () => commApprove(r, people, reload);
+}

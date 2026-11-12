@@ -171,5 +171,19 @@ call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => []]); // bac
 chk(call($acc, 'comm', 'save', ['customer_id' => $cSa, 'amount' => 1])['_code'] === 403, 'defaults again: accounts cannot manage');
 chk(call($eng, 'comm', 'list')['_code'] === 200, 'defaults again: engineer sees their own list');
 
+/* customer profile › Commission / Incentive tab: one customer's record (admin only) */
+$F = call($admin, 'comm', 'for_customer', null, "&customer_id=$cBa");
+chk($F['_code'] === 200 && $F['row'] && $F['row']['kind'] === 'commission' && (int)$F['row']['user_id'] === $ids['ba'] && count($F['people']) > 0, 'profile tab: BA customer shows its commission and the people to assign');
+$F = call($admin, 'comm', 'for_customer', null, "&customer_id=$cSa");
+chk($F['_code'] === 200 && $F['row']['kind'] === 'incentive' && $F['row']['amount'] == 6000 && $F['row']['p1_ref'] === 'IMPS77', 'profile tab: staff customer shows the incentive and its part payment');
+$cNo = (int)(call($admin, 'customers', 'save', ['name' => 'Test Customer Five', 'phone' => '9000000005'])['id'] ?? 0);
+$F = call($admin, 'comm', 'for_customer', null, "&customer_id=$cNo");
+chk($F['_code'] === 200 && $F['row'] === null && $F['customer']['name'] === 'Test Customer Five', 'profile tab: an admin-owned customer has no one assigned yet');
+chk(call($admin, 'comm', 'save', ['customer_id' => $cNo, 'user_id' => $ids['ba'], 'amount' => 2500])['_code'] === 200
+  && call($admin, 'comm', 'for_customer', null, "&customer_id=$cNo")['row']['kind'] === 'commission', 'profile tab: assigning a BA makes it a commission');
+$x1 = call($acc, 'comm', 'for_customer', null, "&customer_id=$cSa")['_code']; $x2 = call($ba, 'comm', 'for_customer', null, "&customer_id=$cBa")['_code'];
+chk(in_array($x1, [403, 404], true) && in_array($x2, [403, 404], true), "profile tab data: admin only (accounts $x1, BA $x2)");
+chk(call($admin, 'comm', 'for_customer', null, '&customer_id=999999')['_code'] === 404, 'profile tab: unknown customer → 404');
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail ? 1 : 0);
