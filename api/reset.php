@@ -7,14 +7,19 @@ function backups_dir() { $d = dirname(__DIR__) . '/data/backups'; if (!is_dir($d
 function handle_reset($a) {
   if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
   $in = body();
+  /* full backup to download, and restoring from one (api/backup.php) */
+  if ($a === 'backup_zip') bk_download();
+  if ($a === 'backup_info') bk_info();
+  if ($a === 'restore_check') bk_check();
+  if ($a === 'restore_run') bk_run($in);
   if ($a === 'backups') {
     $out = [];
-    foreach (glob(backups_dir() . '/*.sqlite') ?: [] as $f) $out[] = ['name' => basename($f), 'size' => filesize($f), 'time' => date('Y-m-d H:i', filemtime($f))];
+    foreach (array_merge(glob(backups_dir() . '/*.sqlite') ?: [], glob(backups_dir() . '/*.zip') ?: []) as $f) if (!preg_match('/^(restore|snap)-/', basename($f))) $out[] = ['name' => basename($f), 'size' => filesize($f), 'time' => date('Y-m-d H:i', filemtime($f))]; /* not the working copies of a restore */
     usort($out, fn($x, $y) => strcmp($y['name'], $x['name'])); out($out);
   }
   if ($a === 'backup_get') {
     $f = backups_dir() . '/' . basename((string)($_GET['name'] ?? ''));
-    if (!preg_match('/^[\w.-]+\.sqlite$/', basename($f)) || !is_file($f)) fail('Backup not found', 404);
+    if (!preg_match('/^[\w.-]+\.(sqlite|zip)$/', basename($f)) || preg_match('/^(restore|snap)-/', basename($f)) || !is_file($f)) fail('Backup not found', 404);
     header_remove('Content-Type'); header('Content-Type: application/octet-stream'); header('Content-Disposition: attachment; filename="' . basename($f) . '"'); readfile($f); exit;
   }
   if ($a !== 'reset') fail('Unknown action', 404);

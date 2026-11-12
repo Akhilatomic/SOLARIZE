@@ -12,7 +12,7 @@ TMP="$(mktemp -d)"
 PID=""
 trap '[ -n "$PID" ] && kill $PID 2>/dev/null; rm -rf "$TMP"' EXIT
 tar -C "$ROOT" --exclude=.git --exclude=data --exclude='*.zip' --exclude=.superpowers --exclude=.claude --exclude=tools/out -cf - . | tar -C "$TMP" -xf -
-"$PHP" -S "localhost:$PORT" -t "$TMP" >/dev/null 2>&1 &
+"$PHP" -d upload_max_filesize=64M -d post_max_size=80M -S "localhost:$PORT" -t "$TMP" >/dev/null 2>&1 & # room to upload a backup of the test database
 PID=$!
 for i in $(seq 1 50); do curl -s -o /dev/null "http://localhost:$PORT/" && break; sleep 0.2; done
 RC=0
@@ -34,4 +34,5 @@ RC=0
 "$PHP" "$TMP/tests/upload_scan_test.php" "http://localhost:$PORT" || RC=1
 "$PHP" "$TMP/tests/onboard_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
 "$PHP" "$TMP/tests/control_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
+"$PHP" "$TMP/tests/backup_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
 exit $RC

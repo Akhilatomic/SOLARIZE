@@ -389,14 +389,75 @@ async function systemPanel(box, withAudit) {
   if (!box.isConnected) return;
   box.innerHTML = `<div class="grid stats">${Object.entries(st).map(([k, v]) => `<div class="card stat"><b>${v}</b><span>${k.replace('_', ' ')}</span></div>`).join('')}</div>
      <div class="grid cols2" style="margin-top:12px">
-      <div class="card"><h3>Backup</h3><p class="mut">Download a full copy of the database (customers, projects, users, settings). Uploaded files are stored separately in the server's data/uploads folder.</p><a class="btn" href="api.php?m=admin&a=backup"><i class="i i-download"></i> Download database backup</a>
-       <h3 style="margin-top:18px">Saved backups</h3>${bk.map(b => `<div class="act"><a href="api.php?m=reset&a=backup_get&name=${encodeURIComponent(b.name)}"><i class="i i-download"></i> ${esc(b.name)}</a> <small>${b.time} · ${Math.round(b.size / 1024)} KB</small></div>`).join('') || '<p class="mut" style="font-size:13px">None yet. A backup is saved automatically before every reset.</p>'}</div>
+      <div class="card" id="bkcard"><h3>Backup</h3><p class="mut">Download a copy and keep it somewhere safe. The database holds customers, projects, users and settings. With all files the backup also holds every document, Folder file and picture<span id="bkinf"></span>.</p>
+       <div class="stg-act" style="margin-top:0"><a class="btn" href="api.php?m=reset&a=backup_zip&files=1"><i class="i i-download"></i> Download database and all files</a><a class="btn sec" href="api.php?m=admin&a=backup"><i class="i i-download"></i> Database only</a></div>
+       <h3 style="margin-top:20px">Restore</h3><p class="mut">Bring back documents and Folder files deleted by mistake, or put everything back as it was when a backup was made.</p>
+       <button class="btn sec" type="button" id="bkres"><i class="i i-upload"></i> Restore from a backup file…</button>
+       <h3 style="margin-top:20px">Saved backups</h3>${bk.map(b => `<div class="act bkr-sv"><a href="api.php?m=reset&a=backup_get&name=${encodeURIComponent(b.name)}"><i class="i i-download"></i> ${esc(b.name)}</a> <small>${b.time} · ${b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : Math.round(b.size / 1024) + ' KB'}</small><button class="btn sec sm" type="button" data-bkr="${esc(b.name)}">Restore…</button></div>`).join('') || '<p class="mut" style="font-size:13px">None yet. A copy of the database is saved here before every reset and every full restore.</p>'}</div>
       <div class="card danger"><h3>Total reset</h3><p style="margin:0 0 8px">Start fresh: deletes all customers, projects, quotations, payments, receipts & files, KSEB/subsidy checklists, AMC & service records, calendar events, notes and WhatsApp history.</p>
        <p class="mut" style="font-size:13px;margin:0 0 12px"><b>Always kept:</b> all leads, Meta Ads connection & sync, campaigns & ad spend, and your admin login. A full backup is saved first.</p>
        <button class="btn bad" id="rst"><i class="i i-alert"></i> Total reset…</button></div>
       ${withAudit ? '<div class="card"><h3>Audit log</h3><p class="mut">Who did what in the last 72 hours. Older entries stay on the customer and lead timelines.</p><button class="btn sec" type="button" id="sysaud">Open the audit log</button></div>' : ''}</div>`;
   $('#rst', box).onclick = resetModal;
+  $('#bkres', box).onclick = () => bkRestore('', () => systemPanel(box, withAudit));
+  $$('[data-bkr]', box).forEach(b => b.onclick = () => bkRestore(b.dataset.bkr, () => systemPanel(box, withAudit)));
+  api('reset', 'backup_info').then(i => { const el = $('#bkinf', box); if (el) el.textContent = ` — ${i.files.toLocaleString('en-IN')} file${i.files === 1 ? '' : 's'}, ${bkSize(i.bytes + i.db_bytes)} in all`; box._bkLimit = i.upload_limit; }).catch(() => { });
   if ($('#sysaud', box)) $('#sysaud', box).onclick = () => { TAB.adm = 'audit'; location.hash = '#/admin'; };
+}
+
+/* ---------- Restore from a backup (api/backup.php): look at the backup first, then bring back what is missing or put everything back ---------- */
+const bkSize = n => n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB' : n >= 1048576 ? Math.round(n / 1048576) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+const bkWhen = s => { const d = s ? new Date(s) : null; return d && !isNaN(d) ? d.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'an unknown date'; };
+function bkRestore(saved, done) {
+  const m = modal('<div id="bkr"></div>', true), box = $('#bkr', m), close = () => m.remove();
+  const pickStep = () => {
+    box.innerHTML = `<h2 style="margin-top:0">Restore from a backup</h2><p class="mut" style="margin-top:-6px">Choose the backup file downloaded from this page: the <b>.zip</b> (database and files) or the <b>.sqlite</b> (database only). Nothing is changed until you have seen what is in it.</p>
+      <div class="onb-file"><button type="button" class="btn" id="bkpick"><i class="i i-upload"></i> Choose the backup file</button><span class="mut" id="bkpn">.zip or .sqlite</span><input type="file" id="bkfile" accept=".zip,.sqlite" hidden></div>
+      <p class="mut bkr-note" id="bklim"></p><div class="bar" style="margin-top:14px"><button class="btn sec" id="bkx">Cancel</button></div>`;
+    $('#bkx', box).onclick = close; $('#bkpick', box).onclick = () => $('#bkfile', box).click();
+    api('reset', 'backup_info').then(i => { const el = $('#bklim', box); if (el) el.textContent = `This server takes a file of up to ${bkSize(i.upload_limit)} in one upload. A larger backup: put it in the data/backups folder with the hosting File Manager, then press Restore beside it under Saved backups.`; }).catch(() => { });
+    $('#bkfile', box).onchange = async e => { const f = e.target.files[0]; if (!f) return;
+      box.innerHTML = `<h2 style="margin-top:0">Restore from a backup</h2><p class="mut">Reading ${esc(f.name)} (${bkSize(f.size)})…</p>`;
+      const fd = new FormData(); fd.append('file', f);
+      try { showStep(await api('reset', 'restore_check', fd)); } catch (x) { if (m.isConnected) pickStep(); } };
+  };
+  const showStep = c => {
+    if (!m.isConnected) return;
+    const sk = c.docs_skip || {}, nothing = !c.docs && !c.sheets && !c.lost, n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+    const notes = [sk.owner ? `${n(sk.owner, 'document belongs', 'documents belong')} to a customer that is no longer in the CRM. Only putting everything back restores ${sk.owner === 1 ? 'it' : 'those'}.` : '',
+      sk.replaced ? `${n(sk.replaced, 'paper was', 'papers were')} made again since the backup, so the newer copy is kept.` : '',
+      (sk.nofile || (c.sheets_skip || {}).nofile) ? `${n((sk.nofile || 0) + ((c.sheets_skip || {}).nofile || 0), 'file is', 'files are')} listed in this backup but not inside it${c.with_files ? '' : ' (it is a database-only backup)'}.` : ''].filter(Boolean);
+    const list = (L, total) => L.length ? `<ul class="bkr-l">${L.slice(0, 8).map(x => `<li><b>${esc(x.name)}</b>${x.owner ? ' · ' + esc(x.owner) : ''}${x.date ? ` <small class="mut">${esc(x.date)}</small>` : ''}</li>`).join('')}${total > 8 ? `<li class="mut">and ${total - 8} more</li>` : ''}</ul>` : '';
+    box.innerHTML = `<h2 style="margin-top:0">Restore from a backup</h2>
+      <p class="bkr-h"><b>${esc(c.label)}</b><span class="mut">made ${esc(bkWhen(c.made))} · ${c.with_files ? `database and ${c.files.toLocaleString('en-IN')} file${c.files === 1 ? '' : 's'}` : 'database only'}</span></p>
+      <div class="bkr-g"><div><h4>What it holds</h4><table class="bkr-t"><thead><tr><th></th><th>In the backup</th><th>In the CRM now</th></tr></thead><tbody>${c.counts.map(([l, a, b]) => `<tr><td>${esc(l)}</td><td>${a}</td><td class="${a !== b ? 'bkr-d' : ''}">${b}</td></tr>`).join('')}</tbody></table></div>
+       <div><h4>Missing from the CRM now</h4>${nothing ? '<p class="mut" style="margin:0">Nothing. Every document and Folder file of this backup is still in the CRM.</p>'
+         : `<p style="margin:0 0 6px">${[c.docs ? n(c.docs, 'document', 'documents') : '', c.sheets ? n(c.sheets, 'Folder file', 'Folder files') : '', c.lost ? n(c.lost, 'file lost from the server', 'files lost from the server') : ''].filter(Boolean).join(' · ')}</p>${list(c.docs_list || [], c.docs)}${list(c.sheets_list || [], c.sheets)}`}
+        ${notes.length ? `<p class="mut bkr-note">${notes.join(' ')}</p>` : ''}
+        <div class="stg-act"><button class="btn" id="bkmiss" ${nothing ? 'disabled' : ''}>Bring back what is missing</button></div>
+        <p class="mut bkr-note">Puts back only what is missing. Nothing that is in the CRM now is changed.</p></div></div>
+      <div class="bkr-full"><h4>Put everything back as in this backup</h4>
+       <p class="mut" style="margin:0 0 8px">The whole database goes back to how it was when this backup was made: everything added or changed since is lost, and people may have to sign in again. A copy of the database as it is now is saved first under Saved backups.</p>
+       <div class="two"><div><label>Your admin password</label><input type="password" id="bkpw" autocomplete="current-password"></div><div><label>Type <b>RESTORE</b> to confirm</label><input id="bkcf" autocomplete="off" placeholder="RESTORE"></div></div>
+       <div class="err" id="bker"></div><div class="stg-act"><button class="btn bad" id="bkfull" disabled>Put everything back</button></div></div>
+      <div class="bar" style="margin-top:14px"><button class="btn sec" id="bkx">Close</button></div>`;
+    $('#bkx', box).onclick = close;
+    const run = async body => { const r = await fetch('api.php?m=reset&a=restore_run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: c.token, ...body }) }).then(x => x.json()).catch(() => ({ error: 'Network error' })); return r; };
+    $('#bkmiss', box).onclick = async e => { const b = e.currentTarget; b.disabled = true; b.textContent = 'Bringing back…';
+      const r = await run({ mode: 'missing' }); if (r.error) { b.disabled = false; b.textContent = 'Bring back what is missing'; return toast(r.error, true); }
+      close(); toast(`Brought back: ${r.docs} document${r.docs === 1 ? '' : 's'}, ${r.sheets} Folder file${r.sheets === 1 ? '' : 's'}, ${r.lost} lost file${r.lost === 1 ? '' : 's'}${r.failed ? ` · ${r.failed} could not be restored` : ''}`); if (done) done(); };
+    const ok = () => { $('#bkfull', box).disabled = !($('#bkcf', box).value === 'RESTORE' && $('#bkpw', box).value.length >= 1); };
+    $('#bkcf', box).oninput = ok; $('#bkpw', box).oninput = ok;
+    $('#bkfull', box).onclick = async e => { const b = e.currentTarget; b.disabled = true; b.textContent = 'Restoring…'; $('#bker', box).textContent = '';
+      const r = await run({ mode: 'full', password: $('#bkpw', box).value, confirm: $('#bkcf', box).value });
+      if (r.error) { $('#bker', box).textContent = r.error; b.textContent = 'Put everything back'; ok(); return; }
+      box.innerHTML = `<h2 style="margin-top:0">Restore complete</h2><p>The CRM is back as it was when the backup was made${r.files ? `, and <b>${r.files}</b> file${r.files === 1 ? ' was' : 's were'} put back on the server` : ''}.</p>
+        <p class="mut">The database from just before the restore is saved as <b>${esc(r.backup)}</b> under Saved backups.${r.failed ? ` ${r.failed} file${r.failed === 1 ? '' : 's'} in the backup could not be put back.` : ''}</p>
+        <div class="bar"><button class="btn" id="bkgo">Reload the CRM</button></div>`;
+      $('#bkgo', box).onclick = () => location.reload(); };
+  };
+  if (saved) { box.innerHTML = `<h2 style="margin-top:0">Restore from a backup</h2><p class="mut">Reading ${esc(saved)}…</p>`; api('reset', 'restore_check', { name: saved }).then(showStep).catch(close); }
+  else pickStep();
 }
 
 // ---------- Admin ----------
