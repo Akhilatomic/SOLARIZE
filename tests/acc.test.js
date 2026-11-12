@@ -265,3 +265,17 @@ test('template to sheet lines: today\'s prices, add / replace, duplicates, missi
   assert.deepEqual(p.lines.map(l => l.name), ['Test Inverter', 'Test Panel', 'Gone Rail', 'Hidden Panel', 'Test Box']); assert.equal(p.skipped, 1);
   assert.deepEqual(ACC.tplToLines(null, null, null, 'add'), { lines: [], skipped: 0, missing: [] });
 });
+test('Add item with several products: pickPlan needs every ticked product to have a quantity above 0', () => {
+  const mats = [{ id: 1, name: 'Panel' }, { id: 2, name: 'Cable' }, { id: 3, name: 'Box' }];
+  assert.deepEqual(ACC.pickPlan([], mats), { rows: [], ok: false, need: 0 });
+  assert.deepEqual(ACC.pickPlan(null, null), { rows: [], ok: false, need: 0 });
+  const a = ACC.pickPlan([{ id: 2, qty: '10' }, { id: 1, qty: '' }, { id: 3, qty: '0' }], mats);
+  assert.deepEqual(a.rows.map(r => [r.item.name, r.qty]), [['Cable', 10], ['Panel', null], ['Box', null]]);
+  assert.equal(a.ok, false); assert.equal(a.need, 2);
+  const b = ACC.pickPlan([{ id: 2, qty: '1,250.5' }, { id: '1', qty: 3 }, { id: 99, qty: 5 }, { id: 3, qty: 'x' }], mats);
+  assert.deepEqual(b.rows.map(r => [r.item.name, r.qty]), [['Cable', 1250.5], ['Panel', 3], ['Box', null]]); /* an item gone from the list drops out */
+  assert.equal(b.ok, false);
+  const c = ACC.pickPlan([{ id: 2, qty: '4' }, { id: 1, qty: 2 }, { id: 99, qty: '' }], mats);
+  assert.equal(c.ok, true); assert.equal(c.need, 0); assert.deepEqual(c.rows.map(r => r.item.id), [2, 1]);
+  assert.equal(ACC.pickPlan([{ id: 1, qty: -2 }], mats).ok, false);
+});

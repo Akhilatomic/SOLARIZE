@@ -84,6 +84,20 @@ const ACC = {
   /* the profit % a new sheet line gets from a price list item: the item's own; a blank % = 0 for a KSEB / stamp paper fee (passed on
      at cost), else the default */
   addPct(item, def) { return ACC.pctSet(item && item.profit) ? Number(item.profit) : ACC.isFee(item) ? 0 : ACC.pctOf(null, def); },
+  /* Add item, several products at once: picks = [{id, qty}] (qty as typed: '' = not typed, '1,250.5' = 1250.5) against the price list
+     rows. rows = the ticked products still on the list, in tick order, with qty (a number > 0 or null); ok = at least one row and every
+     row has a quantity above 0 (the "product + quantity" rule); need = rows still without one. */
+  pickPlan(picks, mats) {
+    const byId = new Map((mats || []).map(m => [Number(m.id), m]));
+    const rows = [];
+    (picks || []).forEach(p => {
+      const item = byId.get(Number(p && p.id)); if (!item) return;
+      const s = String(p.qty == null ? '' : p.qty).replace(/[,₹\s]/g, ''), n = s === '' ? NaN : Number(s);
+      rows.push({ item, qty: isFinite(n) && n > 0 ? n : null });
+    });
+    const need = rows.filter(r => r.qty === null).length;
+    return { rows, ok: rows.length > 0 && need === 0, need };
+  },
   custPrice(dealer, pct) { return ACC.r2((Number(dealer) || 0) * (1 + (Number(pct) || 0) / 100)); },
   lineExpense(l) { return ACC.lineAmount(l); },
   lineCust(l, def) { return ACC.r2((Number(l && l.qty) || 0) * (Number(l && l.rate) || 0) * (1 + ACC.pctOf(l && l.profit, def) / 100)); },

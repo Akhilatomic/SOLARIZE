@@ -258,7 +258,8 @@ async function acCsAdd(ctx) {
   const m = modal(`<div class="mh"><h3>Add item</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
     <div class="tabs acx-amode" role="tablist"><button type="button" role="tab" data-acx-mode="list" class="on" aria-selected="true">From the price list</button><button type="button" role="tab" data-acx-mode="new" aria-selected="false">New product</button></div>
     <div data-acx-pane="list"><div class="acx-pbar"><input id="acx_q" type="search" placeholder="Search the price list…" autocomplete="off" aria-label="Search the price list"><select id="acx_qg" aria-label="Group"><option value="">All groups</option>${gOpts('')}</select></div>
-      <div class="acx-pick" id="acx_pl" role="listbox" aria-label="Products"></div></div>
+      <p class="mut acx-small acx-pnote">Tick one or more products, then type each quantity below.</p>
+      <div class="acx-pick" id="acx_pl" role="group" aria-label="Products"></div></div>
     <div data-acx-pane="new" hidden><p class="mut acx-small acx-top0">Saved to the price list as soon as you add it, so it is there for the next projects.</p>
       <div class="two"><div><label for="acx_ng">Group</label><select id="acx_ng">${gOpts(ACC.GROUPS[0])}</select></div>
       <div class="acx-two"><div><label for="acx_nu">Unit</label><input id="acx_nu" list="acx_units" value="Nos" maxlength="20"></div><div><label for="acx_nt">GST %</label><select id="acx_nt">${ACX_GSTS.map(v => `<option value="${v}" ${v === 18 ? 'selected' : ''}>${v}%</option>`).join('')}</select></div></div>
@@ -266,17 +267,20 @@ async function acCsAdd(ctx) {
       <div><label for="acx_nr">Dealer price, before GST (₹)</label><input id="acx_nr" inputmode="decimal" autocomplete="off" placeholder="Not known yet"></div>
       <div><label for="acx_np">Profit %</label><input id="acx_np" inputmode="decimal" autocomplete="off" placeholder="${esc(String(def))} (default)"></div></div>
       <p class="acx-note" id="acx_ncp" aria-live="polite"></p></div>
-    <div class="acx-addbar"><div class="acx-chosen" id="acx_ch" aria-live="polite"></div>
+    <div class="acx-addbar acx-multi" id="acx_many"><div class="acx-mh"><b id="acx_msel" aria-live="polite"></b><span class="sp"></span><button type="button" class="btn" id="acx_mgo" disabled><i class="i i-plus"></i> <span>Add</span></button></div>
+      <div class="acx-sl" id="acx_sl"></div></div>
+    <div class="acx-addbar" id="acx_one" hidden><div class="acx-chosen" id="acx_ch" aria-live="polite"></div>
       <div class="acx-qty"><label for="acx_aq">Quantity</label><input id="acx_aq" inputmode="decimal" autocomplete="off" placeholder="Qty"><span class="mut" id="acx_au"></span></div>
       <button type="button" class="btn" id="acx_ago" disabled><i class="i i-plus"></i> <span>Add</span></button></div>
     <div class="bar acx-mft"><span class="mut" id="acx_pn"></span><span class="sp"></span><button type="button" class="btn sec" data-x>Done</button></div>`, true);
-  let added = 0, last = null, chosen = null, mode = 'list', busy = false;
+  /* sel: the ticked products (price list item id → the quantity as typed, '' = none yet), in tick order; kept while searching and filtering */
+  let added = 0, last = null, mode = 'list', busy = false;
+  const sel = new Map(), many = $('#acx_many', m), one = $('#acx_one', m), mgo = $('#acx_mgo', m);
   const qIn = $('#acx_aq', m), go = $('#acx_ago', m), nn = $('#acx_nn', m), nr = $('#acx_nr', m), np = $('#acx_np', m);
   const count = () => { $('#acx_pn', m).textContent = added ? `${acPl(added, ctx.sheet ? 'line' : 'item')} added` : ''; };
   /* what Add would do now: {ok, why} */
   const state = () => {
     const q = acNum(qIn.value);
-    if (mode === 'list' && !chosen) return { ok: false, why: 'Choose a product' };
     if (mode === 'new' && !nn.value.trim()) return { ok: false, why: 'Type the product name' };
     if (mode === 'new' && acNum(nr.value) === null) return { ok: false, why: 'The dealer price is not a number' };
     if (mode === 'new' && Number.isNaN(acPctIn(np.value))) return { ok: false, why: 'Profit % is 0 to 500, or blank for the default' };
@@ -284,14 +288,14 @@ async function acCsAdd(ctx) {
     return { ok: true, why: '' };
   };
   const upd = () => {
-    const s = state(), unit = mode === 'list' ? (chosen ? chosen.unit : '') : $('#acx_nu', m).value.trim();
-    go.disabled = !s.ok || busy; go.title = s.why; $('span', go).textContent = mode === 'new' ? 'Save & add' : 'Add';
+    many.hidden = mode !== 'list'; one.hidden = mode !== 'new';
+    if (mode === 'list') { updSel(); return; }
+    const s = state(), unit = $('#acx_nu', m).value.trim();
+    go.disabled = !s.ok || busy; go.title = s.why; $('span', go).textContent = 'Save & add';
     $('#acx_au', m).textContent = unit;
     qIn.classList.toggle('acx-bad', acNum(qIn.value) === null);
-    $('#acx_ch', m).innerHTML = mode === 'list'
-      ? chosen ? `<b>${esc(chosen.name)}</b><small>${esc(chosen.grp)} · dealer ${+chosen.rate ? inr2(chosen.rate) : 'price not set'} · profit ${esc(acPctTxt(ACC.pctOf(chosen.profit, def)))}</small>` : '<span class="mut">Choose a product above, then type its quantity.</span>'
-      : nn.value.trim() ? `<b>${esc(nn.value.trim())}</b><small>${esc($('#acx_ng', m).value)}</small>` : '<span class="mut">Fill in the new product, then type its quantity.</span>';
-    if (mode === 'new') {
+    $('#acx_ch', m).innerHTML = nn.value.trim() ? `<b>${esc(nn.value.trim())}</b><small>${esc($('#acx_ng', m).value)}</small>` : '<span class="mut">Fill in the new product, then type its quantity.</span>';
+    {
       const r = acNum(nr.value), pc = acPctIn(np.value);
       $('#acx_ncp', m).textContent = r && !Number.isNaN(pc) ? `Customer price ${inr2(ACC.custPrice(r, ACC.pctOf(pc, def)))} per ${$('#acx_nu', m).value.trim() || 'Nos'} (${acPctTxt(ACC.pctOf(pc, def))} profit)` : '';
     }
@@ -302,8 +306,8 @@ async function acCsAdd(ctx) {
     let h = '', cur = null;
     L.slice(0, 300).forEach(x => {
       if (x.grp !== cur) { cur = x.grp; h += `<div class="acx-pgh">${esc(cur || 'Other')}</div>`; }
-      const on = ctx.lines().filter(l => l.material_id === x.id).length, sel = chosen && chosen.id === x.id;
-      h += `<button type="button" class="acx-pi${sel ? ' acx-on' : ''}" role="option" aria-selected="${sel}" data-mid="${x.id}"><span>${esc(x.name)}</span><small>${esc(x.unit)} · GST ${+x.gst}%${+x.rate ? ' · dealer ' + inr2(x.rate) + ' · profit ' + esc(acPctTxt(ACC.pctOf(x.profit, def))) : ' · no dealer price yet'}${on ? ` · <b>${ctx.sheet ? 'on the sheet' : 'in the template'}${on > 1 ? ' ×' + on : ''}</b>` : ''}</small></button>`;
+      const on = ctx.lines().filter(l => l.material_id === x.id).length, tk = sel.has(x.id);
+      h += `<label class="acx-pi acx-pc${tk ? ' acx-on' : ''}"><input type="checkbox" data-mid="${x.id}"${tk ? ' checked' : ''}><span>${esc(x.name)}</span><small>${esc(x.unit)} · GST ${+x.gst}%${+x.rate ? ' · dealer ' + inr2(x.rate) + ' · profit ' + esc(acPctTxt(ACC.pctOf(x.profit, def))) : ' · no dealer price yet'}${on ? ` · <b>already ${ctx.sheet ? 'on the sheet' : 'in the template'}${on > 1 ? ' ×' + on : ''}</b>` : ''}</small></label>`;
     });
     $('#acx_pl', m).innerHTML = h || `<p class="mut acx-pe">Nothing matches. Use <b>New product</b> to add it to the price list.</p>`;
   };
@@ -314,13 +318,52 @@ async function acCsAdd(ctx) {
     if (k === 'new' && !nn.value && !$('#acx_pl [data-mid]', m)) nn.value = $('#acx_q', m).value.trim(); /* a search that found nothing: start the new product from it */
     upd(); (k === 'new' ? nn : $('#acx_q', m)).focus();
   };
-  const choose = x => { chosen = x; draw(); upd(); qIn.focus(); qIn.select(); };
+  /* the ticked products, each with its quantity box and a remove button (drawn again only when the ticks change, so typing keeps its focus) */
+  const drawSel = () => {
+    $('#acx_sl', m).innerHTML = [...sel.keys()].map(id => {
+      const x = mats.find(y => y.id === id); if (!x) return '';
+      return `<div class="acx-srow" data-sid="${x.id}"><span class="acx-sn"><b>${esc(x.name)}</b><small>${esc(x.grp)} · dealer ${+x.rate ? inr2(x.rate) : 'price not set'}</small></span><input data-sq inputmode="decimal" autocomplete="off" placeholder="Qty" value="${esc(sel.get(id))}" aria-label="Quantity of ${esc(x.name)}"><span class="mut acx-su">${esc(x.unit)}</span><button type="button" class="ib" data-rm title="Remove" aria-label="Remove ${esc(x.name)}"><i class="i i-x"></i></button></div>`;
+    }).join('') || '<span class="mut">Tick the products above, then type each quantity here.</span>';
+    updSel();
+  };
+  const plan = () => ACC.pickPlan([...sel].map(([id, qty]) => ({ id, qty })), mats);
+  const updSel = () => {
+    const p = plan(), n = p.rows.length;
+    $('#acx_msel', m).textContent = n ? `${n} selected` : '';
+    mgo.disabled = !p.ok || busy; $('span', mgo).textContent = n ? `Add ${acPl(n, 'item')}` : 'Add';
+    mgo.title = !n ? 'Tick at least one product' : p.need ? `Enter the quantity of ${acPl(p.need, 'product')} still without one` : '';
+    $$('.acx-srow', m).forEach(r => { const i = $('[data-sq]', r); i.classList.toggle('acx-bad', acNum(i.value) === null); });
+  };
+  const tick = (id, on) => { if (on) { if (!sel.has(id)) sel.set(id, ''); } else sel.delete(id); drawSel(); };
   const addLine = line => { ctx.add(line); last = line; added++; count(); };
   const done = what => { qIn.value = ''; upd(); toast(`${what} added (${acPl(added, ctx.sheet ? 'line' : 'item')} so far). Save ${ctx.keep} to keep ${added === 1 ? 'it' : 'them'}.`); };
-  $('#acx_pl', m).onclick = e => { const b = e.target.closest('[data-mid]'), x = b && mats.find(y => y.id === +b.dataset.mid); if (x) choose(x); };
+  $('#acx_pl', m).onchange = e => { const b = e.target.closest('[data-mid]'); if (!b) return; tick(+b.dataset.mid, b.checked); b.closest('.acx-pi').classList.toggle('acx-on', b.checked); };
+  const sl = $('#acx_sl', m);
+  sl.oninput = e => { const r = e.target.closest('[data-sid]'); if (r && e.target.matches('[data-sq]')) { sel.set(+r.dataset.sid, e.target.value); updSel(); } };
+  sl.onclick = e => {
+    const b = e.target.closest('[data-rm]'), r = b && b.closest('[data-sid]'); if (!r) return;
+    const id = +r.dataset.sid, cb = $(`#acx_pl [data-mid="${id}"]`, m);
+    if (cb) { cb.checked = false; cb.closest('.acx-pi').classList.remove('acx-on'); }
+    tick(id, false);
+  };
+  /* Enter in a quantity box: on to the next product still without a quantity; when none is left, add them all */
+  sl.onkeydown = e => {
+    if (e.key !== 'Enter' || !e.target.matches('[data-sq]')) return;
+    e.preventDefault();
+    const ins = $$('[data-sq]', sl), at = ins.indexOf(e.target), nxt = ins.slice(at + 1).concat(ins.slice(0, at)).find(i => acNum(i.value) === null || !(acNum(i.value) > 0));
+    if (nxt) { nxt.focus(); return; }
+    if (!mgo.disabled) mgo.click(); else if (mgo.title) toast(mgo.title, true);
+  };
+  mgo.onclick = () => {
+    const p = plan(); if (!p.ok || busy) { if (mgo.title) toast(mgo.title, true); return; }
+    p.rows.forEach(r => addLine(acFromMat(r.item, r.qty)));
+    const n = p.rows.length; sel.clear(); drawSel(); draw();
+    toast(`${acPl(n, 'item')} added (${acPl(added, ctx.sheet ? 'line' : 'item')} so far). Save ${ctx.keep} to keep ${added === 1 ? 'it' : 'them'}.`);
+    $('#acx_q', m).value = ''; draw(); $('#acx_q', m).focus();
+  };
   $('#acx_q', m).oninput = () => { draw(); upd(); };
   $('#acx_qg', m).onchange = () => { draw(); upd(); };
-  $('#acx_q', m).onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const b = $('#acx_pl [data-mid]', m); if (b) b.click(); } };
+  $('#acx_q', m).onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const b = $('#acx_pl [data-mid]', m); if (b) { b.checked = !b.checked; b.dispatchEvent(new Event('change', { bubbles: true })); } } };
   $$('[data-acx-mode]', m).forEach(b => b.onclick = () => setMode(b.dataset.acxMode));
   [qIn, nn, nr, np, $('#acx_nu', m)].forEach(x => { x.oninput = upd; });
   $('#acx_ng', m).onchange = upd;
@@ -328,7 +371,6 @@ async function acCsAdd(ctx) {
   go.onclick = async () => {
     const s = state(); if (!s.ok || busy) { if (s.why) toast(s.why, true); return; }
     const qty = acNum(qIn.value);
-    if (mode === 'list') { addLine(acFromMat(chosen, qty)); const nm = chosen.name; chosen = null; $('#acx_q', m).value = ''; draw(); done(`“${nm}”`); $('#acx_q', m).focus(); return; } /* a fresh search for the next product */
     const grp = $('#acx_ng', m).value, name = nn.value.trim().replace(/\s+/g, ' '), unit = $('#acx_nu', m).value.trim() || 'Nos', gst = +$('#acx_nt', m).value;
     const ex = mats.find(x => x.grp === grp && x.name.toLowerCase() === name.toLowerCase());
     if (ex) { addLine(acFromMat(ex, qty)); toast(`“${ex.name}” is already on the price list, so that one was added with its own price`); qIn.value = ''; nn.value = ''; upd(); return; }
@@ -360,7 +402,7 @@ async function acCsAdd(ctx) {
     const i = ctx.sheet ? ACS.lines.indexOf(last) : -1, row = i >= 0 && $(`#acx_tb tr[data-i="${i}"]`); /* the last line added, in view */
     if (row) row.scrollIntoView({ block: 'center' });
   });
-  count(); draw(); upd(); $('#acx_q', m).focus();
+  count(); draw(); drawSel(); upd(); $('#acx_q', m).focus();
 }
 
 /* Copy from another project: a similar plant's items, quantities and profit % (dealer prices when ticked); supplier, bill and note stay behind */
