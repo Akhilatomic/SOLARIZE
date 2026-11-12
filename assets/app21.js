@@ -256,9 +256,10 @@ const qpLibs = () => QP_LIBS = QP_LIBS || Promise.all([
   window.jspdf ? 0 : qpScript('assets/vendor/jspdf-2.5.1.umd.min.js'),
 ]).catch(e => { QP_LIBS = null; throw e; });
 
-/* The upload check (sec_upload in api/security.php) refuses a file holding certain short byte patterns ("<?=", "<%@", "/JS" …). In picture
-   data they turn up by chance — about 1 page picture in 12 — so a page picture is encoded again a touch lower until it has none.
-   The copy of a paper kept on the customer's Documents page (docKeep) is then not refused. */
+/* A page picture is encoded again a touch lower until its bytes hold none of the short patterns ("<?=", "<%@", "/JS" …) that a strict
+   upload check takes for code — in picture data they turn up by chance, about 1 page picture in 12. The server check (sec_upload in
+   api/security.php) only counts them when code text follows since Nov 2026, so this is a second guard for the copies kept on the
+   customer's Documents page (docKeep); it is stricter than the server on purpose. */
 const QP_SCAN = /<\?php|<\?=|<script\b|<%@|#!\/(usr|bin)|\/(JavaScript|JS|Launch|EmbeddedFile|RichMedia|XFA)\b/i;
 function qpJpeg(cv, q = 0.92) {
   let url = '';

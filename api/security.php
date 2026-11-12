@@ -12,6 +12,13 @@ function up_err($code) {
   return [UPLOAD_ERR_INI_SIZE => 'File is larger than the server upload limit', UPLOAD_ERR_FORM_SIZE => 'File is too large', UPLOAD_ERR_PARTIAL => 'Upload was interrupted — try again',
     UPLOAD_ERR_NO_FILE => 'Choose a file', UPLOAD_ERR_NO_TMP_DIR => 'Server upload folder missing', UPLOAD_ERR_CANT_WRITE => 'Server could not save the file'][$code] ?? 'Upload failed';
 }
+// Code and active content the upload check looks for. A short tag only counts when text follows it: on their own, three bytes such as "<?="
+// or "/JS" turn up by chance in compressed data (photos, scans, PDFs) — measured on files of random bytes, 15 % of 0.5 MB files, 28 % of 2 MB
+// and 52 % of 4 MB were refused as "contains code". What a real script needs is still caught: "<?php", "<?=" followed by code (6 or more
+// text characters), "<script", an ASP / JSP directive, a "#!" interpreter line. (Owner's go-ahead, Nov 2026.)
+const UP_CODE = '/<\?php|<\?=[\x09\x0a\x0d\x20-\x7e]{6}|<script\b|<%@\s*(page|language|import|taglib|include|assembly|register|control|master)\b|#!\/(usr|bin)/i';
+// PDF active content. /JS and /XFA count in the form a PDF really writes them: a script text (plain or UTF-16), hex text or an object reference follows.
+const UP_PDF_ACTIVE = '#/(JavaScript|Launch|EmbeddedFile|RichMedia)\b|/XFA\s*[\[<(\d]|/JS\s*\((?:\xfe\xff|[\x09\x0a\x0d\x20-\x7e]{4})|/JS\s*<[0-9A-Fa-f\s]{4}|/JS\s+\d+\s+\d+\s+R\b#';
 // Validates $_FILES entry; returns the safe extension to store with. Fails with a clear message otherwise.
 function sec_upload($fl, array $kinds = ['image', 'pdf', 'office'], $maxMB = 10) {
   if (!$fl || !isset($fl['error'])) fail('Choose a file');
@@ -27,7 +34,7 @@ function sec_upload($fl, array $kinds = ['image', 'pdf', 'office'], $maxMB = 10)
   $data = file_get_contents($fl['tmp_name']);
   $head = substr($data, 0, 16);
   // never accept anything that carries script / server code (polyglot files)
-  if (preg_match('/<\?php|<\?=|<script\b|<%@|#!\/(usr|bin)/i', $data)) fail('This file contains code and was blocked');
+  if (preg_match(UP_CODE, $data)) fail('This file contains code and was blocked');
   $finfo = function_exists('finfo_open') ? (finfo_file($fi = finfo_open(FILEINFO_MIME_TYPE), $fl['tmp_name']) ?: '') : '';
   switch ($ext) {
     case 'jpg': case 'jpeg': case 'png': case 'webp':
@@ -43,7 +50,7 @@ function sec_upload($fl, array $kinds = ['image', 'pdf', 'office'], $maxMB = 10)
       return $ext === 'jpeg' ? 'jpg' : $ext;
     case 'pdf':
       if (strpos(substr($data, 0, 1024), '%PDF-') === false) fail('That is not a valid PDF file');
-      if (preg_match('#/(JavaScript|JS|Launch|EmbeddedFile|RichMedia|XFA)\b#', $data)) fail('This PDF contains scripts or embedded files and was blocked. Please print it to PDF again or upload a scan.');
+      if (preg_match(UP_PDF_ACTIVE, $data)) fail('This PDF contains scripts or embedded files and was blocked. Please print it to PDF again or upload a scan.');
       return 'pdf';
     case 'docx': case 'xlsx':
       if (substr($head, 0, 4) !== "PK\x03\x04" || strpos($data, '[Content_Types].xml') === false) fail('That is not a valid ' . strtoupper($ext) . ' file');
