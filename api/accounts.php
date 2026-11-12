@@ -189,8 +189,11 @@ const ACC_TPL_DEFAULT = [
 function acc_expense_row($r) { foreach (['id', 'created_by'] as $k) $r[$k] = (int)$r[$k]; foreach (['amount', 'gst'] as $k) $r[$k] = (float)$r[$k]; return $r; }
 
 function handle_acc($a) {
-  /* receipts, templates and the share log are also open to anyone who can see payments; everything else needs Accounts */
-  if (in_array($a, ['ac_tpl', 'ac_receipt', 'log'], true)) { if (!can('payments') && !can('accounts')) fail('Not allowed for your role', 403); }
+  /* receipts, templates and the share log are also open to the Payments roles; everything else needs Accounts.
+     ac_receipt returns the price and amounts, so it also needs Finance; the writes (receipt_no, log) need write access. */
+  if ($a === 'ac_tpl') { if (!can('payments') && !can('accounts')) fail('Not allowed for your role', 403); }
+  elseif ($a === 'ac_receipt') { if (!can('accounts') && !(can('payments') && can('finance'))) fail('Not allowed for your role', 403); }
+  elseif ($a === 'receipt_no' || $a === 'log') { if (!can('accounts', true) && !can('payments', true)) fail('Not allowed for your role', 403); }
   else need('accounts');
   $in = body();
   switch ($a) {
@@ -206,10 +209,16 @@ function handle_acc($a) {
       out(['ok' => true] + $cur);
     }
 
-    case 'ac_receipt': {
+    case 'receipt_no': { /* POST: gives the payment its receipt number the first time (422 without a reference unless Cash) */
+      $pay = row('SELECT pa.* FROM payments pa JOIN projects p ON p.id=pa.project_id JOIN customers c ON c.id=p.customer_id WHERE pa.id=? AND ' . cust_scope('c'), [(int)($in['payment_id'] ?? 0)]);
+      if (!$pay) fail('Payment not found', 404);
+      out(['receipt_no' => rcpt_issue($pay)]);
+    }
+
+    case 'ac_receipt': { /* read only: receipt_no is as stored (may be empty until receipt_no is called) */
       $pay = row('SELECT pa.* FROM payments pa JOIN projects p ON p.id=pa.project_id JOIN customers c ON c.id=p.customer_id WHERE pa.id=? AND ' . cust_scope('c'), [(int)($_GET['payment_id'] ?? 0)]);
       if (!$pay) fail('Payment not found', 404);
-      $pay['receipt_no'] = rcpt_issue($pay);
+      $pay['receipt_no'] = (string)($pay['receipt_no'] ?? '');
       $p = acc_project((int)$pay['project_id']); $cid = (int)$p['customer_id'];
       $cols = 'id, name, phone, email, address, district, pincode, consumer_no' . (can('loans') ? ', jansamarth_id, loan_bank, loan_bank_email, loan_mgr_name, loan_mgr_phone' : '');
       $cu = row("SELECT $cols FROM customers WHERE id=?", [$cid]); $cu['id'] = (int)$cu['id'];
