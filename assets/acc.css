@@ -1,0 +1,19 @@
+/* Accounts (assets/acc.css): receipt window, sharing buttons and the tax bill lock. Every class starts with .acx */
+.acx-rcb{margin:0 0 8px}
+.acx-shl{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:12.5px;color:var(--mut);margin:0 0 12px}
+.acx-shl b{color:var(--tx);font-weight:600;margin-right:2px}
+.acx-sh{display:inline-flex;align-items:center;gap:5px;background:#f2f2f7;border-radius:999px;padding:3px 10px;color:var(--tx);white-space:nowrap}
+.acx-sh .i{width:13px;height:13px;opacity:.75}
+.acx-pv{overflow:hidden}
+.acx-pv .doc{width:794px;max-width:none;box-sizing:border-box}
+.acx-iss{display:contents}
+.acx-iss .btn:disabled{background:#e5e5ea;color:#3a3a3c;border-color:#e5e5ea;cursor:not-allowed;box-shadow:none}
+.acx-rcb .btn:disabled,.acx-tsh .btn:disabled{opacity:.6;cursor:progress}
+.acx-link{background:none;border:0;padding:6px 4px;color:var(--pri);font:inherit;font-size:13.5px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.acx-link:hover{opacity:.8}
+.acx-lkn{display:block;font-size:12.5px;color:var(--mut);margin:6px 0 0}
+.acx-lkn:empty{display:none}
+.acx-tsh{border-top:1px solid var(--bd);margin-top:12px;padding-top:10px}
+.acx-tsh .bar{margin:0 0 8px}
+.acx-tsh .acx-shl{margin:0}
+@media(max-width:600px){.acx-sh{white-space:normal}}

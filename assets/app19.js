@@ -202,14 +202,15 @@ async function emAct(k) {
   composeMail({ to: to.map(a => a.email).join(', '), cc: cc.map(a => a.email).join(', '), subject: re(m.subject || ''), body: `\n\n${head}\n` + quoteText.split('\n').map(l => '> ' + l).join('\n'), reply: { msgid: m.msgid, refs: m.refs, uid: m.uid, folder: EM.f, acct: EM.acct } });
 }
 
-// Compose — also used from other pages (e.g. Warranty card → "Sent via email"): composeMail({to, subject, body, files:[{id,name}]})
+// Compose — also used from other pages (e.g. Warranty card → "Sent via email"): composeMail({to, subject, body, files:[{id,name}], attach:[File], onSent})
+// files = CRM documents (sent by id); attach = files made in the browser (e.g. a receipt PDF), uploaded with the email like ones picked here
 async function composeMail(o = {}) {
   if (!EM.cfg) { try { EM.cfg = await api('mail', 'config'); } catch (e) { return; } }
   if (!emAccts().length) return toast('Set up your email first (Email menu)', true);
   const L = emAccts(); let from = emCur(); // replies and forwards start from the address the message is in
   const sigOf = a => a && a.signature ? '\n\n-- \n' + a.signature : '', sig = sigOf(from);
   const body = (o.body || '').startsWith('\n\n') ? sig + o.body : (o.body || '') + sig;
-  const crm = (o.files || []).slice(), local = [];
+  const crm = (o.files || []).slice(), local = (o.attach || []).filter(f => f instanceof Blob);
   const m = modal(`<div class="mh"><h3>${o.reply ? 'Reply' : o.fwd ? 'Forward' : 'New email'}</h3><button class="ib" data-x title="Close"><i class="i i-x"></i></button></div>
     <div class="emc"><div class="emcr"><label for="emc_fr">From</label>${L.length > 1 ? `<select id="emc_fr">${L.map(a => `<option value="${a.id}" ${a.id === from.id ? 'selected' : ''}>${esc(emLabel(a))}</option>`).join('')}</select>` : `<div class="emcf">${esc(emLabel(from))}</div>`}</div>
       <div class="emcr"><label for="emc_to">To</label><input id="emc_to" list="emc_dl" value="${esc(o.to || '')}" placeholder="name@example.com, …" autocomplete="off"><button class="btn sec sm" id="emc_ccb" type="button" ${o.cc ? 'hidden' : ''}>Cc / Bcc</button></div>

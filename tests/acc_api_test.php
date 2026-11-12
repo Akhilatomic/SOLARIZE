@@ -235,6 +235,8 @@ chk($taxSave($admin, $cidN)['_code'] === 200, 'gen/save tax allowed when only th
 $pay($pidO, 20000, '2026-11-04', 'customer'); $pay($pidO, 50000, '2026-11-05', 'bank');
 $lk = $lockOf($cidO);
 chk($lk && $lk['locked'] === true && $lk['why'] === 'due' && $lk['msg'] === '₹10,000 still due from the customer', 'lock: loan, customer paid 20000 of 30000 -> locked (bank money does not count)');
+$gO = call($admin, 'gen', 'get', null, "&kind=tax&customer_id=$cidO");
+chk(($gO['project']['loan'] ?? '') === 'Yes' && array_column($gO['acct']['payments'] ?? [], 'src') === ['customer', 'bank'], 'gen/get tax: project loan flag and each payment\'s src (for the Tax bill tab)');
 [$cidP, $pidP] = $mkl('Lock Papa', '9000000025', 300000, '');
 $lk = $lockOf($cidP);
 chk($lk && $lk['locked'] === true && $lk['why'] === 'loan_amount' && $lk['msg'] === 'Enter the loan amount on the Bank & loan page', 'lock: loan with blank loan amount is locked (loan_amount)');
@@ -271,6 +273,11 @@ chk(call($acct, 'acc', 'ac_receipt', null, '&payment_id=99999999')['_code'] === 
 /* log */
 $lg = call($acct, 'acc', 'log', ['kind' => 'receipt', 'payment_id' => $chqId, 'customer_id' => $cidR, 'project_id' => $pidR, 'via' => 'email', 'to_whom' => 'bank', 'to_addr' => 'bank@test.example']);
 chk($lg['_code'] === 200 && $dbq('SELECT COUNT(*) FROM acc_log WHERE payment_id=?', [$chqId])->fetchColumn() == 1, 'log: a share is recorded');
+$sh = call($acct, 'acc', 'ac_receipt', null, "&payment_id=$chqId")['shared'] ?? [];
+chk(count($sh) === 1 && $sh[0]['via'] === 'email' && $sh[0]['to_whom'] === 'bank' && $sh[0]['to_addr'] === 'bank@test.example' && $sh[0]['who'] === 'Acc Person' && !empty($sh[0]['created']), 'ac_receipt: shared lists the logged share (via, to whom, address, who, when)');
+call($acct, 'acc', 'log', ['kind' => 'tax', 'customer_id' => $cidR, 'project_id' => $pidR, 'via' => 'whatsapp', 'to_whom' => 'customer', 'to_addr' => '9000000027']);
+$gs = call($admin, 'gen', 'get', null, "&kind=tax&customer_id=$cidR")['shared'] ?? [];
+chk(count($gs) === 1 && $gs[0]['via'] === 'whatsapp' && $gs[0]['to_whom'] === 'customer', 'gen/get tax: shared lists the tax bill shares only (not the receipt share)');
 chk(call($sales, 'acc', 'log', ['kind' => 'receipt', 'customer_id' => $cidR, 'via' => 'email', 'to_whom' => 'bank'])['_code'] === 403 && call($eng, 'acc', 'log', ['kind' => 'receipt', 'customer_id' => $cidR, 'via' => 'email', 'to_whom' => 'bank'])['_code'] === 403, 'log: payments read-only roles (sales, engineer) are 403');
 chk(call($acct, 'acc', 'log', ['kind' => 'nope', 'customer_id' => $cidR, 'via' => 'email', 'to_whom' => 'bank'])['_code'] === 400, 'log: bad kind refused');
 chk(call($acct, 'acc', 'log', ['kind' => 'receipt', 'customer_id' => $cidR, 'via' => 'fax', 'to_whom' => 'bank'])['_code'] === 400, 'log: bad via refused');

@@ -186,6 +186,11 @@ const ACC_TPL_DEFAULT = [
   'remind' => 'Dear {customer}, a balance of ₹{pending} is pending for your {kw} kW solar plant. Kindly pay at the earliest. Account: {bank_details}. Thank you, {company}.',
 ];
 
+/* share log rows, newest first, for the receipt window and the Tax bill tab: [{via, to_whom, to_addr, created, who}] */
+function acc_shares($where, $args) {
+  return rows("SELECT l.via, l.to_whom, l.to_addr, l.created, COALESCE(u.name,'') who FROM acc_log l LEFT JOIN users u ON u.id=l.user_id WHERE $where ORDER BY l.id DESC LIMIT 30", $args);
+}
+
 function acc_expense_row($r) { foreach (['id', 'created_by'] as $k) $r[$k] = (int)$r[$k]; foreach (['amount', 'gst'] as $k) $r[$k] = (float)$r[$k]; return $r; }
 
 function handle_acc($a) {
@@ -228,7 +233,8 @@ function handle_acc($a) {
       $bill = null;
       if ($latest && ($b = row("SELECT number, issued_on, data FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid]))) $bill = ['no' => $b['number'], 'date' => $b['issued_on'], 'total' => (float)((json_decode((string)$b['data'], true) ?: [])['grand'] ?? 0)];
       $one = ['id' => (int)$pay['id'], 'project_id' => (int)$p['id'], 'date' => $pay['date'], 'amount' => (float)$pay['amount'], 'mode' => $pay['mode'], 'ref_no' => $pay['ref_no'], 'receipt_no' => $pay['receipt_no'], 'src' => $pay['src'] === 'bank' ? 'bank' : 'customer', 'note' => $pay['note']];
-      out(['payment' => $one, 'project' => ['id' => (int)$p['id'], 'kw' => $p['kw'], 'loan' => $p['loan'], 'cost' => (float)$p['cost']], 'customer' => $cu, 'payments' => $pays, 'bill' => $bill, 'company' => acc_company()]);
+      out(['payment' => $one, 'project' => ['id' => (int)$p['id'], 'kw' => $p['kw'], 'loan' => $p['loan'], 'cost' => (float)$p['cost']], 'customer' => $cu, 'payments' => $pays, 'bill' => $bill, 'company' => acc_company(),
+        'shared' => acc_shares("l.payment_id=? AND l.kind='receipt'", [(int)$pay['id']])]);
     }
 
     case 'log': {

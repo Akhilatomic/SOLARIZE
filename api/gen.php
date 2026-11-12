@@ -70,7 +70,8 @@ function gen_clean($v, $depth = 0) { // keep plain text / numbers / small nested
 function gen_acct($cid) {
   $p = row('SELECT id, cost FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid]);
   if (!$p) return ['project_id' => 0, 'cost' => 0, 'payments' => [], 'paid' => 0];
-  $pay = rows('SELECT id, date, amount, mode, note, ref_no, receipt_no FROM payments WHERE project_id=? ORDER BY date, id', [$p['id']]);
+  $pay = rows('SELECT id, date, amount, mode, note, ref_no, receipt_no, src FROM payments WHERE project_id=? ORDER BY date, id', [$p['id']]);
+  foreach ($pay as &$x) $x['src'] = $x['src'] === 'bank' ? 'bank' : 'customer'; unset($x); /* who paid: the customer or the loan bank (an edit sends it back) */
   return ['project_id' => (int)$p['id'], 'cost' => (float)$p['cost'], 'payments' => $pay, 'paid' => array_sum(array_map(fn($x) => (float)$x['amount'], $pay))];
 }
 
@@ -87,7 +88,7 @@ function handle_gen($a) {
       $p = row('SELECT * FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid]);
       $q = row("SELECT * FROM quotes WHERE customer_id=? ORDER BY CASE status WHEN 'Accepted' THEN 0 WHEN 'Sent' THEN 1 ELSE 2 END, id DESC LIMIT 1", [$cid]);
       out(['doc' => $r ? ['number' => $r['number'], 'issued_on' => $r['issued_on'], 'data' => json_decode($r['data'], true) ?: [], 'updated' => $r['updated'], 'updated_by' => $r['updated_by']] : null,
-        'customer' => mask_customer($c), 'plant' => $plant, 'project' => $p ? ['id' => (int)$p['id'], 'title' => $p['title'], 'kw' => $p['kw'], 'stage' => $p['stage'], 'cost' => can('finance') ? (float)$p['cost'] : null] : null,
+        'customer' => mask_customer($c), 'plant' => $plant, 'project' => $p ? ['id' => (int)$p['id'], 'title' => $p['title'], 'kw' => $p['kw'], 'stage' => $p['stage'], 'loan' => (string)$p['loan'], 'cost' => can('finance') ? (float)$p['cost'] : null] : null,
         'quote' => $q && can('finance') ? ['number' => $q['number'], 'items' => json_decode($q['items'], true) ?: [], 'gst_rate' => (float)$q['gst_rate']] : null,
         'company' => settings()['company'] ?? [],
         'mfr_defaults' => json_decode((string)(row("SELECT v FROM settings WHERE k='mfr_defaults'")['v'] ?? ''), true) ?: ['distributor' => 'Southern Power Source Pvt Ltd', 'email' => ''],
@@ -95,6 +96,7 @@ function handle_gen($a) {
         'next_no' => !$r && GEN_KINDS[$kind] !== '' ? gen_next_no($kind, date('Y-m-d'), true) : null, // what a new bill will get (the editor shows it)
         'acct' => $kind === 'tax' ? gen_acct($cid) : null,
         'lock' => $kind === 'tax' ? acc_bill_lock($cid) : null, /* the tax bill is issued only at the final payment */
+        'shared' => $kind === 'tax' && $p ? acc_shares("l.project_id=? AND l.kind='tax'", [(int)$p['id']]) : [], /* who sent the bill, when and how */
         'qm' => $kind === 'tax' ? gen_qm_info() : null,
         'mnre' => $kind === 'warranty' ? kv_get('mnre_defaults', ['sign_name' => '', 'sign_desig' => 'Proprietor', 'sign_phone' => (gen_qm_info() ?: [])['phone'] ?? '']) : null]);
 

@@ -10,6 +10,8 @@ function inWords(n) { // Indian numbering: crore, lakh, thousand
   for (const [v, w] of parts) if (n >= v) { s += (v === 10000000 ? inWords(Math.floor(n / v)) : two(Math.floor(n / v))) + ' ' + w + ' '; n %= v; }
   return (s + three(n)).trim();
 }
+/* "Rupees Twelve Thousand and Fifty paise only" (receipts and the email templates' {amount_words}) */
+const rupeeWords = a => { a = +a || 0; const r = Math.floor(a + 1e-9), ps = Math.round((a - r) * 100); return `Rupees ${inWords(r)}${ps ? ' and ' + inWords(ps) + ' paise' : ''} only`; };
 const coBlock = co => `<div class="dhco"><img src="${location.origin}/assets/logo.png" alt=""><div><b>${esc(co.name || 'Jasper Solar Solutions')}</b><div>${esc(co.address || '')}</div><div>${[co.phone ? 'Ph: ' + esc(co.phone) : '', co.email ? esc(co.email) : '', co.gstin ? 'GSTIN: ' + esc(co.gstin) : ''].filter(Boolean).join(' · ')}</div></div></div>`;
 /* print window HTML; fit = one A4 page: the document sits in a .dpage box exactly the printable area (A4 less the 12 mm margins) */
 const printHtml = (title, inner, fit) => `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${DOC_CSS}@page{size:A4;margin:12mm}body{margin:0;background:#fff}.doc{box-shadow:none;margin:0 auto;border:0}</style></head><body>${fit ? `<div class="dpage">${inner}</div>` : inner}</body></html>`;
@@ -229,7 +231,8 @@ async function renderTax(box, c, id) {
       <label>Serial numbers on the bill</label><div class="tbo">${[['p', `Solar panels — ${pn.length ? pn.length + ' entered' : 'none entered'}`], ['i', `Inverter — ${iv.length ? iv.length + ' entered' : 'none entered'}`], ['m', `Energy meter — ${P.meter_serial ? 'entered' : 'not entered'}`]].map(([k, l]) => `<label><input type="checkbox" data-o="${k}" ${D.ser[k] ? 'checked' : ''} ${w ? '' : 'disabled'}> ${l}</label>`).join('')}</div>
       ${!pn.length || !iv.length || !P.meter_serial ? `<p class="mut" style="font-size:12.5px;margin:4px 0 0">Serial numbers come from <b>Plant details</b>${[!pn.length && 'panels', !iv.length && 'inverter', !P.meter_serial && 'energy meter'].filter(Boolean).length ? ' — still missing: ' + [!pn.length && 'panels', !iv.length && 'inverter', !P.meter_serial && 'energy meter'].filter(Boolean).join(', ') : ''}. <button class="btn sec sm" id="tgoplant" type="button">Open Plant details</button></p>` : ''}
       <label>Also print</label><div class="tbo"><label><input type="checkbox" data-o="paid" ${D.show_paid ? 'checked' : ''} ${w ? '' : 'disabled'}> Payment made & balance due</label></div>
-      <div class="bar" style="margin-top:12px">${w ? `<button class="btn" id="tsv">${g.doc ? 'Save changes' : 'Issue tax bill'}</button>` : ''}<button class="btn sec" id="tpr"><i class="i i-download"></i> Print / PDF</button></div>
+      <div class="bar" style="margin:12px 0 0">${w ? '<span class="acx-iss" id="tiss"></span>' : ''}<button class="btn sec" id="tpr"><i class="i i-download"></i> ${g.doc ? 'Print' : 'Print / PDF'}</button></div>
+      <small class="acx-lkn" id="tlkn"></small><div id="tshr"></div>
       <p class="mut" style="font-size:12px;margin:8px 0 0">HSN codes and GST rates are suggestions — confirm them with your accountant. The invoice number is issued once and never reused.</p></div>
     <div class="gdp"><div class="doc dtax" id="tdoc"></div></div></div>
     <div class="tbx"><div class="card" id="tacc"></div><div class="card" id="tsum"></div></div>
@@ -298,30 +301,34 @@ async function renderTax(box, c, id) {
       <tbody><tr>${cols.map(([, a, isP]) => `<td><ol class="dsrl" style="columns:${isP ? sub(a.length) : 1}">${a.map(x => `<li>${esc(x)}</li>`).join('')}</ol></td>`).join('')}</tr></tbody></table>`; }
   // ---- plant cost & payments received
   const MODES = ['UPI', 'Bank transfer', 'Cash', 'Cheque', 'Card', 'Loan', 'Subsidy'];
+  /* loan projects: a payment is from the customer or from the bank (the tax bill unlocks once the customer's own share is paid) */
+  const isLoan = (g.project || {}).loan === 'Yes';
+  const srcSel = (id, cur) => `<select id="${id}" title="Who paid"><option value="customer">From: Customer</option><option value="bank" ${cur === 'bank' ? 'selected' : ''}>From: Bank (loan)</option></select>`;
   const drawAcc = () => { const bal = Math.max(0, (A.cost || 0) - A.paid), wp = w && canW('payments');
     $('#tacc', box).innerHTML = `<div class="pfch"><i class="i i-coin"></i><h3>Plant cost & payments</h3>${A.project_id ? `<span class="sp"></span><a class="btn sec sm" href="#/projects/${A.project_id}">Open project</a>` : ''}</div>
       <div class="tbk"><div><small>Plant cost</small><b>${A.cost ? inr2(A.cost) : 'Not set'}</b></div><div><small>Received</small><b>${inr2(A.paid)}</b></div><div class="${bal > 0 ? 'due' : ''}"><small>Balance</small><b>${A.cost ? inr2(bal) : '—'}</b></div></div>
       ${w ? `<div class="tbr"><input id="tcost" inputmode="decimal" placeholder="Total plant cost (₹)" value="${A.cost || ''}"><button class="btn sec" id="tcsv">Save cost</button></div>` : ''}
-      <div class="tbl">${A.payments.map(p => `<div class="tbp"><span>${fdt(p.date)}</span><span>${esc(p.mode || '—')}${p.ref_no ? `<em>Ref ${esc(p.ref_no)}</em>` : !isCash(p) ? '<em class="noref">No reference no. — needed for the receipt</em>' : ''}${p.note ? `<em>${esc(p.note)}</em>` : ''}${p.receipt_no ? `<em>Receipt ${esc(p.receipt_no)}</em>` : ''}</span><b>${inr2(p.amount)}</b><button class="ib" data-prc="${p.id}" title="Payment receipt — print / PDF"><i class="i i-receipt"></i></button>${wp ? `<button class="ib" data-pedit="${p.id}" title="Edit payment"><i class="i i-pencil"></i></button><button class="ib" data-pdel="${p.id}" title="Delete payment"><i class="i i-trash"></i></button>` : ''}</div>`).join('') || '<p class="mut" style="margin:6px 0">No payments recorded yet.</p>'}</div>
-      ${wp ? `<div class="tbr tba"><input type="date" id="tpd" value="${today()}"><input id="tpa" inputmode="decimal" placeholder="Amount (₹)"><select id="tpm">${MODES.map(m => `<option>${m}</option>`).join('')}</select><input id="tpref" placeholder="${REF_PH}" maxlength="60" autocomplete="off"><input id="tpn" placeholder="Note (optional)" maxlength="120"><button class="btn" id="tpadd">Add payment</button></div>` : ''}
+      <div class="tbl">${A.payments.map(p => `<div class="tbp"><span>${fdt(p.date)}</span><span>${esc(p.mode || '—')}${p.ref_no ? `<em>Ref ${esc(p.ref_no)}</em>` : !isCash(p) ? '<em class="noref">No reference no. — needed for the receipt</em>' : ''}${p.note ? `<em>${esc(p.note)}</em>` : ''}${p.src === 'bank' ? '<em>From the bank (loan)</em>' : ''}${p.receipt_no ? `<em>Receipt ${esc(p.receipt_no)}</em>` : ''}</span><b>${inr2(p.amount)}</b><button class="ib" data-prc="${p.id}" title="Payment receipt — PDF, WhatsApp, email"><i class="i i-receipt"></i></button>${wp ? `<button class="ib" data-pedit="${p.id}" title="Edit payment"><i class="i i-pencil"></i></button><button class="ib" data-pdel="${p.id}" title="Delete payment"><i class="i i-trash"></i></button>` : ''}</div>`).join('') || '<p class="mut" style="margin:6px 0">No payments recorded yet.</p>'}</div>
+      ${wp ? `<div class="tbr tba"><input type="date" id="tpd" value="${today()}"><input id="tpa" inputmode="decimal" placeholder="Amount (₹)"><select id="tpm">${MODES.map(m => `<option>${m}</option>`).join('')}</select><input id="tpref" placeholder="${REF_PH}" maxlength="60" autocomplete="off"><input id="tpn" placeholder="Note (optional)" maxlength="120">${isLoan ? srcSel('tpsrc', 'customer') : ''}<button class="btn" id="tpadd">Add payment</button></div>` : ''}
       ${!A.project_id && w ? '<p class="mut" style="font-size:12px;margin:6px 0 0">Saving the plant cost also starts this customer\'s project in the pipeline.</p>' : ''}`;
-    const reload = async () => { A = (await api('gen', 'get', undefined, `&kind=tax&customer_id=${id}`)).acct; drawAcc(); upd(); };
-    if ($('#tcsv', box)) $('#tcsv', box).onclick = async e => { e.currentTarget.disabled = true; try { const r = await api('gen', 'cost', { kind: 'tax', customer_id: id, cost: +$('#tcost', box).value || 0 }); A = r.acct; toast('Plant cost saved'); drawAcc(); upd(); } catch (x) { drawAcc(); } };
+    const reload = accReload;
+    if ($('#tcsv', box)) $('#tcsv', box).onclick = async e => { e.currentTarget.disabled = true; try { await api('gen', 'cost', { kind: 'tax', customer_id: id, cost: +$('#tcost', box).value || 0 }); toast('Plant cost saved'); await accReload(); } catch (x) { drawAcc(); } }; /* the cost changes what is still due, so the bill lock is read again */
     if ($('#tpadd', box)) $('#tpadd', box).onclick = async e => { const amt = +$('#tpa', box).value || 0; if (amt <= 0) return toast('Enter the amount received', true);
       if (!A.project_id) return toast('Save the plant cost first', true); e.currentTarget.disabled = true;
-      const pay = { project_id: A.project_id, date: $('#tpd', box).value || today(), amount: amt, mode: $('#tpm', box).value, ref_no: $('#tpref', box).value.trim(), note: $('#tpn', box).value.trim() };
+      const pay = { project_id: A.project_id, date: $('#tpd', box).value || today(), amount: amt, mode: $('#tpm', box).value, ref_no: $('#tpref', box).value.trim(), note: $('#tpn', box).value.trim(), src: $('#tpsrc', box) ? $('#tpsrc', box).value : 'customer' };
       let nid = 0; try { nid = (await api('payments', 'save', pay)).id; } catch (x) { }
       await reload(); if (!nid) return;
-      if (isCash(pay) || pay.ref_no) { toast('Payment added'); openReceipt(nid); } else toast('Payment added. Add its reference number (Edit) to print the receipt.', true); };
+      if (isCash(pay) || pay.ref_no) { toast('Payment added'); openReceipt(nid); } else toast('Payment added. Add its reference number (Edit) to make the receipt.', true); };
     if ($('#tpm', box)) $('#tpm', box).onchange = () => { $('#tpref', box).placeholder = $('#tpm', box).value === 'Cash' ? 'Reference no. (optional for cash)' : REF_PH; };
     $$('[data-pedit]', box).forEach(b => b.onclick = () => editPayment(b.dataset.pedit));
     $$('[data-prc]', box).forEach(b => b.onclick = () => openReceipt(b.dataset.prc));
     $$('[data-pdel]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this payment? It goes to the Recycle bin for 72 hours.')) return; try { await api('payments', 'delete', { id: +b.dataset.pdel }); toast('Payment deleted'); } catch (x) { } reload(); }); };
-  // ---- payment receipt
+  // ---- payment receipt (the receipt window, its PDF and sharing live in app35.js: acReceipt)
   const isCash = p => String(p.mode || '').trim().toLowerCase() === 'cash';
   const REF_PH = 'Reference no. (UTR / cheque / txn)';
-  const accReload = async () => { A = (await api('gen', 'get', undefined, `&kind=tax&customer_id=${id}`)).acct; drawAcc(); upd(); };
-  /* edit a payment: date, amount, mode, reference no. (needed for the receipt unless cash), note; a receipt already made keeps its number */
+  /* payments, plant cost and the tax bill lock again (a payment can unlock the bill) */
+  const accReload = async () => { const r = await api('gen', 'get', undefined, `&kind=tax&customer_id=${id}`); A = r.acct; g.lock = r.lock; drawAcc(); upd(); drawIssue(); };
+  /* edit a payment: date, amount, mode, reference no. (needed for the receipt unless cash), who paid (loan projects), note; a receipt already made keeps its number */
   const editPayment = (pid, why) => {
     const p = A.payments.find(x => x.id == pid); if (!p) return;
     const modes = MODES.includes(p.mode) || !p.mode ? MODES : MODES.concat(p.mode);
@@ -330,40 +337,19 @@ async function renderTax(box, c, id) {
     const m = modal(`<h3 style="margin-top:0">Edit payment${p.receipt_no ? ' · receipt ' + esc(p.receipt_no) : ''}</h3>${why ? `<p class="mfw" style="margin:0 0 10px">${esc(why)}</p>` : ''}
       <div class="two"><div><label for="pe_d">Date</label><input type="date" id="pe_d" value="${esc(p.date || '')}"></div><div><label for="pe_a">Amount (₹)</label><input id="pe_a" inputmode="decimal" value="${+p.amount || ''}"></div>
        <div><label for="pe_m">Mode</label><select id="pe_m">${modes.map(x => `<option ${x === p.mode ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div><div><label for="pe_r">Reference no.</label><input id="pe_r" maxlength="60" autocomplete="off" placeholder="UTR / cheque / transaction no." value="${esc(p.ref_no || guess)}">${guess ? '<small class="mut">Filled in from the note — check it.</small>' : ''}</div>
+       ${isLoan || p.src === 'bank' ? `<div><label for="pe_src">Paid by</label>${srcSel('pe_src', p.src)}</div>` : ''}
        <div class="full"><label for="pe_n">Note</label><input id="pe_n" maxlength="120" value="${esc(p.note || '')}"></div></div>
-      ${p.receipt_no ? '<p class="mut" style="font-size:12.5px;margin:8px 0 0">The receipt keeps its number. Print it again after saving to get the corrected copy.</p>' : ''}
+      ${p.receipt_no ? '<p class="mut" style="font-size:12.5px;margin:8px 0 0">The receipt keeps its number. Open it again after saving to get the corrected copy.</p>' : ''}
       <div class="bar" style="margin-top:12px"><button class="btn" id="pe_s">Save</button><button class="btn sec" id="pe_x">Cancel</button></div>`);
     if (why) setTimeout(() => $('#pe_r', m).focus(), 50);
     $('#pe_x', m).onclick = () => m.remove();
     $('#pe_s', m).onclick = async e => { const amt = +$('#pe_a', m).value || 0; if (amt <= 0) return toast('Enter the amount', true); e.currentTarget.disabled = true;
-      const o = { id: p.id, project_id: A.project_id, date: $('#pe_d', m).value || p.date, amount: amt, mode: $('#pe_m', m).value, ref_no: $('#pe_r', m).value.trim(), note: $('#pe_n', m).value.trim() };
+      /* src is always sent: a save without it would turn a bank payment into a customer one */
+      const o = { id: p.id, project_id: A.project_id, date: $('#pe_d', m).value || p.date, amount: amt, mode: $('#pe_m', m).value, ref_no: $('#pe_r', m).value.trim(), note: $('#pe_n', m).value.trim(), src: $('#pe_src', m) ? $('#pe_src', m).value : (p.src === 'bank' ? 'bank' : 'customer') };
       try { await api('payments', 'save', o); toast('Payment updated'); m.remove(); await accReload(); if (why && (isCash(o) || o.ref_no)) openReceipt(p.id); } catch (x) { e.currentTarget.disabled = false; } };
   };
-  const rupeeWords = a => { const r = Math.floor(a + 1e-9), ps = Math.round((a - r) * 100); return `Rupees ${inWords(r)}${ps ? ' and ' + inWords(ps) + ' paise' : ''} only`; };
-  const rcHtml = (p, no) => {
-    const Q = g.qm || {}, v = val(), CN = Q.name || co.name || 'Jasper Solar Solutions', web = Q.site || '', ph = Q.phone || co.phone || '', em = Q.email || co.email || '';
-    const list = A.payments.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id), i = list.findIndex(x => x.id == p.id);
-    const before = list.slice(0, i).reduce((t, x) => t + (+x.amount || 0), 0), amt = +p.amount || 0;
-    const inv = g.doc ? { no: g.doc.number, date: g.doc.issued_on, total: +((g.doc.data || {}).grand) || calc().grand } : null, total = inv ? inv.total : +A.cost || 0, bal = Math.round((total - before - amt) * 100) / 100;
-    return `<div class="dhead"><div class="dhco"><img src="${location.origin}/assets/logo.png" alt=""><div><b>${esc(CN)}</b><div class="dco">${esc(Q.address || co.address || '')}${co.gstin ? '<br>GSTIN ' + esc(co.gstin) : ''}${[ph, em, web].filter(Boolean).length ? '<br>' + [ph, em, web].filter(Boolean).map(esc).join(' · ') : ''}</div></div></div></div>
-      <h1 class="drt">PAYMENT RECEIPT</h1>
-      <div class="drc"><div class="rf"><span>Receipt no.</span><b>${esc(no)}</b><span>Payment date</span><b>${fdt(p.date)}</b><span>Reference number</span><b>${esc(p.ref_no || (isCash(p) ? 'Cash' : ''))}</b><span>Payment mode</span><b>${esc(p.mode || '')}</b><span>Amount received in words</span><b>${rupeeWords(amt)}</b></div>
-       <div class="drbox"><small>Amount Received</small><b>${inr2(amt)}</b></div></div>
-      <div class="drfrom"><div><h4>Received from</h4><b>${esc(v.bill_name || c.name)}</b><br>${esc(v.bill_address || [c.address, c.district, c.pincode].filter(Boolean).join(', '))}${c.phone ? '<br>Ph: ' + esc(c.phone) : ''}</div>
-       <div class="dstamp"><div class="dfor">For ${esc(CN)}</div><div class="dsp"></div><div class="dsl">Authorised signatory</div><small>Seal &amp; signature</small></div></div>
-      <table class="dt"><thead><tr><th>Payment for</th><th>Date</th><th class="r">Amount</th><th class="r">Received earlier</th><th class="r">This payment</th><th class="r">Balance due</th></tr></thead>
-       <tbody><tr><td>${inv ? 'Tax invoice ' + esc(inv.no) : `Solar power plant${kwTxt ? ' (' + esc(kwTxt) + ' kW)' : ''} — plant cost`}</td><td>${inv ? fdt(inv.date) : '—'}</td><td class="r">${inr2(total)}</td><td class="r">${inr2(before)}</td><td class="r">${inr2(amt)}</td><td class="r"><b>${inr2(Math.max(0, bal))}</b></td></tr></tbody></table>
-      ${bal < 0 ? `<div class="dsmall">Received ${inr2(-bal)} more than the ${inv ? 'invoice amount' : 'plant cost'}.</div>` : ''}`;
-  };
-  const openReceipt = async pid => {
-    const p = A.payments.find(x => x.id == pid); if (!p) return;
-    if (!isCash(p) && !String(p.ref_no || '').trim()) return w && canW('payments') ? editPayment(pid, 'A payment receipt needs the reference number (UTR / cheque / transaction no.) unless the payment was in cash.') : toast('This payment has no reference number, so no receipt can be made. Ask someone who can edit payments.', true);
-    if (!p.receipt_no) { try { p.receipt_no = (await api('gen', 'receipt', { kind: 'tax', customer_id: id, payment_id: +pid })).receipt_no; drawAcc(); } catch (e) { return; } }
-    const doc = rcHtml(p, p.receipt_no);
-    const m = modal(`<div class="bar" style="margin:0 0 10px"><h3 style="margin:0">Payment receipt ${esc(p.receipt_no)}</h3><span class="sp"></span><button class="btn" id="rcpr"><i class="i i-download"></i> Print / PDF</button><button class="btn sec" id="rcx">Close</button></div><div class="gdp"><div class="doc drcpt">${doc}</div></div>`, true);
-    $('#rcx', m).onclick = () => m.remove();
-    $('#rcpr', m).onclick = () => printDoc(`Payment receipt ${p.receipt_no} — ${c.name}`, `<div class="doc drcpt">${doc}</div>`);
-  };
+  const openReceipt = pid => acReceipt(pid, { onChange: accReload,
+    onNoRef: (p, why) => w && canW('payments') ? editPayment(pid, why) : toast('This payment has no reference number, so no receipt can be made. Ask someone who can edit payments.', true) });
   // ---- bill details for the warranty card and GST filing
   const sumRows = () => { const v = val(), k = calc(), hs = {};
     k.rows.forEach(x => { const key = (x.hsn || '—') + '|' + (+x.gst); (hs[key] = hs[key] || { hsn: x.hsn || '—', gst: +x.gst, qty: 0, tv: 0, t: 0 }); hs[key].qty += +x.qty || 0; hs[key].tv += x.tv; hs[key].t += x.t; });
@@ -400,9 +386,29 @@ async function renderTax(box, c, id) {
   noHint();
   if ($('#tgoplant', box)) $('#tgoplant', box).onclick = () => { const t = document.querySelector('[data-pt="plant"]'); if (t) { t.click(); scrollTo({ top: 0, behavior: 'smooth' }); } };
   $('#tpr', box).onclick = () => printDoc(`Tax invoice — ${c.name}`, `<div class="doc dtax">${html()}</div>`, true); /* always one A4 page */
-  if ($('#tsv', box)) $('#tsv', box).onclick = async () => { const v = val(), k = calc(); if (!k.rows.length) return toast(PT ? 'Enter the total amount (incl. GST)' : 'Add at least one item', true);
-    v.grand = k.grand; v.taxable = Math.round(k.tx * 100) / 100; v.tax = Math.round(k.tt * 100) / 100; const b = $('#tsv', box); b.disabled = true;
-    try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: !g.doc && noAuto ? '' : $('#tno', box).value.trim(), data: v }); toast(`Tax bill ${r.number} saved`); renderTax(box, c, id); } catch (e) { b.disabled = false; } };
+  /* issue (gives the number) or save the bill. The first issue waits for the final payment (g.lock from the server; a loan project
+     unlocks once only the bank's part is left); an admin may issue it early after a confirm (early:1, audited by the server). */
+  const issue = async early => { const v = val(), k = calc(); if (!k.rows.length) return toast(PT ? 'Enter the total amount (incl. GST)' : 'Add at least one item', true);
+    v.grand = k.grand; v.taxable = Math.round(k.tx * 100) / 100; v.tax = Math.round(k.tt * 100) / 100; const b = $('#tsv', box); if (b) b.disabled = true;
+    try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: !g.doc && noAuto ? '' : $('#tno', box).value.trim(), data: v, ...(early ? { early: 1 } : {}) });
+      toast(`Tax bill ${r.number} saved`); renderTax(box, c, id); } catch (e) { accReload().catch(() => { if (b) b.disabled = false; }); } };
+  function drawIssue() { const el = $('#tiss', box), n = $('#tlkn', box), L = g.lock || {}, locked = !g.doc && !!L.locked;
+    if (n) n.textContent = !g.doc && !L.locked && L.why === 'bank_left' ? `${L.msg}. The bill can be issued now; the bank releases its part after it gets the bill.` : '';
+    if (!el) return;
+    el.innerHTML = `<button class="btn" id="tsv" ${locked ? 'disabled' : ''}>${g.doc ? 'Save changes' : 'Issue tax bill' + (locked ? ' — ' + esc(L.msg || 'payment still due') : '')}</button>${locked && ME && ME.role === 'admin' ? '<button type="button" class="acx-link" id="tearly" title="Admin only: issue the bill although money is still due">Issue early</button>' : ''}`;
+    $('#tsv', box).onclick = () => issue(false);
+    if ($('#tearly', box)) $('#tearly', box).onclick = () => { if (confirm('Issue the tax bill before full payment?')) issue(true); }; }
+  /* an issued bill: PDF, Email / WhatsApp to the customer and, on a loan project, to the bank (tax bill template), each share logged */
+  const drawShare = () => { const el = $('#tshr', box); if (!el || !g.doc) return;
+    const bk = isLoan && canR('loans'), sb = (via, to, icon, label) => `<button class="btn sec sm" data-via="${via}" data-to="${to}"><i class="i i-${icon}"></i> ${label}</button>`;
+    el.innerHTML = `<div class="acx-tsh"><div class="bar"><b>Send the bill</b><span class="sp"></span>${sb('pdf', 'customer', 'download', 'PDF')}${sb('email', 'customer', 'mail', 'Email')}${sb('whatsapp', 'customer', 'whatsapp', 'WhatsApp')}${bk ? sb('email', 'bank', 'bank', 'Email to bank') + sb('whatsapp', 'bank', 'whatsapp', 'WhatsApp to bank') : ''}</div>
+      <div class="acx-shl">${acSharedHtml(g.shared || [])}</div></div>`;
+    $$('[data-via]', el).forEach(btn => btn.onclick = () => acShareBtn(btn, async () => { const k = calc(), Q = g.qm || {}, cu = g.customer || c, name = acFileName('Tax invoice', g.doc.number, c.name);
+      const blob = await acPdfFromHtml(`<div class="doc dtax">${html()}</div>`, DOC_CSS + ACX_A4_FILL, name); /* one A4 page, as printed */
+      return { kind: 'tax', via: btn.dataset.via, to_whom: btn.dataset.to, blob, name, cust: cu, customer_id: id, project_id: A.project_id, payment_id: 0,
+        vars: acVars({ customer: cu, company: { name: Q.name || co.name, phone: Q.phone || co.phone }, bill: { no: g.doc.number, date: g.doc.issued_on, total: k.grand }, received_total: A.paid, kw: kwTxt || (g.project || {}).kw }),
+        onLogged: s => { g.shared = [s].concat(g.shared || []); drawShare(); } }; })); };
+  drawIssue(); drawShare();
 }
 
 // ---------------- MNRE warranty certificate, printed on the Jasper Solar letterhead ----------------
