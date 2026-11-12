@@ -760,3 +760,28 @@ a.fm-cpath:hover{color:var(--pri)}
   .stg-head h2{font-size:21px}
 }
 .dckeep{margin:10px 0 0;font-size:12px;line-height:1.45}
+/* ---------- new customer: approved quotation + plant cost (onbHtml in app.js); Overview › Plant cost and payments (costCard in app11.js) ---------- */
+.onb{margin-top:16px;padding-top:14px;border-top:1px solid var(--bd)}
+.onb h3{margin:0 0 10px;font-size:15px;font-weight:600}
+.onb-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}
+.onb-file span{min-width:0;overflow-wrap:anywhere}
+.onb-n{margin:10px 0 0;font-size:12px}
+.pcz .pfch .pill{font-size:11px}
+.pcz-sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:2px 0 12px}
+.pcz-sum>div{padding:10px 12px;border-radius:10px;background:var(--fill)}
+.pcz-sum small{display:block;font-size:12px;color:var(--mut)}
+.pcz-sum b{display:block;margin-top:2px;font-size:19px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.pcz-g{color:var(--ok)}
+.pcz-rows>div{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid var(--fill);font-size:13.5px}
+.pcz-rows>div>span:first-child{flex:0 0 150px;color:var(--mut)}
+.pcz-q{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.pcz-q a{overflow-wrap:anywhere}
+.pcz-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:14px 0 6px;font-size:13.5px;font-weight:600}
+.pcz-h span{font-weight:400;color:var(--mut);font-size:12.5px}
+.pcz-tw{overflow-x:auto}
+.pcz-t{width:100%;border-collapse:collapse;font-size:13px}
+.pcz-t th{padding:6px 8px;text-align:left;font-size:11.5px;font-weight:600;color:var(--mut);border-bottom:1px solid var(--bd);white-space:nowrap}
+.pcz-t td{padding:7px 8px;border-bottom:1px solid var(--fill);vertical-align:top}
+.pcz-t .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pcz-none{margin:6px 0 0;font-size:13px}
+@media(max-width:600px){.pcz-sum{grid-template-columns:minmax(0,1fr)}.pcz-rows>div{flex-wrap:wrap;gap:2px 12px}.pcz-rows>div>span:first-child{flex-basis:100%}}

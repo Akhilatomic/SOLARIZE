@@ -52,9 +52,11 @@ function handle_pipeline($a) {
         $l = lead_or_404($in['lead_id']); lead_need_write($l);
         if ($l['customer_id']) $cid = (int)$l['customer_id'];
         else {
+          $onb = onboard_check($in); /* approved quotation + plant cost (api/onboard.php) */
           q('INSERT INTO customers(name,phone,email,address,district,notes,added_by,owner_id) VALUES(?,?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '', (int)$l['assigned_to'] ?: uid()]);
           $cid = (int)db()->lastInsertId(); q('UPDATE customers SET lead_type=? WHERE id=?', [lead_type_of($l), $cid]);
           q("UPDATE leads SET customer_id=?, status='Won', notify=0, updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
+          onboard_store($cid, $onb);
           audit('convert', 'leads', $l['id'], "→ customer $cid");
         }
       }
@@ -63,6 +65,7 @@ function handle_pipeline($a) {
       $loan = in_array($in['loan'] ?? '', ['Yes', 'No']) ? $in['loan'] : '';
       q("INSERT INTO projects(customer_id,title,kw,stage,cost,loan,engineer) VALUES(?,?,?,?,?,?,?)", [$cid, $title, $kw, 'Customer', can('finance') ? (float)($in['cost'] ?? 0) : 0, $loan, trim((string)($in['engineer'] ?? ''))]);
       $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Project started'); audit('create', 'projects', $pid, $title);
+      cust_cost_to_project($cid, $pid); /* no value typed: the plant cost agreed with the customer */
       out(['id' => $pid, 'customer_id' => $cid]);
     case 'receipt': // KSEB payment receipt: JPG/PDF only, max 2 MB
       need('projects', true);

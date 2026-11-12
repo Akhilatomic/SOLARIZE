@@ -1,7 +1,8 @@
 <?php
 // Finance › Commission / Incentive API tests. Usage: php tests/comm_api_test.php http://localhost:8094 <path to crm.sqlite>
 // Runs after the other API suites on the same throw-away server (the admin "boss" may already exist).
-$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+require_once __DIR__ . '/_onboard.php'; /* onb(): staff add customers with the approved quotation and plant cost */
 $pass = 0; $fail = 0;
 function chk($ok, $label) { global $pass, $fail; if ($ok) { $pass++; echo "  ok   $label\n"; } else { $fail++; echo "  FAIL $label\n"; } }
 function actor($name) { return ['jar' => sys_get_temp_dir() . '/cmjar_' . $name . '_' . getmypid() . '.txt']; }
@@ -34,8 +35,8 @@ chk(call($ba, 'auth', 'login', ['username' => 'cmba', 'password' => $pw])['_code
 chk(call($sales, 'auth', 'login', ['username' => 'cmsales', 'password' => $pw])['_code'] === 200, 'sales signed in');
 chk(call($eng, 'auth', 'login', ['username' => 'cmeng', 'password' => $pw])['_code'] === 200, 'engineer signed in');
 
-$cBa = (int)(call($ba, 'customers', 'save', ['name' => 'Test Customer One', 'phone' => '9000000001'])['id'] ?? 0);
-$cSa = (int)(call($sales, 'customers', 'save', ['name' => 'Test Customer Two', 'phone' => '9000000002'])['id'] ?? 0);
+$cBa = (int)(onb($ba, 'customers', 'save', ['name' => 'Test Customer One', 'phone' => '9000000001'])['id'] ?? 0);
+$cSa = (int)(onb($sales, 'customers', 'save', ['name' => 'Test Customer Two', 'phone' => '9000000002'])['id'] ?? 0);
 $cAd = (int)(call($admin, 'customers', 'save', ['name' => 'Test Customer Three', 'phone' => '9000000003'])['id'] ?? 0);
 chk($cBa && $cSa && $cAd, 'customers added by the BA, sales and the admin');
 $p1 = (int)(call($admin, 'projects', 'save', ['customer_id' => $cBa, 'title' => 'Roof 3 kW', 'cost' => 180000, 'stage' => 'New'])['id'] ?? 0);

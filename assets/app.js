@@ -520,7 +520,7 @@ async function pgLeads() {
     if (a === 'vw' || a === 'ed') leadModal(l.id);
     if (a === 'rm') return remarkBox(l);
     if (a === 'cb') return callbackBox(l);
-    if (a === 'cv') { if (confirm('Convert ' + l.name + ' to a customer?')) { const r = await api('leads', 'convert', { id: l.id }); location.hash = '#/customers/' + r.customer_id; } }
+    if (a === 'cv') return convertBox(l, r => { location.hash = '#/customers/' + r.customer_id; });
     if (a === 'oc') location.hash = '#/customers/' + l.customer_id;
     if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ lead_id: l.id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; }
   };
@@ -606,10 +606,47 @@ async function leadModal(id) {
   if ($('#lcbk', m)) $('#lcbk', m).onclick = () => callbackBox(l, () => { const b = $('#lcbk', m); if (b) { b.innerHTML = cbBtnTxt(l); b.classList.toggle('cbdue', !!l.callback_at && l.callback_at <= cbNow()); } });
   if ($('#wa', m)) $('#wa', m).onclick = () => waOpen({ name: l.name, phone: l.phone, lead_id: id });
   if ($('#lds', m)) $('#lds', m).onclick = () => { m.remove(); discOpen({ lead_id: id }); };
-  if ($('#cv', m)) $('#cv', m).onclick = async () => { const r = await api('leads', 'convert', { id }); m.remove(); location.hash = '#/customers/' + r.customer_id; };
+  if ($('#cv', m)) $('#cv', m).onclick = () => convertBox({ id, name: l.name, phone: l.phone }, r => { m.remove(); location.hash = '#/customers/' + r.customer_id; });
   if ($('#qt', m)) $('#qt', m).onclick = () => { m.remove(); sessionStorage.lead2quote = JSON.stringify({ lead_id: id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; };
   if ($('#dl', m)) $('#dl', m).onclick = async () => { if (confirm('Delete this lead?')) { await api('leads', 'delete', { id }); m.remove(); route(); } };
   if (w) bindNote('leads', id, () => { m.remove(); leadModal(id); }); else if ($('#an', m)) $('#an', m).closest('.bar').remove();
+}
+
+/* ---------- a new customer comes with the approved quotation and the total plant cost (api/onboard.php) ----------
+   onbHtml() = the three questions for the Add customer and Convert windows; onbBind(m) wires them; onbForm(m, fields) gives the form to
+   send (the other fields with the file, in one request, so a customer is never made without them) or null after saying what is missing. */
+const ONB_HINT = 'PDF or photo, up to 10 MB';
+const onbNum = v => +String(v == null ? '' : v).replace(/[,\s₹]/g, '') || 0;
+const onbHtml = () => `<div class="onb"><h3>Approved quotation and plant cost</h3>
+   <div class="onb-file"><button type="button" class="btn sec" data-onb="pick"><i class="i i-upload"></i> Upload approved quotation</button><span class="mut" data-onb="name">${ONB_HINT}</span><input type="file" data-onb="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden></div>
+   <div class="two"><div><label>Total plant cost (₹)</label><input data-onb="cost" inputmode="numeric" autocomplete="off" placeholder="e.g. 2,50,000"></div>
+    <div><label>KSEB charges</label><select data-onb="extra"><option value="0">Included in the plant cost</option><option value="1">Additional (paid on top)</option></select></div>
+    <div class="full" data-onb="amtbox" hidden><label>KSEB charges amount (₹) — leave empty if it is not known yet</label><input data-onb="amt" inputmode="numeric" autocomplete="off"></div></div>
+   <p class="mut onb-n">The quotation is kept in the customer’s Documents. The plant cost is shown to the admin only.</p></div>`;
+function onbBind(m) {
+  const f = $('[data-onb="file"]', m), nm = $('[data-onb="name"]', m), money = e => { const n = onbNum(e.target.value); if (n > 0) e.target.value = n.toLocaleString('en-IN'); };
+  $('[data-onb="pick"]', m).onclick = () => f.click();
+  f.onchange = () => { const x = f.files[0]; nm.textContent = x ? `${x.name} · ${x.size < 1048576 ? Math.max(1, Math.round(x.size / 1024)) + ' KB' : (x.size / 1048576).toFixed(1) + ' MB'}` : ONB_HINT; nm.classList.toggle('mut', !x); };
+  $('[data-onb="extra"]', m).onchange = e => { $('[data-onb="amtbox"]', m).hidden = e.target.value !== '1'; };
+  $('[data-onb="cost"]', m).onblur = money; $('[data-onb="amt"]', m).onblur = money;
+}
+function onbForm(m, fields) {
+  const f = $('[data-onb="file"]', m).files[0], cost = onbNum($('[data-onb="cost"]', m).value), extra = $('[data-onb="extra"]', m).value === '1';
+  if (!f) { toast('Upload the approved quotation', true); return null; }
+  if (f.size > 10 * 1048576) { toast('The quotation file is larger than 10 MB', true); return null; }
+  if (!(cost > 0)) { toast('Enter the total plant cost', true); $('[data-onb="cost"]', m).focus(); return null; }
+  const fd = new FormData();
+  Object.entries(fields).forEach(([k, v]) => { if (v != null && typeof v !== 'object') fd.append(k, v); });
+  fd.append('plant_cost', cost); fd.append('kseb_extra', extra ? '1' : '0'); if (extra) fd.append('kseb_extra_amt', onbNum($('[data-onb="amt"]', m).value));
+  fd.append('quote', f); return fd;
+}
+/* Convert a lead to a customer: asks for the approved quotation and the total plant cost, then done({customer_id}) */
+function convertBox(l, done) {
+  const m = modal(`<h2 style="margin-top:0">Convert to customer</h2><p class="mut" style="margin-top:-6px">${esc(l.name || 'This lead')}${l.phone ? ' · ' + esc(l.phone) : ''}</p>${onbHtml()}
+   <div class="bar" style="margin-top:14px"><button class="btn" id="cvgo">Convert to customer</button><button class="btn sec" id="cvx">Cancel</button></div>`);
+  onbBind(m); $('#cvx', m).onclick = () => m.remove();
+  $('#cvgo', m).onclick = async e => { const fd = onbForm(m, { id: l.id }); if (!fd) return; const b = e.currentTarget; b.disabled = true;
+    try { const r = await api('leads', 'convert', fd); m.remove(); toast('Converted to customer'); if (done) await done(r); } catch (x) { b.disabled = false; } };
 }
 
 // ---------- Customers ----------
@@ -620,12 +657,14 @@ async function convertLeadModal() {
   const m = modal(`<h2 style="margin-top:0">Convert lead to customer</h2><p class="mut" style="margin-top:-6px">Only your claimed (or admin-visible) open leads are listed.</p>
    <label>Lead</label><input id="clq" placeholder="Search name, phone, city…" autocomplete="off"><select id="cls" size="8" style="margin-top:6px">${ls.map(l => `<option value="${l.id}">${esc(l.name)}${l.phone ? ' · ' + esc(l.phone) : ''}${l.city ? ' · ' + esc(l.city) : ''}</option>`).join('')}</select>
    ${ls.length ? '' : '<p class="mut">No open leads to convert. Claim a lead first on the Leads page.</p>'}
+   ${onbHtml()}
    <label style="display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px;margin-top:10px"><input type="checkbox" id="clp" style="width:auto" ${canW('projects') ? 'checked' : 'disabled'}> Also start a project for this customer</label>
    <div class="bar" style="margin-top:14px"><button class="btn" id="clsv">Convert</button><button class="btn sec" id="clcx">Cancel</button></div>`);
   $('#clq', m).oninput = e => { const t = e.target.value.toLowerCase(); [...$('#cls', m).options].forEach(o => o.hidden = !o.text.toLowerCase().includes(t)); };
-  $('#clcx', m).onclick = () => m.remove();
-  $('#clsv', m).onclick = async () => { const id = +$('#cls', m).value; if (!id) return toast('Choose a lead', true);
-    const r = await api('leads', 'convert', { id }); m.remove(); toast('Converted to customer');
+  $('#clcx', m).onclick = () => m.remove(); onbBind(m);
+  $('#clsv', m).onclick = async e => { const id = +$('#cls', m).value; if (!id) return toast('Choose a lead', true);
+    const fd = onbForm(m, { id }); if (!fd) return; const b = e.currentTarget; b.disabled = true;
+    let r; try { r = await api('leads', 'convert', fd); } catch (x) { b.disabled = false; return; } m.remove(); toast('Converted to customer');
     if ($('#clp', m).checked) startModal({ customer_id: r.customer_id }); else location.hash = '#/customers/' + r.customer_id; };
 }
 async function pgCustomers() {
@@ -638,7 +677,7 @@ async function pgCustomers() {
    <div class="bar cbar" style="margin-top:12px">${ownSwitch('customers', CUF.own)}<input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
    <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity'], ...(canR('fees') ? [['feas', 'Feasibility expiry']] : [])].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
-   <label class="hsw" title="Show status, next step and feasibility when you point at a customer"><input type="checkbox" id="chov" ${hoverOn() ? 'checked' : ''}><span class="hswt"></span>Hover info</label><span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex">Export CSV</button>' : ''}${w ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
+   <label class="hsw" title="Show status, next step and feasibility when you point at a customer"><input type="checkbox" id="chov" ${hoverOn() ? 'checked' : ''}><span class="hswt"></span>Hover info</label><span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex">Export CSV</button>' : ''}${w && ME.role === 'admin' ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
    <div class="card tw fitbox" style="padding:0"><table id="ctb" class="ctb2" data-min="680"></table></div>`;
   const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}" aria-label="${t}"><i class="i i-${i}"></i></button>`;
   let onScreen = 0; // rows on screen; a refresh (resize, discussion update) keeps at least this many
@@ -726,12 +765,16 @@ const CF = [{ k: 'name', l: 'Consumer name (as on the KSEB bill)' }, { k: 'phone
 function customerModal(id, c = {}) {
   /* Meta only comes from a lead: a customer added here is Own lead or Office */
   const cf = CF.filter(f => !(f.k === 'lead_type' && BA())).map(f => f.k === 'lead_type' ? { ...f, opts: LT_OPTS.filter(o => o[0] !== 'meta') } : f);
-  const m = modal(`<h2 style="margin-top:0">New customer</h2><div class="two">${cf.map(f => fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>
+  const m = modal(`<h2 style="margin-top:0">New customer</h2><div class="two">${cf.map(f => fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>${id ? '' : onbHtml()}
    <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
-  $('#cx', m).onclick = () => m.remove();
+  $('#cx', m).onclick = () => m.remove(); if (!id) onbBind(m);
   const lt = $('[data-k="lead_type"]', m);
   $('#sv', m).onclick = async () => { const o = { ...c, id, ...collect(m) }; if (!o.name) return alert('Name required'); if (BA()) o.lead_type = 'own';
-    if (!o.lead_type) { if (lt) lt.focus(); return alert('Choose the lead type: Own lead or Office'); } const r = await api('customers', 'save', o); m.remove(); location.hash = '#/customers/' + r.id; };
+    if (!o.lead_type) { if (lt) lt.focus(); return alert('Choose the lead type: Own lead or Office'); }
+    /* a new customer goes with the approved quotation and the plant cost, in one request */
+    let body = o; if (!id) { delete o.id; body = onbForm(m, o); if (!body) return; }
+    const b = $('#sv', m); b.disabled = true;
+    try { const r = await api('customers', 'save', body); m.remove(); location.hash = '#/customers/' + r.id; } catch (x) { b.disabled = false; } };
 }
 /* KSEB office: typing the consumer number (11 + section code + …) or picking the section office fills the electrical
    sub division, division and circle (and an empty section). A field the user typed stays; one we filled follows the office.

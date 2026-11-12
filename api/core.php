@@ -73,6 +73,7 @@ function handle_crud($t, $a) {
       /* KSEB sub division / division / circle follow the consumer number or section office (api/kseb_offices.php) */
       if ($t === 'customers') $v = kseb_autofill($v, !empty($in['id']) ? row('SELECT consumer_no, kseb_section, kseb_subdivision, kseb_division, kseb_circle FROM customers WHERE id=?', [(int)$in['id']]) : null);
       if (isset($v['name']) && $v['name'] === '') fail('Name required');
+      $onb = ($t === 'customers' && empty($in['id'])) ? onboard_check($in) : null; /* a new customer comes with the approved quotation and the plant cost (api/onboard.php) */
       if ($t === 'projects' && !$v['customer_id']) fail('Select a customer');
       if ($t === 'quotes') { $v = prep_quote($v, $in); }
       if ($t === 'projects') $v['stage'] = 'Customer';
@@ -100,7 +101,9 @@ function handle_crud($t, $a) {
         q("INSERT INTO $t(" . implode(',', $cols) . ') VALUES(' . implode(',', array_map(fn($c) => ":$c", $cols)) . ')', $v);
         $id = (int)db()->lastInsertId(); audit('create', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
         if ($t === 'customers') q('UPDATE customers SET owner_id=? WHERE id=?', [uid(), $id]); // whoever adds a customer owns it
+        if ($t === 'customers') onboard_store($id, $onb);
         if ($t === 'projects') step_log($id, 'Customer', 'Project created');
+        if ($t === 'projects') cust_cost_to_project($v['customer_id'], $id); /* no value typed: the plant cost agreed with the customer */
         if ($t === 'quotes' && $v['number'] === '') {
           $c = settings()['company'];
           q('UPDATE quotes SET number=? WHERE id=?', [($c['quote_prefix'] ?: 'Q') . '-' . date('y') . '-' . str_pad($id, 4, '0', STR_PAD_LEFT), $id]);
@@ -115,7 +118,7 @@ function handle_crud($t, $a) {
       $id = (int)($in['id'] ?? 0);
       trash_crud($t, $id); // snapshot into the Recycle bin first (restorable for 72 hours)
       if ($t === 'customers') {
-        q('DELETE FROM plant WHERE customer_id=?', [$id]); q('DELETE FROM fees WHERE customer_id=?', [$id]); q('DELETE FROM gen_docs WHERE customer_id=?', [$id]); q('DELETE FROM commissions WHERE customer_id=?', [$id]);
+        q('DELETE FROM plant WHERE customer_id=?', [$id]); q('DELETE FROM fees WHERE customer_id=?', [$id]); q('DELETE FROM gen_docs WHERE customer_id=?', [$id]); q('DELETE FROM commissions WHERE customer_id=?', [$id]); q('DELETE FROM cust_cost WHERE customer_id=?', [$id]);
         foreach (rows('SELECT id FROM projects WHERE customer_id=?', [$id]) as $p) purge_project($p['id']);
         q('DELETE FROM quotes WHERE customer_id=?', [$id]); q('DELETE FROM messages WHERE customer_id=?', [$id]); q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$id]);
       }
@@ -165,17 +168,19 @@ function handle_crud($t, $a) {
       q("UPDATE notes SET entity='leads', entity_id=? WHERE entity='customers' AND entity_id=?", [$lid, $cu['id']]);
       q('UPDATE discussions SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); q('UPDATE notifs SET lead_id=?, customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // discussions follow it back
       q('UPDATE messages SET lead_id=COALESCE(lead_id, ?), customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // WhatsApp log stays with the lead
-      q('DELETE FROM plant WHERE customer_id=?', [$cu['id']]); q('DELETE FROM fees WHERE customer_id=?', [$cu['id']]); q('DELETE FROM gen_docs WHERE customer_id=?', [$cu['id']]); q('DELETE FROM commissions WHERE customer_id=?', [$cu['id']]); q('DELETE FROM customers WHERE id=?', [$cu['id']]);
+      q('DELETE FROM plant WHERE customer_id=?', [$cu['id']]); q('DELETE FROM fees WHERE customer_id=?', [$cu['id']]); q('DELETE FROM gen_docs WHERE customer_id=?', [$cu['id']]); q('DELETE FROM commissions WHERE customer_id=?', [$cu['id']]); q('DELETE FROM cust_cost WHERE customer_id=?', [$cu['id']]); q('DELETE FROM customers WHERE id=?', [$cu['id']]);
       audit('revert', 'customers', $cu['id'], "{$cu['name']} → lead $lid" . ($why ? " · $why" : '') . ($gone ? " · deleted $gone" : ''));
       out(['lead_id' => $lid, 'reopened' => $l ? 1 : 0]);
     case 'convert':
       if ($t !== 'leads') fail('Unknown action', 404);
       $l = row('SELECT * FROM leads WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$l) fail('Not found', 404);
       if ($l['customer_id']) out(['customer_id' => $l['customer_id']]);
+      $onb = onboard_check($in); /* approved quotation + plant cost */
       q('INSERT INTO customers(name,phone,email,address,district,notes,added_by,owner_id) VALUES(?,?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '', (int)$l['assigned_to'] ?: uid()]); // the lead's owner keeps the customer
       $cid = (int)db()->lastInsertId(); q('UPDATE customers SET lead_type=? WHERE id=?', [lead_type_of($l), $cid]); // the incentive follows the lead type
       q("UPDATE leads SET customer_id=?, status='Won', updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
       lead_to_customer_plant($l, $cid); // site condition + proposed plant → customer's Plant details
+      onboard_store($cid, $onb);
       q('UPDATE quotes SET customer_id=? WHERE lead_id=? AND customer_id IS NULL', [$cid, $l['id']]);
       q('UPDATE discussions SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]); q('UPDATE notifs SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]);
       audit('convert', 'leads', $l['id'], "→ customer $cid"); out(['customer_id' => $cid]);
@@ -297,14 +302,17 @@ function handle_files($a) {
     $ext = sec_upload($fl, ['image', 'pdf', 'office'], 10); // documents & images only, checked by content
     $name = bin2hex(random_bytes(12)) . '.' . $ext;
     if (!move_uploaded_file($fl['tmp_name'], "$dir/$name")) fail('Could not save file', 500);
+    $kind = (string)($_POST['kind'] ?? ''); $item = $kind === 'approved' ? 'Approved quotation' : (string)($_POST['item'] ?? '');
+    if ($kind === 'approved' && !is_admin()) { @unlink("$dir/$name"); fail('Only an admin can add another approved quotation', 403); }
     $pid = (int)($_POST['project_id'] ?? 0) ?: null; $cid = (int)($_POST['customer_id'] ?? 0) ?: null;
     if ($pid && !$cid) $cid = (row('SELECT customer_id FROM projects WHERE id=?', [$pid])['customer_id'] ?? null);
-    q('INSERT INTO files(customer_id,project_id,kind,item,name,path,size,user,life) VALUES(?,?,?,?,?,?,?,?,?)', [$cid, $pid, $_POST['kind'] ?? '', $_POST['item'] ?? '', basename($fl['name']), $name, $fl['size'], $_SESSION['username'], ($_POST['kind'] ?? '') === 'warranty' ? 0 : null]); /* warranty cards are kept until deleted */
+    q('INSERT INTO files(customer_id,project_id,kind,item,name,path,size,user,life) VALUES(?,?,?,?,?,?,?,?,?)', [$cid, $pid, $kind, $item, basename($fl['name']), $name, $fl['size'], $_SESSION['username'], in_array($kind, ['warranty', 'approved'], true) ? 0 : null]); /* warranty cards and approved quotations are kept until deleted */
     $id = (int)db()->lastInsertId(); audit('upload', 'files', $id, $fl['name']); out(['id' => $id]);
   }
   if ($a === 'delete') {
     $f = row('SELECT * FROM files WHERE id=?', [(int)(body()['id'] ?? 0)]); if (!$f) fail('Not found', 404);
     if ($f['kind'] === 'warranty' && !is_admin()) fail('Only an admin can delete a warranty card', 403);
+    if ($f['kind'] === 'approved' && !is_admin()) fail('Only an admin can delete the approved quotation', 403);
     trash_file_row($f); @unlink("$dir/" . basename($f['path'])); q('UPDATE stage_data SET file_id=NULL WHERE file_id=?', [$f['id']]); q('DELETE FROM files WHERE id=?', [$f['id']]); audit('delete', 'files', $f['id'], $f['name']); out(['ok' => true]);
   }
   fail('Unknown action', 404);

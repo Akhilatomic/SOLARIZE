@@ -123,7 +123,7 @@ function waInfo(c) {
   if (adm && !WA.users) api('calendar', 'list', undefined, '&from=2000-01-01&to=2000-01-01').then(r => { WA.users = r.users; waInfo(c); }).catch(() => { });
   $('#wnms').onclick = async () => { await api('wa', 'link', { chat_id: c.id, name: $('#wnm').value }); toast('Saved'); WA.sig = ''; openChat(c.id); loadChats(true); };
   if ($('#wol')) $('#wol').onclick = e => { e.preventDefault(); leadModal(c.lead.id); };
-  if ($('#wcv')) $('#wcv').onclick = async e => { e.preventDefault(); const r = await api('leads', 'convert', { id: c.lead.id }); await api('wa', 'link', { chat_id: c.id, customer_id: r.customer_id }); toast('Converted to customer'); WA.sig = ''; openChat(c.id); };
+  if ($('#wcv')) $('#wcv').onclick = e => { e.preventDefault(); convertBox(c.lead, async r => { await api('wa', 'link', { chat_id: c.id, customer_id: r.customer_id }); WA.sig = ''; openChat(c.id); }); };
   if ($('#was')) $('#was').onchange = async e => { await api('wa', 'assign', { chat_id: c.id, user_id: +e.target.value }); toast('Chat assigned'); WA.sig = ''; openChat(c.id); loadChats(true); };
   if ($('#wtake')) $('#wtake').onclick = async e => { e.preventDefault(); await api('wa', 'assign', { chat_id: c.id, user_id: ME.id }); WA.sig = ''; openChat(c.id); loadChats(true); };
   if ($('#wrel')) $('#wrel').onclick = async e => { e.preventDefault(); await api('wa', 'assign', { chat_id: c.id, user_id: 0 }); WA.sig = ''; openChat(c.id); loadChats(true); };

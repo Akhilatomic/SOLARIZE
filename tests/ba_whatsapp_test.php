@@ -1,7 +1,8 @@
 <?php
 // Business Associates never have WhatsApp. Usage: php tests/ba_whatsapp_test.php http://localhost:8094 <path to crm.sqlite>
 // Runs after the other API suites on the same throw-away server (the admin "boss" may already exist).
-$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+require_once __DIR__ . '/_onboard.php'; /* onb(): staff add customers with the approved quotation and plant cost */
 $dbPath = $argv[2] ?? '';
 $pass = 0; $fail = 0;
 function chk($ok, $label) { global $pass, $fail; if ($ok) { $pass++; echo "  ok   $label\n"; } else { $fail++; echo "  FAIL $label\n"; } }
@@ -55,7 +56,7 @@ call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => []]); // bac
 
 // WhatsApp history on the BA's own lead and customer is hidden from them
 $lid = (int)(call($ba, 'leads', 'save', ['name' => 'Wa Lead Test', 'phone' => '9000000077', 'status' => 'New'])['id'] ?? 0);
-$cid = (int)(call($ba, 'customers', 'save', ['name' => 'Wa Customer Test', 'phone' => '9000000078'])['id'] ?? 0);
+$cid = (int)(onb($ba, 'customers', 'save', ['name' => 'Wa Customer Test', 'phone' => '9000000078'])['id'] ?? 0);
 chk($lid && $cid, 'BA added a lead and a customer');
 call($admin, 'whatsapp', 'log', ['lead_id' => $lid, 'phone' => '9000000077', 'text' => 'Quote sent on WhatsApp']);
 call($admin, 'whatsapp', 'log', ['customer_id' => $cid, 'phone' => '9000000078', 'text' => 'Welcome message on WhatsApp']);

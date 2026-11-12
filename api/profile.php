@@ -55,6 +55,7 @@ function profile_page_save($cid, $old) {
 
 function handle_profile($a) {
   need('customers');
+  if ($a === 'cost_get' || $a === 'cost_save') handle_cust_cost($a); /* Overview › Plant cost and payments, admin only (api/onboard.php) */
   if ($a === 'page_save') { $pcid = (int)(body()['customer_id'] ?? 0); $po = row('SELECT * FROM customers WHERE id=?', [$pcid]); if (!$po) fail('Customer not found', 404); profile_page_save($pcid, $po); }
   $cid = (int)($_GET['customer_id'] ?? 0);
   $c = row('SELECT * FROM customers WHERE id=?', [$cid]); if (!$c) fail('Customer not found', 404);

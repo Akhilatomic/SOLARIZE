@@ -1,6 +1,7 @@
 <?php
 // Quotation maker API tests. Usage: php tests/qm_api_test.php http://localhost:8094  (fresh data folder)
-$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+require_once __DIR__ . '/_onboard.php'; /* onb(): staff add customers with the approved quotation and plant cost */
 $dbPath = $argv[2] ?? '';
 $pass = 0; $fail = 0;
 function chk($ok, $label) { global $pass, $fail; if ($ok) { $pass++; echo "  ok   $label\n"; } else { $fail++; echo "  FAIL $label\n"; } }
@@ -121,7 +122,7 @@ $sales2 = actor('sales2');
 call($admin, 'admin', 'user_save', ['name' => 'Seller Two', 'username' => 'seller2', 'role' => 'sales', 'active' => 1, 'can_claim' => 0, 'password' => $pw]);
 chk(call($sales2, 'auth', 'login', ['username' => 'seller2', 'password' => $pw])['_code'] === 200, 'second sales user signed in');
 function trashHas($kind) { global $admin; foreach (call($admin, 'trash', 'list')['rows'] ?? [] as $r) if (($r['kind'] ?? '') === $kind) return true; return false; }
-$cid = call($sales, 'customers', 'save', ['name' => 'Quote Customer', 'phone' => '9876543210'])['id'] ?? 0;
+$cid = onb($sales, 'customers', 'save', ['name' => 'Quote Customer', 'phone' => '9876543210'])['id'] ?? 0;
 chk($cid > 0, 'customer created');
 $panel = ['cat' => 'panels', 'name' => 'Snap panel 600 Wp', 'wp' => 600, 'qty' => 4];
 $panelId = call($admin, 'qm', 'product_save', $panel)['id'] ?? 0;
@@ -260,7 +261,7 @@ $eli = $mk('Eli', 'eli', 'engineer', 0); $acc = $mk('Acco', 'acco', 'accounts', 
 chk($asha['id'] && $ravi['id'] && $mira['id'] && $eli['id'] && $acc['id'], 'owners: users created');
 $ownerOf = fn($cid) => (int)(call($admin, 'customers', 'get', null, "&id=$cid")['owner_id'] ?? 0);
 
-$c1 = (int)(call($asha, 'customers', 'save', ['name' => 'Owner Test One', 'phone' => '9847100001'])['id'] ?? 0);
+$c1 = (int)(onb($asha, 'customers', 'save', ['name' => 'Owner Test One', 'phone' => '9847100001'])['id'] ?? 0);
 chk($c1 > 0 && $ownerOf($c1) === $asha['id'], 'owners: whoever adds a customer owns it');
 $row = array_values(array_filter(call($ravi, 'customers', 'list'), fn($c) => is_array($c) && (int)($c['id'] ?? 0) === $c1))[0] ?? [];
 chk((int)($row['owner_id'] ?? 0) === $asha['id'] && ($row['owner_name'] ?? '') === 'Asha', 'owners: the list carries owner_id and owner_name, and others still see the customer');
@@ -316,7 +317,7 @@ chk(count($la) === 1 && ($la[0]['detail'] ?? '') === 'Asha → Ravi', 'reassign 
 $cv = call($admin, 'leads', 'convert', ['id' => $l1]);
 chk(($cv['customer_id'] ?? 0) > 0 && $ownerOf($cv['customer_id']) === $ravi['id'], 'owners: a converted lead\'s customer belongs to the lead owner');
 $l3 = (int)(call($asha, 'leads', 'save', ['name' => 'Start Lead', 'phone' => '9847100004', 'status' => 'New'])['id'] ?? 0);
-$st = call($asha, 'pipeline', 'start', ['lead_id' => $l3, 'kw' => 3]);
+$st = onb($asha, 'pipeline', 'start', ['lead_id' => $l3, 'kw' => 3]);
 chk(($st['customer_id'] ?? 0) > 0 && $ownerOf($st['customer_id']) === $asha['id'], 'owners: starting a project from a lead keeps the lead owner');
 $bp = array_values(array_filter(call($eli, 'pipeline', 'board')['projects'] ?? [], fn($p) => (int)$p['id'] === (int)($st['id'] ?? -1)))[0] ?? [];
 chk((int)($bp['owner_id'] ?? 0) === $asha['id'], 'owners: the pipeline board carries the customer owner for Me');
@@ -428,7 +429,7 @@ $bset = call($ba, 'settings', 'get');
 chk(($bset['_code'] ?? 0) === 200 && isset($bset['company']) && !array_key_exists('catalog', $bset) && !array_key_exists('roles_now', $bset), 'BA: the app settings load read-only, without the price catalogue');
 chk((call($ba, 'settings', 'save', ['key' => 'lead_target', 'value' => 5])['_code'] ?? 0) === 403, 'BA: cannot change settings');
 
-$bc = (int)(call($ba, 'customers', 'save', ['name' => 'BA Own Customer', 'phone' => '9847200001'])['id'] ?? 0);
+$bc = (int)(onb($ba, 'customers', 'save', ['name' => 'BA Own Customer', 'phone' => '9847200001'])['id'] ?? 0);
 $oc = (int)(call($admin, 'customers', 'save', ['name' => 'Office Customer', 'phone' => '9847200002'])['id'] ?? 0);
 chk($bc > 0 && $oc > 0, 'BA: adds a customer of their own');
 $bl = call($ba, 'customers', 'list');

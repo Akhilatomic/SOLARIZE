@@ -51,6 +51,7 @@ async function pgCustomer(id) {
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
     <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut" style="margin:0">No project yet.</p></div>`}
+     ${ME.role === 'admin' ? '<div class="card pfc pcz" id="pfcost"><div class="pfch"><i class="i i-coin"></i><h3>Plant cost and payments</h3></div><p class="mut" style="margin:0;font-size:13px">Loading…</p></div>' : ''}
      <div class="pfcols"><div class="card pfc"><div class="pfch"><i class="i i-clipboard"></i><h3>Details by page</h3></div><div id="ppsum">${sumHtml(cnt0)}</div></div>${locCard}
      <div class="card pfc"><div class="pfch"><i class="i i-receipt"></i><h3>Quotations</h3><span class="sp"></span>${canW('quotes') ? '<button class="btn sec sm" id="nq">+ New</button>' : ''}</div>${c.quotes.map(q => `<div class="pfdoc"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${q.total != null ? inr(q.total) : ''}<br><small class="mut">${q.date}</small></div>`).join('') || '<p class="mut" style="margin:0;font-size:13px">No quotations</p>'}</div>
      ${c.notes ? `<div class="card pfc"><div class="pfch"><i class="i i-note"></i><h3>Notes</h3></div><div style="font-size:14px;white-space:pre-wrap">${esc(c.notes)}</div></div>` : ''}</div></div>
@@ -72,6 +73,7 @@ async function pgCustomer(id) {
   /* Expense: the latest project's Expense sheet (c.projects is newest first) */
   if ($('#pfexp')) $('#pfexp').onclick = () => { const j = (c.projects || [])[0]; if (j && +j.id) location.hash = '#/accounts/cost/' + +j.id; else toast('Start a project for this customer first', true); };
   if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
+  if ($('#pfcost')) costCard($('#pfcost'), c, id);
   if ($('#nq')) $('#nq').onclick = () => { sessionStorage.lead2quote = JSON.stringify({ customer_id: id, name: c.name }); location.hash = '#/quotes/new'; };
   if ($('#up')) $('#up').onclick = () => docUploadModal(c, id);
   const addNote = async () => { const t = $('#tln').value.trim(); if (!t) return; await api('notes', 'add', { entity: 'customers', entity_id: id, text: t }); route(); };
@@ -128,4 +130,36 @@ function locModal(c, id) {
   const save = async (lat, lng) => { await api('profile', 'page_save', { customer_id: id, page: 'loc', data: { lat, lng, landmark: $('#lcl', m).value.trim() } }); m.remove(); toast('Location saved'); route(); };
   $('#lcsv', m).onclick = () => { const p = chk(); if ($('#lcp', m).value.trim() && !p) return; save(p ? p.lat : '', p ? p.lng : ''); };
   if ($('#lcclr', m)) $('#lcclr', m).onclick = () => save('', '');
+}
+
+/* ---------- Overview › Plant cost and payments (admin only; api/onboard.php) ----------
+   The total plant cost, whether the KSEB charges are paid on top of it, the approved quotation and every payment received. */
+async function costCard(box, c, id) {
+  let s; try { s = await api('profile', 'cost_get', undefined, '&customer_id=' + id); } catch (e) { box.remove(); return; }
+  if (!box.isConnected) return;
+  const multi = s.projects.length > 1, has = s.cost > 0;
+  const kseb = s.kseb_extra ? `Additional — paid on top${s.kseb_extra_amt > 0 ? ' · ' + inr(s.kseb_extra_amt) : ' (amount not entered)'}` : has ? 'Included in the plant cost' : '—';
+  const pays = p => p.payments.length ? `<div class="pcz-tw"><table class="pcz-t" data-nofit="1"><thead><tr><th>Date</th><th class="num">Amount</th><th>Mode</th><th>Reference</th><th>Receipt no.</th><th>Paid by</th></tr></thead><tbody>${p.payments.map(x => `<tr><td>${esc(dmy(x.date))}</td><td class="num"><b>${inr(x.amount)}</b></td><td>${esc(x.mode || '—')}</td><td>${esc(x.ref_no || '—')}</td><td>${esc(x.receipt_no || '—')}</td><td>${x.src === 'bank' ? 'Bank (loan)' : 'Customer'}</td></tr>`).join('')}</tbody></table></div>`
+    : '<p class="mut pcz-none">No payment recorded yet.</p>';
+  box.innerHTML = `<div class="pfch"><i class="i i-coin"></i><h3>Plant cost and payments</h3><span class="pill">Admin only</span><span class="sp"></span><button class="btn sec sm" id="pczed"><i class="i i-pencil"></i> ${has ? 'Edit' : 'Enter the cost'}</button></div>
+    <div class="pcz-sum"><div><small>Total plant cost</small><b>${has ? inr(s.cost) : 'Not entered'}</b></div><div><small>Received</small><b class="pcz-g">${inr(s.paid)}</b></div><div><small>Balance</small><b class="${s.balance > 0 ? 'over' : ''}">${has ? inr(s.balance) : '—'}</b></div></div>
+    <div class="pcz-rows"><div><span>KSEB charges</span><b>${kseb}</b></div>
+     <div><span>Approved quotation</span><span class="pcz-q">${s.quote ? `<a href="api.php?m=files&a=get&id=${+s.quote.id}&v=1" target="_blank" rel="noopener"><i class="i i-file"></i> ${esc(s.quote.name)}</a><small class="mut">${esc(dmy(String(s.quote.created).slice(0, 10)))}</small>` : '<b class="over">Not uploaded</b>'}<button class="btn sec sm" id="pczup"><i class="i i-upload"></i> ${s.quote ? 'Add a revised one' : 'Upload'}</button></span></div>
+     ${s.from_project && s.agreed > 0 && Math.abs(s.agreed - s.cost) > 0.5 ? `<div><span>Agreed in the quotation</span><b>${inr(s.agreed)}</b></div>` : ''}</div>
+    ${s.projects.length ? s.projects.map(p => `${multi ? `<h4 class="pcz-h"><a href="#/projects/${+p.id}">${esc(p.title || 'Project')}</a><span>${inr(p.cost)} · received ${inr(p.paid)}</span></h4>` : '<h4 class="pcz-h">Payments received</h4>'}${pays(p)}`).join('')
+      : '<p class="mut pcz-none">No project yet. Payments are recorded on the project — start one from Progress above.</p>'}`;
+  $('#pczed', box).onclick = () => {
+    const m = modal(`<h2 style="margin-top:0">Plant cost</h2><div class="two"><div><label>Total plant cost (₹)</label><input id="pczc" inputmode="numeric" autocomplete="off" value="${s.agreed > 0 || has ? (multi ? s.agreed || '' : s.cost).toLocaleString('en-IN') : ''}"></div>
+      <div><label>KSEB charges</label><select id="pczx"><option value="0">Included in the plant cost</option><option value="1" ${s.kseb_extra ? 'selected' : ''}>Additional (paid on top)</option></select></div>
+      <div class="full" id="pczab" ${s.kseb_extra ? '' : 'hidden'}><label>KSEB charges amount (₹) — leave empty if it is not known yet</label><input id="pcza" inputmode="numeric" autocomplete="off" value="${s.kseb_extra_amt > 0 ? s.kseb_extra_amt.toLocaleString('en-IN') : ''}"></div></div>
+      <p class="mut" style="font-size:12.5px;margin:10px 0 0">${multi ? `This customer has ${s.projects.length} projects. Each project keeps its own value (edit it on the project); the figure here is the cost agreed in the approved quotation.` : s.projects.length ? 'The project’s value follows this figure, so Accounts and the tax bill agree.' : 'A project started for this customer takes this figure as its value.'}</p>
+      <div class="bar" style="margin-top:14px"><button class="btn" id="pczsv">Save</button><button class="btn sec" id="pczcx">Cancel</button></div>`);
+    $('#pczx', m).onchange = e => { $('#pczab', m).hidden = e.target.value !== '1'; };
+    $('#pczcx', m).onclick = () => m.remove();
+    $('#pczsv', m).onclick = async e => { const cost = onbNum($('#pczc', m).value); if (!(cost > 0)) return toast('Enter the total plant cost', true); const b = e.currentTarget; b.disabled = true;
+      try { await api('profile', 'cost_save', { customer_id: id, plant_cost: cost, kseb_extra: $('#pczx', m).value === '1' ? 1 : 0, kseb_extra_amt: onbNum($('#pcza', m).value) }); m.remove(); toast('Plant cost saved'); costCard(box, c, id); } catch (x) { b.disabled = false; } };
+  };
+  $('#pczup', box).onclick = async () => { const f = await pickFile('application/pdf,image/jpeg,image/png,image/webp'); if (!f) return;
+    const fd = new FormData(); fd.append('customer_id', id); fd.append('kind', 'approved'); fd.append('file', f);
+    try { await api('files', 'upload', fd); toast('Approved quotation saved in Documents'); if (typeof DOC_STALE !== 'undefined') DOC_STALE.add(+id); costCard(box, c, id); } catch (e) { } };
 }

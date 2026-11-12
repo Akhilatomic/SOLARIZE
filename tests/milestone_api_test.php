@@ -1,7 +1,8 @@
 <?php
 // Milestone incentive API tests. Usage: php tests/milestone_api_test.php http://localhost:8094 <path to crm.sqlite>
 // Runs after the other API suites on the same throw-away server (the admin "boss" may already exist).
-$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+require_once __DIR__ . '/_onboard.php'; /* onb(): staff add customers with the approved quotation and plant cost */
 $dbPath = $argv[2] ?? '';
 $pass = 0; $fail = 0;
 function chk($ok, $label) { global $pass, $fail; if ($ok) { $pass++; echo "  ok   $label\n"; } else { $fail++; echo "  FAIL $label\n"; } }
@@ -53,12 +54,12 @@ chk(($g($l2['id'])['lead_type'] ?? '') === 'own', 'staff can still change their 
 $l2b['lead_type'] = 'office'; call($mira, 'leads', 'save', $l2b);
 
 // customers carry the lead type
-$cOwn = (int)(call($mira, 'leads', 'convert', ['id' => $l1['id']])['customer_id'] ?? 0);
-$cOff = (int)(call($mira, 'leads', 'convert', ['id' => $l2['id']])['customer_id'] ?? 0);
-$cMeta = (int)(call($mira, 'leads', 'convert', ['id' => $metaId])['customer_id'] ?? 0);
+$cOwn = (int)(onb($mira, 'leads', 'convert', ['id' => $l1['id']])['customer_id'] ?? 0);
+$cOff = (int)(onb($mira, 'leads', 'convert', ['id' => $l2['id']])['customer_id'] ?? 0);
+$cMeta = (int)(onb($mira, 'leads', 'convert', ['id' => $metaId])['customer_id'] ?? 0);
 $cust = fn($id) => call($admin, 'customers', 'get', null, "&id=$id");
 chk(($cust($cOwn)['lead_type'] ?? '') === 'own' && ($cust($cOff)['lead_type'] ?? '') === 'office' && ($cust($cMeta)['lead_type'] ?? '') === 'meta', 'converted customers keep the lead type');
-$cDirect = (int)(call($mira, 'customers', 'save', ['name' => 'Ms Direct Own', 'phone' => '9100000006', 'lead_type' => 'own'])['id'] ?? 0);
+$cDirect = (int)(onb($mira, 'customers', 'save', ['name' => 'Ms Direct Own', 'phone' => '9100000006', 'lead_type' => 'own'])['id'] ?? 0);
 chk(($cust($cDirect)['lead_type'] ?? '') === 'own', 'customer added directly: lead type chosen');
 $cd = $cust($cDirect); $cd['lead_type'] = 'office'; call($mira, 'customers', 'save', $cd);
 chk(($cust($cDirect)['lead_type'] ?? '') === 'own', 'staff cannot re-type an existing customer');
@@ -67,7 +68,7 @@ chk(($cust($cDirect)['lead_type'] ?? '') === 'office', 'the admin can');
 $cd['lead_type'] = 'own'; call($admin, 'customers', 'save', $cd);
 
 // Meta only comes from a lead: a customer added directly is never Meta
-$dm = (int)(call($mira, 'customers', 'save', ['name' => 'Ms Direct Meta', 'phone' => '9100000007', 'lead_type' => 'meta'])['id'] ?? 0);
+$dm = (int)(onb($mira, 'customers', 'save', ['name' => 'Ms Direct Meta', 'phone' => '9100000007', 'lead_type' => 'meta'])['id'] ?? 0);
 chk(($cust($dm)['lead_type'] ?? '') === 'office', 'customer added directly as Meta is saved as Office');
 $x = $cust($dm); $x['lead_type'] = 'meta'; call($admin, 'customers', 'save', $x);
 chk(($cust($dm)['lead_type'] ?? '') === 'office', 'the admin cannot make a direct customer Meta either');
@@ -109,7 +110,7 @@ chk(count($mine['rows']) === 4 && by_cid($mine['rows'], $cDirect)['calc'] !== ''
 // more company projects: steps 2 and 3
 $more = [];
 for ($i = 1; $i <= 4; $i++) {
-  $cid = (int)(call($mira, 'customers', 'save', ['name' => "Ms Step $i", 'phone' => '91000001' . str_pad($i, 2, '0', STR_PAD_LEFT), 'lead_type' => 'office'])['id'] ?? 0);
+  $cid = (int)(onb($mira, 'customers', 'save', ['name' => "Ms Step $i", 'phone' => '91000001' . str_pad($i, 2, '0', STR_PAD_LEFT), 'lead_type' => 'office'])['id'] ?? 0);
   call($admin, 'projects', 'save', ['customer_id' => $cid, 'title' => 'Roof', 'kw' => 1, 'cost' => 60000]);
   $more[] = $cid;
 }
@@ -120,7 +121,7 @@ chk($amt == [2000, 2000, 3000, 3000], '4th–5th company project ₹2,000/kW, 6t
 // order in the month decides; a later approval of an earlier customer moves the others up, until paid
 $o = [];
 for ($i = 1; $i <= 3; $i++) {
-  $cid = (int)(call($kiran, 'customers', 'save', ['name' => "Ms Order $i", 'phone' => '91000002' . $i, 'lead_type' => 'office'])['id'] ?? 0);
+  $cid = (int)(onb($kiran, 'customers', 'save', ['name' => "Ms Order $i", 'phone' => '91000002' . $i, 'lead_type' => 'office'])['id'] ?? 0);
   call($admin, 'projects', 'save', ['customer_id' => $cid, 'title' => 'Roof', 'kw' => 2, 'cost' => 120000]);
   $o[] = $cid;
 }
@@ -147,7 +148,7 @@ chk(call($admin, 'comm', 'save', ['customer_id' => $o[1], 'p1_amount' => 99999, 
 chk(inc_row($admin, $o[1])['p1_amount'] == 0, '…and nothing was saved');
 
 // not eligible
-$n = (int)(call($kiran, 'customers', 'save', ['name' => 'Ms Not Eligible', 'phone' => '9100000300', 'lead_type' => 'own'])['id'] ?? 0);
+$n = (int)(onb($kiran, 'customers', 'save', ['name' => 'Ms Not Eligible', 'phone' => '9100000300', 'lead_type' => 'own'])['id'] ?? 0);
 call($admin, 'projects', 'save', ['customer_id' => $n, 'title' => 'Roof', 'kw' => 4, 'cost' => 200000]);
 $a = call($admin, 'comm', 'approve', ['customer_id' => $n, 'lead_type' => 'office', 'ok' => 0]);
 chk($a['_code'] === 200 && $a['row']['appr'] === 'no' && $a['row']['amount'] == 0, 'marked not eligible: no amount');
@@ -156,7 +157,7 @@ chk(call($admin, 'comm', 'save', ['customer_id' => $n, 'amount' => 100])['_code'
 chk(call($admin, 'comm', 'approve', ['customer_id' => $o[2], 'lead_type' => 'office', 'ok' => 0])['_code'] === 400, 'cannot mark not eligible after part 1 is paid');
 
 // a typed amount stays typed when the admin approves (here a BA's customer handed to a staff member)
-$t = (int)(call($ba, 'customers', 'save', ['name' => 'Ms Typed', 'phone' => '9100000500'])['id'] ?? 0);
+$t = (int)(onb($ba, 'customers', 'save', ['name' => 'Ms Typed', 'phone' => '9100000500'])['id'] ?? 0);
 call($admin, 'comm', 'save', ['customer_id' => $t, 'amount' => 7000]);
 $a = call($admin, 'comm', 'approve', ['customer_id' => $t, 'user_id' => $ids['mskiran'], 'lead_type' => 'own', 'ok' => 1]);
 chk($a['_code'] === 200 && $a['row']['amount'] == 7000 && $a['row']['auto'] === 0 && $a['row']['kind'] === 'incentive', 'approving keeps an amount typed before');
@@ -172,7 +173,7 @@ chk($old['_code'] === 200 && $old['scheme'] === false && $old['company'] === 0, 
 // incentive manager: sees, cannot approve or pay a waiting customer
 $perm = call($admin, 'settings', 'get')['roles_now']; $perm['accounts']['write'][] = 'incentive';
 call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => $perm]);
-$w = (int)(call($mira, 'customers', 'save', ['name' => 'Ms Waiting', 'phone' => '9100000400', 'lead_type' => 'office'])['id'] ?? 0);
+$w = (int)(onb($mira, 'customers', 'save', ['name' => 'Ms Waiting', 'phone' => '9100000400', 'lead_type' => 'office'])['id'] ?? 0);
 chk(call($acc, 'comm', 'save', ['customer_id' => $w, 'amount' => 500])['_code'] === 409, 'incentive manager: waiting customers need the admin first');
 chk(call($acc, 'comm', 'milestone', null, '&user_id=' . $ids['msmira'])['_code'] === 200, "incentive manager sees a staff member's milestone");
 call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => []]);

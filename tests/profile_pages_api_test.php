@@ -1,6 +1,7 @@
 <?php
 // Profile pages: new fields, and saves that never blank fields they do not send. Usage: php tests/profile_pages_api_test.php http://localhost:8094 <db path>
-$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+require_once __DIR__ . '/_onboard.php'; /* onb(): staff add customers with the approved quotation and plant cost */
 $pass = 0; $fail = 0;
 function chk($ok, $label) { global $pass, $fail; if ($ok) { $pass++; echo "  ok   $label\n"; } else { $fail++; echo "  FAIL $label\n"; } }
 
@@ -60,7 +61,7 @@ call($eng, 'customers', 'save', $ge);
 chk((call($admin, 'customers', 'get', null, "&id=$cid")['loan_bank'] ?? '') === 'SBI', 'engineer cannot overwrite loan_bank');
 
 /* BA: own customer, no loan keys, save does not blank them */
-$b = call($ba, 'customers', 'save', ['name' => 'Test Person Two', 'phone' => '9000000002']);
+$b = onb($ba, 'customers', 'save', ['name' => 'Test Person Two', 'phone' => '9000000002']);
 $bid = (int)($b['id'] ?? 0);
 chk($bid > 0, 'ba customer created');
 call($admin, 'customers', 'save', ['id' => $bid, 'name' => 'Test Person Two', 'phone' => '9000000002', 'loan_bank' => 'HDFC', 'loan_amount' => '150000']);
