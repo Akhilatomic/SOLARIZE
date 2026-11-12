@@ -25,7 +25,7 @@ function handle_dashboard() {
   $ks = rows("SELECT p.id,p.title,cu.name customer, (SELECT COUNT(*) FROM checklist c WHERE c.project_id=p.id AND c.kind='kseb' AND c.status IN ('Approved','NA')) done FROM projects p LEFT JOIN customers cu ON cu.id=p.customer_id WHERE p.stage<>'Project completed'$P");
   $ktotal = count($S['kseb_items']);
   $kpending = array_values(array_filter(array_map(fn($p) => $p + ['total' => $ktotal], $ks), fn($p) => $p['done'] < $ktotal));
-  $overdue = rows('SELECT p.id,p.title,c.name customer, p.cost - COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) due FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE p.stage NOT IN (\'Customer\',\'KSEB feasibility check\',\'Loan registration\',\'KSEB feasibility payment\',\'PMSG portal registration\') AND due > 1 ORDER BY due DESC LIMIT 500'); /* all of them: the dashboard tile counts them and opens the list */
+  $overdue = can('finance') ? array_map(fn($r) => ['id' => $r['id'], 'title' => $r['title'], 'customer' => $r['customer'], 'due' => $r['due']], acc_pending_rows()) : []; /* the same list as Accounts > Pending; all of them (up to 500): the dashboard tile counts them and opens the list */
   $td = date('Y-m-d'); $loc = "date(created,'+330 minutes')";
   $cnt = fn($sql, $a = []) => (int)(row($sql, $a)['v'] ?? 0);
   $pct = fn($n, $p) => $p ? (int)round(($n - $p) / $p * 100) : ($n ? 100 : 0);

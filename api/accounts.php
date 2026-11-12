@@ -68,6 +68,89 @@ function acc_materials_list() {
   return $rs;
 }
 
+/* ---- money lists (pending, received, profit, expenses, overview) ---- */
+/* stages where the customer has not started paying yet; the pending list hides them unless asked */
+const ACC_EARLY = ['Customer', 'KSEB feasibility check', 'Loan registration', 'KSEB feasibility payment', 'PMSG portal registration'];
+const ACC_DEF_CATS = ['Ads', 'AI tools', 'Other'];
+
+/* [from, to] (Y-m-d, inclusive) from ?period=: 'YYYY-MM' = that month, 'fy-26-27' = 2026-04-01..2027-03-31, empty or invalid = this month (same rule as ACC.period) */
+function acc_range() {
+  $s = (string)($_GET['period'] ?? '');
+  if (preg_match('/^fy-(\d\d)-(\d\d)$/', $s, $m)) return ["20$m[1]-04-01", "20$m[2]-03-31"];
+  if (!preg_match('/^(\d{4})-(0[1-9]|1[0-2])$/', $s)) $s = date('Y-m');
+  return ["$s-01", date('Y-m-t', strtotime("$s-01"))];
+}
+
+/* projects still owing money: {id,title,customer_id,customer,phone,kw,loan,stage,cost,paid,due,last_pay,last_remind,early}. The Dashboard "dues" list uses this too. */
+function acc_pending_rows($withEarly = false) {
+  $early = "'" . implode("','", ACC_EARLY) . "'";
+  $rs = rows("SELECT * FROM (SELECT p.id, p.title, p.customer_id, c.name customer, c.phone, p.kw, p.loan, p.stage, p.cost,
+      COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid,
+      p.cost - COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) due,
+      (SELECT MAX(date) FROM payments WHERE project_id=p.id) last_pay,
+      p.stage IN ($early) early
+    FROM projects p JOIN customers c ON c.id=p.customer_id WHERE " . cust_scope('c') . ")
+    WHERE due > 1" . ($withEarly ? '' : ' AND early=0') . ' ORDER BY due DESC LIMIT 500');
+  $rem = [];
+  foreach (rows("SELECT l.project_id, l.created, u.name FROM acc_log l LEFT JOIN users u ON u.id=l.user_id WHERE l.id IN (SELECT MAX(id) FROM acc_log WHERE kind='remind' GROUP BY project_id)") as $l)
+    $rem[(int)$l['project_id']] = ['at' => $l['created'], 'by' => (string)$l['name']];
+  foreach ($rs as &$r) {
+    foreach (['id', 'customer_id', 'early'] as $k) $r[$k] = (int)$r[$k];
+    foreach (['cost', 'paid', 'due'] as $k) $r[$k] = round((float)$r[$k], 2);
+    $r['last_remind'] = $rem[$r['id']] ?? null; /* {at: when, by: user name}, null if never reminded */
+  } unset($r);
+  return $rs;
+}
+
+function acc_cats() {
+  $c = json_decode((string)(row("SELECT v FROM settings WHERE k='acc_cats'")['v'] ?? ''), true); /* stored as a plain JSON list (kv_get would merge list indexes with the defaults) */
+  return is_array($c) && $c ? array_values(array_map('strval', $c)) : ACC_DEF_CATS;
+}
+
+function acc_received_rows($from, $to) {
+  $rs = rows("SELECT pa.id, pa.project_id, p.customer_id, c.name customer, pa.date, pa.amount, pa.mode, pa.ref_no, pa.receipt_no, pa.src, p.loan
+    FROM payments pa JOIN projects p ON p.id=pa.project_id JOIN customers c ON c.id=p.customer_id
+    WHERE pa.date >= ? AND pa.date <= ? AND " . cust_scope('c') . ' ORDER BY pa.date DESC, pa.id DESC', [$from, $to]);
+  $sh = [];
+  foreach (rows("SELECT payment_id, via, to_whom, created FROM acc_log WHERE kind<>'remind' AND payment_id IS NOT NULL AND payment_id IN (SELECT id FROM payments WHERE date >= ? AND date <= ?) ORDER BY id", [$from, $to]) as $l)
+    $sh[(int)$l['payment_id']][] = ['via' => $l['via'], 'to_whom' => $l['to_whom'], 'created' => $l['created']];
+  foreach ($rs as &$r) {
+    foreach (['id', 'project_id', 'customer_id'] as $k) $r[$k] = (int)$r[$k];
+    $r['amount'] = round((float)$r['amount'], 2); $r['src'] = $r['src'] === 'bank' ? 'bank' : 'customer'; $r['shared'] = $sh[$r['id']] ?? [];
+  } unset($r);
+  return $rs;
+}
+
+/* projects whose customer's tax bill was issued in the period (the bill counts for the customer's latest project) */
+function acc_profit_get($from, $to) {
+  $bills = rows("SELECT g.customer_id, g.number, g.issued_on, g.data, c.name customer, p.id project_id, p.kw, p.cost price,
+      COALESCE((SELECT amount FROM commissions WHERE customer_id=c.id),0) comm
+    FROM gen_docs g JOIN customers c ON c.id=g.customer_id
+    JOIN projects p ON p.id=(SELECT id FROM projects WHERE customer_id=c.id ORDER BY id DESC LIMIT 1)
+    WHERE g.kind='tax' AND g.issued_on >= ? AND g.issued_on <= ? AND " . cust_scope('c') . ' ORDER BY g.issued_on DESC, g.id DESC', [$from, $to]);
+  $rows = []; $noCost = []; $cnt = ['before' => 0.0, 'cost' => 0.0, 'comm' => 0.0, 'profit' => 0.0];
+  foreach ($bills as $b) {
+    $pid = (int)$b['project_id'];
+    $ln = row('SELECT COUNT(*) n, COALESCE(SUM(qty*rate),0) cost, COALESCE(SUM(qty > 0 AND rate <= 0),0) missing FROM acc_costs WHERE project_id=' . $pid);
+    if ((int)$ln['n'] === 0) { $noCost[] = ['project_id' => $pid, 'customer' => $b['customer'], 'bill_no' => $b['number']]; continue; }
+    $taxable = (float)((json_decode((string)$b['data'], true) ?: [])['taxable'] ?? 0);
+    $before = $taxable > 0 ? round($taxable, 2) : round((float)$b['price'] / 1.089, 2);
+    $cost = round((float)$ln['cost'], 2); $comm = round((float)$b['comm'], 2); $profit = round($before - $cost - $comm, 2);
+    $rows[] = ['project_id' => $pid, 'customer_id' => (int)$b['customer_id'], 'customer' => $b['customer'], 'kw' => $b['kw'], 'bill_no' => $b['number'], 'bill_on' => $b['issued_on'],
+      'before' => $before, 'cost' => $cost, 'comm' => $comm, 'profit' => $profit, 'margin' => $before ? round($profit / $before * 100, 2) : 0, 'lines' => (int)$ln['n'], 'missing' => (int)$ln['missing']];
+    $cnt['before'] += $before; $cnt['cost'] += $cost; $cnt['comm'] += $comm; $cnt['profit'] += $profit;
+  }
+  return ['rows' => $rows, 'counted' => array_map(fn($v) => round($v, 2), $cnt), 'no_cost' => $noCost];
+}
+
+/* campaign spend by month inside the period */
+function acc_ads_by_month($from, $to) {
+  return array_map(fn($r) => ['month' => $r['month'], 'spend' => round((float)$r['spend'], 2)],
+    rows('SELECT substr(date,1,7) month, SUM(spend) spend FROM ad_spend WHERE date >= ? AND date <= ? GROUP BY month ORDER BY month', [$from, $to]));
+}
+
+function acc_expense_row($r) { foreach (['id', 'created_by'] as $k) $r[$k] = (int)$r[$k]; foreach (['amount', 'gst'] as $k) $r[$k] = (float)$r[$k]; return $r; }
+
 function handle_acc($a) {
   need('accounts');
   $in = body();
@@ -136,6 +219,79 @@ function handle_acc($a) {
       q('DELETE FROM acc_materials WHERE id=?', [$id]);
       audit('acc_material_delete', 'acc_materials', $id, $m['name']);
       out(['ok' => true]);
+    }
+
+    case 'ac_pending':
+      out(['rows' => acc_pending_rows(!empty($_GET['early']))]);
+
+    case 'ac_received': {
+      [$f, $t] = acc_range(); $rs = acc_received_rows($f, $t);
+      out(['rows' => $rs, 'total' => round(array_sum(array_column($rs, 'amount')), 2)]);
+    }
+
+    case 'ac_profit': {
+      [$f, $t] = acc_range();
+      out(acc_profit_get($f, $t));
+    }
+
+    case 'ac_expenses': {
+      [$f, $t] = acc_range();
+      out(['rows' => array_map('acc_expense_row', rows('SELECT * FROM acc_expenses WHERE date >= ? AND date <= ? ORDER BY date DESC, id DESC', [$f, $t])), 'ads' => acc_ads_by_month($f, $t), 'cats' => acc_cats()]);
+    }
+
+    case 'expense_save': {
+      need('accounts', true);
+      $id = (int)($in['id'] ?? 0);
+      $date = (string)($in['date'] ?? '');
+      if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || date('Y-m-d', strtotime($date)) !== $date) fail('Enter the date of the expense');
+      $cat = trim((string)($in['cat'] ?? '')); if (!in_array($cat, acc_cats(), true)) fail('Choose a category');
+      $gst = (float)($in['gst'] ?? 0); if (!in_array($gst, array_map('floatval', ACC_GST), true)) fail('GST must be 0, 5, 12, 18 or 28');
+      $amount = acc_money($in['amount'] ?? 0, 'Amount'); if ($amount <= 0) fail('Amount: enter an amount in rupees');
+      $t = fn($k, $n) => mb_substr(trim((string)($in[$k] ?? '')), 0, $n);
+      if ($id) {
+        if (!row('SELECT 1 FROM acc_expenses WHERE id=?', [$id])) fail('Expense not found', 404);
+        q('UPDATE acc_expenses SET date=?, cat=?, amount=?, gst=?, paid_to=?, mode=?, note=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$date, $cat, $amount, $gst, $t('paid_to', 120), $t('mode', 30), $t('note', 300), $id]);
+      } else {
+        q('INSERT INTO acc_expenses(date,cat,amount,gst,paid_to,mode,note,created_by) VALUES(?,?,?,?,?,?,?,?)', [$date, $cat, $amount, $gst, $t('paid_to', 120), $t('mode', 30), $t('note', 300), uid()]);
+        $id = (int)db()->lastInsertId();
+      }
+      audit('acc_expense_save', 'acc_expenses', $id, "$cat · ₹$amount");
+      out(['ok' => true, 'id' => $id]);
+    }
+
+    case 'expense_delete': {
+      need('accounts', true);
+      $id = (int)($in['id'] ?? 0); $e = row('SELECT * FROM acc_expenses WHERE id=?', [$id]); if (!$e) fail('Expense not found', 404);
+      trash_put('Expense', $e['date'] . ' · ' . $e['cat'] . ' · ₹' . $e['amount'], [['acc_expenses', 'id=?', [$id]]]);
+      q('DELETE FROM acc_expenses WHERE id=?', [$id]);
+      audit('acc_expense_delete', 'acc_expenses', $id, $e['cat']);
+      out(['ok' => true]);
+    }
+
+    case 'cats_save': {
+      if (!is_admin()) fail('Only the admin can change the categories', 403);
+      $list = []; foreach ((array)($in['cats'] ?? []) as $c) { $c = mb_substr(trim((string)$c), 0, 40); if ($c !== '' && !in_array($c, $list, true)) $list[] = $c; }
+      if (!$list) fail('Keep at least one category');
+      if (count($list) > 30) fail('At most 30 categories');
+      kv_set('acc_cats', $list);
+      audit('acc_cats_save', 'settings', null, implode(', ', $list));
+      out(['ok' => true, 'cats' => $list]);
+    }
+
+    case 'ac_overview': {
+      [$f, $t] = acc_range();
+      $rec = acc_received_rows($f, $t); $pend = acc_pending_rows();
+      $x = ['ads' => 0.0, 'ai' => 0.0, 'other' => 0.0];
+      foreach (rows('SELECT cat, amount, gst FROM acc_expenses WHERE date >= ? AND date <= ?', [$f, $t]) as $e) {
+        $b = (float)$e['amount'] / (1 + (float)$e['gst'] / 100);
+        $x[$e['cat'] === 'Ads' ? 'ads' : ($e['cat'] === 'AI tools' ? 'ai' : 'other')] += $b;
+      }
+      foreach (acc_ads_by_month($f, $t) as $m) $x['ads'] += $m['spend'];
+      $x = array_map(fn($v) => round($v, 2), $x); $x['total'] = round($x['ads'] + $x['ai'] + $x['other'], 2);
+      $pf = acc_profit_get($f, $t);
+      out(['received' => round(array_sum(array_column($rec, 'amount')), 2), 'received_n' => count($rec),
+        'pending' => round(array_sum(array_column($pend, 'due')), 2), 'pending_n' => count($pend), 'pending_loan_n' => count(array_filter($pend, fn($r) => $r['loan'] === 'Yes')),
+        'expenses' => $x, 'profit' => round($pf['counted']['profit'] - $x['total'], 2), 'top' => array_slice($pend, 0, 10)]);
     }
   }
   fail('Unknown action', 404);

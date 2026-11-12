@@ -90,5 +90,94 @@ $pl = call($admin, 'payments', 'list', null, "&project_id=$pid");
 $px = find_by($pl, 'id', (int)($pay['id'] ?? -1));
 chk($px && ($px['src'] ?? null) === 'bank', 'payment stores src = bank');
 
+/* ---- pending, received, profit, expenses, overview ---- */
+echo "Accounts: money lists\n";
+$dbPath = $argv[2] ?? '';
+$setStage = function ($pid, $stage) use ($dbPath) { $pdo = new PDO("sqlite:" . $dbPath); $pdo->prepare("UPDATE projects SET stage=? WHERE id=?")->execute([$stage, $pid]); };
+$mkc = function ($name, $phone, $stage, $cost, $kw = 3) use ($admin, $setStage) {
+  $cid = (int)(call($admin, 'customers', 'save', ['name' => $name, 'phone' => $phone])['id'] ?? 0);
+  $pid = (int)(call($admin, 'projects', 'save', ['customer_id' => $cid, 'title' => "$name plant", 'kw' => $kw, 'cost' => $cost, 'stage' => $stage])['id'] ?? 0);
+  $setStage($pid, $stage);
+  return [$cid, $pid];
+};
+$pay = fn($pid, $amt, $date = '2026-11-05', $src = '') => call($admin, 'payments', 'save', ['project_id' => $pid, 'date' => $date, 'amount' => $amt, 'mode' => 'UPI', 'ref_no' => 'T' . $amt, 'src' => $src]);
+[$cidA, $pidA] = $mkc('Pend Alpha', '9000000011', 'Electrical installation', 200000);
+$pay($pidA, 50000); $pay($pidA, 30000, '2026-11-06', 'bank');
+[$cidB, $pidB] = $mkc('Pend Beta', '9000000012', 'Customer', 100000);
+[$cidC, $pidC] = $mkc('Pend Gamma', '9000000013', 'Electrical installation', 1000);
+$pay($pidC, 1500);
+$pp = call($acct, 'acc', 'ac_pending');
+$ra = find_by($pp['rows'] ?? [], 'id', $pidA);
+chk($pp['_code'] === 200 && $ra && (float)$ra['due'] == 120000 && (float)$ra['paid'] == 80000 && $ra['customer'] === 'Pend Alpha' && $ra['last_pay'] === '2026-11-06' && $ra['last_remind'] === null && $ra['early'] == 0, 'ac_pending: project A due 120000 with paid, last_pay, no last_remind');
+chk(find_by($pp['rows'], 'id', $pidB) === null, 'ac_pending: early-stage project hidden by default');
+chk(find_by($pp['rows'], 'id', $pidC) === null, 'ac_pending: overpaid project absent');
+$dues = array_column($pp['rows'], 'due'); $sorted = $dues; rsort($sorted);
+chk($dues === $sorted, 'ac_pending ordered by due DESC');
+$pe = call($acct, 'acc', 'ac_pending', null, '&early=1');
+$rb = find_by($pe['rows'] ?? [], 'id', $pidB);
+chk($rb && (float)$rb['due'] == 100000 && $rb['early'] == 1 && find_by($pe['rows'], 'id', $pidA)['early'] == 0, 'ac_pending early=1 lists project B flagged early');
+$dash = call($admin, 'dashboard', 'get');
+$da = find_by($dash['dues'] ?? [], 'id', $pidA);
+chk($da && (float)$da['due'] == 120000 && $da['customer'] === 'Pend Alpha' && $da['title'] === 'Pend Alpha plant' && find_by($dash['dues'], 'id', $pidB) === null && find_by($dash['dues'], 'id', $pidC) === null, 'dashboard dues share the pending rows (same shape)');
+
+/* two projects, payment on the older one */
+$cidD = (int)(call($admin, 'customers', 'save', ['name' => 'Pend Delta', 'phone' => '9000000014'])['id'] ?? 0);
+$pidD1 = (int)(call($admin, 'projects', 'save', ['customer_id' => $cidD, 'title' => 'Delta old', 'cost' => 50000, 'stage' => 'Electrical installation'])['id'] ?? 0);
+$pidD2 = (int)(call($admin, 'projects', 'save', ['customer_id' => $cidD, 'title' => 'Delta new', 'cost' => 70000, 'stage' => 'Electrical installation'])['id'] ?? 0);
+$setStage($pidD1, "Electrical installation"); $setStage($pidD2, "Electrical installation");
+$pay($pidD1, 20000, '2026-11-07');
+$rc = call($acct, 'acc', 'ac_received', null, '&period=2026-11');
+$rd = null; foreach ($rc['rows'] ?? [] as $x) if ((int)$x['customer_id'] === $cidD) $rd = $x;
+chk($rc['_code'] === 200 && $rd && (int)$rd['project_id'] === $pidD1 && (float)$rd['amount'] == 20000 && $rd['customer'] === 'Pend Delta', 'ac_received keeps the payment on its own (older) project');
+$ra2 = null; foreach ($rc['rows'] as $x) if ((float)$x['amount'] == 30000 && (int)$x['customer_id'] === $cidA) $ra2 = $x;
+chk($ra2 && $ra2['src'] === 'bank' && is_array($ra2['shared']) && $ra2['mode'] === 'UPI', 'ac_received row carries src and shared[]');
+$dts = array_column($rc['rows'], 'date'); $ds = $dts; rsort($ds);
+chk($dts === $ds && abs($rc['total'] - array_sum(array_column($rc['rows'], 'amount'))) < 0.01, 'ac_received newest first with total');
+chk(count(call($acct, 'acc', 'ac_received', null, '&period=2026-10')['rows']) === 0, 'ac_received: other month empty');
+chk(count(call($acct, 'acc', 'ac_received', null, '&period=fy-26-27')['rows']) === count($rc['rows']), 'ac_received: financial year covers the month');
+chk(count(call($acct, 'acc', 'ac_received', null, '&period=fy-25-26')['rows']) === 0, 'ac_received: previous financial year empty');
+
+/* profit */
+[$cidE, $pidE] = $mkc('Prof Echo', '9000000015', 'Electrical installation', 108900, 5);
+if ($dbPath) { $pdo = new PDO('sqlite:' . $dbPath); $pdo->exec("INSERT INTO commissions(customer_id,user_id,amount) VALUES($cidE,1,5000)"); $pdo = null; }
+call($acct, 'acc', 'cost_save', ['project_id' => $pidE, 'lines' => [['grp' => 'Solar panels', 'name' => 'Prof Panel', 'qty' => 6, 'rate' => 10000, 'gst' => 0]]]);
+call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $cidE, 'issued_on' => '2026-11-10', 'number' => 'T3-001', 'data' => ['taxable' => 100000, 'grand' => 108900]]);
+[$cidF, $pidF] = $mkc('Prof Foxtrot', '9000000016', 'Electrical installation', 54450, 3);
+call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $cidF, 'issued_on' => '2026-11-11', 'number' => 'T3-002', 'data' => ['grand' => 54450]]);
+$pf = call($acct, 'acc', 'ac_profit', null, '&period=2026-11');
+$re = find_by($pf['rows'] ?? [], 'project_id', $pidE);
+$cm = $dbPath ? 5000 : 0;
+chk($pf['_code'] === 200 && $re && (float)$re['before'] == 100000 && (float)$re['cost'] == 60000 && (float)$re['comm'] == $cm && (float)$re['profit'] == 40000 - $cm && $re['bill_no'] === 'T3-001' && $re['bill_on'] === '2026-11-10' && (int)$re['lines'] === 1, 'ac_profit: before 100000 - cost 60000 - comm');
+$nc = find_by($pf['no_cost'] ?? [], 'project_id', $pidF);
+chk($nc && $nc['bill_no'] === 'T3-002' && find_by($pf['rows'], 'project_id', $pidF) === null, 'ac_profit: billed project with no lines goes to no_cost');
+chk((float)$pf['counted']['profit'] == 40000 - $cm && (float)$pf['counted']['before'] == 100000 && (float)$pf['counted']['cost'] == 60000, 'ac_profit: counted excludes no_cost projects');
+chk(count(call($acct, 'acc', 'ac_profit', null, '&period=2026-10')['rows']) === 0, 'ac_profit: bill outside period not counted');
+
+/* expenses */
+chk(call($acct, 'acc', 'ac_expenses', null, '&period=2026-11')['cats'] === ['Ads', 'AI tools', 'Other'], 'ac_expenses: default categories');
+$e1 = call($acct, 'acc', 'expense_save', ['date' => '2026-11-08', 'cat' => 'AI tools', 'amount' => 1180, 'gst' => 18, 'paid_to' => 'Test AI Co', 'mode' => 'UPI', 'note' => 'plan']);
+chk($e1['_code'] === 200 && ($e1['id'] ?? 0) > 0, 'expense_save adds an expense');
+chk(call($acct, 'acc', 'expense_save', ['date' => '2026-11-08', 'cat' => 'Nope', 'amount' => 10, 'gst' => 0])['_code'] === 400, 'expense_save: unknown category refused');
+chk(call($acct, 'acc', 'expense_save', ['date' => '2026-11-08', 'cat' => 'Other', 'amount' => 10, 'gst' => 7])['_code'] === 400, 'expense_save: bad GST refused');
+chk(call($acct, 'acc', 'expense_save', ['date' => '08-11-2026', 'cat' => 'Other', 'amount' => 10, 'gst' => 0])['_code'] === 400, 'expense_save: bad date refused');
+chk(call($sales, 'acc', 'expense_save', ['date' => '2026-11-08', 'cat' => 'Other', 'amount' => 10, 'gst' => 0])['_code'] === 403, 'sales cannot save an expense');
+call($admin, 'ads', 'import', ['rows' => [['campaign' => 'Test Camp T3', 'date' => '2026-11-09', 'spend' => 5000]]]);
+$ex = call($acct, 'acc', 'ac_expenses', null, '&period=2026-11');
+chk(count($ex['rows']) === 1 && $ex['rows'][0]['cat'] === 'AI tools' && $ex['ads'] == [['month' => '2026-11', 'spend' => 5000]], 'ac_expenses: rows and campaign spend by month');
+$ov = call($acct, 'acc', 'ac_overview', null, '&period=2026-11');
+chk($ov['_code'] === 200 && (float)$ov['expenses']['ai'] == 1000 && (float)$ov['expenses']['ads'] == 5000 && (float)$ov['expenses']['total'] == 6000 && (float)$ov['expenses']['other'] == 0, 'ac_overview: AI 1000, ads 5000, total 6000');
+chk((float)$ov['profit'] == 40000 - $cm - 6000, 'ac_overview: profit = counted profit - expenses');
+$pp = call($acct, "acc", "ac_pending");
+chk((float)$ov['received'] == (float)$rc['total'] && $ov['received_n'] === count($rc['rows']) && $ov["pending_n"] === count($pp["rows"]) && count($ov['top']) <= 10 && abs($ov['pending'] - array_sum(array_column($pp['rows'], 'due'))) < 0.01, 'ac_overview: received and pending match the lists');
+chk(call($acct, 'acc', 'cats_save', ['cats' => ['Ads', 'AI tools', 'Rent']])['_code'] === 403, 'cats_save is admin only');
+chk(call($admin, 'acc', 'cats_save', ['cats' => ['Ads', 'AI tools', 'Rent', 'Rent', ' ']])['cats'] === ['Ads', 'AI tools', 'Rent'], 'cats_save (admin) cleans the list');
+chk(call($acct, 'acc', 'expense_save', ['date' => '2026-11-12', 'cat' => 'Rent', 'amount' => 500, 'gst' => 0])['_code'] === 200, 'new category usable');
+$ov2 = call($acct, 'acc', 'ac_overview', null, '&period=2026-11');
+chk((float)$ov2['expenses']['other'] == 500, 'ac_overview: other categories counted under other');
+chk(call($acct, 'acc', 'expense_delete', ['id' => $e1['id']])['_code'] === 200 && count(call($acct, 'acc', 'ac_expenses', null, '&period=2026-11')['rows']) === 1, 'expense_delete removes it');
+foreach (['ac_overview', 'ac_pending', 'ac_received', 'ac_profit', 'ac_expenses'] as $act) {
+  chk(call($sales, 'acc', $act)['_code'] === 403 && call($ba, 'acc', $act)['_code'] === 403, "sales and ba get 403 on $act");
+}
+
 echo "\n$pass ok, $fail FAIL\n";
 exit($fail ? 1 : 0);
