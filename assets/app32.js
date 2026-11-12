@@ -77,6 +77,11 @@ const ACC = {
   },
   /* ---- Expense sheet and price list: dealer price (before GST) + profit % = customer price ---- */
   SVC: 'Services and charges', /* the services group; every other group is a purchase */
+  /* short names for the category tabs of the Add item window; any other group keeps its own name */
+  GRP_SHORT: { 'Inverter & optimizers': 'Inverter', 'Solar panels': 'Panels', 'Structure & supports': 'Structure', 'Distribution boards': 'DB boxes',
+    'Metering & isolation': 'Meter', 'DC cables & connectors': 'DC cables', 'AC cables & lugs': 'AC cables', 'Earthing & lightning protection': 'Earthing',
+    'Pipes & conduit fittings': 'Pipes', 'Cable accessories & consumables': 'Accessories', 'Services and charges': 'Services' },
+  grpShort: g => (g ? ACC.GRP_SHORT[g] || String(g) : 'Other'),
   PROFIT_DEF: 15,              /* the default profit % until Settings › Price list changes it (acc_profit_default) */
   pctSet: p => p !== null && p !== undefined && String(p).trim() !== '' && isFinite(Number(p)),
   /* a profit % as stored: blank (null / '') = the default (def, else 15); a typed 0 stays 0 */

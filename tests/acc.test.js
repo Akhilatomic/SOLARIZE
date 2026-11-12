@@ -371,3 +371,14 @@ test('markBought: a blank supplier / bill no. keeps each line\'s own; a typed on
   const mix = ACC.markBought(lines, [0, 1], { date: '2026-11-12', supplier: 'New', bill_no: '', rates: {} });
   assert.deepEqual(mix.map(l => [l.supplier, l.bill_no]), [['New', 'B1'], ['New', 'B2'], [undefined, undefined]]);
 });
+
+test('category tabs: short names for the quotation groups, the full name for any other group', () => {
+  assert.equal(ACC.grpShort('Inverter & optimizers'), 'Inverter');
+  assert.equal(ACC.grpShort('Solar panels'), 'Panels');
+  assert.equal(ACC.grpShort('Services and charges'), 'Services');
+  assert.equal(ACC.grpShort('Earthing & lightning protection'), 'Earthing');
+  assert.equal(ACC.grpShort('My own group'), 'My own group');
+  assert.equal(ACC.grpShort(''), 'Other');
+  ACC.GROUPS.forEach(g => assert.ok(ACC.grpShort(g).length <= 12, g));
+  assert.equal(new Set(ACC.GROUPS.map(ACC.grpShort)).size, ACC.GROUPS.length);
+});
