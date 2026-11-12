@@ -15,6 +15,35 @@ test('cost totals and profit', () => {
   assert.deepEqual(ACC.profit({ price: 0, taxable: 0, lines: [], comm: 0 }), { before: 0, cost: 0, comm: 0, profit: 0, margin: 0 });
 });
 test('expense before GST', () => { assert.equal(ACC.exBefore({ amount: 1180, gst: 18 }), 1000); assert.equal(ACC.exBefore({ amount: 500, gst: 0 }), 500); });
+test('fee lines: by name (any case) or by the Finance note', () => {
+  assert.ok(ACC.isFee({ name: 'KSEB feasibility' }) && ACC.isFee({ name: ' kseb REGISTRATION ' }) && ACC.isFee({ name: 'Stamp paper' }));
+  assert.ok(ACC.isFee({ name: 'Renamed fee', note: 'From Finance › Fees' }));
+  assert.ok(!ACC.isFee({ name: 'KSEB liaisoning, documentation and subsidy process' }) && !ACC.isFee({ name: 'Installation', note: 'paid cash' }) && !ACC.isFee(null));
+});
+test('copy from another project: no fee lines, nothing twice, rates only when asked', () => {
+  const src = [
+    { material_id: 1, grp: 'Inverter & optimizers', name: 'Test Inverter', qty: 1, unit: 'Nos', rate: 27500, gst: 5, supplier: 'Test Supplier', bill_no: 'B1', note: 'n' },
+    { material_id: 2, grp: 'Solar panels', name: 'Test Panel', qty: 16, unit: 'Nos', rate: 14200, gst: 5 },
+    { material_id: 0, grp: 'DC cables & connectors', name: 'Test Box', qty: 2, unit: 'Nos', rate: 1450, gst: 18 },
+    { material_id: 46, grp: 'Services and charges', name: 'KSEB feasibility', qty: 1, unit: 'Job', rate: 1000, gst: 18, note: 'From Finance › Fees' },
+    { material_id: 47, grp: 'Services and charges', name: 'KSEB registration', qty: 1, unit: 'Job', rate: 10000, gst: 18 },
+    { material_id: 0, grp: 'Services and charges', name: 'Typed fee', qty: 1, unit: 'Job', rate: 500, gst: 0, note: 'From Finance › Fees' },
+    { material_id: 9, grp: 'Services and charges', name: 'Installation', qty: 1, unit: 'Job', rate: 8000, gst: 18 },
+  ];
+  const all = ACC.copyLines(src, [], false);
+  assert.deepEqual(all.lines.map(l => l.name), ['Test Inverter', 'Test Panel', 'Test Box', 'Installation']);
+  assert.equal(all.fees, 3); assert.equal(all.dup, 0);
+  assert.ok(all.lines.every(l => l.rate === 0 && l.supplier === undefined && l.note === undefined));
+  assert.deepEqual(all.lines[0], { material_id: 1, grp: 'Inverter & optimizers', name: 'Test Inverter', qty: 1, unit: 'Nos', rate: 0, gst: 5 });
+  assert.equal(ACC.copyLines(src, [], true).lines[1].rate, 14200);
+  /* add below: same material id, or same group + name in any case, is already there */
+  const have = [{ material_id: 2, grp: 'Solar panels', name: 'Other name', qty: 10 }, { material_id: 0, grp: 'dc cables & connectors', name: 'TEST BOX ', qty: 1 },
+    { material_id: 46, grp: 'Services and charges', name: 'KSEB feasibility', note: 'From Finance › Fees' }];
+  const add = ACC.copyLines(src, have, true);
+  assert.deepEqual(add.lines.map(l => l.name), ['Test Inverter', 'Installation']);
+  assert.equal(add.fees, 3); assert.equal(add.dup, 2);
+  assert.deepEqual(ACC.copyLines(null, null, true), { lines: [], fees: 0, dup: 0 });
+});
 test('fill templates', () => {
   assert.equal(ACC.fill('Dear {manager}, ₹{amount} on {date}{nope}.', { manager: 'Sir', amount: 140000, date: '12 Oct 2026' }), 'Dear Sir, ₹1,40,000 on 12 Oct 2026.');
   assert.equal(ACC.fill('₹{pending}', { pending: 1250.5 }), '₹1,250.50');

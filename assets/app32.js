@@ -20,6 +20,28 @@ const ACC = {
     return { before, cost, comm, profit, margin: before ? ACC.r2(profit / before * 100) : 0 };
   },
   exBefore(e) { return ACC.r2((Number(e.amount) || 0) / (1 + (Number(e.gst) || 0) / 100)); },
+  /* KSEB / stamp paper fees: each customer's own (Finance › Fees), added on a cost sheet with this note; never copied between projects */
+  FEE_NAMES: ['KSEB feasibility', 'KSEB registration', 'Stamp paper'],
+  FEE_NOTE: 'From Finance › Fees',
+  isFee(l) {
+    const n = String((l && l.name) || '').trim().toLowerCase();
+    return ACC.FEE_NAMES.some(f => f.toLowerCase() === n) || String((l && l.note) || '').trim() === ACC.FEE_NOTE;
+  },
+  /* Copy from another project: the source's lines without its fee lines, and without lines the sheet already has (same material,
+     or same group + name in any case); have = the lines kept on the sheet ([] when they are replaced). Items and quantities
+     only, rates when asked; supplier, bill and note stay behind. Returns {lines, fees, dup} (fees / dup = lines left out). */
+  copyLines(src, have, rates) {
+    const key = l => String(l.grp || '').trim().toLowerCase() + '|' + String(l.name || '').trim().toLowerCase();
+    const ids = new Set((have || []).map(l => Number(l.material_id) || 0).filter(Boolean)), keys = new Set((have || []).map(key));
+    const out = { lines: [], fees: 0, dup: 0 };
+    (src || []).forEach(l => {
+      if (ACC.isFee(l)) { out.fees++; return; }
+      const id = Number(l.material_id) || 0;
+      if ((id && ids.has(id)) || keys.has(key(l))) { out.dup++; return; }
+      out.lines.push({ material_id: id, grp: String(l.grp || ''), name: String(l.name || ''), qty: Number(l.qty) || 0, unit: String(l.unit || ''), rate: rates ? Number(l.rate) || 0 : 0, gst: Number(l.gst) });
+    });
+    return out;
+  },
   /* message templates: {name} -> value; money placeholders are formatted en-IN (decimals only when not whole) */
   fill(tpl, vars) {
     const money = ['amount', 'pending', 'bill_total', 'received_total'];

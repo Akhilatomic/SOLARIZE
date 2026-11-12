@@ -147,7 +147,7 @@ function acFeeBar() {
     miss.forEach(f => {
       const g = ACX_GSTS.includes(+f.gst) ? +f.gst : 18, m = mats.find(x => x.grp === ACX_SVC && x.name.toLowerCase() === String(f.name).toLowerCase());
       ACS.lines.push(acIn({ material_id: m ? m.id : 0, grp: ACX_SVC, name: f.name, qty: 1, unit: m ? m.unit : 'Job', rate: ACC.r2((+f.amount || 0) / (1 + g / 100)), gst: g,
-        supplier: f.kind === 'stamp' ? '' : 'KSEB', note: 'From Finance › Fees' }));
+        supplier: f.kind === 'stamp' ? '' : 'KSEB', note: ACC.FEE_NOTE }));
     });
     acChanged(); toast(`${acPl(miss.length, 'fee line')} added. Save to keep ${miss.length === 1 ? 'it' : 'them'}.`);
   };
@@ -228,10 +228,10 @@ async function acCsCopy() {
   cs = cs.filter(c => +c.project_id && +c.project_id !== ACS.pid);
   const has = ACS.lines.length;
   const m = modal(`<div class="mh"><h3>Copy lines from another project</h3><button type="button" class="ib" data-x title="Close"><i class="i i-x"></i></button></div>
-    <p class="mut acx-small acx-top0">Pick a similar plant. Its items and quantities are copied into this sheet; supplier, bill and note are not.</p>
+    <p class="mut acx-small acx-top0">Pick a similar plant. Its items and quantities are copied into this sheet; supplier, bill and note are not, nor its KSEB / stamp paper fee lines (this customer's fees come from Finance › Fees).</p>
     <input id="acx_cq" type="search" placeholder="Search customers by name, phone, consumer no., place…" autocomplete="off" aria-label="Search customers">
     <div class="acx-opts"><label class="acx-chk"><input type="checkbox" id="acx_cr"> Copy rates too</label>
-      ${has ? `<label class="acx-chk"><input type="radio" name="acx_cm" value="add" checked> Add below the ${acPl(has, 'line')} here</label><label class="acx-chk"><input type="radio" name="acx_cm" value="replace"> Replace the lines here</label>` : ''}</div>
+      ${has ? `<label class="acx-chk"><input type="radio" name="acx_cm" value="add" checked> Add below the ${acPl(has, 'line')} here (no line twice)</label><label class="acx-chk"><input type="radio" name="acx_cm" value="replace"> Replace the lines here (fee lines stay)</label>` : ''}</div>
     <div class="acx-pick" id="acx_cl"></div>`, true);
   const draw = () => {
     const q = $('#acx_cq', m).value.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -247,11 +247,15 @@ async function acCsCopy() {
     let r; try { r = await api('acc', 'ac_cost', undefined, `&project_id=${+b.dataset.pid}`); } catch (x) { b.disabled = false; return; }
     b.disabled = false;
     if (!(r.lines || []).length) { toast(`${c ? c.name : 'That project'} has no cost lines yet`, true); return; }
-    const rates = $('#acx_cr', m).checked, mode = ($('input[name=acx_cm]:checked', m) || {}).value || 'add';
-    const nl = r.lines.map(l => acIn({ material_id: l.material_id, grp: l.grp, name: l.name, qty: l.qty, unit: l.unit, rate: rates ? l.rate : 0, gst: l.gst }));
-    ACS.lines = mode === 'replace' ? nl : ACS.lines.concat(nl);
+    const rates = $('#acx_cr', m).checked, mode = ($('input[name=acx_cm]:checked', m) || {}).value || 'add', who = c ? c.name : 'the other project';
+    /* fee lines are the other customer's own fees: never copied, and this sheet's fee lines stay even on Replace (the fee offer
+       keeps following this customer's Finance › Fees); on Add, lines already here are not added twice */
+    const keep = mode === 'replace' ? ACS.lines.filter(l => ACC.isFee(l)) : ACS.lines, res = ACC.copyLines(r.lines, keep, rates), nl = res.lines.map(acIn);
+    const out = [res.fees && `${acPl(res.fees, 'fee line')} (fees come from this customer's own Finance › Fees)`, res.dup && `${acPl(res.dup, 'line')} already on this sheet`].filter(Boolean).join(' and ');
+    if (!nl.length) { toast(`Nothing to copy from ${who}${out ? ': ' + out + ' left out' : ''}.`, true); return; }
+    ACS.lines = keep.concat(nl);
     m.remove(); acChanged();
-    toast(`${acPl(nl.length, 'line')} copied from ${c ? c.name : 'the other project'}${rates ? ' with rates' : ''}. Save to keep them.`);
+    toast(`${acPl(nl.length, 'line')} copied from ${who}${rates ? ' with rates' : ''}${out ? '; ' + out + ' left out' : ''}. Save to keep them.`);
   };
   $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
   draw(); $('#acx_cq', m).focus();
