@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 45; // bump when tables/columns change
+const SCHEMA_VERSION = 46; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -335,6 +335,11 @@ function migrate($db) {
   if (!$db->query("SELECT 1 FROM settings WHERE k='acc_fee_pct0'")->fetch()) {
     $db->exec("UPDATE acc_materials SET profit=0 WHERE profit IS NULL AND lower(trim(name)) IN ('kseb feasibility','kseb registration','stamp paper')");
     $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_fee_pct0','1')");
+  }
+  /* v46: fees already paid in Finance before the fee → Expense sync go onto their customers' Expense sheets once (flag acc_fee_sync_v1) */
+  if (!$db->query("SELECT 1 FROM settings WHERE k='acc_fee_sync_v1'")->fetch() && function_exists('acc_fee_sync')) {
+    foreach ($db->query("SELECT customer_id, kind FROM fees WHERE paid=1 AND amount>0 AND kind IN ('feasibility','registration','stamp')")->fetchAll() as $f) acc_fee_sync((int)$f['customer_id'], $f['kind']);
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_fee_sync_v1','1')");
   }
   require_once __DIR__ . '/qm_seed.php';
   qm_seed($db); // only fills an empty catalogue

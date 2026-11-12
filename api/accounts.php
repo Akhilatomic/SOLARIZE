@@ -51,6 +51,36 @@ function acc_comm($cid, $ownerId) {
     'p1' => round((float)($cm['p1_amount'] ?? 0), 2), 'p2' => round((float)($cm['p2_amount'] ?? 0), 2)];
 }
 
+/* Finance › Fees kinds as Expense sheet lines (group "Services and charges"): line name, GST % (the fee amount includes it), who is paid */
+const ACC_FEE_LINES = ['feasibility' => ['KSEB feasibility', 18, 'KSEB'], 'registration' => ['KSEB registration', 18, 'KSEB'], 'stamp' => ['Stamp paper', 0, '']];
+function acc_ver_bump($pid) { q('UPDATE projects SET cost_ver=COALESCE(cost_ver,0)+1 WHERE id=?', [(int)$pid]); }
+/* Owner's rule (2026-11-12): a fee marked paid / purchased in Finance (feasibility, registration, stamp paper) is added to — or updated on — the
+   Expense sheet of the customer's latest project as a Paid line (amount before GST, paid on, reference as the bill no.); marked unpaid → the line
+   goes back to To pay. Nothing without a project or a positive amount. The sheet version moves on, so a copy of the sheet open elsewhere is refused
+   (409) instead of overwriting it. Called from fees/set, fee_from_receipt (pipeline receipts) and once for fees paid before this rule. */
+function acc_fee_sync($cid, $kind) {
+  if (!isset(ACC_FEE_LINES[$kind])) return;
+  [$name, $gst, $who] = ACC_FEE_LINES[$kind];
+  $pid = (int)(row('SELECT id FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [(int)$cid])['id'] ?? 0); if (!$pid) return;
+  $f = row('SELECT * FROM fees WHERE customer_id=? AND kind=?', [(int)$cid, $kind]); if (!$f) return;
+  $l = row('SELECT id, bought FROM acc_costs WHERE project_id=? AND lower(name)=lower(?) ORDER BY id LIMIT 1', [$pid, $name]);
+  if (!((int)$f['paid'] === 1 && (float)$f['amount'] > 0)) {
+    if ($l && (int)$l['bought']) { q("UPDATE acc_costs SET bought=0, bought_on='', updated=CURRENT_TIMESTAMP WHERE id=?", [$l['id']]); acc_ver_bump($pid); }
+    return;
+  }
+  $rate = round((float)$f['amount'] / (1 + $gst / 100), 2); $on = (string)$f['paid_on']; $ref = trim((string)$f['ref']);
+  if ($l) q("UPDATE acc_costs SET rate=?, gst=?, qty=CASE WHEN qty>0 THEN qty ELSE 1 END, bought=1, bought_on=?, bill_date=?,
+      bill_no=CASE WHEN ?<>'' THEN ? ELSE bill_no END, supplier=CASE WHEN COALESCE(supplier,'')='' THEN ? ELSE supplier END, updated=CURRENT_TIMESTAMP WHERE id=?",
+    [$rate, $gst, $on, $on, $ref, $ref, $who, $l['id']]);
+  else {
+    $mid = (int)(row("SELECT id FROM acc_materials WHERE grp='Services and charges' AND lower(name)=lower(?)", [$name])['id'] ?? 0);
+    $sort = (int)(row('SELECT COALESCE(MAX(sort),0)+1 s FROM acc_costs WHERE project_id=?', [$pid])['s'] ?? 1);
+    q("INSERT INTO acc_costs(project_id, material_id, grp, name, qty, unit, rate, gst, supplier, bill_no, bill_date, note, profit, bought, bought_on, sort)
+      VALUES(?,?,'Services and charges',?,1,'Job',?,?,?,?,?,'From Finance › Fees',0,1,?,?)", [$pid, $mid, $name, $rate, $gst, $who, $ref, $on, $on, $sort]);
+  }
+  acc_ver_bump($pid);
+}
+
 function acc_cost_get($pid) {
   $p = acc_project($pid); $cid = (int)$p['customer_id'];
   [$plant] = plant_get($cid);
@@ -58,9 +88,8 @@ function acc_cost_get($pid) {
   foreach ($lines as &$l) { foreach (['id', 'project_id', 'material_id', 'sort', 'bought'] as $k) $l[$k] = (int)($l[$k] ?? 0); $l['bought_on'] = (string)($l['bought_on'] ?? ''); foreach (['qty', 'rate', 'gst'] as $k) $l[$k] = (float)$l[$k]; $l['profit'] = acc_pct_out($l['profit'] ?? null); } unset($l);
   $cmx = acc_comm($cid, $p['c_owner_id'] ?? 0); $comm = $cmx['amount'];
   $fees = [];
-  $fk = ['feasibility' => ['KSEB feasibility', 18], 'registration' => ['KSEB registration', 18], 'stamp' => ['Stamp paper', 0]];
   foreach (rows("SELECT kind, amount FROM fees WHERE customer_id=? AND amount>0 AND kind IN ('feasibility','registration','stamp') ORDER BY id", [$cid]) as $f)
-    $fees[] = ['kind' => $f['kind'], 'name' => $fk[$f['kind']][0], 'amount' => (float)$f['amount'], 'gst' => $fk[$f['kind']][1]];
+    $fees[] = ['kind' => $f['kind'], 'name' => ACC_FEE_LINES[$f['kind']][0], 'amount' => (float)$f['amount'], 'gst' => ACC_FEE_LINES[$f['kind']][1]];
   $latest = (int)(row('SELECT id FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid])['id'] ?? 0) === (int)$pid;
   $taxable = 0.0;
   if ($latest && ($t = row("SELECT data FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid]))) $taxable = (float)((json_decode((string)$t['data'], true) ?: [])['taxable'] ?? 0);

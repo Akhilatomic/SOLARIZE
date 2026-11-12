@@ -1,6 +1,8 @@
 <?php
 // Accounts schema, permission, bank fields, payment source, materials and cost sheet. Usage: php tests/acc_api_test.php http://localhost:8094
 $base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+/* the schema version the app is at now (api/lib.php), so later upgrades don't break these re-run checks */
+define('SCHEMA_NOW', (int)(preg_match('/const SCHEMA_VERSION = (\d+)/', (string)file_get_contents(__DIR__ . '/../api/lib.php'), $sv) ? $sv[1] : 0));
 $pass = 0; $fail = 0;
 function chk($ok, $label) { global $pass, $fail; if ($ok) { $pass++; echo "  ok   $label\n"; } else { $fail++; echo "  FAIL $label\n"; } }
 function actor($name) { return ['jar' => sys_get_temp_dir() . '/acjar_' . $name . '_' . getmypid() . '.txt']; }
@@ -307,7 +309,7 @@ foreach ([[$pidS, 'Loan', null, 'fill-a'], [$pidS, 'Loan', '', 'fill-b'], [$pidS
 $dbq('PRAGMA user_version=41');
 call($acct, 'acc', 'ac_tpl'); /* the next request upgrades the database again */
 $fill = []; foreach ($dbq("SELECT note, src FROM payments WHERE note LIKE 'fill-%'")->fetchAll(PDO::FETCH_ASSOC) as $x) $fill[$x['note']] = $x['src'];
-chk($dbq('PRAGMA user_version')->fetchColumn() == 45 &&($fill['fill-a'] ?? '') === 'bank' && ($fill['fill-b'] ?? '') === 'bank', 'backfill: Loan-mode payments with no source on a loan project are now bank');
+chk($dbq('PRAGMA user_version')->fetchColumn() == SCHEMA_NOW &&($fill['fill-a'] ?? '') === 'bank' && ($fill['fill-b'] ?? '') === 'bank', 'backfill: Loan-mode payments with no source on a loan project are now bank');
 chk(array_key_exists('fill-c', $fill) && $fill['fill-c'] === null && ($fill['fill-d'] ?? '') === 'customer' && array_key_exists('fill-e', $fill) && $fill['fill-e'] === null,'backfill: other modes, a set source and non-loan projects are left alone');
 $ixs = $dbq("SELECT name FROM sqlite_master WHERE type='index'")->fetchAll(PDO::FETCH_COLUMN);
 chk(!array_diff(['pay_date', 'spend_date', 'accl_kind'], $ixs), 'indexes on payments(date), ad_spend(date), acc_log(kind, project_id)');
@@ -383,7 +385,7 @@ echo "Accounts: expense sheet and price list\n";
 $cols = fn($t) => $dbq("PRAGMA table_info($t)")->fetchAll(PDO::FETCH_COLUMN, 1);
 chk(in_array('profit', $cols('acc_materials'), true) && in_array('profit', $cols('acc_costs'), true), 'v43: acc_materials.profit and acc_costs.profit exist');
 $dbq('PRAGMA user_version=42');
-chk(call($acct, 'acc', 'ac_tpl')['_code'] === 200 && $dbq('PRAGMA user_version')->fetchColumn() == 45, 'the v43 upgrade runs again on a database that already has the columns (idempotent)');
+chk(call($acct, 'acc', 'ac_tpl')['_code'] === 200 && $dbq('PRAGMA user_version')->fetchColumn() == SCHEMA_NOW, 'the v43 upgrade runs again on a database that already has the columns (idempotent)');
 chk(count(array_keys($cols('acc_costs'), 'profit')) === 1 && count(array_keys($cols('acc_materials'), 'profit')) === 1, 'each profit column exists once after the rerun');
 /* default profit % (Settings › Price list) */
 chk(call($acct, 'acc', 'profit_default_save', null, '&pct=20')['_code'] === 405, 'profit_default_save over GET is refused');
@@ -593,7 +595,7 @@ $tg = call($acct, 'acc', 'ac_tpl_get', null, '&id=' . (int)($tp['id'] ?? 0));
 chk(!isset($tg['items'][0]['bought']) && !isset($tg['items'][0]['bought_on']) && !isset($tg['items'][0]['supplier']), 'a template stores product + quantity only (no status)');
 /* v45 migration re-run: nothing duplicated, the purchased lines survive */
 $dbq('PRAGMA user_version=44'); call($acct, 'acc', 'ac_tpl');
-chk((int)$dbq('PRAGMA user_version')->fetchColumn() === 45 && count(array_keys($cols('acc_costs'), 'bought')) === 1 && count(array_keys($cols('acc_costs'), 'bought_on')) === 1, 'v45: re-running the upgrade adds the columns once');
+chk((int)$dbq('PRAGMA user_version')->fetchColumn() === SCHEMA_NOW && count(array_keys($cols('acc_costs'), 'bought')) === 1 && count(array_keys($cols('acc_costs'), 'bought_on')) === 1, 'v45: re-running the upgrade adds the columns once');
 chk((int)$dbq('SELECT bought FROM acc_costs WHERE project_id=? AND name=?', [$pidP, 'Pur Panel 500'])->fetchColumn() === 1, 'v45: a re-run keeps the purchased status');
 
 echo "\n$pass ok, $fail FAIL\n";
