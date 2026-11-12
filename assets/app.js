@@ -271,12 +271,19 @@ async function pgDashboard() {
   const gauge = gaugeOf(+d.leads_month || 0, +d.lead_target || 1000, 'leads in ' + mName, '#0071e3') + gaugeOf(+d.cust_year || 0, +d.customer_target || 2000, 'customers in ' + new Date().getFullYear(), '#5e5ce6');
   const lst = (arr, fn, empty) => arr.length ? `<div class="scroll">${arr.map(fn).join('')}</div>` : `<p class="mut">${empty}</p>`;
   const head = (t, extra = '') => `<div class="ch"><h3>${t}</h3>${extra}</div>`;
-  $('#main').innerHTML = `<div class="dhead"><div><h2>Hello, ${esc(first)}!</h2><div class="mut">${BA() ? 'Here’s how your leads and customers are doing today.' : 'Here’s how Jasper Solar is doing today.'}</div></div><div class="dhr"><div class="dteam" id="dteam" role="button" tabindex="0" title="Who is online"></div><div class="mut dtime">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div></div>
+  /* daily summary tiles: only the ones with something waiting (a tile with 0 is hidden; nothing at all → "all clear") */
+  const feeDue = k => (d.fees_due || []).filter(f => f.kind === k);
+  const sumTiles = [['<i class="i i-calendar"></i>', d.due_today, 'Follow-ups today', 'today'], ['<i class="i i-alert"></i>', d.overdue, 'Overdue', 'overdue'],
+    BA() ? ['<i class="i i-project"></i>', d.proj_active, 'Active projects', 'projects'] : ['<i class="i i-card"></i>', d.dues.length, 'Payments due', 'dues'],
+    ['<i class="i i-folder"></i>', d.kseb_pending.length, 'Docs pending', 'docs'],
+    ['<i class="i i-clipboard"></i>', feeDue('feasibility').length, 'Feasibility fee pending', 'fee-feasibility'], ['<i class="i i-receipt"></i>', feeDue('registration').length, 'Registration fee pending', 'fee-registration']]
+    .filter(t => +t[1] > 0);
+  $('#main').innerHTML =`<div class="dhead"><div><h2>Hello, ${esc(first)}!</h2><div class="mut">${BA() ? 'Here’s how your leads and customers are doing today.' : 'Here’s how Jasper Solar is doing today.'}</div></div><div class="dhr"><div class="dteam" id="dteam" role="button" tabindex="0" title="Who is online"></div><div class="mut dtime">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div></div>
   <div class="dg">
    <div class="s8" id="newleads"></div>
    <div class="s4 card"><div style="display:flex;gap:12px;align-items:center"><div class="avatar"><i class="i i-sun"></i></div><div><b style="font-size:16px">Good ${gm}, ${esc(first)}</b><div class="mut" style="font-size:12px">Your daily summary</div></div></div>
-    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">${[['<i class="i i-calendar"></i>', d.due_today, 'Follow-ups today', 'today'], ['<i class="i i-alert"></i>', d.overdue, 'Overdue', 'overdue'], BA() ? ['<i class="i i-project"></i>', d.proj_active, 'Active projects', 'projects'] : ['<i class="i i-card"></i>', d.dues.length, 'Payments due', 'dues'], ['<i class="i i-folder"></i>', d.kseb_pending.length, 'Docs pending', 'docs']].map(([i, n, l, k]) => `<div class="tile go" role="button" tabindex="0" data-dt="${k}" title="Open ${esc(l.toLowerCase())}"><span>${i}</span><div><b>${n}</b><small>${l}</small></div><i class="i i-chev tgo"></i></div>`).join('')}</div>
-    <div class="warn"><span>${d.overdue ? d.overdue + ' follow-up' + (d.overdue > 1 ? 's are' : ' is') + ' overdue' : '<i class="i i-check"></i> No overdue follow-ups'}</span>${d.overdue ? '<button class="btn sm" id="vod">View Overdue</button>' : ''}</div></div>
+    ${sumTiles.length ? `<div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">${sumTiles.map(([i, n, l, k], x) => `<div class="tile go" role="button" tabindex="0" data-dt="${k}" title="Open ${esc(l.toLowerCase())}"${x === sumTiles.length - 1 && x % 2 === 0 ? ' style="grid-column:1/-1"' : ''}><span>${i}</span><div><b>${n}</b><small>${l}</small></div><i class="i i-chev tgo"></i></div>`).join('')}</div>` : '<div class="mut" style="font-size:13px;margin-top:14px"><i class="i i-check"></i> Nothing pending — all clear</div>'}
+    ${d.overdue ? `<div class="warn"><span>${d.overdue + ' follow-up' + (d.overdue > 1 ? 's are' : ' is') + ' overdue'}</span><button class="btn sm" id="vod">View Overdue</button></div>` : ''}</div>
 
    ${card('<i class="i i-target"></i>', 'Active Leads', d.leads_total, d.leads_today, vs(d.leads_vs), '', '#/leads')}${card('<i class="i i-users"></i>', 'Customers', d.cust_total, d.cust_today, vs(d.cust_vs), '', '#/customers')}${card('<i class="i i-project"></i>', 'Active Projects', d.proj_active, d.proj_today, vs(d.proj_vs), '', '#/projects')}${card('<i class="i i-alert"></i>', 'Overdue Follow-ups', d.overdue, d.due_today, d.due_today + ' due today', '', '#/leads')}
 
@@ -317,6 +324,11 @@ async function pgDashboard() {
     if (k === 'docs') {
       const m = dashList('KSEB documents pending', d.kseb_pending, p => `<span><b>${esc(p.customer || p.title)}</b><small class="mut">${esc(p.title)}</small></span><span class="pill">${p.done}/${p.total} done</span>`, 'All KSEB documents are complete');
       $$('.dlr', m).forEach(b => b.onclick = () => { m.remove(); TAB.proj = 'kseb'; location.hash = '#/projects/' + d.kseb_pending[+b.dataset.i].id; });
+    }
+    if (k.startsWith('fee-')) { /* unpaid KSEB fee → its Finance list, searched to that customer and showing every status */
+      const kind = k.slice(4), rows = feeDue(kind), title = kind === 'feasibility' ? 'Feasibility fee pending' : 'Registration fee pending';
+      const m = dashList(title, rows, f => `<span><b>${esc(f.customer)}</b><small class="mut">${esc(f.phone || '')}${+f.amount ? ' · ' + inr(f.amount) : ''}</small></span><span class="pill ${+f.demanded ? 'b' : ''}">${+f.demanded ? 'Demanded' : 'Not demanded'}</span>`, 'Nothing pending');
+      $$('.dlr', m).forEach(b => b.onclick = () => { m.remove(); if (typeof FEEQ !== 'undefined') { FEEQ.q = rows[+b.dataset.i].customer || ''; FEEQ.f[kind] = 'all'; } location.hash = '#/fees/' + kind; });
     }
   };
   $$('[data-dt]').forEach(t => { t.onclick = () => tileGo(t.dataset.dt); t.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tileGo(t.dataset.dt); } }; });

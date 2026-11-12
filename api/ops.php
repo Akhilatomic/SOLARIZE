@@ -47,6 +47,8 @@ function handle_dashboard() {
     'lead_target' => (int)settings()['lead_target'], 'customer_target' => (int)settings()['customer_target'],
     'cust_year' => $cnt("SELECT COUNT(*) v FROM customers WHERE substr($loc,1,4)=?" . $SC['customers'], [date('Y')]),
     'converted' => $cnt("SELECT COUNT(*) v FROM leads WHERE customer_id IS NOT NULL$L"), 'leads_all' => $cnt("SELECT COUNT(*) v FROM leads WHERE 1=1$L"),
+    /* daily summary: KSEB feasibility / registration fees not paid yet (Finance › Fees "Pending" + "Demanded"), only for Finance › Fees readers */
+    'fees_due' => can('fees') ? rows("SELECT f.id, f.customer_id, f.kind, f.amount, f.demanded, f.demanded_on, c.name customer, c.phone FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.kind IN ('feasibility','registration') AND f.paid=0$C ORDER BY f.demanded DESC, f.id DESC LIMIT 1000") : [],
   ];
   if (!can('finance')) { $pipeline = $billed = $paid = $spendM = 0; $overdue = []; }
   out($extra + ['finance' => can('finance') ? 1 : 0, 'leads_month' => $leadsM, 'won_month' => $wonM, 'conversion' => $leadsM ? round($wonM / $leadsM * 100) : 0, 'spend_month' => $spendM,
