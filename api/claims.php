@@ -118,6 +118,24 @@ function callback_alerts() {
   }
 }
 
+// Owner's rule (2026-11-12): a lead that arrived as new (Meta, notify=1) and that nobody attended — opened, called,
+// marked contacted or edited, all of which clear notify — within LEAD_STALE_HOURS of arriving is marked Lost. It leaves
+// the bell and the default (Active) Leads list but stays under the Lost filter and can be reopened by changing its status.
+// Runs from the hourly housekeeping and the Meta cron; one indexed lookup (leads_notify) and it writes only when something is due.
+const LEAD_STALE_HOURS = 24;
+function lead_autolost() {
+  $rs = rows("SELECT id FROM leads WHERE notify=1 AND status NOT IN ('Won','Lost') AND (customer_id IS NULL OR customer_id=0)
+    AND created <= datetime('now', ?)", ['-' . LEAD_STALE_HOURS . ' hours']);
+  $n = 0;
+  foreach ($rs as $l) {
+    if (!q("UPDATE leads SET status='Lost', notify=0, updated=CURRENT_TIMESTAMP WHERE id=? AND notify=1", [$l['id']])->rowCount()) continue; // another run got it
+    q("INSERT INTO notes(entity,entity_id,text,user) VALUES('leads',?,?,'System')", [$l['id'], 'Not attended within ' . LEAD_STALE_HOURS . ' hours (automatic) — marked Lost']);
+    $n++;
+  }
+  if ($n) audit('leads_autolost', 'leads', null, "$n new lead(s) not attended within " . LEAD_STALE_HOURS . ' hours marked Lost');
+  return $n;
+}
+
 // Runs before the generic CRUD for leads. Handles list/get/claim/unlock/assign; checks ownership for writes.
 function lead_guard($a, $in) {
   switch ($a) {

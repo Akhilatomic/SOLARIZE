@@ -98,7 +98,7 @@ function trash_purge_row($t) {
 function housekeeping($force = false) {
   $last = (int)(row("SELECT v FROM settings WHERE k='hk_last'")['v'] ?? 0);
   if (!$force && time() - $last < 3600) return;
-  kv_set('hk_last', (string)time());
+  kv_set('hk_last', time()); /* a number, so the (int) read above works — a string was stored JSON-quoted, read back as 0, and this "hourly" job ran on every request */
   $n = 0;
   foreach (rows("SELECT * FROM files WHERE COALESCE(kind,'') <> 'warranty' AND created < datetime('now', ?) LIMIT 200", ['-' . DOC_LIFE_DAYS . ' days']) as $f) {
     trash_file_row($f, 'older than ' . DOC_LIFE_DAYS . ' days');
@@ -107,6 +107,7 @@ function housekeeping($force = false) {
   if ($n) { audit('docs_expired', 'files', null, "$n document(s) older than " . DOC_LIFE_DAYS . ' days moved to the Recycle bin'); }
   try { fee_alerts(); } catch (Throwable $e) { }
   try { callback_alerts(); } catch (Throwable $e) { } /* also when nobody has the CRM open */
+  try { lead_autolost(); } catch (Throwable $e) { } /* new leads nobody attended within 24 hours → Lost */
   foreach (rows("SELECT id,data FROM trash WHERE deleted_at < datetime('now', ?)", ['-' . TRASH_HOURS . ' hours']) as $t) trash_purge_row($t);
   try { db()->exec('PRAGMA optimize'); } catch (Throwable $e) { } // keeps the query planner's statistics current (cheap, usually a no-op)
 }

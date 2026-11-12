@@ -1,15 +1,18 @@
-// Meta leads: live feed, notifications (bell, dashboard panel, toast, sound), 30-minute auto sync
-let FEED = { leads: [], count: 0, state: {} }, KNOWN = null, FEEDTIMER = null, SYNCTIMER = null, SOUND = true;
+// Meta leads: live feed, notifications (bell, dashboard panel, toast, sound), 30-minute auto sync,
+// and a reminder every 15 minutes while new leads wait unattended (they turn Lost after 24 hours — lead_autolost() in api/claims.php)
+let FEED = { leads: [], count: 0, state: {} }, KNOWN = null, FEEDTIMER = null, SYNCTIMER = null, REMINDTIMER = null, SOUND = true;
+const REMIND_MS = 15 * 60 * 1000;
 try { SOUND = localStorage.metaSound !== '0'; } catch (e) { }
 const agoStr = c => { const t = new Date(String(c).replace(' ', 'T') + 'Z').getTime(); const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
 const clock = ts => ts ? new Date(ts * 1000).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
 
 function startMeta() {
-  clearInterval(FEEDTIMER); clearInterval(SYNCTIMER); KNOWN = null;
+  clearInterval(FEEDTIMER); clearInterval(SYNCTIMER); clearInterval(REMINDTIMER); KNOWN = null;
   if (!canR('leads')) return;
   refreshFeed(true); autoSync();
   FEEDTIMER = setInterval(() => { if (!document.hidden) refreshFeed(); }, 45000);          // pick up new leads quickly
   SYNCTIMER = setInterval(autoSync, 30 * 60 * 1000);                                       // refresh from Meta every 30 minutes
+  REMINDTIMER = setInterval(leadRemind, 60000);                                            // checks each minute; reminds every 15 minutes
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshFeed(); });
 }
 async function autoSync() { try { await api('meta', 'sync', {}); } catch (e) { return; } refreshFeed(); }
@@ -29,10 +32,35 @@ async function refreshFeed(first) {
   else { const fresh = f.leads.filter(l => !KNOWN.has(l.id)); if (fresh.length) alertNew(fresh); ids.forEach(i => KNOWN.add(i)); }
   FEED = f; drawBell(); renderNewLeads(); if (location.hash.startsWith('#/ads') && $('#metasync')) renderMetaCard(true);
 }
-function alertNew(fresh) {
-  toast(fresh.length === 1 ? 'New lead: ' + fresh[0].name + (fresh[0].phone ? ' · ' + fresh[0].phone : '') : fresh.length + ' new leads from Meta', false, true);
+function leadBeep() {
   if (SOUND) try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.connect(g); g.connect(a.destination); o.type = 'sine'; o.frequency.value = 880; g.gain.setValueAtTime(.0001, a.currentTime); g.gain.exponentialRampToValueAtTime(.15, a.currentTime + .02); g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + .5); o.start(); o.stop(a.currentTime + .5); } catch (e) { }
+}
+/* the last lead alert, shared by every open tab so a reminder comes once per 15 minutes, not once per tab */
+const remindAt = () => { try { return +localStorage.leadRemindAt || 0; } catch (e) { return 0; } };
+const remindMark = () => { try { localStorage.leadRemindAt = String(Date.now()); } catch (e) { } };
+function alertNew(fresh) {
+  remindMark();
+  toast(fresh.length === 1 ? 'New lead: ' + fresh[0].name + (fresh[0].phone ? ' · ' + fresh[0].phone : '') : fresh.length + ' new leads from Meta', false, true);
+  leadBeep();
   try { if ('Notification' in window && Notification.permission === 'granted') new Notification('New Meta lead', { body: fresh.map(l => l.name + (l.phone ? ' · ' + l.phone : '')).join('\n'), icon: 'assets/logo.png' }); } catch (e) { }
+}
+/* Owner's rule: while new leads this user can see are still unattended (not opened, called, marked contacted or edited),
+   remind every 15 minutes — toast, sound and a desktop notification. Runs in hidden tabs too (that is when it matters). */
+async function leadRemind() {
+  if (Date.now() - remindAt() < REMIND_MS) return;
+  await refreshFeed();
+  const n = FEED.count || 0; if (!n || Date.now() - remindAt() < REMIND_MS) return; /* another tab may have reminded meanwhile */
+  remindMark();
+  const L = FEED.leads.slice(0, 3).map(l => l.name + (l.phone ? ' · ' + l.phone : ''));
+  const head = n === 1 ? '1 new lead is waiting — not attended yet' : n + ' new leads are waiting — not attended yet';
+  toast(head + (L.length ? ': ' + L.join(', ') + (n > L.length ? '…' : '') : ''), false, true);
+  leadBeep();
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const nt = new Notification('Leads waiting', { body: head + (L.length ? '\n' + L.join('\n') : '') + '\nUnattended leads turn Lost after 24 hours.', icon: 'assets/logo.png', tag: 'lead-remind', renotify: true });
+      nt.onclick = () => { window.focus(); location.hash = '#/dashboard'; nt.close(); };
+    }
+  } catch (e) { }
 }
 function toast(msg, bad, click) {
   let box = $('#toasts'); if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }

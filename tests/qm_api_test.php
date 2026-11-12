@@ -243,6 +243,8 @@ if ($dbPath !== '' && is_file($dbPath)) {
   $pdo->exec('UPDATE leads SET notify=0');
   $pdo->prepare('UPDATE leads SET notify=1 WHERE id IN (?,?)')->execute([$fa, $fb]);
   $pdo->prepare("UPDATE leads SET created=datetime('now','-3 days') WHERE id=?")->execute([$fb]);
+  /* hold off the hourly check, which would mark the 3-day-old unattended lead Lost (tests/lead_autolost_test.php covers that) */
+  $pdo->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('hk_last','" . time() . "')");
   $pdo = null;
   $feed = call($admin, 'meta', 'feed');
   chk(($feed['count'] ?? 0) === 2 && ($feed['day'] ?? -1) === 1, 'dashboard feed: 2 waiting, 1 from the last 24 hours');

@@ -190,6 +190,7 @@ function handle_meta_cron() {
   $c = meta_cfg();
   if ($c['cron_key'] === '' || !hash_equals($c['cron_key'], (string)($_GET['key'] ?? ''))) { http_response_code(403); echo 'forbidden'; exit; }
   $r = meta_sync(600);
+  try { lead_autolost(); } catch (Throwable $e) { } /* the cron also runs when nobody has the CRM open */
   echo isset($r['error']) ? 'ERROR ' . $r['error'] : (isset($r['skipped']) ? 'SKIPPED ' . $r['skipped'] : 'OK ' . $r['new'] . ' new');
   exit;
 }
