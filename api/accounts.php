@@ -82,7 +82,7 @@ function acc_range() {
 }
 
 /* projects still owing money: {id,title,customer_id,customer,phone,kw,loan,stage,cost,paid,due,last_pay,last_remind,early}. The Dashboard "dues" list uses this too. */
-function acc_pending_rows($withEarly = false) {
+function acc_pending_rows($withEarly = false, $limit = 500) { /* $limit 0 = no cap (the overview totals every owing project) */
   $early = "'" . implode("','", ACC_EARLY) . "'";
   $rs = rows("SELECT * FROM (SELECT p.id, p.title, p.customer_id, c.name customer, c.phone, p.kw, p.loan, p.stage, p.cost,
       COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid,
@@ -90,7 +90,7 @@ function acc_pending_rows($withEarly = false) {
       (SELECT MAX(date) FROM payments WHERE project_id=p.id) last_pay,
       p.stage IN ($early) early
     FROM projects p JOIN customers c ON c.id=p.customer_id WHERE " . cust_scope('c') . ")
-    WHERE due > 1" . ($withEarly ? '' : ' AND early=0') . ' ORDER BY due DESC LIMIT 500');
+    WHERE due > 1" . ($withEarly ? '' : ' AND early=0') . ' ORDER BY due DESC' . ($limit > 0 ? ' LIMIT ' . (int)$limit : ''));
   $rem = [];
   foreach (rows("SELECT l.project_id, l.created, u.name FROM acc_log l LEFT JOIN users u ON u.id=l.user_id WHERE l.id IN (SELECT MAX(id) FROM acc_log WHERE kind='remind' GROUP BY project_id)") as $l)
     $rem[(int)$l['project_id']] = ['at' => $l['created'], 'by' => (string)$l['name']];
@@ -121,7 +121,8 @@ function acc_received_rows($from, $to) {
   return $rs;
 }
 
-/* projects whose customer's tax bill was issued in the period (the bill counts for the customer's latest project) */
+/* projects whose customer's tax bill was issued in the period (the bill counts for the customer's latest project).
+   One row per bill and one bill per customer (gen_docs UNIQUE(customer_id, kind)); the project join is a scalar subquery (latest project only), so nothing fans out and nothing needs de-duplicating. */
 function acc_profit_get($from, $to) {
   $bills = rows("SELECT g.customer_id, g.number, g.issued_on, g.data, c.name customer, p.id project_id, p.kw, p.cost price,
       COALESCE((SELECT amount FROM commissions WHERE customer_id=c.id),0) comm
@@ -280,7 +281,7 @@ function handle_acc($a) {
 
     case 'ac_overview': {
       [$f, $t] = acc_range();
-      $rec = acc_received_rows($f, $t); $pend = acc_pending_rows();
+      $rec = acc_received_rows($f, $t); $pend = acc_pending_rows(false, 0);
       $x = ['ads' => 0.0, 'ai' => 0.0, 'other' => 0.0];
       foreach (rows('SELECT cat, amount, gst FROM acc_expenses WHERE date >= ? AND date <= ?', [$f, $t]) as $e) {
         $b = (float)$e['amount'] / (1 + (float)$e['gst'] / 100);

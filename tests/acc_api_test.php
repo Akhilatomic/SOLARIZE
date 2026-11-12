@@ -153,6 +153,19 @@ chk($nc && $nc['bill_no'] === 'T3-002' && find_by($pf['rows'], 'project_id', $pi
 chk((float)$pf['counted']['profit'] == 40000 - $cm && (float)$pf['counted']['before'] == 100000 && (float)$pf['counted']['cost'] == 60000, 'ac_profit: counted excludes no_cost projects');
 chk(count(call($acct, 'acc', 'ac_profit', null, '&period=2026-10')['rows']) === 0, 'ac_profit: bill outside period not counted');
 
+/* profit: price / 1.089 fallback (bill without taxable) and unpriced lines (own period so the November totals stay put) */
+[$cidG, $pidG] = $mkc('Prof Golf', '9000000017', 'Electrical installation', 108900, 3);
+call($acct, 'acc', 'cost_save', ['project_id' => $pidG, 'lines' => [['grp' => 'Solar panels', 'name' => 'Golf Panel', 'qty' => 1, 'rate' => 50000, 'gst' => 0]]]);
+call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $cidG, 'issued_on' => '2026-09-10', 'number' => 'T3-003', 'data' => ['grand' => 108900]]);
+[$cidH, $pidH] = $mkc('Prof Hotel', '9000000018', 'Electrical installation', 80000, 3);
+call($acct, 'acc', 'cost_save', ['project_id' => $pidH, 'lines' => [['grp' => 'Solar panels', 'name' => 'Hotel Panel', 'qty' => 1, 'rate' => 10000, 'gst' => 0], ['grp' => 'Solar panels', 'name' => 'Hotel Unpriced', 'qty' => 2, 'rate' => 0, 'gst' => 0]]]);
+call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $cidH, 'issued_on' => '2026-09-11', 'number' => 'T3-004', 'data' => ['taxable' => 50000, 'grand' => 54450]]);
+$ps = call($acct, 'acc', 'ac_profit', null, '&period=2026-09');
+$rg = find_by($ps['rows'] ?? [], 'project_id', $pidG); $rh = find_by($ps['rows'] ?? [], 'project_id', $pidH);
+chk($rg && (float)$rg['before'] == round(108900 / 1.089, 2) && (float)$rg['cost'] == 50000 && (float)$rg['profit'] == 50000 && (int)$rg['missing'] === 0, 'ac_profit: no taxable on the bill falls back to price / 1.089');
+chk($rh && (int)$rh['missing'] === 1 && (int)$rh['lines'] === 2 && (float)$rh['profit'] == 40000 && find_by($ps['no_cost'], 'project_id', $pidH) === null, 'ac_profit: a qty>0 rate 0 line is flagged missing and the project is still counted');
+chk((float)$ps['counted']['profit'] == 90000 && (float)$ps['counted']['before'] == 150000 && (float)$ps['counted']['cost'] == 60000, 'ac_profit: counted sums both projects');
+
 /* expenses */
 chk(call($acct, 'acc', 'ac_expenses', null, '&period=2026-11')['cats'] === ['Ads', 'AI tools', 'Other'], 'ac_expenses: default categories');
 $e1 = call($acct, 'acc', 'expense_save', ['date' => '2026-11-08', 'cat' => 'AI tools', 'amount' => 1180, 'gst' => 18, 'paid_to' => 'Test AI Co', 'mode' => 'UPI', 'note' => 'plan']);
