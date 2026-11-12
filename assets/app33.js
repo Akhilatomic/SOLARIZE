@@ -171,6 +171,11 @@ async function acRemind(r, done) {
 
 /* + Payment on a pending row; done() redraws the list */
 function acAddPayment(r, done) { acPayForm({ pid: r.id, customer: r.customer, kw: r.kw, loan: r.loan, due: r.due }, null, { done }); }
+/* A payment belongs to a project: a customer who has none gets it started with the plant cost first (gen/cost). Gives the project id, or 0 after saying why not. */
+async function acProjectFor(customerId, cost) {
+  if (!(+cost > 0)) { toast('Enter the total plant cost first, on the customer’s Payments tab', true); return 0; }
+  try { return +(await api('gen', 'cost', { kind: 'tax', customer_id: customerId, cost: +cost })).acct.project_id || 0; } catch (e) { return 0; }
+}
 
 /* The payment form: date, amount, mode, reference no., who paid (loan projects), note -> payments/save; then the receipt when it can be made
    (a reference no., or cash). j = {pid, customer, kw?, loan, due?}; p = a saved payment to correct (a receipt that needs its reference no.);
@@ -191,7 +196,9 @@ function acPayForm(j, p, o = {}) {
     <div class="bar acx-mft"><button type="button" class="btn" id="acx_ygo">${p ? 'Save' : 'Save payment'}</button><button type="button" class="btn sec" data-x>Cancel</button></div>`);
   const amt = $('#acx_ya', m), ref = $('#acx_yr', m), mode = $('#acx_ym', m), from = $('#acx_ys', m);
   const ph = () => { ref.placeholder = mode.value === 'Cash' ? 'Optional for cash' : 'UTR / cheque / transaction no.'; };
-  mode.onchange = () => { ph(); if (from) from.value = ACC.payFrom(mode.value, from.value); }; /* mode Loan: from the bank */
+  let autoBank = false; /* mode Loan puts From on Bank; another mode puts it back, unless Bank was picked by hand */
+  mode.onchange = () => { ph(); if (!from) return; if (mode.value === 'Loan') { if (from.value !== 'bank') { from.value = 'bank'; autoBank = true; } } else if (autoBank) { from.value = 'customer'; autoBank = false; } };
+  if (from) from.onchange = () => { autoBank = false; };
   ph();
   $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
   if ($('#acx_yfull', m)) $('#acx_yfull', m).onclick = () => { amt.value = String(ACC.r2(due)); amt.focus(); };
@@ -222,7 +229,7 @@ ACCT_TABS.overview = async (box, P) => {
   /* billed projects with no cost lines are left out of the profit: said on the tile, so a missing cost sheet never reads as a loss or a gain */
   const pSub = `before GST · ${acPl(+d.profit_n || 0, 'project')} counted${nc ? ` · <span class="acx-late">${acPl(nc, 'billed project')} without cost — left out</span>` : ''}`;
   box.innerHTML = `<div class="acx-view"><div class="acx-tiles acx-t5">
-      ${acTile('Customers in progress', +d.track_open_n || 0, `${+d.track_done_n || 0} completed`, '', '#/accounts/progress', 'Customers with a payment recorded, until they are moved to Completed')}
+      ${acTile('Customers in progress', +d.track_open_n || 0, `${+d.track_done_n || 0} completed`, '', '#/accounts/progress', 'Every customer shown in Accounts, until they are moved to Completed')}
       ${acTile('Received', inr2(d.received), `${acPl(+d.received_n || 0, 'payment')} in ${esc(P.label)}`, '', '#/accounts/received')}
       ${acTile('Pending', inr2(d.pending), `${acPl(n, 'project')} · ${+d.pending_loan_n || 0} loan`, +d.pending > 0 ? 'acx-neg' : '', '#/accounts/pending', 'Still due today, whatever the period')}
       ${acTile('Expenses', inr2(x.total), `Ads ${inr2(x.ads)} · AI ${inr2(x.ai)} · Other ${inr2(x.other)}`, '', '#/accounts/expenses', 'Before GST. Ads include the campaign spend from Meta Ads.')}
@@ -237,21 +244,21 @@ ACCT_TABS.overview = async (box, P) => {
 
 /* ---------- In progress / Completed: customers tracked from their first payment (acc/ac_track) ---------- */
 const ACXT = { q: '', f: 'all' };
-const ACXT_F = [['all', 'All'], ['full', 'Fully paid'], ['due', 'Balance due']];
+const ACXT_F = [['all', 'All'], ['none', 'No payment yet'], ['due', 'Balance due'], ['full', 'Fully paid']];
 /* where the customer's project stands: its stage and how far along the pipeline that is */
 const acStage = r => { const L = S.project_stages || [], i = L.indexOf(r.stage); if (!r.stage) return '<span class="mut">No project</span>';
   return `<span class="acx-ip-st">${esc(r.stage)}</span>${i >= 0 ? `<span class="acx-ip-bar" title="Step ${i + 1} of ${L.length}"><i style="width:${Math.round((i + 1) / L.length * 100)}%"></i></span><small class="mut">Step ${i + 1} of ${L.length}</small>` : ''}`; };
 function acTrackRow(r, done) {
   const kw = acKw(r.kw), pct = r.cost > 0 ? Math.min(100, Math.round(r.paid / r.cost * 100)) : 0, n = r.last_pay ? acDays(r.last_pay) : 0;
   const acts = done ? (canW('accounts') ? '<button type="button" class="btn sec sm" data-acx-a="back" title="Move back to In progress"><i class="i i-undo"></i> Move back</button>' : '')
-    : (canW('payments') && r.project_id ? '<button type="button" class="btn sec sm" data-acx-a="pay" title="Record a payment received"><i class="i i-plus"></i> Payment</button>' : '')
+    : (canW('payments') ? '<button type="button" class="btn sec sm" data-acx-a="pay" title="Record a payment received"><i class="i i-plus"></i> Payment</button>' : '')
       + (canW('accounts') ? `<button type="button" class="btn ${r.full ? '' : 'sec'} sm" data-acx-a="done" title="${r.full ? 'The payment is complete: move to Completed' : 'Move to Completed'}"><i class="i i-check"></i> Completed</button>` : '');
   return `<tr data-id="${r.customer_id}"><td class="acx-cn"><a href="#/customers/${r.customer_id}">${esc(r.customer || '')}</a>${acLoan(r)}${r.full && !done ? ' <span class="pill g acx-tag">Fully paid</span>' : ''}${done && r.due > 1 ? ' <span class="pill r acx-tag">Balance due</span>' : ''}<small>${[r.phone, kw && kw + ' kW', r.projects > 1 && r.projects + ' projects'].filter(Boolean).map(esc).join(' · ')}</small></td>
     <td class="acx-ip-sc">${acStage(r)}</td>
     <td class="num">${r.cost > 0 ? inr2(r.cost) : '<span class="mut" title="Enter the total plant cost on the customer’s Overview">Not entered</span>'}</td>
     <td class="num">${inr2(r.paid)}${r.cost > 0 ? `<small class="acx-ip-pc">${pct}%</small>` : ''}</td>
     <td class="num ${r.due > 1 ? 'over' : ''}">${r.cost > 0 ? inr2(r.due) : '<span class="mut">—</span>'}</td>
-    <td>${done ? `${acDt(acDay(r.done_at))}${r.done_by ? `<span class="mut"> · ${esc(r.done_by)}</span>` : ''}` : r.last_pay ? `${acDt(r.last_pay)} <span class="mut">· ${acAgo(n)}</span>` : '<span class="mut">—</span>'}</td>
+    <td>${done ? `${acDt(acDay(r.done_at))}${r.done_by ? `<span class="mut"> · ${esc(r.done_by)}</span>` : ''}` : r.last_pay ? `${acDt(r.last_pay)} <span class="mut">· ${acAgo(n)}</span>` : '<span class="mut">No payment yet</span>'}</td>
     <td class="acx-act">${acts}${acExpBtn(r.project_id)}<a class="ib" href="#/customers/${r.customer_id}" title="Open customer" aria-label="Open customer"><i class="i i-user"></i></a></td></tr>`;
 }
 async function acTrackTab(box, done) {
@@ -264,9 +271,9 @@ async function acTrackTab(box, done) {
       <span class="sp"></span>${!done && canW('accounts') ? '<button type="button" class="btn sec sm" data-acx-all hidden></button>' : ''}</div>
     <div class="card tw"><table class="acx-pt" data-min="1090"><thead><tr><th>Customer</th><th>Project</th><th class="num">Plant cost</th><th class="num">Received</th><th class="num">Pending</th><th>${done ? 'Completed' : 'Last payment'}</th><th><span class="acx-sr">Actions</span></th></tr></thead><tbody></tbody></table></div>
     <p class="acx-note">${done ? 'Customers whose payment is complete, moved here from In progress. Move back returns one to In progress.'
-      : 'A customer comes onto this list by themselves with their first payment, and stays until moved to Completed. Completed is for a customer whose payment is complete; an admin can also close one with a balance left.'}</p></div>`;
+      : 'Every customer is on this list from the day they are added, until moved to Completed. Completed is for a customer whose payment is complete; an admin can also close one with a balance left. To take a customer off Accounts, switch off “Show in Accounts” on their Payments tab.'}</p></div>`;
   const tb = $('table', box); let L = [];
-  const pass = (r, f) => f === 'all' || (f === 'full') === !!r.full;
+  const pass = (r, f) => f === 'all' || (f === 'none' ? !(r.pays > 0) : f === 'full' ? !!r.full : !r.full && r.pays > 0);
   const draw = () => {
     const rows = d.rows || [], q = acQ(ACXT.q), hit = q.length ? rows.filter(r => q.every(t => [r.customer, r.phone, r.stage, r.title, r.kw && r.kw + ' kw'].join(' ').toLowerCase().includes(t))) : rows;
     L = done ? hit : hit.filter(r => pass(r, ACXT.f));
@@ -276,14 +283,15 @@ async function acTrackTab(box, done) {
       ? acTile('Completed', rows.length, `${acPl(rows.length, 'customer')} with the payment complete`) + acTile('Plant cost', inr2(sum('cost')), 'of these customers') + acTile('Received', inr2(sum('paid')), 'in all', 'acx-pos') + acTile('In progress', +d.open_n || 0, 'still being paid', '', '#/accounts/progress')
       : acTile('In progress', rows.length, `${acPl(rows.length, 'customer')} · ${full} fully paid`) + acTile('Plant cost', inr2(sum('cost')), 'of these customers') + acTile('Received', inr2(sum('paid')), 'so far', 'acx-pos') + acTile('Pending', inr2(sum('due')), `still to come · ${+d.done_n || 0} completed`, sum('due') > 0 ? 'acx-neg' : '', '#/accounts/done', 'Open Completed');
     const all = $('[data-acx-all]', box); if (all) { all.hidden = !full; all.innerHTML = `<i class="i i-check"></i> Move ${acPl(full, 'fully paid customer')} to Completed`; }
-    acFill(tb, L, r => acTrackRow(r, done), rows.length ? 'Nothing matches.' : done ? 'No customer has been moved to Completed yet.' : 'No customer has a payment recorded yet. Record the first payment on the customer’s Overview.');
+    acFill(tb, L, r => acTrackRow(r, done), rows.length ? 'Nothing matches.' : done ? 'No customer has been moved to Completed yet.' : 'No customer is in progress.');
   };
   const reload = async () => { try { d = await load(); } catch (e) { return; } if (box.isConnected) draw(); };
   tb.onclick = async e => {
     const b = e.target.closest('[data-acx-a]'), tr = b && b.closest('tr[data-id]'), r = tr && L.find(x => x.customer_id === +tr.dataset.id);
     if (!r || b.disabled) return;
     const a = b.dataset.acxA;
-    if (a === 'pay') return acPayForm({ pid: r.project_id, customer: r.customer, kw: r.kw, loan: r.loan, due: r.due }, null, { done: reload });
+    if (a === 'pay') { let pid = r.project_id; if (!pid) { b.disabled = true; pid = await acProjectFor(r.customer_id, r.cost); b.disabled = false; if (!pid) return; }
+      return acPayForm({ pid, customer: r.customer, kw: r.kw, loan: r.loan, due: r.due }, null, { done: reload }); }
     let body = { customer_id: r.customer_id, done: a === 'done' ? 1 : 0 };
     if (a === 'done' && !r.full) { /* a balance is left (or no plant cost): only an admin may close it, after a confirm */
       if (ME.role !== 'admin') return toast(r.cost > 0 ? `${inr2(r.due)} is still pending, so this customer stays In progress.` : 'Enter the total plant cost first.', true);

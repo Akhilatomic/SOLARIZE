@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 49; // bump when tables/columns change
+const SCHEMA_VERSION = 50; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -357,6 +357,17 @@ function migrate($db) {
   /* v49: Accounts › In progress / Completed. A customer is tracked from their first payment; this table only holds the "Completed" mark
      the accounts team sets once the payment is complete (api/accounts.php acc_track_rows). */
   $db->exec("CREATE TABLE IF NOT EXISTS acc_track(customer_id INTEGER PRIMARY KEY, done INTEGER DEFAULT 0, done_at TEXT DEFAULT '', done_by TEXT DEFAULT '')");
+  /* v50: Accounts lists a customer without waiting for a payment. acc_track.show: NULL or 1 = shown (the default), 0 = switched off on the
+     customer's Payments tab. Once (flag acc_show_v1): customers already here with nothing to track — no plant cost, no project value, no
+     payment — start switched off, so the old imported customers do not fill In progress. */
+  if (!in_array('show', array_column($db->query('PRAGMA table_info(acc_track)')->fetchAll(), 'name'))) $db->exec('ALTER TABLE acc_track ADD COLUMN show INTEGER');
+  if (!$db->query("SELECT 1 FROM settings WHERE k='acc_show_v1'")->fetch()) {
+    $db->exec("INSERT INTO acc_track(customer_id, show) SELECT c.id, 0 FROM customers c WHERE NOT EXISTS(SELECT 1 FROM acc_track t WHERE t.customer_id=c.id)
+      AND NOT EXISTS(SELECT 1 FROM projects p WHERE p.customer_id=c.id AND COALESCE(p.cost,0)>0)
+      AND NOT EXISTS(SELECT 1 FROM cust_cost cc WHERE cc.customer_id=c.id AND COALESCE(cc.plant_cost,0)>0)
+      AND NOT EXISTS(SELECT 1 FROM payments pa JOIN projects p ON p.id=pa.project_id WHERE p.customer_id=c.id)");
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_show_v1','1')");
+  }
   require_once __DIR__ . '/qm_seed.php';
   qm_seed($db); // only fills an empty catalogue
   $db->exec('ANALYZE'); // give the query planner row counts for the new indexes

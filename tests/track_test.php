@@ -38,10 +38,11 @@ $state = fn($cid) => call($admin, 'profile', 'cost_get', null, '&customer_id=' .
 /* 1. the first payment puts the customer on the list */
 $a = $cust('Track Customer A', '9000000901'); $pa = $proj($a, 300000);
 $o0 = $list($admin);
-chk($o0['_code'] === 200 && $rowOf($o0, $a) === null && $state($a) === 'none', 'a customer without a payment is not in Accounts');
+$r = $rowOf($o0, $a);
+chk($o0['_code'] === 200 && $r !== null && $r['cost'] == 300000 && $r['paid'] == 0 && $r['due'] == 300000 && $r['pays'] === 0 && $r['last_pay'] === null && $state($a) === 'open', 'a new customer is In progress at once, before any payment');
 $pay($pa, 100000, '2026-11-03');
 $r = $rowOf($list($admin), $a);
-chk($r !== null && $r['cost'] == 300000 && $r['paid'] == 100000 && $r['due'] == 200000 && $r['full'] === 0 && $r['pays'] === 1 && $r['last_pay'] === '2026-11-03', 'the first payment adds them to In progress with plant cost, received and pending');
+chk($r !== null && $r['cost'] == 300000 && $r['paid'] == 100000 && $r['due'] == 200000 && $r['full'] === 0 && $r['pays'] === 1 && $r['last_pay'] === '2026-11-03', 'a payment shows on their row: plant cost, received and pending');
 chk($r['stage'] === 'Customer' && $r['project_id'] === $pa && $r['kw'] == 5 && $state($a) === 'open', 'the row shows the project and its stage; the profile says In progress');
 $pay($pa, 50000, '2026-11-07'); $r = $rowOf($list($admin), $a);
 chk($r['paid'] == 150000 && $r['due'] == 150000 && $r['pays'] === 2 && $r['last_pay'] === '2026-11-07', 'a second part payment adds up');
@@ -79,13 +80,47 @@ $e = $cust('Track Customer E', '9000000905'); $pe1 = $proj($e, 100000, 3); $pe2 
 $r = $rowOf($list($admin), $e);
 chk($r['projects'] === 2 && $r['cost'] == 250000 && $r['paid'] == 120000 && $r['due'] == 130000 && $r['project_id'] === $pe2, 'two projects: costs and payments added up, the latest project shown');
 $f = $cust('Track Customer F', '9000000906');
-chk(call($admin, 'acc', 'track_set', ['customer_id' => $f, 'done' => 1, 'force' => 1])['_code'] === 400 && call($admin, 'acc', 'track_set', ['customer_id' => 999999, 'done' => 1])['_code'] === 404, 'a customer with no payment, or an unknown one, cannot be moved');
+$rf = $rowOf($list($admin), $f);
+chk($rf !== null && $rf['cost'] == 0 && $rf['projects'] === 0 && $rf['project_id'] === 0 && $rf['stage'] === null, 'a customer with no project and no plant cost is listed too');
+chk(call($admin, 'acc', 'track_set', ['customer_id' => 999999, 'done' => 1])['_code'] === 404, 'an unknown customer cannot be moved');
 
 /* 5. the Overview card's way: the first payment starts the project with the plant cost */
 $g = $cust('Track Customer G', '9000000907');
 $gc = call($admin, 'gen', 'cost', ['kind' => 'tax', 'customer_id' => $g, 'cost' => 180000]);
 $pg = (int)($gc['acct']['project_id'] ?? 0); $pay($pg, 60000); $r = $rowOf($list($admin), $g);
 chk($pg > 0 && $r !== null && $r['cost'] == 180000 && $r['paid'] == 60000 && $r['due'] == 120000, 'a project is started with the plant cost, the payment recorded, and the customer is In progress');
+
+/* 5b. the plant cost agreed when the customer was added counts before there is a project */
+$h = $cust('Track Customer H', '9000000908'); call($admin, 'profile', 'cost_save', ['customer_id' => $h, 'plant_cost' => 240000, 'kseb_extra' => 0]);
+$r = $rowOf($list($admin), $h);
+chk($r !== null && $r['cost'] == 240000 && $r['due'] == 240000 && $r['pays'] === 0 && $r['project_id'] === 0, 'no project yet: the agreed plant cost is the amount to come');
+
+/* 5c. Show in Accounts: on by default, off takes the customer off both lists */
+$st = call($admin, 'profile', 'cost_get', null, '&customer_id=' . $h)['track'] ?? [];
+chk(($st['show'] ?? 0) === 1 && ($st['state'] ?? '') === 'open', 'the switch is on for a new customer');
+$off = call($acct, 'acc', 'track_show', ['customer_id' => $h, 'show' => 0]);
+chk($off['_code'] === 200 && $off['state'] === 'off' && $off['show'] === 0 && $rowOf($list($admin), $h) === null && $rowOf($list($admin, true), $h) === null && $state($h) === 'off', 'switched off: the customer leaves Accounts');
+chk(call($admin, 'acc', 'track_set', ['customer_id' => $h, 'done' => 1, 'force' => 1])['_code'] === 400, 'and cannot be moved to Completed while off');
+$pid = (int)(call($admin, 'gen', 'cost', ['kind' => 'tax', 'customer_id' => $h, 'cost' => 240000])['acct']['project_id'] ?? 0); $pay($pid, 40000);
+chk($rowOf($list($admin), $h) === null && (float)$one('SELECT COALESCE(SUM(amount),0) FROM payments WHERE project_id=?', [$pid]) === 40000.0, 'a payment can still be recorded; it does not bring them back');
+$on = call($acct, 'acc', 'track_show', ['customer_id' => $h, 'show' => 1]); $r = $rowOf($list($admin), $h);
+chk($on['state'] === 'open' && $r !== null && $r['paid'] == 40000 && $r['due'] == 200000, 'switched on again: back In progress with the payment counted');
+call($admin, 'acc', 'track_set', ['customer_id' => $e, 'done' => 1, 'force' => 1]); call($acct, 'acc', 'track_show', ['customer_id' => $e, 'show' => 0]);
+chk($rowOf($list($admin, true), $e) === null, 'a Completed customer switched off leaves Completed');
+call($acct, 'acc', 'track_show', ['customer_id' => $e, 'show' => 1]);
+chk($rowOf($list($admin, true), $e) !== null, 'and returns to Completed when switched on (the mark is kept)');
+call($admin, 'acc', 'track_set', ['customer_id' => $e, 'done' => 0]);
+chk(call($sales, 'acc', 'track_show', ['customer_id' => $h, 'show' => 0])['_code'] === 403 && call($admin, 'acc', 'track_show', ['customer_id' => 999999, 'show' => 0])['_code'] === 404, 'the switch needs Accounts access and a real customer');
+$ov = call($admin, 'acc', 'ac_overview'); $openN = count($list($admin)['rows']);
+chk(($ov['track_open_n'] ?? -1) === $openN, 'the Overview count is the In progress list');
+
+/* 5d. when the CRM is updated: customers already there with nothing to track start switched off; the others stay on */
+$i1 = $cust('Track Old Nothing', '9000000909'); $i2 = $cust('Track Old With Cost', '9000000910'); call($admin, 'profile', 'cost_save', ['customer_id' => $i2, 'plant_cost' => 90000]);
+$db->exec("DELETE FROM settings WHERE k='acc_show_v1'"); $db->exec('PRAGMA user_version=49'); call($admin, 'customers', 'list'); /* the next request runs the update again */
+chk($rowOf($list($admin), $i1) === null && $state($i1) === 'off' && $rowOf($list($admin), $f) === null, 'old customers with no plant cost, project value or payment are switched off');
+chk($rowOf($list($admin), $i2) !== null && $rowOf($list($admin), $a) === null && $rowOf($list($admin, true), $a) !== null && $rowOf($list($admin), $h) !== null, 'those with a plant cost or a payment stay, and a Completed one stays Completed');
+$i3 = $cust('Track Added After', '9000000911');
+chk($rowOf($list($admin), $i3) !== null && (int)$one('PRAGMA user_version') >= 50, 'a customer added after the update is on by default');
 
 /* 6. who may see and move */
 chk($list($sales)['_code'] === 403 && call($sales, 'acc', 'track_set', ['customer_id' => $e, 'done' => 0])['_code'] === 403 && call($sales, 'acc', 'track_all', [])['_code'] === 403, 'without Accounts access the lists and the moves are refused');

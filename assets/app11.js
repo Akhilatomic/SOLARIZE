@@ -47,11 +47,10 @@ async function pgCustomer(id) {
    <div class="card pfhead"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="mut">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') + ' ' : ''}${c.phone ? `<button class="pfv inl" data-cp="${esc(c.phone)}" data-l="phone">${esc(c.phone)}<i class="i i-copy"></i></button>` : ''}${c.consumer_no ? ` · Consumer no. <button class="pfv inl" data-cp="${esc(c.consumer_no)}" data-l="consumer no.">${esc(c.consumer_no)}<i class="i i-copy"></i></button>` : ''}${ownHtml}</div></div>
     <div class="pfact"><button class="btn sec" id="dsc">${discBtnLabel(id)}</button>${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn ok" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}
      ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}${canR('accounts') ? '<button class="btn sec" id="pfexp" title="Expense sheet: purchases, services, commission / incentive and profit of the latest project"><i class="i i-coin"></i> Expense</button>' : ''}<button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
-   <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, `${i + 1} · ${pg.tab}`, pg.icon]), ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : []), ...(ME.role === 'admin' ? [['ps', 'Purchases and services', 'coin'], ['comm', 'Commission / Incentive', 'users']] : [])].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${esc(l)}${pgKeys.includes(k) ? ` <span class="ppn" data-ppn="${k}"${cnt0[k] > 0 ? '' : ' hidden'}>${cnt0[k] || 0}</span>` : ''}</button>`).join('')}</div>
+   <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, `${i + 1} · ${pg.tab}`, pg.icon]), ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(ME.role === 'admin' ? [['pay', 'Payments', 'card']] : []), ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : []), ...(ME.role === 'admin' ? [['ps', 'Purchases and services', 'coin'], ['comm', 'Commission / Incentive', 'users']] : [])].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${esc(l)}${pgKeys.includes(k) ? ` <span class="ppn" data-ppn="${k}"${cnt0[k] > 0 ? '' : ' hidden'}>${cnt0[k] || 0}</span>` : ''}</button>`).join('')}</div>
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
     <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut" style="margin:0">No project yet.</p></div>`}
-     ${ME.role === 'admin' ? '<div class="card pfc pcz" id="pfcost"><div class="pfch"><i class="i i-coin"></i><h3>Plant cost and payments</h3></div><p class="mut" style="margin:0;font-size:13px">Loading…</p></div>' : ''}
      <div class="pfcols"><div class="card pfc"><div class="pfch"><i class="i i-clipboard"></i><h3>Details by page</h3></div><div id="ppsum">${sumHtml(cnt0)}</div></div>${locCard}
      <div class="card pfc"><div class="pfch"><i class="i i-receipt"></i><h3>Quotations</h3><span class="sp"></span>${canW('quotes') ? '<button class="btn sec sm" id="nq">+ New</button>' : ''}</div>${c.quotes.map(q => `<div class="pfdoc"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${q.total != null ? inr(q.total) : ''}<br><small class="mut">${q.date}</small></div>`).join('') || '<p class="mut" style="margin:0;font-size:13px">No quotations</p>'}</div>
      ${c.notes ? `<div class="card pfc"><div class="pfch"><i class="i i-note"></i><h3>Notes</h3></div><div style="font-size:14px;white-space:pre-wrap">${esc(c.notes)}</div></div>` : ''}</div></div>
@@ -73,7 +72,6 @@ async function pgCustomer(id) {
   /* Expense: the latest project's Expense sheet (c.projects is newest first) */
   if ($('#pfexp')) $('#pfexp').onclick = () => { const j = (c.projects || [])[0]; if (j && +j.id) location.hash = '#/accounts/cost/' + +j.id; else toast('Start a project for this customer first', true); };
   if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
-  if ($('#pfcost')) costCard($('#pfcost'), c, id);
   if ($('#nq')) $('#nq').onclick = () => { sessionStorage.lead2quote = JSON.stringify({ customer_id: id, name: c.name }); location.hash = '#/quotes/new'; };
   if ($('#up')) $('#up').onclick = () => docUploadModal(c, id);
   const addNote = async () => { const t = $('#tln').value.trim(); if (!t) return; await api('notes', 'add', { entity: 'customers', entity_id: id, text: t }); route(); };
@@ -83,10 +81,10 @@ async function pgCustomer(id) {
   const bindGoto = () => $$('[data-goto]').forEach(b => b.onclick = () => { showTab(b.dataset.goto); scrollTo({ top: 0, behavior: 'smooth' }); });
   const refresh = () => route();
   /* Purchases and services (admin only): a read-only view of the project's purchases and services, no money (app34.js acProfileTab); editing is in Accounts › Expense */
-  const showTab = (k, edit) => { if (k === 'ps' && PFT === 'ps' && $('#acx_psb')) return; if (!acLeaveOk()) return; acLeft(); if ((k === 'ps' || k === 'comm') && ME.role !== 'admin') k = 'overview'; PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
+  const showTab = (k, edit) => { if (k === 'ps' && PFT === 'ps' && $('#acx_psb')) return; if (!acLeaveOk()) return; acLeft(); if ((k === 'ps' || k === 'comm' || k === 'pay') && ME.role !== 'admin') k = 'overview'; PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
     if (k === 'plant') renderPlant(box, st.c, id, !!edit, st, refresh);
     else if (pgKeys.includes(k)) renderPfPage(box, st, k, !!edit, refresh);
-    if (k === 'docs') renderDocs(box, st.c, id); if (k === 'warranty') renderWarranty(box, st.c, id); if (k === 'mnre') renderMnre(box, st.c, id); if (k === 'tax') renderTax(box, st.c, id); if (k === 'ps') acProfileTab(box, st.c, id); if (k === 'comm') commProfileTab(box, st.c, id); };
+    if (k === 'docs') renderDocs(box, st.c, id); if (k === 'warranty') renderWarranty(box, st.c, id); if (k === 'mnre') renderMnre(box, st.c, id); if (k === 'tax') renderTax(box, st.c, id); if (k === 'pay') payTab(box, st.c, id); if (k === 'ps') acProfileTab(box, st.c, id); if (k === 'comm') commProfileTab(box, st.c, id); };
   $$('[data-pt]').forEach(b => b.onclick = () => showTab(b.dataset.pt));
   bindGoto();
   if (PFT !== 'overview') showTab(PFT, openEdit === PFT);
@@ -132,33 +130,64 @@ function locModal(c, id) {
   if ($('#lcclr', m)) $('#lcclr', m).onclick = () => save('', '');
 }
 
-/* ---------- Overview › Plant cost and payments (admin only; api/onboard.php) ----------
-   The total plant cost, whether the KSEB charges are paid on top of it, the approved quotation and every payment received. */
-async function costCard(box, c, id) {
-  let s; try { s = await api('profile', 'cost_get', undefined, '&customer_id=' + id); } catch (e) { box.remove(); return; }
-  if (!box.isConnected) return;
-  const multi = s.projects.length > 1, has = s.cost > 0, tk = s.track || { state: 'none' }, redraw = () => costCard(box, c, id);
+/* ---------- Customer profile › Payments (admin only; api/onboard.php, api/accounts.php) ----------
+   The total plant cost, what has come in and what is left; every payment with its receipt; the approved quotation; and whether the
+   customer shows in Accounts (on by default — no payment is needed for that). */
+async function payTab(box, c, id) {
+  let s; try { s = await api('profile', 'cost_get', undefined, '&customer_id=' + id); } catch (e) { box.innerHTML = '<p class="mut">The payments could not be loaded.</p>'; return; }
+  if (!box.isConnected || PFT !== 'pay') return;
+  const multi = s.projects.length > 1, has = s.cost > 0, tk = s.track || { state: 'open', show: 1 }, redraw = () => payTab(box, c, id);
+  const pct = has ? Math.min(100, Math.round(s.paid / s.cost * 100)) : 0, full = has && s.balance <= 1, n = s.projects.reduce((k, p) => k + p.payments.length, 0);
   const kseb = s.kseb_extra ? `Additional — paid on top${s.kseb_extra_amt > 0 ? ' · ' + inr(s.kseb_extra_amt) : ' (amount not entered)'}` : has ? 'Included in the plant cost' : '—';
-  const pays = p => p.payments.length ? `<div class="pcz-tw"><table class="pcz-t" data-nofit="1"><thead><tr><th>Date</th><th class="num">Amount</th><th>Mode</th><th>Reference</th><th>Receipt no.</th><th>Paid by</th><th><span class="acx-sr">Actions</span></th></tr></thead><tbody>${p.payments.map(x => `<tr><td>${esc(dmy(x.date))}</td><td class="num"><b>${inr(x.amount)}</b></td><td>${esc(x.mode || '—')}</td><td>${esc(x.ref_no || '—')}</td><td>${esc(x.receipt_no || '—')}</td><td>${x.src === 'bank' ? 'Bank (loan)' : 'Customer'}</td><td class="pcz-pa"><button class="btn sec sm" type="button" data-pr="${+x.id}" title="Open the receipt of this payment">Receipt</button><button class="btn sec sm" type="button" data-pe="${+x.id}" data-pp="${+p.id}">Edit</button></td></tr>`).join('')}</tbody></table></div>`
-    : '<p class="mut pcz-none">No payment recorded yet.</p>';
-  box.innerHTML = `<div class="pfch"><i class="i i-coin"></i><h3>Plant cost and payments</h3><span class="pill">Admin only</span><span class="sp"></span><button class="btn sm" id="pczpay" type="button"><i class="i i-plus"></i> Record payment</button><button class="btn sec sm" id="pczed"><i class="i i-pencil"></i> ${has ? 'Edit' : 'Enter the cost'}</button></div>
-    <div class="pcz-sum"><div><small>Total plant cost</small><b>${has ? inr(s.cost) : 'Not entered'}</b></div><div><small>Received</small><b class="pcz-g">${inr(s.paid)}</b></div><div><small>Balance</small><b class="${s.balance > 0 ? 'over' : ''}">${has ? inr(s.balance) : '—'}</b></div></div>
-    <div class="pcz-rows"><div><span>KSEB charges</span><b>${kseb}</b></div>
-     <div><span>Approved quotation</span><span class="pcz-q">${s.quote ? `<a href="api.php?m=files&a=get&id=${+s.quote.id}&v=1" target="_blank" rel="noopener"><i class="i i-file"></i> ${esc(s.quote.name)}</a><small class="mut">${esc(dmy(String(s.quote.created).slice(0, 10)))}</small>` : '<b class="over">Not uploaded</b>'}<button class="btn sec sm" id="pczup"><i class="i i-upload"></i> ${s.quote ? 'Add a revised one' : 'Upload'}</button></span></div>
-     ${s.from_project && s.agreed > 0 && Math.abs(s.agreed - s.cost) > 0.5 ? `<div><span>Agreed in the quotation</span><b>${inr(s.agreed)}</b></div>` : ''}
-     <div><span>In Accounts</span><span class="pcz-q">${tk.state === 'done' ? `<b>Completed</b><small class="mut">${esc(dmy(String(tk.done_at).slice(0, 10)))}${tk.done_by ? ' · ' + esc(tk.done_by) : ''}</small>` : tk.state === 'open' ? '<b>In progress</b>' : '<span class="mut">Not yet — the first payment puts this customer in Accounts</span>'}${tk.state !== 'none' && canR('accounts') ? `<a class="btn sec sm" href="#/accounts/${tk.state === 'done' ? 'done' : 'progress'}">Open in Accounts</a>` : ''}</span></div></div>
-    ${s.projects.length ? s.projects.map(p => `${multi ? `<h4 class="pcz-h"><a href="#/projects/${+p.id}">${esc(p.title || 'Project')}</a><span>${inr(p.cost)} · received ${inr(p.paid)}</span></h4>` : '<h4 class="pcz-h">Payments received</h4>'}${pays(p)}`).join('')
-      : '<p class="mut pcz-none">No project yet. Payments are recorded on the project — start one from Progress above.</p>'}`;
+  const NEEDREF = 'A receipt needs the reference number (UTR / cheque / transaction no.) unless the payment was in cash.';
+  const rcBtn = x => x.receipt_no ? `<button class="acx-link" type="button" data-pr="${+x.id}" title="Open the receipt">${esc(x.receipt_no)}</button>`
+    : x.mode === 'Cash' || String(x.ref_no || '').trim() ? `<button class="btn sec sm" type="button" data-pr="${+x.id}" title="Give this payment a receipt number and open the receipt">Make receipt</button>`
+      : `<button class="btn sec sm" type="button" data-pn="${+x.id}" title="${NEEDREF}">Add reference no.</button>`;
+  /* each payment with what was still to come after it; "Paid by" only where the bank pays part (a loan project) */
+  const pays = p => { if (!p.payments.length) return `<div class="pyt-none"><p class="mut">No payment recorded yet${multi ? ' for this project' : ''}.</p></div>`;
+    let left = p.cost; const by = p.loan === 'Yes' || p.payments.some(x => x.src === 'bank');
+    return `<div class="pcz-tw"><table class="pcz-t" data-nofit="1"><thead><tr><th>Date</th><th class="num">Amount</th>${by ? '<th>Paid by</th>' : ''}<th>Mode and reference</th><th>Receipt</th><th class="num">Balance after</th><th><span class="acx-sr">Actions</span></th></tr></thead><tbody>${p.payments.map(x => { left -= x.amount;
+      return `<tr><td class="pyt-nw">${esc(dmy(x.date))}</td><td class="num pyt-nw"><b>${inr(x.amount)}</b></td>${by ? `<td class="pyt-nw">${x.src === 'bank' ? 'Bank (loan)' : 'Customer'}</td>` : ''}<td><b>${esc(x.mode || '—')}</b>${x.ref_no ? ' · ' + esc(x.ref_no) : ''}${x.note ? `<small class="mut pyt-nt">${esc(x.note)}</small>` : ''}</td><td>${rcBtn(x)}</td><td class="num pyt-nw ${p.cost > 0 && left > 1 ? '' : 'pcz-g'}">${p.cost > 0 ? inr(Math.max(0, left)) : '—'}</td>
+        <td class="pcz-pa"><button class="ib" type="button" data-pe="${+x.id}" data-pp="${+p.id}" title="Edit this payment" aria-label="Edit this payment"><i class="i i-pencil"></i></button><button class="ib" type="button" data-pd="${+x.id}" title="Delete this payment" aria-label="Delete this payment"><i class="i i-trash"></i></button></td></tr>`; }).join('')}
+      </tbody><tfoot><tr><td>Total</td><td class="num pyt-nw"><b>${inr(p.paid)}</b></td><td colspan="${by ? 5 : 4}" class="mut">${p.payments.length} payment${p.payments.length === 1 ? '' : 's'}</td></tr></tfoot></table></div>`; };
+  const acct = tk.state === 'off' ? 'Not shown in Accounts. Payments can still be recorded here.'
+    : tk.state === 'done' ? `Completed${tk.done_at ? ' on ' + esc(dmy(String(tk.done_at).slice(0, 10))) : ''}${tk.done_by ? ' · ' + esc(tk.done_by) : ''}.` : 'Listed under In progress.';
+  box.innerHTML = `<div class="pyt"><div class="pyt-main">
+     <div class="card pfc"><div class="pfch"><i class="i i-card"></i><h3>Payments</h3><span class="pill">Admin only</span><span class="sp"></span><button class="btn sm" id="pczpay" type="button"><i class="i i-plus"></i> Record payment</button></div>
+      <div class="pcz-sum"><div><small>Total plant cost</small><b>${has ? inr(s.cost) : 'Not entered'}</b></div><div><small>Received</small><b class="pcz-g">${inr(s.paid)}</b></div><div><small>Balance</small><b class="${s.balance > 0 ? 'over' : ''}">${has ? inr(s.balance) : '—'}</b></div></div>
+      ${has ? `<div class="pyt-bar" role="img" aria-label="${pct}% of the plant cost received"><i style="width:${pct}%"></i></div><p class="mut pyt-pc">${pct}% of the plant cost received${n ? ` in ${n} payment${n === 1 ? '' : 's'}` : ''}</p>` : '<p class="mut pyt-pc">Enter the total plant cost to see the balance.</p>'}
+      ${full && s.paid > 0 && tk.state === 'open' ? '<div class="pyt-ok"><i class="i i-check"></i><span>The payment is complete.</span><button class="btn sm" type="button" data-done="1">Move to Completed</button></div>' : ''}
+      ${s.projects.length ? s.projects.map(p => `<h4 class="pcz-h">${multi ? `<a href="#/projects/${+p.id}">${esc(p.title || 'Project')}</a><span>${inr(p.cost)} · received ${inr(p.paid)}</span>` : 'Payments received'}</h4>${pays(p)}`).join('')
+        : '<h4 class="pcz-h">Payments received</h4><div class="pyt-none"><p class="mut">No payment recorded yet. The first payment also starts the customer’s project with the plant cost.</p></div>'}</div></div>
+    <div class="pyt-side">
+     <div class="card pfc"><div class="pfch"><i class="i i-coin"></i><h3>Plant cost</h3><span class="sp"></span><button class="btn sec sm" id="pczed" type="button"><i class="i i-pencil"></i> ${has ? 'Edit' : 'Enter the cost'}</button></div>
+      <div class="pcz-rows pyt-rows"><div><span>Total plant cost</span><b>${has ? inr(s.cost) : 'Not entered'}</b></div><div><span>KSEB charges</span><b>${kseb}</b></div>
+       ${s.from_project && s.agreed > 0 && Math.abs(s.agreed - s.cost) > 0.5 ? `<div><span>Agreed in the quotation</span><b>${inr(s.agreed)}</b></div>` : ''}
+       <div><span>Approved quotation</span><span class="pcz-q">${s.quote ? `<a href="api.php?m=files&a=get&id=${+s.quote.id}&v=1" target="_blank" rel="noopener"><i class="i i-file"></i> ${esc(s.quote.name)}</a><small class="mut">${esc(dmy(String(s.quote.created).slice(0, 10)))}</small>` : '<b class="over">Not uploaded</b>'}</span></div></div>
+      <div class="stg-act"><button class="btn sec sm" id="pczup" type="button"><i class="i i-upload"></i> ${s.quote ? 'Add a revised quotation' : 'Upload the approved quotation'}</button></div></div>
+     <div class="card pfc"><div class="pfch"><i class="i i-receipt"></i><h3>Accounts</h3></div>
+      <label class="hsw pyt-sw"><input type="checkbox" id="pczshow" ${tk.state === 'off' ? '' : 'checked'}><span class="hswt"></span>Show in Accounts</label>
+      <p class="mut pyt-st">${acct}</p>
+      ${tk.state === 'off' ? '' : `<div class="stg-act">${canR('accounts') ? `<a class="btn sec sm" href="#/accounts/${tk.state === 'done' ? 'done' : 'progress'}">Open in Accounts</a>` : ''}${tk.state === 'done' ? '<button class="btn sec sm" type="button" data-done="0">Move back to In progress</button>' : full && s.paid > 0 ? '' : '<button class="btn sec sm" type="button" data-done="1">Move to Completed</button>'}</div>`}</div></div></div>`;
+  const projOf = b => s.projects.find(y => y.id == b.dataset.pp), payOf = pid => { for (const p of s.projects) { const x = p.payments.find(y => y.id == pid); if (x) return [p, x]; } return []; };
+  const openRc = pid => acReceipt(pid, { onChange: redraw });
   /* Record payment: the same form as Accounts. A payment belongs to a project, so the first one starts the project with the plant cost. */
   $('#pczpay', box).onclick = async e => {
-    if (!has) return toast('Enter the total plant cost first', true);
     const b = e.currentTarget; let pj = s.projects[s.projects.length - 1];
-    if (!pj) { b.disabled = true; try { const r = await api('gen', 'cost', { kind: 'tax', customer_id: id, cost: s.cost }); pj = { id: r.acct.project_id, kw: '', loan: '' }; } catch (x) { return; } finally { b.disabled = false; } }
-    const first = !(s.paid > 0);
-    acPayForm({ pid: pj.id, customer: c.name, kw: pj.kw, loan: pj.loan, due: s.balance }, null, { done: () => { if (first) toast(`${c.name} is now in Accounts › In progress`); redraw(); }, open: pid => acReceipt(pid, { onChange: redraw }) }); /* the receipt number shows on the card as soon as it is given */
+    if (!pj) { b.disabled = true; const pid = await acProjectFor(id, s.cost); b.disabled = false; if (!pid) return; pj = { id: pid, kw: '', loan: '' }; }
+    acPayForm({ pid: pj.id, customer: c.name, kw: pj.kw, loan: pj.loan, due: s.balance }, null, { done: redraw, open: openRc });
   };
-  $$('[data-pr]', box).forEach(b => b.onclick = () => acReceipt(+b.dataset.pr, { onChange: redraw }));
-  $$('[data-pe]', box).forEach(b => b.onclick = () => { const p = s.projects.find(y => y.id == b.dataset.pp), x = p && p.payments.find(y => y.id == b.dataset.pe); if (x) acPayForm({ pid: p.id, customer: c.name, kw: p.kw, loan: p.loan }, x, { done: redraw }); });
+  $$('[data-pr]', box).forEach(b => b.onclick = () => openRc(+b.dataset.pr));
+  $$('[data-pn]', box).forEach(b => b.onclick = () => { const [p, x] = payOf(b.dataset.pn); if (x) acPayForm({ pid: p.id, customer: c.name, kw: p.kw, loan: p.loan }, x, { why: NEEDREF, done: redraw, open: openRc }); });
+  $$('[data-pe]', box).forEach(b => b.onclick = () => { const p = projOf(b), x = p && p.payments.find(y => y.id == b.dataset.pe); if (x) acPayForm({ pid: p.id, customer: c.name, kw: p.kw, loan: p.loan }, x, { done: redraw, open: openRc }); });
+  $$('[data-pd]', box).forEach(b => b.onclick = async () => { const [, x] = payOf(b.dataset.pd); if (!x || !confirm(`Delete the payment of ${inr(x.amount)} on ${dmy(x.date)}?\n\nIt goes to the Recycle bin for ${RULE('trash_hours')} hours.`)) return;
+    try { await api('payments', 'delete', { id: x.id }); toast('Payment moved to the Recycle bin'); redraw(); } catch (er) { } });
+  /* Show in Accounts: on by default. Off takes the customer off the Accounts lists; nothing else changes. */
+  $('#pczshow', box).onchange = async e => { const on = e.target.checked; e.target.disabled = true;
+    try { await api('acc', 'track_show', { customer_id: id, show: on ? 1 : 0 }); toast(on ? `${c.name} shows in Accounts` : `${c.name} is taken off Accounts`); redraw(); } catch (er) { e.target.checked = !on; e.target.disabled = false; } };
+  $$('[data-done]', box).forEach(b => b.onclick = async () => { const done = b.dataset.done === '1', body = { customer_id: id, done: done ? 1 : 0 };
+    if (done && !full) { if (!confirm(has ? `${inr(s.balance)} is still pending for ${c.name}.\n\nMove to Completed anyway?` : `No plant cost is entered for ${c.name}.\n\nMove to Completed anyway?`)) return; body.force = 1; }
+    b.disabled = true; try { await api('acc', 'track_set', body); toast(c.name + (done ? ' moved to Completed' : ' moved back to In progress')); redraw(); } catch (er) { b.disabled = false; } });
   $('#pczed', box).onclick = () => {
     const m = modal(`<h2 style="margin-top:0">Plant cost</h2><div class="two"><div><label>Total plant cost (₹)</label><input id="pczc" inputmode="numeric" autocomplete="off" value="${s.agreed > 0 || has ? (multi ? s.agreed || '' : s.cost).toLocaleString('en-IN') : ''}"></div>
       <div><label>KSEB charges</label><select id="pczx"><option value="0">Included in the plant cost</option><option value="1" ${s.kseb_extra ? 'selected' : ''}>Additional (paid on top)</option></select></div>
@@ -168,9 +197,9 @@ async function costCard(box, c, id) {
     $('#pczx', m).onchange = e => { $('#pczab', m).hidden = e.target.value !== '1'; };
     $('#pczcx', m).onclick = () => m.remove();
     $('#pczsv', m).onclick = async e => { const cost = onbNum($('#pczc', m).value); if (!(cost > 0)) return toast('Enter the total plant cost', true); const b = e.currentTarget; b.disabled = true;
-      try { await api('profile', 'cost_save', { customer_id: id, plant_cost: cost, kseb_extra: $('#pczx', m).value === '1' ? 1 : 0, kseb_extra_amt: onbNum($('#pcza', m).value) }); m.remove(); toast('Plant cost saved'); costCard(box, c, id); } catch (x) { b.disabled = false; } };
+      try { await api('profile', 'cost_save', { customer_id: id, plant_cost: cost, kseb_extra: $('#pczx', m).value === '1' ? 1 : 0, kseb_extra_amt: onbNum($('#pcza', m).value) }); m.remove(); toast('Plant cost saved'); redraw(); } catch (x) { b.disabled = false; } };
   };
   $('#pczup', box).onclick = async () => { const f = await pickFile('application/pdf,image/jpeg,image/png,image/webp'); if (!f) return;
     const fd = new FormData(); fd.append('customer_id', id); fd.append('kind', 'approved'); fd.append('file', f);
-    try { await api('files', 'upload', fd); toast('Approved quotation saved in Documents'); if (typeof DOC_STALE !== 'undefined') DOC_STALE.add(+id); costCard(box, c, id); } catch (e) { } };
+    try { await api('files', 'upload', fd); toast('Approved quotation saved in Documents'); if (typeof DOC_STALE !== 'undefined') DOC_STALE.add(+id); redraw(); } catch (e) { } };
 }
