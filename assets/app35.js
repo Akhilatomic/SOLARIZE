@@ -68,7 +68,7 @@ async function acPdfFromHtml(html, css, name) {
     if (h > H) { w = W * H / h; h = H; }
     const pdf = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait', compress: true });
     pdf.setProperties({ title: String(name || '').replace(/\.pdf$/i, '') });
-    pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', (W - w) / 2, 0, w, h);
+    pdf.addImage(qpJpeg(cv), 'JPEG', (W - w) / 2, 0, w, h);
     cv.width = cv.height = 0; /* free the canvas memory */
     return new File([pdf.output('blob')], name || 'Document.pdf', { type: 'application/pdf' });
   } finally { host.remove(); }
@@ -165,7 +165,7 @@ function acRcHtml(r) {
    opt.onChange(): called when the payment has just been given its receipt number. */
 async function acReceipt(pid, opt = {}) {
   let r; try { r = await api('acc', 'ac_receipt', undefined, `&payment_id=${+pid}`); } catch (e) { return; }
-  const p = r.payment;
+  const p = r.payment, fresh = !p.receipt_no;
   if (!p.receipt_no) {
     if (!acIsCash(p) && !String(p.ref_no || '').trim()) { const why = 'A payment receipt needs the reference number (UTR / cheque / transaction no.) unless the payment was in cash.'; return opt.onNoRef ? opt.onNoRef(p, why) : toast(why, true); }
     if (!canW('payments') && !canW('accounts')) return toast('This payment has no receipt yet. Ask someone who can edit payments to make it.', true);
@@ -192,11 +192,13 @@ async function acReceipt(pid, opt = {}) {
   /* the PDF is made as soon as the window opens, so a click shares it at once (a phone's share sheet needs the click to be fresh) */
   let pdfP = null;
   const getPdf = () => pdfP = pdfP || acPdfFromHtml(`<div class="doc drcpt">${doc}</div>`, DOC_CSS, name).catch(e => { pdfP = null; throw e; });
-  getPdf().catch(() => { });
+  /* a copy for the customer's Documents page: when the receipt is first made, and again whenever it is printed or sent */
+  let kept = false; const keep = f => { if (!kept && f) { kept = true; docKeep(cu.id, 'receipt:' + p.id, 'Payment receipt ' + p.receipt_no, name, f); } return f; };
+  getPdf().then(f => fresh && keep(f)).catch(() => { });
   if (loan) acTpl().catch(() => { });
   $('[data-x]', m).onclick = () => m.remove();
-  $('[data-print]', m).onclick = () => printDoc(`Payment receipt ${p.receipt_no} — ${cu.name || ''}`, `<div class="doc drcpt">${doc}</div>`);
-  $$('[data-via]', m).forEach(btn => btn.onclick = () => acShareBtn(btn, async () => ({ kind: 'receipt', via: btn.dataset.via, to_whom: btn.dataset.to, blob: await getPdf(), name, vars, cust: cu,
+  $('[data-print]', m).onclick = () => { printDoc(`Payment receipt ${p.receipt_no} — ${cu.name || ''}`, `<div class="doc drcpt">${doc}</div>`); getPdf().then(keep).catch(() => { }); };
+  $$('[data-via]', m).forEach(btn => btn.onclick = () => acShareBtn(btn, async () => ({ kind: 'receipt', via: btn.dataset.via, to_whom: btn.dataset.to, blob: keep(await getPdf()), name, vars, cust: cu,
     customer_id: cu.id, project_id: (r.project || {}).id, payment_id: p.id, onLogged: s => { shared.unshift(s); if (m.isConnected) drawSh(); } })));
   return m;
 }

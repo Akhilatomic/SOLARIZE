@@ -481,7 +481,9 @@ async function qmkPdf() {
     await qmkRender();
     QMK.pdf = true; /* edits made from here on wait (qmkRender would replace the pages being drawn) */
     if ((box._qmOverflow || []).length) throw new Error('Some pages are too long for A4: ' + box._qmOverflow.join('; ') + '. Shorten their text first.');
-    await qmDownloadPdf(box, qmkFileName());
+    const name = qmkFileName(), cid = QMK.cust.customer_id, blob = await qmDownloadPdf(box, name);
+    /* a customer's quotation is also kept on their Documents page (a lead has no Documents page yet) */
+    if (cid && blob) docKeep(cid, 'quote:' + QMK.id, 'Quotation ' + (QMK.doc.number || ''), name, blob).then(k => { if (k) toast('A copy is kept in the customer’s Documents'); });
   } catch (e) { if (!e || !e.error) toast((e && e.message) || String(e), true); }
   finally { QMK.busy = false; QMK.pdf = false; b.innerHTML = old; b.disabled = !!QMK.over.length; if (QMK.stale) qmkRender(); }
 }

@@ -101,16 +101,32 @@ function plantForm(box, c, id, d, r, st, onSaved) {
 // ---------------- Documents ----------------
 const isImg = f => /\.(jpe?g|png|webp|gif)$/i.test(f.name), isPdf = f => /\.pdf$/i.test(f.name);
 const fileUrl = (f, dl) => `api.php?m=files&a=get&id=${f.id}${dl === 1 ? '&dl=1' : dl === 'v' ? '&v=1' : ''}`; // thumbnails: no flag; view / download: audited
+/* Keep a copy of a paper made for the customer (KSEB, bank, quotation, tax bill, receipt, warranty certificate) on their Documents page.
+   key = which paper ('kseb:wcr', 'bank:bfr', 'quote:<id>', 'tax', 'receipt:<payment id>', 'warranty'); data = the PDF (bytes, Blob or File).
+   The server decides how long it is kept (GEN_DAYS; tax bills and warranty certificates until deleted) and puts it in place of the earlier
+   copy of the same paper. It never throws: the paper is still downloaded or printed when its copy cannot be kept. Gives {id, life} or null. */
+const DOC_STALE = new Set(); /* customers whose Documents tab has to be read again */
+async function docKeep(cid, key, title, name, data) {
+  if (!+cid || !data) return null;
+  try {
+    const fd = new FormData(); fd.append('title', title); fd.append('file', new File([data], name, { type: 'application/pdf' }));
+    const r = await fetch(`api.php?m=files&a=keep&customer_id=${+cid}&gen=${encodeURIComponent(key)}`, { method: 'POST', body: fd });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j || j.error) { console.warn('Copy not kept in Documents:', (j && j.error) || r.status); return null; }
+    DOC_STALE.add(+cid); return j;
+  } catch (e) { console.warn('Copy not kept in Documents', e); return null; }
+}
 function renderDocs(box, c, id) {
   const F = c.files, w = canW('files'), have = new Set(F.map(f => f.item).filter(Boolean));
-  box.innerHTML = `<div class="card pfc"><div class="pfch"><i class="i i-file"></i><h3>Documents</h3><small class="mut">${F.length} file${F.length === 1 ? '' : 's'} · kept ${DOC_DAYS} days</small><span class="sp"></span>
+  box.innerHTML = `<div class="card pfc"><div class="pfch"><i class="i i-file"></i><h3>Documents</h3><small class="mut">${F.length} file${F.length === 1 ? '' : 's'}</small><span class="sp"></span>
       ${F.length ? `<a class="btn sec sm dlall" href="api.php?m=files&a=zip&customer_id=${id}"><i class="i i-download"></i> Download all</a>` : ''}${w ? '<button class="btn sm" id="dcadd"><i class="i i-plus"></i> Add documents</button>' : ''}</div>
-     <div class="dcchk">${DOC_TYPES.map(t => `<button class="dcc ${have.has(t) ? 'ok' : ''}" data-t="${esc(t)}" ${w ? '' : 'disabled'} title="${have.has(t) ? 'Uploaded' : 'Missing — click to upload'}">${have.has(t) ? '<i class="i i-check"></i>' : ''}${esc(t)}</button>`).join('')}</div></div>
-    <div class="dcgrid">${F.map((f, i) => { const d = docLeft(f.created);
+     <div class="dcchk">${DOC_TYPES.map(t => `<button class="dcc ${have.has(t) ? 'ok' : ''}" data-t="${esc(t)}" ${w ? '' : 'disabled'} title="${have.has(t) ? 'Uploaded' : 'Missing — click to upload'}">${have.has(t) ? '<i class="i i-check"></i>' : ''}${esc(t)}</button>`).join('')}</div>
+     <p class="mut dckeep">Uploads are kept ${DOC_DAYS} days and papers made in the CRM (KSEB, bank, quotation, receipt) ${GEN_DAYS} days, then they move to the Recycle bin. Tax bills and warranty cards stay until someone deletes them.</p></div>
+    <div class="dcgrid">${F.map((f, i) => { const d = docLeft(f);
       return `<div class="card dcard"><button class="dcth" data-v="${i}" title="View">${isImg(f) ? `<img loading="lazy" src="${fileUrl(f)}" alt="">` : `<span class="dcic"><i class="i i-file"></i><b>${esc((f.name.split('.').pop() || '').toUpperCase())}</b></span>`}</button>
-        <div class="dcb"><b title="${esc(f.item || f.name)}">${esc(f.item || f.name)}</b><div class="dcm"><span class="mut">${dt(f.created)}</span><span class="dcd ${d <= 30 && f.kind !== 'warranty' ? 'warn' : ''}">● ${f.kind === 'warranty' ? 'Kept forever' : d > 0 ? d + 'd left' : 'expiring'}</span></div>
+        <div class="dcb"><b title="${esc(f.item || f.name)}">${esc(f.item || f.name)}</b><div class="dcm"><span class="mut">${dt(f.created)}${f.gen ? ' · auto-saved' : ''}</span><span class="dcd ${d <= 30 ? 'warn' : ''}">● ${d === 1e9 ? 'Kept forever' : d > 0 ? d + 'd left' : 'expiring'}</span></div>
         ${f.item ? `<small class="mut dcn" title="${esc(f.name)}">${esc(f.name)}</small>` : ''}
-        <div class="dca"><a href="${fileUrl(f, 1)}" download="${esc(f.name)}"><i class="i i-download"></i> Download</a><button data-v="${i}"><i class="i i-eye"></i> View</button><button data-sh="${i}"><i class="i i-link"></i> Share</button>${isPdf(f) && canW('customers') ? `<button data-rd="${i}" title="Read this PDF (KSEB bill, MNRE / KSEB papers, DCR) and fill the customer’s details"><i class="i i-clipboard"></i> Read &amp; fill</button>` : ''}${w ? `<button class="dcdel" data-del="${i}" title="Move to Recycle bin"><i class="i i-trash"></i></button>` : ''}</div></div></div>`; }).join('')
+        <div class="dca"><a href="${fileUrl(f, 1)}" download="${esc(f.name)}"><i class="i i-download"></i> Download</a><button data-v="${i}"><i class="i i-eye"></i> View</button><button data-sh="${i}"><i class="i i-link"></i> Share</button>${isPdf(f) && !f.gen && canW('customers') ? `<button data-rd="${i}" title="Read this PDF (KSEB bill, MNRE / KSEB papers, DCR) and fill the customer’s details"><i class="i i-clipboard"></i> Read &amp; fill</button>` : ''}${w ? `<button class="dcdel" data-del="${i}" title="Move to Recycle bin"><i class="i i-trash"></i></button>` : ''}</div></div></div>`; }).join('')
       || `<div class="card" style="grid-column:1/-1;text-align:center;padding:30px"><p class="mut" style="margin:0 0 10px">No documents yet.</p>${w ? '<button class="btn" id="dcadd2"><i class="i i-plus"></i> Add documents</button>' : ''}</div>`}</div>`;
   const reload = async () => { const nc = await api('customers', 'get', undefined, '&id=' + id); c.files = nc.files; renderDocs(box, c, id); const t = $('[data-pt="docs"]'); if (t) t.innerHTML = `<i class="i i-file"></i> Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`; };
   [$('#dcadd', box), $('#dcadd2', box)].forEach(b => b && (b.onclick = () => docUploadModal(c, id, null, reload)));
@@ -121,6 +137,7 @@ function renderDocs(box, c, id) {
   $$('[data-sh]', box).forEach(b => b.onclick = () => docShare(F[+b.dataset.sh], c));
   $$('[data-rd]', box).forEach(b => b.onclick = () => docRead(F[+b.dataset.rd], id, () => route()));
   $$('[data-del]', box).forEach(b => b.onclick = async () => { const f = F[+b.dataset.del]; if (!confirm(`Delete "${f.item || f.name}"?\n\nIt goes to the Recycle bin and can be restored for 72 hours.`)) return; await api('files', 'delete', { id: f.id }); toast('Moved to Recycle bin'); reload(); });
+  if (DOC_STALE.delete(+id)) reload(); /* a paper was kept since this customer was loaded */
 }
 async function docShare(f, c) {
   try {

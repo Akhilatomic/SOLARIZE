@@ -30,4 +30,5 @@ RC=0
 "$PHP" "$TMP/tests/fee_sync_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
 "$PHP" "$TMP/tests/dash_fees_test.php" "http://localhost:$PORT" || RC=1
 "$PHP" "$TMP/tests/company_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
+"$PHP" "$TMP/tests/doc_keep_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
 exit $RC

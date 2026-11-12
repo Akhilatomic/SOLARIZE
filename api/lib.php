@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 46; // bump when tables/columns change
+const SCHEMA_VERSION = 47; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -341,6 +341,12 @@ function migrate($db) {
     foreach ($db->query("SELECT customer_id, kind FROM fees WHERE paid=1 AND amount>0 AND kind IN ('feasibility','registration','stamp')")->fetchAll() as $f) acc_fee_sync((int)$f['customer_id'], $f['kind']);
     $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_fee_sync_v1','1')");
   }
+  /* v47: papers the CRM makes for a customer are kept on their Documents page. files.gen = which paper ('' = an uploaded file);
+     files.life = days a document is kept: NULL = the usual DOC_LIFE_DAYS, 0 = until someone deletes it (tax bills, warranty cards) */
+  $fc = array_column($db->query('PRAGMA table_info(files)')->fetchAll(), 'name');
+  if (!in_array('life', $fc)) $db->exec('ALTER TABLE files ADD COLUMN life INTEGER');
+  if (!in_array('gen', $fc)) $db->exec("ALTER TABLE files ADD COLUMN gen TEXT DEFAULT ''");
+  $db->exec("UPDATE files SET life=0 WHERE kind='warranty' AND life IS NULL");
   require_once __DIR__ . '/qm_seed.php';
   qm_seed($db); // only fills an empty catalogue
   $db->exec('ANALYZE'); // give the query planner row counts for the new indexes

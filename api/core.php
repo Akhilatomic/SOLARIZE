@@ -208,7 +208,7 @@ function detail($t, $r) {
     $r['notes_log'] = $notes();
     $r['projects'] = rows('SELECT p.*, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p WHERE customer_id=? ORDER BY id DESC', [$id]);
     $r['quotes'] = rows('SELECT id,number,date,total,status FROM quotes WHERE customer_id=? ORDER BY id DESC', [$id]);
-    $r['files'] = rows('SELECT id,name,kind,item,size,created FROM files WHERE customer_id=? ORDER BY id DESC', [$id]);
+    $r['files'] = rows('SELECT id,name,kind,item,size,created,life,gen FROM files WHERE customer_id=? ORDER BY id DESC', [$id]);
     $r['messages'] = is_ba() ? [] : rows('SELECT * FROM messages WHERE customer_id=? ORDER BY id DESC', [$id]); // BA: no WhatsApp history
   }
   if ($t === 'projects') {
@@ -219,7 +219,7 @@ function detail($t, $r) {
     $r['steps'] = rows('SELECT * FROM project_steps WHERE project_id=? ORDER BY id', [$id]);
     $r['stage_data'] = rows('SELECT d.*, f.name file_name FROM stage_data d LEFT JOIN files f ON f.id=d.file_id WHERE d.project_id=?', [$id]);
     $r['services'] = rows('SELECT * FROM services WHERE project_id=? ORDER BY date DESC, id DESC', [$id]);
-    $r['files'] = rows('SELECT id,name,kind,item,size,created FROM files WHERE project_id=? ORDER BY id DESC', [$id]);
+    $r['files'] = rows('SELECT id,name,kind,item,size,created,life,gen FROM files WHERE project_id=? ORDER BY id DESC', [$id]);
     $saved = [];
     foreach (rows('SELECT * FROM checklist WHERE project_id=?', [$id]) as $c) $saved[$c['kind'] . '|' . $c['item']] = $c;
     foreach (['subsidy' => $S['subsidy_steps'], 'kseb' => $S['kseb_items']] as $kind => $items) {
@@ -272,6 +272,25 @@ function handle_files($a) {
     readfile($p); exit;
   }
   if ($a === 'zip') docs_zip((int)($_GET['customer_id'] ?? 0));
+  /* keep: a copy of a paper the CRM made for the customer (KSEB, bank, quotation, tax bill, receipt, warranty certificate). The browser builds the PDF
+     and posts it here; it shows on the customer's Documents page. One copy per paper — a newer one takes the place of the older (the paper can be made
+     again any time, so the old copy does not go to the Recycle bin). Kept GEN_LIFE_DAYS; tax bills and warranty certificates until deleted (GEN_KEEP).
+     Whoever may make the paper may keep it, so this sits before the Documents write check. customer_id and gen come in the URL (ba_gate reads it there). */
+  if ($a === 'keep') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
+    $cid = (int)($_GET['customer_id'] ?? 0); $key = (string)($_GET['gen'] ?? '');
+    if (!preg_match('/^([a-z]+)(?::[a-z0-9_-]{1,40})?$/', $key, $mm) || !isset(GEN_KEEP[$mm[1]])) fail('Unknown paper');
+    [$mod, $life] = GEN_KEEP[$mm[1]]; need('customers'); need($mod);
+    if (!$cid || !row('SELECT id FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
+    $fl = $_FILES['file'] ?? null; sec_upload($fl, ['pdf'], 25);
+    $title = mb_substr(trim((string)($_POST['title'] ?? '')), 0, 120); if ($title === '') $title = 'Document';
+    $fname = mb_substr(trim(preg_replace('~[\\\\/:*?"<>|\x00-\x1f]+~', '-', basename((string)$fl['name']))), 0, 190); if (!preg_match('/\.pdf$/i', $fname)) $fname = ($fname === '' ? $title : $fname) . '.pdf';
+    $name = bin2hex(random_bytes(12)) . '.pdf';
+    if (!move_uploaded_file($fl['tmp_name'], "$dir/$name")) fail('Could not save file', 500);
+    foreach (rows('SELECT id, path FROM files WHERE customer_id=? AND gen=?', [$cid, $key]) as $old) { @unlink("$dir/" . basename($old['path'])); q('DELETE FROM files WHERE id=?', [$old['id']]); }
+    q('INSERT INTO files(customer_id,kind,item,name,path,size,user,life,gen) VALUES(?,?,?,?,?,?,?,?,?)', [$cid, 'gen', $title, $fname, $name, $fl['size'], $_SESSION['username'], $life, $key]);
+    $id = (int)db()->lastInsertId(); audit('doc_autosave', 'files', $id, $title . ' · customer ' . $cid); out(['id' => $id, 'life' => $life]);
+  }
   need('files', true);
   if ($a === 'upload') {
     $fl = $_FILES['file'] ?? null;
@@ -280,7 +299,7 @@ function handle_files($a) {
     if (!move_uploaded_file($fl['tmp_name'], "$dir/$name")) fail('Could not save file', 500);
     $pid = (int)($_POST['project_id'] ?? 0) ?: null; $cid = (int)($_POST['customer_id'] ?? 0) ?: null;
     if ($pid && !$cid) $cid = (row('SELECT customer_id FROM projects WHERE id=?', [$pid])['customer_id'] ?? null);
-    q('INSERT INTO files(customer_id,project_id,kind,item,name,path,size,user) VALUES(?,?,?,?,?,?,?,?)', [$cid, $pid, $_POST['kind'] ?? '', $_POST['item'] ?? '', basename($fl['name']), $name, $fl['size'], $_SESSION['username']]);
+    q('INSERT INTO files(customer_id,project_id,kind,item,name,path,size,user,life) VALUES(?,?,?,?,?,?,?,?,?)', [$cid, $pid, $_POST['kind'] ?? '', $_POST['item'] ?? '', basename($fl['name']), $name, $fl['size'], $_SESSION['username'], ($_POST['kind'] ?? '') === 'warranty' ? 0 : null]); /* warranty cards are kept until deleted */
     $id = (int)db()->lastInsertId(); audit('upload', 'files', $id, $fl['name']); out(['id' => $id]);
   }
   if ($a === 'delete') {

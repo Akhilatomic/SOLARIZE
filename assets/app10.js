@@ -9,7 +9,7 @@ async function pgRecycle() {
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:10px"><div><h2 style="margin:0;font-size:26px">Recycle bin</h2><div class="mut" id="rbc"></div></div><span class="sp"></span>
      ${adm && d.rows.length ? '<button class="btn bad" id="rbempty"><i class="i i-trash"></i> Empty bin</button>' : ''}</div>
    <div class="rbh"><i class="i i-alert"></i><div>Deleted items stay here for <b>${d.hours} hours</b> and can be restored — after that they are removed for good.
-     Uploaded documents are kept for <b>${d.doc_days} days</b>, then they move here automatically.</div></div>
+     Uploaded documents are kept for <b>${d.doc_days} days</b> and papers made in the CRM for <b>${GEN_DAYS} days</b>, then they move here automatically. Tax bills and warranty cards are kept until someone deletes them.</div></div>
    <div class="bar" style="margin-bottom:10px"><input id="rbq" placeholder="Search deleted items…" style="max-width:320px" value="${esc(RB.q)}">
      <select id="rbk" style="width:auto"><option value="">All types</option>${kinds.map(k => `<option ${RB.kind === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
    <div class="card tw fitbox" style="padding:0"><table id="rbt" data-min="760"></table></div>`;

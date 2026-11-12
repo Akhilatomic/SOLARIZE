@@ -256,6 +256,16 @@ const qpLibs = () => QP_LIBS = QP_LIBS || Promise.all([
   window.jspdf ? 0 : qpScript('assets/vendor/jspdf-2.5.1.umd.min.js'),
 ]).catch(e => { QP_LIBS = null; throw e; });
 
+/* The upload check (sec_upload in api/security.php) refuses a file holding certain short byte patterns ("<?=", "<%@", "/JS" …). In picture
+   data they turn up by chance — about 1 page picture in 12 — so a page picture is encoded again a touch lower until it has none.
+   The copy of a paper kept on the customer's Documents page (docKeep) is then not refused. */
+const QP_SCAN = /<\?php|<\?=|<script\b|<%@|#!\/(usr|bin)|\/(JavaScript|JS|Launch|EmbeddedFile|RichMedia|XFA)\b/i;
+function qpJpeg(cv, q = 0.92) {
+  let url = '';
+  for (let i = 0; i < 12; i++) { url = cv.toDataURL('image/jpeg', q - i * 0.005); try { if (!QP_SCAN.test(atob(url.slice(url.indexOf(',') + 1)))) break; } catch (e) { break; } }
+  return url;
+}
+
 /* a feature page goes into the PDF as its own picture (JPEG/PNG bytes as they are, other types through a canvas), fitted to A4 */
 async function qpAddPicture(pdf, el, W, H) {
   try {
@@ -277,7 +287,7 @@ async function qpAddPicture(pdf, el, W, H) {
   } catch (e) { return false; }
 }
 
-/* Every .qp page in container -> one A4 page (595.28 × 841.89 pt); saved as fileName. */
+/* Every .qp page in container -> one A4 page (595.28 × 841.89 pt); saved as fileName. Gives back the PDF (a Blob). */
 async function qmDownloadPdf(container, fileName) {
   await qpLibs();
   if (container._qmReady) await container._qmReady;
@@ -294,8 +304,9 @@ async function qmDownloadPdf(container, fileName) {
       scale: 2, useCORS: false, backgroundColor: '#fff', logging: false,
       onclone: (d, c) => { for (let n = c; n && n.style; n = n.parentElement) { n.style.transform = 'none'; n.style.zoom = '1'; } c.style.margin = '0'; c.style.boxShadow = 'none'; },
     });
-    pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, W, H);
+    pdf.addImage(qpJpeg(cv), 'JPEG', 0, 0, W, H);
     cv.width = cv.height = 0; /* free the canvas memory */
   }
   pdf.save(fileName || 'Quotation.pdf');
+  return pdf.output('blob');
 }

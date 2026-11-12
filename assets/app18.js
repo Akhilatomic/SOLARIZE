@@ -184,6 +184,7 @@ async function renderMfr(box, c, id, fresh) {
 // ---------------- Tax bill (GST invoice) ----------------
 const HSN = [[/install|commission|labour|service|kseb|net.?meter|formalit/i, '995461', 18], [/panel|module|pv|mono|perc|topcon/i, '85414300', 5], [/inverter|micro|optimi/i, '85044090', 5], [/structure|mount|gi |frame|rail/i, '73089090', 18], [/cable|wire|mc4|earth|la |lightning|db|acdb|dcdb|meter/i, '85444999', 18]]; 
 const guessHsn = d => (HSN.find(([re]) => re.test(d || '')) || [null, '', 18]);
+let TAX_KEEP = 0, MNRE_KEEP = 0; /* customer whose bill / certificate was just saved: its copy is kept once the tab is drawn again */
 async function renderTax(box, c, id) {
   box.innerHTML = '<p class="mut">Loading…</p>';
   if (!document.getElementById('taxdoc-css')) document.head.insertAdjacentHTML('beforeend', `<style id="taxdoc-css">${TAXDOC_CSS}</style>`);
@@ -387,13 +388,13 @@ async function renderTax(box, c, id) {
   $('#tdate', box).addEventListener('change', () => { if (!g.doc && noAuto) nextNo(); });
   noHint();
   if ($('#tgoplant', box)) $('#tgoplant', box).onclick = () => { const t = document.querySelector('[data-pt="plant"]'); if (t) { t.click(); scrollTo({ top: 0, behavior: 'smooth' }); } };
-  $('#tpr', box).onclick = () => printDoc(`Tax invoice — ${c.name}`, `<div class="doc dtax">${html()}</div>`, true); /* always one A4 page */
+  $('#tpr', box).onclick = () => { printDoc(`Tax invoice — ${c.name}`, `<div class="doc dtax">${html()}</div>`, true); keepTax(); }; /* always one A4 page */
   /* issue (gives the number) or save the bill. The first issue waits for the final payment (g.lock from the server; a loan project
      unlocks once only the bank's part is left); an admin may issue it early after a confirm (early:1, audited by the server). */
   const issue = async early => { const v = val(), k = calc(); if (!k.rows.length) return toast(PT ? 'Enter the total amount (incl. GST)' : 'Add at least one item', true);
     v.grand = k.grand; v.taxable = Math.round(k.tx * 100) / 100; v.tax = Math.round(k.tt * 100) / 100; const b = $('#tsv', box); if (b) b.disabled = true;
     try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: !g.doc && noAuto ? '' : $('#tno', box).value.trim(), data: v, ...(early ? { early: 1 } : {}) });
-      toast(`Tax bill ${r.number} saved`); renderTax(box, c, id); } catch (e) { accReload().catch(() => { if (b) b.disabled = false; }); } };
+      toast(`Tax bill ${r.number} saved`); TAX_KEEP = id; renderTax(box, c, id); } catch (e) { accReload().catch(() => { if (b) b.disabled = false; }); } };
   function drawIssue() { const el = $('#tiss', box), n = $('#tlkn', box), L = g.lock || {}, locked = !g.doc && !!L.locked;
     if (n) n.textContent = !g.doc && !L.locked && L.why === 'bank_left' ? `${L.msg}. The bill can be issued now; the bank releases its part after it gets the bill.` : '';
     if (!el) return;
@@ -408,13 +409,19 @@ async function renderTax(box, c, id) {
     /* the bill is sent as saved: with changes on the form that are not saved yet, the share waits for Save (Print shows the form as it is) */
     $$('[data-via]', el).forEach(btn => btn.onclick = () => formSnap() !== savedSnap ? toast('Save the changes first', true) : acShareBtn(btn, async () => { const k = calc(), Q = g.qm || {}, cu = g.customer || c, name = acFileName('Tax invoice', g.doc.number, c.name);
       const blob = await acPdfFromHtml(`<div class="doc dtax">${html()}</div>`, DOC_CSS + ACX_A4_FILL, name); /* one A4 page, as printed */
+      keepTax(blob);
       return { kind: 'tax', via: btn.dataset.via, to_whom: btn.dataset.to, blob, name, cust: cu, customer_id: id, project_id: A.project_id, payment_id: 0,
         vars: acVars({ customer: cu, company: { name: Q.name || co.name, phone: Q.phone || co.phone }, bill: { no: g.doc.number, date: g.doc.issued_on, total: k.grand }, received_total: A.paid, kw: kwTxt || (g.project || {}).kw }),
         onLogged: s => { g.shared = [s].concat(g.shared || []); drawShare(); } }; })); };
   /* the bill form as it is now (what Save would send, with the number and date); savedSnap = as loaded, i.e. as saved (a save draws the tab again) */
   const formSnap = () => JSON.stringify([val(), ($('#tno', box) || {}).value || '', $('#tdate', box).value]);
   const savedSnap = formSnap();
+  /* a copy of the issued bill for the customer's Documents page, kept until someone deletes it: made as saved — right after an issue or a save,
+     and again whenever the bill is printed or sent (changes on the form that are not saved yet are never kept) */
+  const keepTax = async blob => { if (!g.doc || formSnap() !== savedSnap) return null; const name = acFileName('Tax invoice', g.doc.number, c.name);
+    try { return await docKeep(id, 'tax', 'Tax invoice ' + g.doc.number, name, blob || await acPdfFromHtml(`<div class="doc dtax">${html()}</div>`, DOC_CSS + ACX_A4_FILL, name)); } catch (e) { return null; } };
   drawIssue(); drawShare();
+  if (TAX_KEEP === id) { TAX_KEEP = 0; keepTax().then(k => { if (k) toast('A copy of the tax bill is kept in Documents'); }); }
 }
 
 // ---------------- MNRE warranty certificate, printed on the Jasper Solar letterhead ----------------
@@ -502,9 +509,14 @@ async function renderMnre(box, c, id) {
   if ($('#mrefauto', box)) $('#mrefauto', box).onclick = async () => { if (g.doc && !confirm('Give this certificate the next number in the series?')) return; noAuto = !g.doc;
     try { $('#mref', box).value = (await api('gen', 'next', undefined, `&kind=warranty&customer_id=${id}&date=${$('#mdate', box).value}`)).number; } catch (e) { } hint(); upd(); };
   $('#mgoplant', box).onclick = () => { const t = document.querySelector('[data-pt="plant"]'); if (t) { t.click(); scrollTo({ top: 0, behavior: 'smooth' }); } else { PFT = 'plant'; PFT_ID = id; location.hash = '#/customers/' + id; } };
-  $('#mpr', box).onclick = () => printLetter(`Warranty certificate — ${c.name}`, page());
+  /* a copy of the issued certificate for the customer's Documents page, kept until someone deletes it (as saved: not while the form has changes) */
+  let mDirty = false; box.addEventListener('input', () => { mDirty = true; });
+  const keepMnre = async () => { if (!g.doc || mDirty) return null; const name = acFileName('Warranty certificate', g.doc.number, c.name);
+    try { return await docKeep(id, 'warranty', 'Warranty certificate ' + g.doc.number, name, await acPdfFromHtml(page(), MNRE_CSS, name)); } catch (e) { return null; } };
+  $('#mpr', box).onclick = () => { printLetter(`Warranty certificate — ${c.name}`, page()); keepMnre(); };
   if ($('#msv', box)) $('#msv', box).onclick = async e => { const b = e.currentTarget; b.disabled = true;
-    try { const r = await api('gen', 'save', { kind: 'warranty', customer_id: id, issued_on: $('#mdate', box).value || today(), number: !g.doc && noAuto ? '' : ref(), data: D }); toast(`Warranty card ${r.number} saved`); renderMnre(box, c, id); } catch (x) { b.disabled = false; } };
+    try { const r = await api('gen', 'save', { kind: 'warranty', customer_id: id, issued_on: $('#mdate', box).value || today(), number: !g.doc && noAuto ? '' : ref(), data: D }); toast(`Warranty card ${r.number} saved`); MNRE_KEEP = id; renderMnre(box, c, id); } catch (x) { b.disabled = false; } };
   if (!window._mnreFit) { window._mnreFit = true; addEventListener('resize', () => { const wr = document.getElementById('mwrap'); if (wr) { const pg = document.getElementById('mdoc'), s = Math.min(1, (wr.parentElement.clientWidth - 2) / 794); pg.style.transform = `scale(${s})`; wr.style.width = 794 * s + 'px'; wr.style.height = 1123 * s + 'px'; } }); }
   hint(); upd();
+  if (MNRE_KEEP === id) { MNRE_KEEP = 0; keepMnre().then(k => { if (k) toast('A copy of the warranty certificate is kept in Documents'); }); }
 }

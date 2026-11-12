@@ -203,9 +203,12 @@ function csvDownload(name, cols, data) {
 }
 function pickFile(accept = '') { return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => res(i.files[0]); i.click(); }); }
 async function upload(extra) { const f = await pickFile('.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt'); if (!f) return false; const fd = new FormData(); fd.append('file', f); Object.entries(extra).forEach(([k, v]) => fd.append(k, v ?? '')); await api('files', 'upload', fd); return true; }
-const DOC_DAYS = 365; /* documents go to the Recycle bin this many days after upload (api/trash.php DOC_LIFE_DAYS); warranty cards never */
-const docLeft = c => Math.ceil((new Date(String(c).replace(' ', 'T') + 'Z').getTime() + DOC_DAYS * 864e5 - Date.now()) / 864e5);
-const fileLink = f => { const d = f.kind === 'warranty' ? 1e9 : docLeft(f.created); return `<a href="api.php?m=files&a=get&id=${f.id}&v=1" target="_blank" rel="noopener">${esc(f.name)}</a> <small class="mut">${dt(f.created)} · ${Math.round(f.size / 1024)} KB</small> <small class="${d <= 30 ? 'dexp' : 'mut'}" title="Uploaded documents are kept for 200 days, then moved to the Recycle bin">· ${d === 1e9 ? 'kept forever' : d > 0 ? d + ' day' + (d === 1 ? '' : 's') + ' left' : 'expiring'}</small>`; };
+const DOC_DAYS = 365; /* uploaded documents go to the Recycle bin this many days after upload (api/trash.php DOC_LIFE_DAYS) */
+const GEN_DAYS = 120; /* papers the CRM makes for a customer and keeps on the Documents page (api/trash.php GEN_LIFE_DAYS) */
+/* days a document is kept: its own files.life (0 = until someone deletes it: tax bills, warranty cards), else the usual DOC_DAYS */
+const docDays = f => f.kind === 'warranty' ? 0 : f.life == null ? DOC_DAYS : +f.life;
+const docLeft = f => { const k = docDays(f); return k ? Math.ceil((new Date(String(f.created).replace(' ', 'T') + 'Z').getTime() + k * 864e5 - Date.now()) / 864e5) : 1e9; }; /* 1e9 = kept until deleted */
+const fileLink = f => { const d = docLeft(f); return `<a href="api.php?m=files&a=get&id=${f.id}&v=1" target="_blank" rel="noopener">${esc(f.name)}</a> <small class="mut">${dt(f.created)} · ${Math.round(f.size / 1024)} KB</small> <small class="${d <= 30 ? 'dexp' : 'mut'}" title="Kept for a set time, then moved to the Recycle bin; tax bills and warranty cards stay">· ${d === 1e9 ? 'kept forever' : d > 0 ? d + ' day' + (d === 1 ? '' : 's') + ' left' : 'expiring'}</small>`; };
 function noteBox(entity, id, notes, redo) {
   return `<div class="card"><h3>Notes & activity</h3>${canW(entity) ? `<div class="bar"><input id="nt" placeholder="Add a note or call log…" style="max-width:none;flex:1"><button class="btn" id="an">Add</button></div>` : ''}
   ${(notes || []).map(n => `<div class="act">${esc(n.text)}<br><small>${esc(n.user)} · ${n.created}</small></div>`).join('') || '<p class="mut">No notes yet</p>'}</div>`;

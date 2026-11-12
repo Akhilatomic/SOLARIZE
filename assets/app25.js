@@ -331,7 +331,8 @@ async function kdPdf() {
     const bytes = await kdBuild(doc, s.vals); /* build first (it refuses overflow): a failed template fetch or build stores nothing */
     const r = canW(KB().perm) ? await kdSaveDoc(s) : null;
     kdSaveFile(bytes, name);
-    toast(name + ' downloaded' + kdFilledNote(doc, r));
+    const kept = await docKeep(s.id, KDS.book + ':' + doc, (KDS.book === 'bank' ? 'Bank' : 'KSEB') + ' · ' + KD.DOCS[doc].file, name, bytes); /* a copy for the customer's Documents page */
+    toast(name + ' downloaded' + (kept ? ' · copy kept in Documents' : '') + kdFilledNote(doc, r));
   } catch (e) { kdErr(e); }
   finally { KDS.busy = false; b.innerHTML = old; b.disabled = !!(KDS.lay[doc] || {}).overflow; }
 }

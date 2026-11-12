@@ -6,6 +6,10 @@
 
 const TRASH_HOURS = 72;
 const DOC_LIFE_DAYS = 365;
+const GEN_LIFE_DAYS = 120; /* papers the CRM makes for a customer (they can be made again any time) */
+/* paper => [area its maker must be able to open, days the copy is kept (0 = until someone deletes it)] — used by files/keep */
+const GEN_KEEP = ['kseb' => ['checklist', GEN_LIFE_DAYS], 'bank' => ['loans', GEN_LIFE_DAYS], 'quote' => ['quotes', GEN_LIFE_DAYS], 'receipt' => ['payments', GEN_LIFE_DAYS],
+  'tax' => ['finance', 0], 'warranty' => ['customers', 0]];
 const TRASH_FILE_COLS = ['files' => 'path', 'datasheets' => 'path', 'wa_msgs' => 'file_path'];
 
 function trash_dir() { $d = dirname(__DIR__) . '/data/trash'; if (!is_dir($d)) mkdir($d, 0750, true); return $d; }
@@ -84,7 +88,7 @@ function trash_restore($id) {
     $db->commit();
   } catch (Throwable $e) { $db->rollBack(); fail('Could not restore: ' . $e->getMessage()); }
   foreach ($d['files'] ?? [] as $f) if (is_file(trash_dir() . "/$f")) @rename(trash_dir() . "/$f", up_dir() . "/$f");
-  if ($t['kind'] === 'Document (expired)') foreach ($d['rows'] ?? [] as [$tb, $rs]) if ($tb === 'files') foreach ($rs as $r) q('UPDATE files SET created=CURRENT_TIMESTAMP WHERE id=?', [$r['id']]); // a fresh 200 days
+  if ($t['kind'] === 'Document (expired)') foreach ($d['rows'] ?? [] as [$tb, $rs]) if ($tb === 'files') foreach ($rs as $r) q('UPDATE files SET created=CURRENT_TIMESTAMP WHERE id=?', [$r['id']]); /* a fresh keeping time */
   q('DELETE FROM trash WHERE id=?', [$id]);
   return $t;
 }
@@ -100,11 +104,12 @@ function housekeeping($force = false) {
   if (!$force && time() - $last < 3600) return;
   kv_set('hk_last', time()); /* a number, so the (int) read above works — a string was stored JSON-quoted, read back as 0, and this "hourly" job ran on every request */
   $n = 0;
-  foreach (rows("SELECT * FROM files WHERE COALESCE(kind,'') <> 'warranty' AND created < datetime('now', ?) LIMIT 200", ['-' . DOC_LIFE_DAYS . ' days']) as $f) {
-    trash_file_row($f, 'older than ' . DOC_LIFE_DAYS . ' days');
+  /* each document has its own keeping time: files.life days (NULL = DOC_LIFE_DAYS, 0 = kept until deleted) */
+  foreach (rows("SELECT * FROM files WHERE COALESCE(kind,'') <> 'warranty' AND COALESCE(life, " . DOC_LIFE_DAYS . ") > 0 AND created < datetime('now', '-' || COALESCE(life, " . DOC_LIFE_DAYS . ") || ' days') LIMIT 200") as $f) {
+    trash_file_row($f, 'older than ' . ($f['life'] === null ? DOC_LIFE_DAYS : (int)$f['life']) . ' days');
     q('UPDATE stage_data SET file_id=NULL WHERE file_id=?', [$f['id']]); q('DELETE FROM files WHERE id=?', [$f['id']]); $n++;
   }
-  if ($n) { audit('docs_expired', 'files', null, "$n document(s) older than " . DOC_LIFE_DAYS . ' days moved to the Recycle bin'); }
+  if ($n) { audit('docs_expired', 'files', null, "$n document(s) past their keeping time moved to the Recycle bin"); }
   try { fee_alerts(); } catch (Throwable $e) { }
   try { callback_alerts(); } catch (Throwable $e) { } /* also when nobody has the CRM open */
   try { lead_autolost(); } catch (Throwable $e) { } /* new leads nobody attended within 24 hours → Lost */
