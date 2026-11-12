@@ -363,7 +363,7 @@ async function acCsAdd(ctx) {
   };
   $('#acx_q', m).oninput = () => { draw(); upd(); };
   $('#acx_qg', m).onchange = () => { draw(); upd(); };
-  $('#acx_q', m).onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const b = $('#acx_pl [data-mid]', m); if (b) { b.checked = !b.checked; b.dispatchEvent(new Event('change', { bubbles: true })); } } };
+  $('#acx_q', m).onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const b = $('#acx_pl [data-mid]', m); if (b && !b.checked) { b.checked = true; b.dispatchEvent(new Event('change', { bubbles: true })); } } };
   $$('[data-acx-mode]', m).forEach(b => b.onclick = () => setMode(b.dataset.acxMode));
   [qIn, nn, nr, np, $('#acx_nu', m)].forEach(x => { x.oninput = upd; });
   $('#acx_ng', m).onchange = upd;
@@ -761,10 +761,10 @@ async function acMaterialPdf(d) {
 /* true when it is fine to replace the Expense sheet on screen: nothing unsaved, or the user agreed to lose it (profile tab switch, project picker) */
 function acLeaveOk() {
   if (!(ACS.dirty && document.getElementById('acx_cs'))) return true;
-  if (!confirm('This Expense sheet has changes that are not saved.\n\nLeave without saving?')) return false;
-  ACS.dirty = false;
-  return true;
+  return confirm('This Expense sheet has changes that are not saved.\n\nLeave without saving?'); /* asks only: call acLeft() once the leaving really happens */
 }
+/* the unsaved sheet is being dropped (its box replaced or the page reloaded): the guards stop asking about it */
+function acLeft() { ACS.dirty = false; }
 /* customer profile › Purchases and services (admin only, app11.js): the Expense sheet of the customer's latest project in this box, with a project
    picker when there are several (the pick is kept while the same customer stays open). The same sheet and data as #/accounts/cost/<project>. */
 const ACX_PICK = { cid: 0, pid: 0 };
@@ -776,6 +776,7 @@ function acProfileTab(box, c, cid) {
   const pp = $('#acx_pp', box);
   if (pp) pp.onchange = () => {
     if (!acLeaveOk()) { pp.value = String(ACS.pid); return; }
+    acLeft();
     Object.assign(ACX_PICK, { cid: +cid, pid: +pp.value });
     acCostSheet(+pp.value, $('#acx_psb', box));
   };

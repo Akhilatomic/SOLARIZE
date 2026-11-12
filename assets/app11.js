@@ -81,7 +81,7 @@ async function pgCustomer(id) {
   const bindGoto = () => $$('[data-goto]').forEach(b => b.onclick = () => { showTab(b.dataset.goto); scrollTo({ top: 0, behavior: 'smooth' }); });
   const refresh = () => route();
   /* Purchases and services (admin only): the Expense sheet in the profile (app34.js acProfileTab); unsaved sheet changes ask before the tab goes */
-  const showTab = (k, edit) => { if (k === 'ps' && PFT === 'ps' && $('#acx_cs')) return; if (!acLeaveOk()) return; if (k === 'ps' && ME.role !== 'admin') k = 'overview'; PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
+  const showTab = (k, edit) => { if (k === 'ps' && PFT === 'ps' && $('#acx_cs')) return; if (!acLeaveOk()) return; acLeft(); if (k === 'ps' && ME.role !== 'admin') k = 'overview'; PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
     if (k === 'plant') renderPlant(box, st.c, id, !!edit, st, refresh);
     else if (pgKeys.includes(k)) renderPfPage(box, st, k, !!edit, refresh);
     if (k === 'docs') renderDocs(box, st.c, id); if (k === 'warranty') renderWarranty(box, st.c, id); if (k === 'mnre') renderMnre(box, st.c, id); if (k === 'tax') renderTax(box, st.c, id); if (k === 'ps') acProfileTab(box, st.c, id); };
@@ -89,14 +89,14 @@ async function pgCustomer(id) {
   bindGoto();
   if (PFT !== 'overview') showTab(PFT, openEdit === PFT);
   feeMembers(id);
-  if ($('#pfown')) $('#pfown').onclick = async () => { if (acLeaveOk() && await reassignBox('customers', c)) route(); };
+  if ($('#pfown')) $('#pfown').onclick = async () => { if (acLeaveOk() && await reassignBox('customers', c)) { acLeft(); route(); } };
   $('#pfmore').onclick = e => { e.stopPropagation(); const old = $('#lmenu'); if (old) { old.remove(); return; }
     const items = [canW('projects') && tl.progress.length ? ['np2', 'project', '+ New project'] : null, canOwn ? ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner'] : null, w && canW('leads') && !BA() ? ['rv', 'refresh', 'Revert to lead'] : null, ...feeMenuItems(id), w && !BA() ? ['dl', 'trash', 'Delete customer'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu'; m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('') || '<p class="mut" style="margin:6px">No actions</p>';
     document.body.appendChild(m); const r = e.currentTarget.getBoundingClientRect(); m.style.top = (r.bottom + 6 + scrollY) + 'px'; m.style.left = Math.max(8, r.right - m.offsetWidth) + 'px';
     $$('[data-m]', m).forEach(b => b.onclick = async () => { m.remove(); const a = b.dataset.m; if (await feeMenuRun(a, { id, name: c.name })) return;
       if (a === 'np2') startModal({ customer_id: id });
-      if (a === 'own' && acLeaveOk() && await reassignBox('customers', c)) route();
+      if (a === 'own' && acLeaveOk() && await reassignBox('customers', c)) { acLeft(); route(); }
       if (a === 'rv') revertToLead(id, c.name);
       if (a === 'dl' && confirm('Delete this customer and all their projects, quotes and files?\n\nIt goes to the Recycle bin and can be restored for 72 hours.')) { await api('customers', 'delete', { id }); toast('Moved to Recycle bin'); location.hash = '#/customers'; } });
     setTimeout(() => document.addEventListener('click', () => m.remove(), { once: true }));
