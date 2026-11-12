@@ -199,7 +199,7 @@ async function applyModal(d) {
 async function drawHrSettings() {
   const box = $('#hrset'); if (!box) return;
   const c = (await api('hr', 'me')).cfg;
-  box.innerHTML = `<div class="ch"><h3>Attendance & leave</h3></div><div class="two">
+  box.innerHTML = `<h3>Working hours & leave</h3><div class="two">
     <div><label>Office start time</label><input type="time" id="hs1" value="${esc(c.start)}"></div><div><label>Office end time</label><input type="time" id="hs7" value="${esc(c.end || '18:00')}"></div>
     <div><label>Grace (minutes before “Late”)</label><input type="number" id="hs2" value="${c.grace}"></div><div><label>Half day if check-in after / check-out before</label><input type="time" id="hs8" value="${esc(c.half_after || '14:00')}"></div>
     <div><label>Also half day if worked less than (hours, 0 = off)</label><input type="number" step="0.5" id="hs3" value="${c.half_hours}"></div><div><label>Full day hours</label><input type="number" step="0.5" id="hs4" value="${c.full_hours}"></div>

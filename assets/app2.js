@@ -111,48 +111,166 @@ function campModal(c) {
 }
 
 // ---------- Settings ----------
+/* One section at a time: a list of sections on the left (a strip of tabs on phones) with a "Find a setting" box, and the chosen section on the right.
+   Every pane is built once and only hidden, so typed values survive a switch; panes that need their own request load when first opened.
+   #/settings/<section> opens a section directly. */
+const STG_TABS = [ /* id, name, icon, group (a gap separates groups), what is inside, who: 'adm' = admin only, 'acc' = Accounts readers */
+  ['company', 'Company', 'building', 0, 'The name, GSTIN and contacts printed on quotations and papers, and the picture on the sign-in screen.'],
+  ['rates', 'Rates & targets', 'gauge', 0, 'Default GST, the lead and customer targets on the dashboard, and the PM Surya Ghar subsidy amounts.'],
+  ['leads', 'Leads', 'target', 1, 'The choices offered for a lead’s source and status.'],
+  ['projects', 'Projects', 'project', 1, 'Pipeline stages, subsidy steps and the KSEB documents checklist, in the order they are worked through.'],
+  ['quotes', 'Quotations', 'receipt', 1, 'Ready-made lines for the “From catalog” menu of a quotation.'],
+  ['whatsapp', 'WhatsApp', 'whatsapp', 1, 'Ready-made messages to pick from when sending a WhatsApp.'],
+  ['prices', 'Price list', 'tag', 2, 'Material and service costs: dealer price, profit % and the customer price. The same list as Accounts › Price list.', 'acc'],
+  ['tpls', 'Material templates', 'clipboard', 2, 'Ready-made item lists with quantities for the Expense sheet, for example 10 kW SolarEdge on a sheet roof.', 'acc'],
+  ['access', 'User access', 'lock', 3, 'What each role can view and edit. Admin always has full access. Changes apply the next time the person loads a page.', 'adm'],
+  ['hr', 'Attendance & leave', 'clock', 3, 'Office hours, weekly off, leave types and the holiday list.', 'adm'],
+];
+const STG_LISTS = { /* settings key: title, hint, count words, section */
+  lead_sources: ['Lead sources', 'One per line.', 'source|sources', 'leads'],
+  lead_statuses: ['Lead statuses', 'One per line, in order. Keep “Won” and “Lost”.', 'status|statuses', 'leads'],
+  project_stages: ['Project stages', 'One per line, in order. Keep “Project completed” as the last stage.', 'stage|stages', 'projects'],
+  subsidy_steps: ['Subsidy steps', 'PM Surya Ghar steps, one per line, in order.', 'step|steps', 'projects'],
+  kseb_items: ['KSEB documents checklist', 'One per line.', 'document|documents', 'projects'],
+};
+/* what "Find a setting" looks through: section, card id, card title, the settings and current values inside */
+function stgIndex() {
+  const short = l => String(l).split(' — ')[0].split(' (')[0];
+  return [
+    ['company', 'cocard', 'Company details', ['Company name', 'GSTIN', 'Quote number prefix', 'Phone', 'Email', 'Address', 'Default quotation terms']],
+    ['company', 'stg-login', 'Sign-in screen', ['Login page', 'Background image', 'Tagline under the logo', 'Image darkness']],
+    ['rates', 'stg-rates', 'Rates & targets', ['Default GST %', 'Monthly lead target', 'Yearly customer target', 'Subsidy per kW', '3rd kW subsidy', 'Subsidy cap']],
+    ...Object.keys(STG_LISTS).map(k => [STG_LISTS[k][3], 'stg-' + k, STG_LISTS[k][0], S[k] || []]),
+    ['quotes', 'stg-catalog', 'Item catalog', ['Quotation item catalog', ...(S.catalog || []).map(c => String(c.desc || '').trim())]],
+    ['whatsapp', 'stg-wa', 'Message templates', ['WhatsApp templates', 'Placeholders', ...(S.wa_templates || []).map(t => t.name)]],
+    ['prices', 'acx_setpl', 'Price list', ['Dealer price', 'Profit %', 'Customer price', 'Materials and services']],
+    ['tpls', 'acx_settp', 'Material templates', ['Item lists for the Expense sheet']],
+    ['access', 'uacc', 'User access', ['Role permissions', ...Object.values(S.role_names || {}), ...(S.modules || []).map(m => short(MOD_LABELS[m] || m))]],
+    ['hr', 'hrset', 'Working hours & leave', ['Office start time', 'Office end time', 'Grace minutes', 'Half day', 'Full day hours', 'Salary day', 'Weekly off', 'Leave types']],
+    ['hr', 'holset', 'Holidays', []],
+  ];
+}
+/* matches for the typed text: sections first, then cards, then settings that start with it, then the rest (at most 8) */
+function stgSearch(idx, text, nameOf) {
+  const t = text.trim().toLowerCase(), out = [], seen = new Set(); if (!t) return out;
+  const add = (tab, card, label, sub, rank) => { const k = tab + '|' + label.toLowerCase(); if (label && !seen.has(k)) { seen.add(k); out.push({ tab, card, label, sub, rank }); } };
+  for (const [tab, name] of Object.entries(nameOf)) if (name.toLowerCase().includes(t)) add(tab, '', name, 'Section', 0);
+  for (const [tab, card, title, words] of idx) {
+    if (!nameOf[tab]) continue;
+    if (title.toLowerCase().includes(t)) add(tab, card, title, nameOf[tab], 1);
+    for (const w of words) { const p = String(w).toLowerCase().indexOf(t); if (p >= 0) add(tab, card, String(w), nameOf[tab] === title ? title : nameOf[tab] + ' › ' + title, p === 0 ? 2 : 3); }
+  }
+  return out.sort((a, b) => a.rank - b.rank).slice(0, 8);
+}
+function stgFlash(el) { /* show where the found setting lives */
+  el.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  el.classList.remove('stg-flash'); void el.offsetWidth; el.classList.add('stg-flash'); setTimeout(() => el.classList.remove('stg-flash'), 1900);
+}
+function stgPanes(adm) {
+  const dis = adm ? '' : 'disabled', co = S.company, r = S.subsidy_rates || {}, lg = S.login || {};
+  const num = (id, label, val, extra = '') => `<div><label for="${id}">${label}</label><input id="${id}" type="number" ${extra} value="${esc(val ?? '')}" ${dis}></div>`;
+  const act = html => adm ? `<div class="stg-act">${html}</div>` : '';
+  const area = (id, card, title, hint, words, val, btn) => `<div class="card" id="${card}"><div class="stg-ct"><h3>${title}</h3><span class="stg-n" data-cnt="${id}" data-w="${words}"></span></div><p class="stg-hint">${hint}</p>
+     <textarea id="${id}" data-fit rows="6" spellcheck="false" ${dis}>${esc(val)}</textarea>${act(btn)}</div>`;
+  const list = k => area('s-' + k, 'stg-' + k, STG_LISTS[k][0], STG_LISTS[k][1], STG_LISTS[k][2], (S[k] || []).join('\n'), `<button class="btn" data-sl="${k}">Save ${STG_LISTS[k][0].toLowerCase().replace('kseb', 'KSEB')}</button>`);
+  return {
+    company: () => `<div class="stg-cards stg-two">
+      <div class="card" id="cocard"><h3>Company details</h3><p class="stg-hint">A field left empty takes the company details set in the Quotation maker.</p>
+       <div class="two">${[{ k: 'name', l: 'Company name', full: 1 }, { k: 'gstin', l: 'GSTIN' }, { k: 'quote_prefix', l: 'Quote number prefix' }, { k: 'phone', l: 'Phone' }, { k: 'email', l: 'Email' }, { k: 'address', l: 'Address', full: 1 }, { k: 'terms', l: 'Default quotation terms', t: 'textarea', rows: 6, full: 1 }].map(f => fld(f, co)).join('')}</div>
+       ${act('<button class="btn" id="s-co">Save company</button>')}</div>
+      <div class="card" id="stg-login"><h3>Sign-in screen</h3><p class="stg-hint">Background image for the sign-in screen: JPG, PNG or WebP, up to 6 MB. A wide, landscape photo works best.</p>
+       <div id="lgprev" class="stg-prev">Loading…</div>
+       ${act('<button class="btn sec" id="lgup"><i class="i i-upload"></i> Upload image</button><button class="btn sec" id="lgrm">Remove image</button>')}
+       <div class="two"><div><label for="lgtag">Tagline under the logo</label><input id="lgtag" value="${esc(lg.tagline || '')}" ${dis}></div><div><label for="lgdim">Image darkness (0–80%)</label><input id="lgdim" type="number" min="0" max="80" value="${lg.dim ?? 35}" ${dis}></div></div>
+       ${act('<button class="btn" id="lgsv">Save sign-in text</button>')}</div></div>`,
+    rates: () => `<div class="stg-cards stg-one"><div class="card" id="stg-rates"><div class="stg-grp">
+       <div><h4>Tax</h4>${num('s-gst', 'Default GST %', S.gst_rate, 'step="any"')}</div>
+       <div><h4>Dashboard targets</h4>${num('s-tgt', 'Monthly lead target', S.lead_target, 'min="1"')}${num('s-ctgt', 'Yearly customer target', S.customer_target, 'min="1"')}</div>
+       <div><h4>PM Surya Ghar subsidy</h4>${num('s-r1', 'Subsidy per kW (first 2 kW) ₹', r.per_kw_first2)}${num('s-r2', '3rd kW subsidy ₹', r.third_kw)}${num('s-r3', 'Subsidy cap ₹', r.cap)}</div></div>
+       ${act('<button class="btn" id="s-rates">Save rates and targets</button>')}</div></div>`,
+    leads: () => `<div class="stg-cards">${list('lead_sources')}${list('lead_statuses')}</div>`,
+    projects: () => `<div class="stg-cards">${list('project_stages')}${list('subsidy_steps')}${list('kseb_items')}</div>`,
+    quotes: () => `<div class="stg-cards stg-one">${area('s-catalog', 'stg-catalog', 'Item catalog', 'One per line: description | rate', 'item|items', (S.catalog || []).map(c => String(c.desc || '').trim() + ' | ' + c.rate).join('\n'), '<button class="btn" id="s-cat">Save item catalog</button>')}</div>`,
+    whatsapp: () => `<div class="stg-cards stg-one">${area('s-wa', 'stg-wa', 'Message templates', 'One per line: name :: message. These are filled in when the message is sent: <code>{name}</code> <code>{company}</code> <code>{amount}</code> <code>{quote_no}</code> <code>{date}</code>', 'template|templates', (S.wa_templates || []).map(t => t.name + ' :: ' + t.text).join('\n'), '<button class="btn" id="s-wab">Save message templates</button>')}</div>`,
+    prices: () => `<section class="acx-setpl"><div id="acx_setpl"><p class="mut">Loading…</p></div></section>`,
+    tpls: () => `<section class="acx-setpl"><div id="acx_settp"><p class="mut">Loading…</p></div></section>`,
+    access: () => `<div class="card" id="uacc"><p class="mut">Loading…</p></div>`,
+    hr: () => `<div class="stg-cards stg-stack"><div class="card" id="hrset"><p class="mut">Loading…</p></div><div class="card" id="holset"></div></div>`,
+  };
+}
 async function pgSettings() {
   const adm = ME.role === 'admin';
-  const lines = k => (S[k] || []).join('\n');
-  const co = S.company, r = S.subsidy_rates;
-  $('#main').innerHTML = `${adm ? '' : '<p class="mut">View only — only an administrator can change settings.</p>'}<div class="grid cols2">
-   <div class="card" id="cocard"><h3>Company (used on quotations)</h3><p class="mut" style="margin:0 0 8px;font-size:12px">A field left empty takes the company details set in the Quotation maker.</p><div class="two">${[{ k: 'name', l: 'Company name', full: 1 }, { k: 'gstin', l: 'GSTIN' }, { k: 'quote_prefix', l: 'Quote number prefix' }, { k: 'phone', l: 'Phone' }, { k: 'email', l: 'Email' }, { k: 'address', l: 'Address', full: 1 }, { k: 'terms', l: 'Default quotation terms', t: 'textarea', rows: 6, full: 1 }].map(f => fld(f, co)).join('')}</div><div id="co"></div>${adm ? '<button class="btn" id="s-co" style="margin-top:10px">Save company</button>' : ''}</div>
-   <div class="card"><h3>Login page</h3><p class="mut" style="margin:0 0 8px;font-size:12px">Background image for the sign-in screen (JPG, PNG or WebP, up to 6 MB). A wide, landscape photo works best.</p>
-    <div id="lgprev" style="height:150px;border-radius:12px;border:1px solid var(--bd);background:var(--fill) center/cover no-repeat;display:grid;place-items:center;color:var(--mut);font-size:13px;overflow:hidden">Loading…</div>
-    ${adm ? '<div class="bar" style="margin:10px 0 0"><button class="btn" id="lgup">Upload image</button><button class="btn sec" id="lgrm">Remove</button></div>' : ''}
-    <div class="two"><div><label>Tagline under the logo</label><input id="lgtag" value="${esc((S.login || {}).tagline || '')}" ${adm ? '' : 'disabled'}></div><div><label>Image darkness (0–80%)</label><input id="lgdim" type="number" min="0" max="80" value="${(S.login || {}).dim ?? 35}" ${adm ? '' : 'disabled'}></div></div>
-    ${adm ? '<button class="btn" id="lgsv" style="margin-top:10px">Save login text</button>' : ''}</div>
-   ${adm ? '<div class="card full2" id="uacc"></div>' : ''}${adm ? '<div class="card" id="hrset"></div><div class="card full2" id="holset"></div>' : ''}
-   <div class="card"><h3>Rates</h3><div class="two"><div><label>Default GST %</label><input id="s-gst" type="number" step="any" value="${S.gst_rate}"></div><div><label>Monthly lead target</label><input id="s-tgt" type="number" min="1" value="${S.lead_target}"></div><div><label>Yearly customer target</label><input id="s-ctgt" type="number" min="1" value="${S.customer_target}"></div><div><label>Subsidy per kW (first 2 kW) ₹</label><input id="s-r1" type="number" value="${r.per_kw_first2}"></div><div><label>3rd kW subsidy ₹</label><input id="s-r2" type="number" value="${r.third_kw}"></div><div><label>Subsidy cap ₹</label><input id="s-r3" type="number" value="${r.cap}"></div></div>${adm ? '<button class="btn" id="s-rates" style="margin-top:10px">Save rates</button>' : ''}</div>
-   ${[['lead_sources', 'Lead sources', 'one per line'], ['lead_statuses', 'Lead statuses', 'one per line, in order. Keep "Won" and "Lost"'], ['project_stages', 'Project stages', 'one per line, in order. Keep "Closed"'], ['subsidy_steps', 'Subsidy steps (PM Surya Ghar)', 'one per line'], ['kseb_items', 'KSEB documentation checklist', 'one per line']].map(([k, l, h]) => `<div class="card"><h3>${l}</h3><p class="mut" style="margin:0 0 6px;font-size:12px">${h}</p><textarea id="s-${k}" rows="8" ${adm ? '' : 'disabled'}>${esc(lines(k))}</textarea>${adm ? `<button class="btn" data-sl="${k}" style="margin-top:8px">Save</button>` : ''}</div>`).join('')}
-   <div class="card"><h3>Quotation item catalog</h3><p class="mut" style="margin:0 0 6px;font-size:12px">one per line: description | rate</p><textarea id="s-catalog" rows="8" ${adm ? '' : 'disabled'}>${esc(S.catalog.map(c => c.desc.trim() + ' | ' + c.rate).join('\n'))}</textarea>${adm ? '<button class="btn" id="s-cat" style="margin-top:8px">Save</button>' : ''}</div>
-   <div class="card"><h3>WhatsApp templates</h3><p class="mut" style="margin:0 0 6px;font-size:12px">one per line: name :: message. Placeholders: {name} {company} {amount} {quote_no} {date}</p><textarea id="s-wa" rows="8" ${adm ? '' : 'disabled'}>${esc(S.wa_templates.map(t => t.name + ' :: ' + t.text).join('\n'))}</textarea>${adm ? '<button class="btn" id="s-wab" style="margin-top:8px">Save</button>' : ''}</div>
-   ${canR('accounts') ? `<section class="acx-setpl" aria-labelledby="acx_setpl_h"><div class="acx-ch"><h3 id="acx_setpl_h">Price list</h3><span class="mut acx-small">Material and service costs: dealer price, profit % and the customer price. The same list as Accounts › Price list${canW('accounts') ? '' : ' (view only)'}.</span></div><div id="acx_setpl"><p class="mut">Loading…</p></div></section>` : ''}
-   ${canR('accounts') ? `<section class="acx-setpl" aria-labelledby="acx_settp_h"><div class="acx-ch"><h3 id="acx_settp_h">Material templates</h3><span class="mut acx-small">Ready-made item lists with quantities for the Expense sheet (for example 10 kW SolarEdge · sheet roof)${canW('accounts') ? '' : ' (view only)'}.</span></div><div id="acx_settp"><p class="mut">Loading…</p></div></section>` : ''}</div>`;
-  /* Settings › Price list: the Accounts price list (acMaterials, app34.js); its own permission (accounts), not the admin's */
-  const plBox = $('#acx_setpl');
-  if (plBox && typeof acMaterials === 'function') acMaterials(plBox).catch(e => { if (plBox.isConnected) plBox.innerHTML = `<p class="mut">${esc((e && (e.error || e.message)) || 'The price list could not be loaded.')}</p>`; });
-  /* Settings › Material templates (acTemplates, app34.js): same permission as the price list */
-  const tpBox = $('#acx_settp');
-  if (tpBox && typeof acTemplates === 'function') acTemplates(tpBox).catch(e => { if (tpBox.isConnected) tpBox.innerHTML = `<p class="mut">${esc((e && (e.error || e.message)) || 'The templates could not be loaded.')}</p>`; });
-  const save = async (key, value) => { await api('settings', 'save', { key, value }); S = await api('settings', 'get'); alert('Saved'); };
-  const arr = k => $('#s-' + k).value.split('\n').map(s => s.trim()).filter(Boolean);
-  const brand = await (await fetch('api.php?m=auth&a=status')).json().then(j => j.brand || {});
-  const prev = b => { const p = $('#lgprev'); if (b.bg) { p.style.backgroundImage = "url('" + b.bg + "')"; p.textContent = ''; } else { p.style.backgroundImage = ''; p.textContent = 'No image — default background'; } };
-  prev(brand);
+  const tabs = STG_TABS.filter(t => t[5] === 'adm' ? adm : t[5] === 'acc' ? canR('accounts') : true), has = id => tabs.some(t => t[0] === id);
+  const want = (location.hash.split('/')[2] || '').toLowerCase();
+  let cur = has(want) ? want : has(TAB.stg) ? TAB.stg : tabs[0][0];
+  const panes = stgPanes(adm), ro = t => t[5] === 'acc' ? !canW('accounts') : !adm, nameOf = Object.fromEntries(tabs.map(t => [t[0], t[1]]));
+  $('#main').innerHTML = `<div class="stg">
+    <nav class="stg-side" aria-label="Settings sections">
+     <div class="stg-find"><i class="i i-search"></i><input id="stgq" type="search" placeholder="Find a setting" autocomplete="off" spellcheck="false" aria-label="Find a setting" aria-controls="stgres"></div>
+     <div class="stg-res" id="stgres" role="listbox" aria-label="Matching settings" hidden></div>
+     <div class="stg-list" id="stglist" role="tablist" aria-orientation="vertical">${tabs.map((t, i) => `${i && t[3] !== tabs[i - 1][3] ? '<span class="stg-gap" aria-hidden="true"></span>' : ''}<button type="button" class="stg-tab" role="tab" id="stgt-${t[0]}" data-stg="${t[0]}" aria-controls="stgp-${t[0]}"><i class="i i-${t[2]}"></i><span>${t[1]}</span></button>`).join('')}</div>
+    </nav>
+    <div class="stg-body">${tabs.map(t => `<div class="stg-pane" id="stgp-${t[0]}" role="tabpanel" aria-labelledby="stgt-${t[0]}" hidden>
+      <div class="stg-head"><h2>${t[1]}${ro(t) ? '<span class="pill">View only</span>' : ''}</h2><p>${t[4]}${ro(t) && t[5] !== 'acc' ? ' Only an administrator can change these.' : ''}</p></div>${panes[t[0]]()}</div>`).join('')}</div></div>`;
+
+  const q = $('#stgq'), res = $('#stgres'), list = $('#stglist'), loaded = new Set();
+  const prev = b => { const p = $('#lgprev'); if (!p) return; if (b.bg) { p.style.backgroundImage = "url('" + b.bg + "')"; p.textContent = ''; } else { p.style.backgroundImage = ''; p.textContent = 'No image — default background'; } };
+  const later = (id, fn, what) => { const b = $('#' + id); if (b && typeof fn === 'function') fn(b).catch(e => { if (b.isConnected) b.innerHTML = `<p class="mut">${esc((e && (e.error || e.message)) || what + ' could not be loaded.')}</p>`; }); };
+  const LOAD = { /* first time a section is opened */
+    company: () => fetch('api.php?m=auth&a=status').then(x => x.json()).then(j => prev(j.brand || {})).catch(() => prev({})),
+    prices: () => later('acx_setpl', typeof acMaterials === 'function' && acMaterials, 'The price list'), /* its own permission (accounts), not the admin's */
+    tpls: () => later('acx_settp', typeof acTemplates === 'function' && acTemplates, 'The templates'),
+    access: () => drawAccess(), hr: () => drawHrSettings(),
+  };
+  /* text boxes grow with their lines, so a whole list is in view; the count beside the title follows */
+  const fit = ta => { const c = $(`[data-cnt="${ta.id}"]`);
+    if (c) { const n = ta.value.split('\n').filter(l => l.trim()).length, w = c.dataset.w.split('|'); c.textContent = n + ' ' + w[n === 1 ? 0 : 1]; }
+    if (!ta.offsetParent) return; ta.style.height = 'auto'; ta.style.height = Math.min(620, Math.max(132, ta.scrollHeight + 2)) + 'px'; };
+  const show = id => {
+    cur = id; TAB.stg = id;
+    $$('.stg-tab', list).forEach(b => { const on = b.dataset.stg === id; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1; if (on && b.scrollIntoView) b.scrollIntoView({ block: 'nearest', inline: 'center' }); });
+    $$('.stg-pane').forEach(p => p.hidden = p.id !== 'stgp-' + id);
+    const h = $('#title'); if (h) { let s = $('.ttls', h); if (!s) { s = document.createElement('span'); s.className = 'mut ttls'; h.appendChild(s); } s.textContent = '› ' + nameOf[id]; }
+    if (location.hash !== '#/settings/' + id) history.replaceState(null, '', '#/settings/' + id);
+    if (!loaded.has(id)) { loaded.add(id); if (LOAD[id]) LOAD[id](); }
+    $$('#stgp-' + id + ' textarea[data-fit]').forEach(fit); autoFit();
+  };
+  list.onclick = e => { const b = e.target.closest('.stg-tab'); if (b) show(b.dataset.stg); };
+  list.onkeydown = e => { const i = tabs.findIndex(t => t[0] === cur), k = e.key; let n;
+    if (k === 'ArrowDown' || k === 'ArrowRight') n = (i + 1) % tabs.length; else if (k === 'ArrowUp' || k === 'ArrowLeft') n = (i - 1 + tabs.length) % tabs.length; else if (k === 'Home') n = 0; else if (k === 'End') n = tabs.length - 1; else return;
+    e.preventDefault(); show(tabs[n][0]); $('#stgt-' + tabs[n][0]).focus(); };
+  $$('#cocard textarea').forEach(ta => ta.setAttribute('data-fit', '')); /* the quotation terms grow with their lines too */
+  $$('textarea[data-fit]').forEach(ta => { fit(ta); ta.addEventListener('input', () => fit(ta)); });
+  if (!adm) tabs.filter(t => t[5] !== 'acc').forEach(t => $$('#stgp-' + t[0] + ' :is(input,textarea,select)').forEach(e => e.disabled = true));
+
+  /* Find a setting: the list of sections gives way to the matches; Enter opens the first, arrows move, Esc clears */
+  const idx = stgIndex(); let hits = [], hi = 0;
+  const drawRes = () => { const t = q.value.trim(); list.hidden = !!t; res.hidden = !t; hits = stgSearch(idx, t, nameOf); if (hi >= hits.length) hi = 0;
+    res.innerHTML = !t ? '' : hits.length ? hits.map((h, i) => `<button type="button" class="stg-hit${i === hi ? ' kb' : ''}" role="option" aria-selected="${i === hi}" data-i="${i}"><b>${esc(h.label)}</b><small>${esc(h.sub)}</small></button>`).join('') : `<p class="stg-none">No setting matches “${esc(t)}”.</p>`; };
+  const pick = h => { q.value = ''; hi = 0; drawRes(); show(h.tab); const el = h.card && document.getElementById(h.card); if (el) stgFlash(el); else $('#stgt-' + h.tab).focus(); };
+  q.oninput = () => { hi = 0; drawRes(); };
+  q.onkeydown = e => {
+    if (e.key === 'Escape' && q.value) { e.preventDefault(); q.value = ''; drawRes(); return; }
+    if (!hits.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); hi = (hi + (e.key === 'ArrowDown' ? 1 : -1) + hits.length) % hits.length; drawRes(); }
+    else if (e.key === 'Enter') { e.preventDefault(); pick(hits[hi]); } };
+  res.onclick = e => { const b = e.target.closest('.stg-hit'); if (b) pick(hits[+b.dataset.i]); };
+
   if (adm) {
-    $('#lgup').onclick = async () => { const f = await pickFile('image/jpeg,image/png,image/webp'); if (!f) return; const fd = new FormData(); fd.append('file', f); const r = await api('settings', 'upload_bg', fd); prev(r.brand); };
-    $('#lgrm').onclick = async () => { if (confirm('Remove the login background image?')) { const r = await api('settings', 'remove_bg', {}); prev(r.brand); } };
-    $('#lgsv').onclick = () => save('login', { ...(S.login || {}), tagline: $('#lgtag').value, dim: Math.max(0, Math.min(80, +$('#lgdim').value || 0)) });
+    const put = (key, value) => api('settings', 'save', { key, value }), done = async msg => { S = await api('settings', 'get'); toast(msg); };
+    const arr = k => $('#s-' + k).value.split('\n').map(s => s.trim()).filter(Boolean);
+    $('#lgup').onclick = async () => { const f = await pickFile('image/jpeg,image/png,image/webp'); if (!f) return; const fd = new FormData(); fd.append('file', f); const r = await api('settings', 'upload_bg', fd); prev(r.brand); toast('Image uploaded'); };
+    $('#lgrm').onclick = async () => { if (confirm('Remove the login background image?')) { const r = await api('settings', 'remove_bg', {}); prev(r.brand); toast('Image removed'); } };
+    $('#lgsv').onclick = async () => { await put('login', { ...(S.login || {}), tagline: $('#lgtag').value, dim: Math.max(0, Math.min(80, +$('#lgdim').value || 0)) }); await done('Sign-in text saved'); };
+    /* the Company card itself — $('.card') is the hidden bell panel and once saved an empty record */
+    $('#s-co').onclick = async () => { await put('company', collect($('#cocard'))); await done('Company details saved'); $$('#cocard [data-k]').forEach(e => e.value = S.company[e.dataset.k] ?? ''); };
+    $('#s-rates').onclick = async () => { await put('gst_rate', +$('#s-gst').value); await put('lead_target', +$('#s-tgt').value || 1000); await put('customer_target', +$('#s-ctgt').value || 2000);
+      await put('subsidy_rates', { per_kw_first2: +$('#s-r1').value, third_kw: +$('#s-r2').value, cap: +$('#s-r3').value }); await done('Rates and targets saved'); };
+    $$('[data-sl]').forEach(b => b.onclick = async () => { await put(b.dataset.sl, arr(b.dataset.sl)); await done(STG_LISTS[b.dataset.sl][0] + ' saved'); });
+    $('#s-cat').onclick = async () => { await put('catalog', arr('catalog').map(l => { const [d, r] = l.split('|'); return { desc: d.trim(), rate: +(r || 0) }; })); await done('Item catalog saved'); };
+    $('#s-wab').onclick = async () => { await put('wa_templates', arr('wa').map(l => { const [n, ...t] = l.split('::'); return { name: n.trim(), text: t.join('::').trim() }; })); await done('Message templates saved'); };
   }
-  if (adm) { drawAccess(); drawHrSettings(); }
-  if (adm) {
-    $('#s-co').onclick = async () => { await save('company', collect($('#cocard'))); $$('#cocard [data-k]').forEach(e => e.value = S.company[e.dataset.k] ?? ''); }; /* the Company card itself — $('.card') is the hidden bell panel and saved an empty record */
-    $('#s-rates').onclick = async () => { await save('gst_rate', +$('#s-gst').value); await save('lead_target', +$('#s-tgt').value || 1000); await save('customer_target', +$('#s-ctgt').value || 2000); await save('subsidy_rates', { per_kw_first2: +$('#s-r1').value, third_kw: +$('#s-r2').value, cap: +$('#s-r3').value }); };
-    $$('[data-sl]').forEach(b => b.onclick = () => save(b.dataset.sl, arr(b.dataset.sl)));
-    $('#s-cat').onclick = () => save('catalog', arr('catalog').map(l => { const [d, r] = l.split('|'); return { desc: d.trim(), rate: +(r || 0) }; }));
-    $('#s-wab').onclick = () => save('wa_templates', arr('wa').map(l => { const [n, ...t] = l.split('::'); return { name: n.trim(), text: t.join('::').trim() }; }));
-  }
+  show(cur);
 }
 
 // ---------- Admin ----------
@@ -165,7 +283,7 @@ async function pgAdmin() {
     const us = await api('admin', 'users');
     ab.innerHTML = `<div class="bar"><span class="sp"></span><button class="btn" id="nu">+ New user</button></div>` +
       table([['Name', u => `<span class="uav" data-pres="${u.id}">${avImg(u.id, u.avatar, u.name)}</span><b>${esc(u.name)}</b>`], ['Username', u => esc(u.username)], ['Role', u => pill((S.role_names || {})[u.role] || u.role, u.role === 'admin' ? 'y' : u.role === 'assistant_manager' ? 'p' : 'b')], ['Active', u => u.active ? pill('Yes', 'g') : pill('Disabled', 'r')], ['Leads access', u => u.role === 'admin' ? pill('All leads', 'b') : u.can_claim ? pill('Can see & claim', 'g') : pill('Own leads only')], ['Claimed leads', u => u.leads || 0], ['Email', u => +u.mails ? `${u.mails} address${+u.mails === 1 ? '' : 'es'}` : '<span class="mut">—</span>'], ['Created', u => dt(u.created)]], us, id => userModal(us.find(u => u.id == id))) +
-      `<div class="card" style="margin-top:12px"><h3>Role permissions</h3><p class="mut" style="margin:0">Choose what each role can view and edit in <a href="#/settings">Settings → User access</a>. Admin always has full access.</p></div>`;
+      `<div class="card" style="margin-top:12px"><h3>Role permissions</h3><p class="mut" style="margin:0">Choose what each role can view and edit in <a href="#/settings/access">Settings → User access</a>. Admin always has full access.</p></div>`;
     $('#nu').onclick = () => userModal({});
   }
   if (t === 'audit') {
@@ -233,7 +351,7 @@ function drawAccess() {
   const box = $('#uacc'); if (!box) return;
   const roles = Object.keys(S.role_names).filter(r => r !== 'admin'), now = JSON.parse(JSON.stringify(S.roles_now));
   const render = () => {
-    box.innerHTML = `<div class="ch"><h3>User access</h3><span class="mut" style="font-size:12px">Tick what each role can <b>view</b> and <b>edit</b>. Admin always has full access. Changes apply on the user's next page load.</span></div>
+    box.innerHTML = `
      <div class="tw"><table class="acc"><thead><tr><th>Area</th>${roles.map(r => `<th>${esc(S.role_names[r])}<small><a href="#" data-allr="${r}">all</a> · <a href="#" data-nofin="${r}">no finance</a> · <a href="#" data-def="${r}">default</a></small></th>`).join('')}</tr></thead><tbody>
      ${S.modules.map(mod => `<tr class="${FIN_MODS.includes(mod) ? 'finrow' : ''}"><td><b>${MOD_LABELS[mod] || mod}</b>${FIN_MODS.includes(mod) ? ' <span class="pill y">finance</span>' : ''}</td>${roles.map(r => { const rd = now[r].read.includes(mod), wt = now[r].write.includes(mod);
        if ((S.role_never && S.role_never[r] || []).includes(mod)) return `<td><span class="mut" style="font-size:12px" title="${esc(S.role_names[r])} never has ${esc(String(MOD_LABELS[mod] || mod).replace(/<[^>]*>/g, ''))}">Not for this role</span></td>`;
