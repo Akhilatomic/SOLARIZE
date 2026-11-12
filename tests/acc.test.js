@@ -361,3 +361,13 @@ test('material list title block says (items still to buy) only when filtered', (
   const has = L => L.pages[0].ops.some(o => o.t === 'text' && /\(items still to buy\)/.test(o.txt));
   assert.equal(has(mk(true)), true); assert.equal(has(mk(false)), false); assert.equal(has(mk(undefined)), false);
 });
+test('markBought: a blank supplier / bill no. keeps each line\'s own; a typed one applies to all chosen', () => {
+  const lines = [{ name: 'A', qty: 1, rate: 1, supplier: 'S1', bill_no: 'B1' }, { name: 'B', qty: 1, rate: 1, supplier: 'S2', bill_no: 'B2' }, { name: 'C', qty: 1, rate: 1 }];
+  const keep = ACC.markBought(lines, [0, 1, 2], { date: '2026-11-12', supplier: '  ', bill_no: '', rates: {} });
+  assert.deepEqual(keep.map(l => [l.supplier || '', l.bill_no || '']), [['S1', 'B1'], ['S2', 'B2'], ['', '']]);
+  assert.ok(keep.every(l => l.bought === 1 && l.bill_date === '2026-11-12'));
+  const over = ACC.markBought(lines, [0, 1], { date: '2026-11-12', supplier: 'New', bill_no: 'N-1', rates: {} });
+  assert.deepEqual(over.map(l => [l.supplier || '', l.bill_no || '']), [['New', 'N-1'], ['New', 'N-1'], ['', '']]);
+  const mix = ACC.markBought(lines, [0, 1], { date: '2026-11-12', supplier: 'New', bill_no: '', rates: {} });
+  assert.deepEqual(mix.map(l => [l.supplier, l.bill_no]), [['New', 'B1'], ['New', 'B2'], [undefined, undefined]]);
+});

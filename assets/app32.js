@@ -116,12 +116,12 @@ const ACC = {
     return '';
   },
   /* Mark purchased: new lines (the input is not changed); the chosen ones get status, date, supplier, bill no., bill date (blank = the purchase
-     date) and the price paid; a price different from the line's counts as a typed dealer price (typed), so it can update the price list on Save */
+     date); a blank supplier / bill no. keeps the line's own and the price paid; a price different from the line's counts as a typed dealer price (typed), so it can update the price list on Save */
   markBought(lines, idxs, form) {
     const f = form || {}, pick = new Set((idxs || []).map(Number));
     return (lines || []).map((l, i) => {
       if (!pick.has(i)) return l;
-      const n = Object.assign({}, l, { bought: 1, bought_on: String(f.date || ''), supplier: String(f.supplier || '').trim(), bill_no: String(f.bill_no || '').trim(), bill_date: String(f.bill_date || '') || String(f.date || '') });
+      const n = Object.assign({}, l, { bought: 1, bought_on: String(f.date || ''), supplier: String(f.supplier || '').trim() || l.supplier, bill_no: String(f.bill_no || '').trim() || l.bill_no, bill_date: String(f.bill_date || '') || String(f.date || '') });
       const r = (f.rates || {})[i];
       if (r !== undefined && r !== null && isFinite(Number(r))) { if (Math.abs(Number(r) - (Number(l.rate) || 0)) > 0.0001) n.typed = true; n.rate = Number(r); }
       return n;
