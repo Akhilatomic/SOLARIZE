@@ -248,6 +248,31 @@ function acc_shares($where, $args) {
 
 function acc_expense_row($r) { foreach (['id', 'created_by'] as $k) $r[$k] = (int)$r[$k]; foreach (['amount', 'gst'] as $k) $r[$k] = (float)$r[$k]; return $r; }
 
+const ACC_TPL_MAX_ITEMS = 400;
+
+/* a material template's items, validated and cleaned: [{material_id, grp, name, unit, qty}] (product + quantity only) */
+function acc_tpl_items($raw) {
+  if (!is_array($raw) || !$raw) fail('Add at least one item to the template');
+  if (count($raw) > ACC_TPL_MAX_ITEMS) fail('At most ' . ACC_TPL_MAX_ITEMS . ' items in a template');
+  $out = [];
+  foreach (array_values($raw) as $i => $it) {
+    $n = $i + 1; if (!is_array($it)) fail("Item $n is not valid");
+    $name = trim((string)($it['name'] ?? ''));
+    if ($name === '') fail("Item $n: the product is required");
+    if (mb_strlen($name) > 200) fail("Item $n: the name is too long (200 characters at most)");
+    $qty = $it['qty'] ?? null;
+    if (!is_numeric($qty) || (float)$qty <= 0 || (float)$qty > 1e9) fail("Item $n ($name): enter a quantity above 0");
+    $out[] = ['material_id' => max(0, (int)($it['material_id'] ?? 0)), 'grp' => mb_substr(trim((string)($it['grp'] ?? '')), 0, 200), 'name' => $name,
+      'unit' => mb_substr(trim((string)($it['unit'] ?? '')), 0, 20), 'qty' => round((float)$qty, 3)];
+  }
+  return $out;
+}
+/* a template as the pages get it (items decoded) */
+function acc_tpl_out($r) {
+  $it = json_decode((string)$r['items'], true);
+  return ['id' => (int)$r['id'], 'name' => $r['name'], 'items' => is_array($it) ? $it : [], 'updated' => $r['updated'], 'updated_by' => (string)$r['updated_by']];
+}
+
 function handle_acc($a) {
   /* receipts, templates and the share log are also open to the Payments roles; everything else needs Accounts.
      ac_receipt returns the price and amounts, so it also needs Finance; the writes (receipt_no, log) need write access. */
@@ -401,6 +426,57 @@ function handle_acc($a) {
       trash_put('Material', $m['grp'] . ' · ' . $m['name'], [['acc_materials', 'id=?', [$id]]]);
       q('DELETE FROM acc_materials WHERE id=?', [$id]);
       audit('acc_material_delete', 'acc_materials', $id, $m['name']);
+      out(['ok' => true]);
+    }
+
+    case 'ac_tpls': { /* material templates: id, name, number of items, last change (no items; ac_tpl_get has them) */
+      $rs = rows('SELECT id, name, items, updated, updated_by FROM acc_tpls ORDER BY lower(name), id');
+      out(['rows' => array_map(function ($r) { $it = json_decode((string)$r['items'], true); return ['id' => (int)$r['id'], 'name' => $r['name'], 'n' => is_array($it) ? count($it) : 0, 'updated' => $r['updated'], 'updated_by' => (string)$r['updated_by']]; }, $rs)]);
+    }
+
+    case 'ac_tpl_get': {
+      $r = row('SELECT * FROM acc_tpls WHERE id=?', [(int)($_GET['id'] ?? 0)]); if (!$r) fail('Template not found', 404);
+      out(acc_tpl_out($r));
+    }
+
+    case 'tpl_put': { /* POST {id?, name, items, replace?}: new template, or edit by id. A name already used (any case): 409 {dup_id, quiet}; replace:1 overwrites that template */
+      need('accounts', true);
+      $id = (int)($in['id'] ?? 0);
+      $name = trim(preg_replace('/\s+/u', ' ', (string)($in['name'] ?? '')));
+      if ($name === '') fail('Give the template a name');
+      if (mb_strlen($name) > 80) fail('The name is too long (80 characters at most)');
+      $items = acc_tpl_items($in['items'] ?? null);
+      if ($id && !row('SELECT 1 FROM acc_tpls WHERE id=?', [$id])) fail('Template not found', 404);
+      $rep = (int)($in['replace'] ?? 0);
+      $dup = row('SELECT id FROM acc_tpls WHERE lower(name)=lower(?) AND id<>?', [$name, $id]);
+      if ($dup) {
+        if ($rep < 1 || ($rep > 1 && $rep !== (int)$dup['id'])) out(['error' => "A template named $name already exists", 'dup_id' => (int)$dup['id'], 'quiet' => 1], 409);
+        $id = (int)$dup['id']; /* replace: the clashing template takes the new name spelling and items */
+      }
+      $json = json_encode($items, JSON_UNESCAPED_UNICODE);
+      if ($id) q('UPDATE acc_tpls SET name=?, items=?, updated_by=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$name, $json, $_SESSION['name'] ?? '', $id]);
+      else { q('INSERT INTO acc_tpls(name, items, updated_by) VALUES(?,?,?)', [$name, $json, $_SESSION['name'] ?? '']); $id = (int)db()->lastInsertId(); }
+      audit('acc_tpl_put', 'acc_tpls', $id, $name . ' · ' . count($items) . ' item(s)');
+      out(['ok' => true, 'id' => $id]);
+    }
+
+    case 'tpl_copy': { /* POST {id}: "<name> (copy)", else "(copy 2)", … */
+      need('accounts', true);
+      $r = row('SELECT * FROM acc_tpls WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$r) fail('Template not found', 404);
+      $base = mb_substr($r['name'], 0, 70); $k = 1;
+      do { $nm = $base . ($k === 1 ? ' (copy)' : " (copy $k)"); $k++; } while (row('SELECT 1 FROM acc_tpls WHERE lower(name)=lower(?)', [$nm]));
+      q('INSERT INTO acc_tpls(name, items, updated_by) VALUES(?,?,?)', [$nm, $r['items'], $_SESSION['name'] ?? '']);
+      $nid = (int)db()->lastInsertId();
+      audit('acc_tpl_copy', 'acc_tpls', $nid, "$nm (from {$r['name']})");
+      out(['ok' => true, 'id' => $nid, 'name' => $nm]);
+    }
+
+    case 'tpl_del': {
+      need('accounts', true);
+      $id = (int)($in['id'] ?? 0); $r = row('SELECT * FROM acc_tpls WHERE id=?', [$id]); if (!$r) fail('Template not found', 404);
+      trash_put('Material template', $r['name'], [['acc_tpls', 'id=?', [$id]]]);
+      q('DELETE FROM acc_tpls WHERE id=?', [$id]);
+      audit('acc_tpl_del', 'acc_tpls', $id, $r['name']);
       out(['ok' => true]);
     }
 

@@ -47,6 +47,34 @@ const ACC = {
     });
     return out;
   },
+  /* Save as template: a sheet's lines as template items, product + quantity only (no prices, % , GST, supplier, bill, note).
+     KSEB / stamp paper fee lines and the automatic commission / incentive line are not part of a template. */
+  tplFromLines(lines) {
+    return (lines || []).filter(l => l && !ACC.isFee(l) && !l.auto)
+      .map(l => ({ material_id: Number(l.material_id) || 0, grp: String(l.grp || ''), name: String(l.name || ''), unit: String(l.unit || ''), qty: Number(l.qty) || 0 }));
+  },
+  /* Load from template: the template's items as new sheet lines at today's price list (dealer price, GST, profit % by addPct with
+     the default def). mats = the price list, have = the lines on the sheet, mode 'add' (skip items already there: same material, or
+     same group + name in any case) or 'replace' (only the sheet's own fee lines stay). An item whose product is not on the list
+     (deleted or hidden) keeps its saved name, dealer price 0, and is named in missing. Returns {lines, skipped, missing}. */
+  tplToLines(tpl, mats, have, mode, def) {
+    const key = l => String(l.grp || '').trim().toLowerCase() + '|' + String(l.name || '').trim().toLowerCase();
+    const keep = mode === 'replace' ? (have || []).filter(l => ACC.isFee(l)) : (have || []);
+    const ids = new Set(keep.map(l => Number(l.material_id) || 0).filter(Boolean)), keys = new Set(keep.map(key));
+    const live = (mats || []).filter(m => !Number(m.hidden));
+    const out = { lines: [], skipped: 0, missing: [] };
+    ((tpl && tpl.items) || []).forEach(it => {
+      const id = Number(it.material_id) || 0;
+      const m = live.find(x => id && Number(x.id) === id) || live.find(x => key(x) === key(it));
+      const mid = m ? Number(m.id) : id; /* a product off the list keeps its old id: saving the sheet does not put it back on the price list */
+      if ((mid && ids.has(mid)) || keys.has(key(m || it))) { out.skipped++; return; }
+      if (mid) ids.add(mid); keys.add(key(m || it));
+      if (!m) out.missing.push(String(it.name || ''));
+      out.lines.push({ material_id: mid, grp: String((m || it).grp || ''), name: String((m || it).name || ''), qty: Number(it.qty) || 0, unit: String((m || it).unit || it.unit || ''),
+        rate: m ? Number(m.rate) || 0 : 0, gst: m ? Number(m.gst) : 18, profit: ACC.addPct(m || { name: it.name }, def), supplier: '', bill_no: '', bill_date: '', note: '' });
+    });
+    return out;
+  },
   /* ---- Expense sheet and price list: dealer price (before GST) + profit % = customer price ---- */
   SVC: 'Services and charges', /* the services group; every other group is a purchase */
   PROFIT_DEF: 15,              /* the default profit % until Settings › Price list changes it (acc_profit_default) */

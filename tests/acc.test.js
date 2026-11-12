@@ -219,3 +219,49 @@ test('copy from another project keeps each line\'s profit %', () => {
   assert.equal(r.lines[0].profit, 12);
   assert.equal(r.lines[1].profit, null, 'a line with no % stays blank (the default)');
 });
+test('template from sheet lines: product + quantity only, no fees, no automatic line', () => {
+  const lines = [
+    { material_id: 1, grp: 'Inverter & optimizers', name: 'Test Inverter', qty: 1, unit: 'Nos', rate: 50000, gst: 5, profit: 20, supplier: 'X', bill_no: 'B1', bill_date: '2026-11-01', note: 'n' },
+    { material_id: 0, grp: 'Solar panels', name: 'Typed Panel', qty: 16, unit: 'Nos', rate: 14200, gst: 5 },
+    { material_id: 46, grp: 'Services and charges', name: 'KSEB feasibility', qty: 1, unit: 'Job', rate: 500, gst: 0 },
+    { material_id: 0, grp: 'Services and charges', name: 'Typed fee', qty: 1, unit: 'Job', rate: 500, gst: 0, note: 'From Finance › Fees' },
+    { material_id: 0, grp: 'Services and charges', name: 'Incentive — Asha', qty: 1, unit: 'Job', rate: 6000, gst: 0, auto: 'comm' },
+  ];
+  assert.deepEqual(ACC.tplFromLines(lines), [
+    { material_id: 1, grp: 'Inverter & optimizers', name: 'Test Inverter', unit: 'Nos', qty: 1 },
+    { material_id: 0, grp: 'Solar panels', name: 'Typed Panel', unit: 'Nos', qty: 16 }]);
+  assert.deepEqual(ACC.tplFromLines(null), []);
+});
+test('template to sheet lines: today\'s prices, add / replace, duplicates, missing products', () => {
+  const mats = [
+    { id: 1, grp: 'Inverter & optimizers', name: 'Test Inverter', unit: 'Nos', gst: 5, rate: 52000, profit: null, hidden: 0 },
+    { id: 2, grp: 'Solar panels', name: 'Test Panel', unit: 'Nos', gst: 5, rate: 14500, profit: 12, hidden: 0 },
+    { id: 3, grp: 'Services and charges', name: 'Stamp paper', unit: 'Nos', gst: 0, rate: 100, profit: null, hidden: 0 },
+    { id: 4, grp: 'Solar panels', name: 'Hidden Panel', unit: 'Nos', gst: 5, rate: 1, profit: null, hidden: 1 },
+    { id: 5, grp: 'DC cables & connectors', name: 'Test Box', unit: 'Nos', gst: 18, rate: 700, profit: null, hidden: 0 }];
+  const tpl = { name: 'T', items: [
+    { material_id: 1, grp: 'Inverter & optimizers', name: 'Test Inverter', unit: 'Nos', qty: 1 },
+    { material_id: 2, grp: 'Solar panels', name: 'Test Panel', unit: 'Nos', qty: 16 },
+    { material_id: 3, grp: 'Services and charges', name: 'Stamp paper', unit: 'Nos', qty: 2 },
+    { material_id: 99, grp: 'Structure & supports', name: 'Gone Rail', unit: 'm', qty: 30 },
+    { material_id: 4, grp: 'Solar panels', name: 'Hidden Panel', unit: 'Nos', qty: 3 },
+    { material_id: 0, grp: 'DC cables & connectors', name: 'test box', unit: 'Nos', qty: 4 }] };
+  const r = ACC.tplToLines(tpl, mats, [], 'replace', 15);
+  const row = n => { const l = r.lines.find(x => x.name === n); return [l.qty, l.rate, l.gst, l.profit, l.material_id]; };
+  assert.deepEqual(row('Test Inverter'), [1, 52000, 5, 15, 1], 'item without its own % takes the default');
+  assert.deepEqual(row('Test Panel'), [16, 14500, 5, 12, 2], 'the item\'s own %');
+  assert.deepEqual(row('Stamp paper'), [2, 100, 0, 0, 3], 'a fee item with a blank % = 0');
+  assert.deepEqual(row('Gone Rail'), [30, 0, 18, 15, 99], 'no longer on the list: saved name, dealer price 0, old id kept');
+  assert.deepEqual(row('Hidden Panel'), [3, 0, 18, 15, 4], 'hidden = no longer on the list');
+  assert.deepEqual(row('Test Box'), [4, 700, 18, 15, 5], 'matched by group + name: the price list name and price');
+  assert.deepEqual(r.missing, ['Gone Rail', 'Hidden Panel']); assert.equal(r.skipped, 0);
+  /* add: items already on the sheet are skipped (same material, or same group + name in any case) */
+  const have = [{ material_id: 2, grp: 'Solar panels', name: 'Other', qty: 1 }, { material_id: 0, grp: 'dc cables & connectors', name: 'TEST BOX', qty: 1 }];
+  const a = ACC.tplToLines(tpl, mats, have, 'add', 15);
+  assert.deepEqual(a.lines.map(l => l.name), ['Test Inverter', 'Stamp paper', 'Gone Rail', 'Hidden Panel']); assert.equal(a.skipped, 2);
+  /* replace keeps only the sheet's own fee lines: they are not loaded twice, other lines are dropped */
+  const fee = { material_id: 3, grp: 'Services and charges', name: 'Stamp paper', qty: 1, note: 'From Finance › Fees' };
+  const p = ACC.tplToLines(tpl, mats, [fee, have[0]], 'replace', 15);
+  assert.deepEqual(p.lines.map(l => l.name), ['Test Inverter', 'Test Panel', 'Gone Rail', 'Hidden Panel', 'Test Box']); assert.equal(p.skipped, 1);
+  assert.deepEqual(ACC.tplToLines(null, null, null, 'add'), { lines: [], skipped: 0, missing: [] });
+});

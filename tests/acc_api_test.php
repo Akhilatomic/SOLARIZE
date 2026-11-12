@@ -307,7 +307,7 @@ foreach ([[$pidS, 'Loan', null, 'fill-a'], [$pidS, 'Loan', '', 'fill-b'], [$pidS
 $dbq('PRAGMA user_version=41');
 call($acct, 'acc', 'ac_tpl'); /* the next request upgrades the database again */
 $fill = []; foreach ($dbq("SELECT note, src FROM payments WHERE note LIKE 'fill-%'")->fetchAll(PDO::FETCH_ASSOC) as $x) $fill[$x['note']] = $x['src'];
-chk($dbq('PRAGMA user_version')->fetchColumn() == 43 &&($fill['fill-a'] ?? '') === 'bank' && ($fill['fill-b'] ?? '') === 'bank', 'backfill: Loan-mode payments with no source on a loan project are now bank');
+chk($dbq('PRAGMA user_version')->fetchColumn() == 44 &&($fill['fill-a'] ?? '') === 'bank' && ($fill['fill-b'] ?? '') === 'bank', 'backfill: Loan-mode payments with no source on a loan project are now bank');
 chk(array_key_exists('fill-c', $fill) && $fill['fill-c'] === null && ($fill['fill-d'] ?? '') === 'customer' && array_key_exists('fill-e', $fill) && $fill['fill-e'] === null,'backfill: other modes, a set source and non-loan projects are left alone');
 $ixs = $dbq("SELECT name FROM sqlite_master WHERE type='index'")->fetchAll(PDO::FETCH_COLUMN);
 chk(!array_diff(['pay_date', 'spend_date', 'accl_kind'], $ixs), 'indexes on payments(date), ad_spend(date), acc_log(kind, project_id)');
@@ -383,7 +383,7 @@ echo "Accounts: expense sheet and price list\n";
 $cols = fn($t) => $dbq("PRAGMA table_info($t)")->fetchAll(PDO::FETCH_COLUMN, 1);
 chk(in_array('profit', $cols('acc_materials'), true) && in_array('profit', $cols('acc_costs'), true), 'v43: acc_materials.profit and acc_costs.profit exist');
 $dbq('PRAGMA user_version=42');
-chk(call($acct, 'acc', 'ac_tpl')['_code'] === 200 && $dbq('PRAGMA user_version')->fetchColumn() == 43, 'the v43 upgrade runs again on a database that already has the columns (idempotent)');
+chk(call($acct, 'acc', 'ac_tpl')['_code'] === 200 && $dbq('PRAGMA user_version')->fetchColumn() == 44, 'the v43 upgrade runs again on a database that already has the columns (idempotent)');
 chk(count(array_keys($cols('acc_costs'), 'profit')) === 1 && count(array_keys($cols('acc_materials'), 'profit')) === 1, 'each profit column exists once after the rerun');
 /* default profit % (Settings › Price list) */
 chk(call($acct, 'acc', 'profit_default_save', null, '&pct=20')['_code'] === 405, 'profit_default_save over GET is refused');
@@ -488,6 +488,74 @@ chk($feeP('KSEB feasibility') === null, 'it runs once: a fee item the owner set 
 /* a product someone else added meanwhile: 409 with the existing item's id, no pop-up (the Add window reuses it) */
 $dup = call($acct, 'acc', 'material_save', ['grp' => 'Solar panels', 'name' => 'wb panel 540', 'unit' => 'Nos', 'gst' => 5, 'rate' => 1]);
 chk($dup['_code'] === 409 && (int)($dup['dup_id'] ?? 0) === $wb && !empty($dup['quiet']) && ($dup['error'] ?? '') === 'wb panel 540 is already in Solar panels', 'material_save 409 carries dup_id (and quiet) for a group + name already on the list');
+
+/* material templates: Settings › Material templates, Expense sheet Save as / Load from template */
+echo "Accounts: material templates\n";
+$tplItems = fn() => [['material_id' => $wb, 'grp' => 'Solar panels', 'name' => 'Wb Panel 540', 'unit' => 'Nos', 'qty' => 16], ['material_id' => 0, 'grp' => 'Structure & supports', 'name' => 'Tpl Rail', 'unit' => 'm', 'qty' => 30.5]];
+$tplList = fn() => call($acct, 'acc', 'ac_tpls')['rows'] ?? [];
+chk(call($acct, 'acc', 'ac_tpls')['_code'] === 200 && $tplList() === [], 'ac_tpls: empty at first');
+chk(call($sales, 'acc', 'ac_tpls')['_code'] === 403 && call($ba, 'acc', 'ac_tpls')['_code'] === 403, 'ac_tpls: sales and ba get 403');
+chk(call($sales, 'acc', 'ac_tpl_get', null, '&id=1')['_code'] === 403 && call($ba, 'acc', 'ac_tpl_get', null, '&id=1')['_code'] === 403, 'ac_tpl_get: sales and ba get 403');
+chk(call($acct, 'acc', 'tpl_put')['_code'] === 405, 'tpl_put over GET is refused');
+$t1 = call($acct, 'acc', 'tpl_put', ['name' => '  10 kW SolarEdge · sheet roof ', 'items' => $tplItems()]);
+$tid = (int)($t1['id'] ?? 0);
+chk($t1['_code'] === 200 && $tid > 0, 'tpl_put creates a template');
+$g = call($acct, 'acc', 'ac_tpl_get', null, "&id=$tid");
+chk(($g['name'] ?? '') === '10 kW SolarEdge · sheet roof' && count($g['items'] ?? []) === 2 && (int)$g['items'][0]['material_id'] === $wb && (float)$g['items'][1]['qty'] === 30.5 && ($g['items'][1]['grp'] ?? '') === 'Structure & supports', 'ac_tpl_get: trimmed name, both items with product and quantity');
+$l = $tplList();
+chk(count($l) === 1 && (int)$l[0]['n'] === 2 && ($l[0]['updated_by'] ?? '') === 'Acc Person' && !empty($l[0]['updated']) && !isset($l[0]['items']), 'ac_tpls: id, name, item count, updated, updated_by (no items)');
+chk(call($acct, 'acc', 'ac_tpl_get', null, '&id=99999')['_code'] === 404, 'ac_tpl_get: unknown id is 404');
+/* permissions on writes */
+foreach (['sales' => $sales, 'ba' => $ba, 'eng' => $eng] as $who => $actor) {
+  chk(call($actor, 'acc', 'tpl_put', ['name' => 'Nope', 'items' => $tplItems()])['_code'] === 403, "$who cannot save a template");
+  chk(call($actor, 'acc', 'tpl_copy', ['id' => $tid])['_code'] === 403 && call($actor, 'acc', 'tpl_del', ['id' => $tid])['_code'] === 403, "$who cannot copy or delete a template");
+}
+/* validation */
+$bad = fn($body, $label) => chk(call($acct, 'acc', 'tpl_put', $body)['_code'] === 400, $label);
+$bad(['name' => '   ', 'items' => $tplItems()], 'a blank name is refused');
+$bad(['name' => str_repeat('x', 81), 'items' => $tplItems()], 'a name over 80 characters is refused');
+$bad(['name' => 'No items', 'items' => []], 'no items is refused');
+$bad(['name' => 'No items 2'], 'missing items is refused');
+$bad(['name' => 'Many', 'items' => array_fill(0, 401, ['material_id' => 0, 'grp' => 'Solar panels', 'name' => 'P', 'unit' => 'Nos', 'qty' => 1])], 'more than 400 items is refused');
+$bad(['name' => 'Bad qty', 'items' => [['grp' => 'Solar panels', 'name' => 'P', 'qty' => 0]]], 'quantity 0 is refused');
+$bad(['name' => 'Bad qty 2', 'items' => [['grp' => 'Solar panels', 'name' => 'P', 'qty' => -2]]], 'a negative quantity is refused');
+$bad(['name' => 'No product', 'items' => [['grp' => 'Solar panels', 'name' => '  ', 'qty' => 1]]], 'an item with no product name is refused');
+$bad(['name' => 'Long product', 'items' => [['grp' => 'Solar panels', 'name' => str_repeat('p', 201), 'qty' => 1]]], 'a product name over 200 characters is refused');
+chk(count($tplList()) === 1, 'refused saves wrote nothing');
+/* name clash: 409 with dup_id + quiet, case-insensitive; replace overwrites */
+$d = call($acct, 'acc', 'tpl_put', ['name' => '10 KW solaredge · SHEET roof', 'items' => [['material_id' => 0, 'grp' => 'Solar panels', 'name' => 'Other', 'unit' => 'Nos', 'qty' => 1]]]);
+chk($d['_code'] === 409 && (int)($d['dup_id'] ?? 0) === $tid && !empty($d['quiet']), 'a name clash (any case) is 409 with dup_id and quiet');
+chk(count(call($acct, 'acc', 'ac_tpl_get', null, "&id=$tid")['items'] ?? []) === 2, 'the clash wrote nothing');
+$rp = call($acct, 'acc', 'tpl_put', ['name' => '10 KW solaredge · SHEET roof', 'replace' => 1, 'items' => [['material_id' => 0, 'grp' => 'Solar panels', 'name' => 'Other', 'unit' => 'Nos', 'qty' => 1]]]);
+$g = call($acct, 'acc', 'ac_tpl_get', null, "&id=$tid");
+chk($rp['_code'] === 200 && (int)$rp['id'] === $tid && count($g['items']) === 1 && $g['name'] === '10 KW solaredge · SHEET roof' && count($tplList()) === 1, 'replace:1 overwrites the clashing template (same id, new name spelling, new items)');
+/* edit by id: rename + items; renaming onto another template's name is 409 */
+$t2 = (int)(call($acct, 'acc', 'tpl_put', ['name' => '5 kW Growatt', 'items' => $tplItems()])['id'] ?? 0);
+$ed = call($acct, 'acc', 'tpl_put', ['id' => $t2, 'name' => '5 kW Growatt · terrace', 'items' => $tplItems()]);
+chk($ed['_code'] === 200 && (int)$ed['id'] === $t2 && call($acct, 'acc', 'ac_tpl_get', null, "&id=$t2")['name'] === '5 kW Growatt · terrace' && count($tplList()) === 2, 'tpl_put with an id renames and edits in place');
+$cl = call($acct, 'acc', 'tpl_put', ['id' => $t2, 'name' => '10 kw solaredge · sheet roof', 'items' => $tplItems()]);
+chk($cl['_code'] === 409 && (int)$cl['dup_id'] === $tid, 'renaming onto another template\'s name is 409');
+chk(call($acct, 'acc', 'tpl_put', ['id' => 99999, 'name' => 'Ghost', 'items' => $tplItems()])['_code'] === 404, 'editing an unknown id is 404');
+/* duplicate */
+$cp = call($acct, 'acc', 'tpl_copy', ['id' => $t2]);
+$cpg = call($acct, 'acc', 'ac_tpl_get', null, '&id=' . (int)($cp['id'] ?? 0));
+chk($cp['_code'] === 200 && ($cpg['name'] ?? '') === '5 kW Growatt · terrace (copy)' && count($cpg['items'] ?? []) === 2, 'tpl_copy: "<name> (copy)" with the same items');
+$cp2 = call($acct, 'acc', 'tpl_copy', ['id' => $t2]);
+chk($cp2['_code'] === 200 && (call($acct, 'acc', 'ac_tpl_get', null, '&id=' . (int)$cp2['id'])['name'] ?? '') === '5 kW Growatt · terrace (copy 2)', 'a second copy is "(copy 2)", no clash');
+chk(call($acct, 'acc', 'tpl_copy', ['id' => 99999])['_code'] === 404, 'tpl_copy: unknown id is 404');
+/* delete -> Recycle bin -> restore */
+$cpId = (int)$cp['id']; $before = count($tplList());
+chk(call($acct, 'acc', 'tpl_del', ['id' => $cpId])['_code'] === 200 && count($tplList()) === $before - 1, 'tpl_del removes the template');
+chk(call($acct, 'acc', 'tpl_del', ['id' => $cpId])['_code'] === 404, 'tpl_del twice is 404');
+$tr = find_by(call($admin, 'trash', 'list')['rows'] ?? [], 'label', '5 kW Growatt · terrace (copy)');
+chk($tr && $tr['kind'] === 'Material template', 'the deleted template is in the Recycle bin');
+chk($tr && call($admin, 'trash', 'restore', ['id' => $tr['id']])['_code'] === 200 && count($tplList()) === $before && count(call($acct, 'acc', 'ac_tpl_get', null, "&id=$cpId")['items'] ?? []) === 2, 'restore brings it back with its items');
+/* a template never touches the price list or the quotation maker's templates */
+chk(find_by($mats(), 'name', 'Tpl Rail') === null, 'saving a template does not add its typed product to the price list');
+/* v44: the table and its unique name index are there, and a re-run of the upgrade changes nothing */
+$dbq('PRAGMA user_version=43'); call($acct, 'acc', 'ac_tpl');
+$cnt = (int)$dbq('SELECT COUNT(*) FROM acc_tpls')->fetchColumn();
+chk($cnt === count($tplList()) && (int)$dbq("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='acct_name'")->fetchColumn() === 1 && (int)$dbq('PRAGMA user_version')->fetchColumn() >= 44, 'v44: re-running the upgrade keeps the templates and the unique name index');
 
 echo "\n$pass ok, $fail FAIL\n";
 exit($fail ? 1 : 0);

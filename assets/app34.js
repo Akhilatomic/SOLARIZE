@@ -4,6 +4,8 @@
                      Associate) or incentive (staff) of the customer is an automatic line. Tiles: income, expense, profit, customer price from
                      the list. Saving replaces every line (acc/cost_save); every line needs its quantity; a typed dealer price becomes the item's.
    acCsAdd()         Add item: a product from the price list + its quantity, or a new product (saved to the price list at once) + quantity.
+   acCsTplSave / acCsTplLoad  Save as template / Load from template (items + quantities; loads at today's price list, ACC.tplFromLines / tplToLines).
+   acTemplates(box)  Settings › Material templates: list, New, Edit (acTplEdit, uses the Add item window), Duplicate, Delete.
    acMaterials(box)  the price list (ACCT_TABS.materials, and Settings › Price list): default profit %, dealer price, profit %, customer price;
                      add, edit, hide, delete (Recycle bin).
    acMaterialPdf(d)  A4 material list for purchase and the site delivery check (no prices, services left out), drawn with jsPDF from ACC.mlLayout.
@@ -74,7 +76,7 @@ async function acCostSheet(pid) {
       <span class="sp"></span><span class="acx-st" id="acx_st" aria-live="polite"></span>
       <button type="button" class="btn sec" id="acx_pdf"><i class="i i-download"></i> Download material list</button>${w ? '<button type="button" class="btn" id="acx_save"><i class="i i-check"></i> Save</button>' : ''}</div>
     <div class="acx-tiles" id="acx_tiles"></div>
-    <div class="acx-ch"><h3>Purchases and services</h3><span class="sp"></span>${w ? '<button type="button" class="btn sec" id="acx_copy"><i class="i i-copy"></i> Copy from another project</button><button type="button" class="btn" id="acx_add"><i class="i i-plus"></i> Add item</button>' : ''}</div>
+    <div class="acx-ch"><h3>Purchases and services</h3><span class="sp"></span>${w ? '<button type="button" class="btn sec" id="acx_copy"><i class="i i-copy"></i> Copy from another project</button><button type="button" class="btn sec" id="acx_tload"><i class="i i-folder"></i> Load from template</button><button type="button" class="btn sec" id="acx_tsave"><i class="i i-file"></i> Save as template</button><button type="button" class="btn" id="acx_add"><i class="i i-plus"></i> Add item</button>' : ''}</div>
     <div class="card tw"><table class="acx-cst" id="acx_tb" data-min="1160"></table></div>
     <div id="acx_fee"></div>
     <p class="acx-note">Dealer prices and expense are before GST. Customer price = dealer price + the line's profit % (blank = the default, ${esc(acPctTxt(acDef()))}). Profit = project price before GST − expense (purchases, services and the commission / incentive). ${w ? 'A product added here goes on the price list, and the dealer price you type becomes its dealer price. ' : ''}The material list PDF has every material with its quantity, no prices, and leaves out services.</p>
@@ -120,6 +122,8 @@ async function acCostSheet(pid) {
     $('#acx_save').onclick = () => acCsSave();
     $('#acx_add').onclick = () => acCsAdd();
     $('#acx_copy').onclick = () => acCsCopy();
+    $('#acx_tload').onclick = () => acCsTplLoad();
+    $('#acx_tsave').onclick = () => acCsTplSave();
   }
 }
 
@@ -243,7 +247,9 @@ async function acCsSave() {
 
 /* + Add item: a product from the price list or a new product (saved to the price list at once), always with its quantity.
    Add stays off until both are there; the window stays open to add several. */
-async function acCsAdd() {
+async function acCsAdd(ctx) {
+  /* ctx (the Settings template editor): {lines: () => the lines already there, add(line), keep: what to save} ; none = this Expense sheet */
+  ctx = ctx || { lines: () => ACS.lines, add: l => { ACS.lines.push(l); acChanged(); }, keep: 'the sheet', sheet: true };
   let mats; try { mats = await acMats(); } catch (e) { return; }
   const groups = acGroups(mats), def = acDef();
   const gOpts = sel => groups.map(g => `<option ${g === sel ? 'selected' : ''}>${esc(g)}</option>`).join('');
@@ -264,7 +270,7 @@ async function acCsAdd() {
     <div class="bar acx-mft"><span class="mut" id="acx_pn"></span><span class="sp"></span><button type="button" class="btn sec" data-x>Done</button></div>`, true);
   let added = 0, last = null, chosen = null, mode = 'list', busy = false;
   const qIn = $('#acx_aq', m), go = $('#acx_ago', m), nn = $('#acx_nn', m), nr = $('#acx_nr', m), np = $('#acx_np', m);
-  const count = () => { $('#acx_pn', m).textContent = added ? `${acPl(added, 'line')} added` : ''; };
+  const count = () => { $('#acx_pn', m).textContent = added ? `${acPl(added, ctx.sheet ? 'line' : 'item')} added` : ''; };
   /* what Add would do now: {ok, why} */
   const state = () => {
     const q = acNum(qIn.value);
@@ -294,8 +300,8 @@ async function acCsAdd() {
     let h = '', cur = null;
     L.slice(0, 300).forEach(x => {
       if (x.grp !== cur) { cur = x.grp; h += `<div class="acx-pgh">${esc(cur || 'Other')}</div>`; }
-      const on = ACS.lines.filter(l => l.material_id === x.id).length, sel = chosen && chosen.id === x.id;
-      h += `<button type="button" class="acx-pi${sel ? ' acx-on' : ''}" role="option" aria-selected="${sel}" data-mid="${x.id}"><span>${esc(x.name)}</span><small>${esc(x.unit)} · GST ${+x.gst}%${+x.rate ? ' · dealer ' + inr2(x.rate) + ' · profit ' + esc(acPctTxt(ACC.pctOf(x.profit, def))) : ' · no dealer price yet'}${on ? ` · <b>on the sheet${on > 1 ? ' ×' + on : ''}</b>` : ''}</small></button>`;
+      const on = ctx.lines().filter(l => l.material_id === x.id).length, sel = chosen && chosen.id === x.id;
+      h += `<button type="button" class="acx-pi${sel ? ' acx-on' : ''}" role="option" aria-selected="${sel}" data-mid="${x.id}"><span>${esc(x.name)}</span><small>${esc(x.unit)} · GST ${+x.gst}%${+x.rate ? ' · dealer ' + inr2(x.rate) + ' · profit ' + esc(acPctTxt(ACC.pctOf(x.profit, def))) : ' · no dealer price yet'}${on ? ` · <b>${ctx.sheet ? 'on the sheet' : 'in the template'}${on > 1 ? ' ×' + on : ''}</b>` : ''}</small></button>`;
     });
     $('#acx_pl', m).innerHTML = h || `<p class="mut acx-pe">Nothing matches. Use <b>New product</b> to add it to the price list.</p>`;
   };
@@ -307,8 +313,8 @@ async function acCsAdd() {
     upd(); (k === 'new' ? nn : $('#acx_q', m)).focus();
   };
   const choose = x => { chosen = x; draw(); upd(); qIn.focus(); qIn.select(); };
-  const addLine = line => { ACS.lines.push(line); last = line; added++; acChanged(); count(); };
-  const done = what => { qIn.value = ''; upd(); toast(`${what} added (${acPl(added, 'line')} so far). Save the sheet to keep ${added === 1 ? 'it' : 'them'}.`); };
+  const addLine = line => { ctx.add(line); last = line; added++; count(); };
+  const done = what => { qIn.value = ''; upd(); toast(`${what} added (${acPl(added, ctx.sheet ? 'line' : 'item')} so far). Save ${ctx.keep} to keep ${added === 1 ? 'it' : 'them'}.`); };
   $('#acx_pl', m).onclick = e => { const b = e.target.closest('[data-mid]'), x = b && mats.find(y => y.id === +b.dataset.mid); if (x) choose(x); };
   $('#acx_q', m).oninput = () => { draw(); upd(); };
   $('#acx_qg', m).onchange = () => { draw(); upd(); };
@@ -349,7 +355,7 @@ async function acCsAdd() {
   };
   $$('[data-x]', m).forEach(b => b.onclick = () => {
     m.remove();
-    const i = ACS.lines.indexOf(last), row = i >= 0 && $(`#acx_tb tr[data-i="${i}"]`); /* the last line added, in view */
+    const i = ctx.sheet ? ACS.lines.indexOf(last) : -1, row = i >= 0 && $(`#acx_tb tr[data-i="${i}"]`); /* the last line added, in view */
     if (row) row.scrollIntoView({ block: 'center' });
   });
   count(); draw(); upd(); $('#acx_q', m).focus();
@@ -392,6 +398,165 @@ async function acCsCopy() {
   };
   $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
   draw(); $('#acx_cq', m).focus();
+}
+
+/* ---- material templates (Expense sheet: Save as template / Load from template; Settings › Material templates) ----
+   A template is a name + items (product and quantity only). Loading takes today's price list (ACC.tplToLines). */
+const acTplWhen = t => t.updated ? `${fdt(String(t.updated).slice(0, 10))}${t.updated_by ? ' · ' + t.updated_by : ''}` : '';
+
+/* Save as template: this sheet's items and quantities under a name; a name already used asks before it is replaced */
+async function acCsTplSave() {
+  if (!ACS.w || ACS.busy || !$('#acx_cs')) return;
+  const bad = $('#acx_tb .acx-bad');
+  if (bad) { toast('A quantity, dealer price or profit % is not valid (marked in red)', true); bad.focus(); return; }
+  const nq = ACS.lines.findIndex(l => !ACC.isFee(l) && !(l.qty > 0));
+  if (nq >= 0) {
+    toast(`Enter the quantity for ${ACS.lines[nq].name}`, true);
+    const q = $(`#acx_tb tr[data-i="${nq}"] input[data-f="qty"]`); if (q) { q.scrollIntoView({ block: 'center' }); q.focus(); }
+    return;
+  }
+  const items = ACC.tplFromLines(ACS.lines);
+  if (!items.length) { toast('There is nothing to save yet: add some items first (KSEB / stamp paper fee lines are not part of a template)', true); return; }
+  const m = modal(`<div class="mh"><h3>Save as template</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
+    <p class="mut acx-small acx-top0">Saves the ${acPl(items.length, 'item')} on this sheet with their quantities, so the next similar plant starts from them. Prices, profit %, GST, supplier and bill details are not saved: a template always loads with the price list as it is that day. KSEB / stamp paper fee lines and the commission / incentive line are left out.</p>
+    <label for="acx_tn">Template name</label><input id="acx_tn" maxlength="80" autocomplete="off" placeholder="e.g. 10 kW SolarEdge · sheet roof" ${SPELL}>
+    <div class="bar acx-mft"><span class="sp"></span><button type="button" class="btn sec" data-x>Cancel</button><button type="button" class="btn" id="acx_tgo"><i class="i i-check"></i> Save template</button></div>`);
+  const nm = $('#acx_tn', m), go = $('#acx_tgo', m);
+  const run = async () => {
+    const name = nm.value.trim().replace(/\s+/g, ' ');
+    if (!name) { toast('Give the template a name', true); nm.focus(); return; }
+    go.disabled = true;
+    try {
+      let r;
+      try { r = await api('acc', 'tpl_put', { name, items }); }
+      catch (er) {
+        if (!(er && +er.dup_id)) return; /* any other refusal: api() has shown why */
+        if (!confirm(`Replace the template '${name}'?\n\nIts items are overwritten with the ${acPl(items.length, 'item')} on this sheet.`)) return;
+        r = await api('acc', 'tpl_put', { name, items, replace: +er.dup_id });
+      }
+      m.remove(); toast(`Template “${name}” saved (${acPl(items.length, 'item')})`);
+    } catch (er) { } finally { if (go.isConnected) go.disabled = false; }
+  };
+  go.onclick = run; nm.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); run(); } };
+  $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
+  nm.focus();
+}
+
+/* Load from template: add to the list (items already here are skipped) or replace it (fee lines stay), at today's price list; the
+   sheet is then unsaved, so the quantities can be changed before Save */
+async function acCsTplLoad() {
+  if (!ACS.w || ACS.busy || !$('#acx_cs')) return;
+  let tp; try { tp = (await api('acc', 'ac_tpls')).rows || []; } catch (e) { return; }
+  const has = ACS.lines.length;
+  const m = modal(`<div class="mh"><h3>Load from template</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
+    <p class="mut acx-small acx-top0">Pick a template. Its items and quantities are put on this sheet with today's price list: dealer price, profit % and GST come from <b>Settings › Price list</b>. Check the quantities, then save. Templates are made with <b>Save as template</b> or in Settings › Material templates.</p>
+    ${has ? `<div class="acx-opts"><label class="acx-chk"><input type="radio" name="acx_tm" value="add" checked> Add below the ${acPl(has, 'line')} here (no line twice)</label><label class="acx-chk"><input type="radio" name="acx_tm" value="replace"> Replace the lines here (fee lines stay)</label></div>` : ''}
+    <div class="acx-pick" id="acx_tl">${tp.map(t => `<button type="button" class="acx-pi" data-tid="${+t.id}"><span>${esc(t.name)}</span><small>${esc(acPl(t.n, 'item'))} · changed ${esc(acTplWhen(t))}</small></button>`).join('')
+      || '<p class="mut acx-pe">No templates yet. Use <b>Save as template</b> on a finished sheet, or make one in Settings › Material templates.</p>'}</div>
+    <div class="bar acx-mft"><span class="sp"></span><button type="button" class="btn sec" data-x>Cancel</button></div>`);
+  $('#acx_tl', m).onclick = async e => {
+    const b = e.target.closest('[data-tid]'); if (!b || b.disabled) return;
+    const mode = ($('input[name=acx_tm]:checked', m) || {}).value || 'add';
+    b.disabled = true;
+    let t, mats;
+    try { t = await api('acc', 'ac_tpl_get', undefined, `&id=${+b.dataset.tid}`); mats = await acMats(true); } catch (x) { b.disabled = false; return; }
+    b.disabled = false;
+    const keep = mode === 'replace' ? ACS.lines.filter(l => ACC.isFee(l)) : ACS.lines, res = ACC.tplToLines(t, mats, keep, mode, ACS.mdef), nl = res.lines.map(acIn);
+    if (!nl.length) { toast(`Nothing to load from “${t.name}”${res.skipped ? `: ${acPl(res.skipped, 'item')} already on this sheet` : ''}.`, true); return; }
+    ACS.lines = keep.concat(nl);
+    m.remove(); acChanged();
+    toast(`${acPl(nl.length, 'line')} loaded from “${t.name}” at today's prices${res.skipped ? `; ${acPl(res.skipped, 'item')} already on this sheet left out` : ''}. Check the quantities, then save.`);
+    if (res.missing.length) toast(`${acPl(res.missing.length, 'item')} ${res.missing.length === 1 ? 'is' : 'are'} no longer on the price list (${res.missing.join(', ')}): added with dealer price 0. Enter the price before saving.`, true);
+  };
+  $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
+}
+
+/* New / edit / view a template (Settings): name and items; the same product + quantity window as the Expense sheet's Add item */
+function acTplEdit(t, done, ro) {
+  const items = acSort((t.items || []).map(i => ({ material_id: +i.material_id || 0, grp: String(i.grp || ''), name: String(i.name || ''), unit: String(i.unit || ''), qty: +i.qty || 0 })));
+  const m = modal(`<div class="mh"><h3>${t.id ? (ro ? 'Template' : 'Edit template') : 'New template'}</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
+    <label for="acx_tpn">Template name</label><input id="acx_tpn" maxlength="80" autocomplete="off" placeholder="e.g. 10 kW SolarEdge · sheet roof" value="${esc(t.name || '')}" ${ro ? 'disabled' : SPELL}>
+    <div class="acx-ch"><h3>Items</h3><span class="mut acx-small" id="acx_tpc"></span><span class="sp"></span>${ro ? '' : '<button type="button" class="btn sec" id="acx_tpa"><i class="i i-plus"></i> Add item</button>'}</div>
+    <div class="card tw"><table class="acx-mt" id="acx_tpt" data-min="460"></table></div>
+    <p class="acx-note">A template has the product and the quantity only. When it is loaded on an Expense sheet the dealer price, profit % and GST come from the price list of that day.</p>
+    <div class="bar acx-mft"><span class="sp"></span><button type="button" class="btn sec" data-x>${ro ? 'Close' : 'Cancel'}</button>${ro ? '' : '<button type="button" class="btn" id="acx_tps"><i class="i i-check"></i> Save template</button>'}</div>`, true);
+  const tb = $('#acx_tpt', m);
+  const draw = () => {
+    let body = '', g = null;
+    items.forEach((it, i) => {
+      if (i === 0 || it.grp !== g) { g = it.grp; body += `<tr class="acx-grp"><td colspan="4"><b>${esc(g || 'Other')}</b></td></tr>`; }
+      body += `<tr data-i="${i}"><td class="acx-nm">${esc(it.name)}</td><td class="num"><input data-f="qty" inputmode="decimal" autocomplete="off" aria-label="Quantity of ${esc(it.name)}" value="${esc(acV(it.qty))}" ${ro ? 'disabled' : ''}></td><td>${esc(it.unit)}</td>
+        <td class="acx-act">${ro ? '' : `<button type="button" class="ib" data-del title="Remove" aria-label="Remove ${esc(it.name)}"><i class="i i-trash"></i></button>`}</td></tr>`;
+    });
+    tb.innerHTML = `<colgroup><col><col style="width:110px"><col style="width:70px"><col style="width:50px"></colgroup><thead><tr><th>Item</th><th class="num">Quantity</th><th>Unit</th><th><span class="acx-sr">Actions</span></th></tr></thead>
+      <tbody>${body || '<tr><td colspan="4" class="mut">No items yet. Press Add item.</td></tr>'}</tbody>`;
+    $('#acx_tpc', m).textContent = acPl(items.length, 'item');
+    if (typeof fitSoon === 'function') fitSoon();
+  };
+  tb.addEventListener('input', e => {
+    const el = e.target.closest('[data-f]'), tr = el && el.closest('tr[data-i]'), it = tr && items[+tr.dataset.i]; if (!it) return;
+    const n = acNum(el.value); el.classList.toggle('acx-bad', n === null); el.classList.toggle('acx-need', n !== null && !(n > 0)); it.qty = n || 0;
+  });
+  tb.addEventListener('click', e => { const b = e.target.closest('[data-del]'); if (!b) return; items.splice(+b.closest('tr').dataset.i, 1); draw(); });
+  $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
+  draw();
+  if (ro) return;
+  /* the Add item window, adding to this template: a product already in it gets the quantity added to its own */
+  $('#acx_tpa', m).onclick = () => acCsAdd({ lines: () => items, keep: 'the template', sheet: false, add: l => {
+    const key = x => (x.grp + '|' + x.name).toLowerCase(), ex = items.find(x => (l.material_id && x.material_id === l.material_id) || key(x) === key(l));
+    if (ex) ex.qty = Math.round((ex.qty + l.qty) * 1000) / 1000;
+    else items.push({ material_id: l.material_id, grp: l.grp, name: l.name, unit: l.unit, qty: l.qty });
+    items.splice(0, items.length, ...acSort(items)); draw();
+  } });
+  const nm = $('#acx_tpn', m), go = $('#acx_tps', m);
+  go.onclick = async () => {
+    const name = nm.value.trim().replace(/\s+/g, ' ');
+    if (!name) { toast('Give the template a name', true); nm.focus(); return; }
+    const bad = items.findIndex(i => !(i.qty > 0)), badEl = $('.acx-bad', tb);
+    if (badEl) { toast('A quantity is not a number (marked in red)', true); badEl.focus(); return; }
+    if (!items.length) { toast('Add at least one item', true); return; }
+    if (bad >= 0) { toast(`Enter the quantity for ${items[bad].name}`, true); const q = $(`tr[data-i="${bad}"] input`, tb); if (q) { q.scrollIntoView({ block: 'center' }); q.focus(); } return; }
+    go.disabled = true;
+    try {
+      await api('acc', 'tpl_put', { id: t.id || 0, name, items: items.map(i => ({ material_id: i.material_id, grp: i.grp, name: i.name, unit: i.unit, qty: i.qty })) });
+      m.remove(); toast(`Template “${name}” saved`); done();
+    } catch (er) {
+      if (er && +er.dup_id) { toast(`There is already a template named “${name}”. Choose another name.`, true); nm.focus(); }
+    } finally { if (go.isConnected) go.disabled = false; }
+  };
+  if (!t.id) nm.focus();
+}
+
+/* Settings › Material templates: the list, with New, Edit, Duplicate and Delete (Recycle bin) for people who can edit Accounts */
+async function acTemplates(box) {
+  const w = canW('accounts');
+  const draw = async () => {
+    const rows = (await api('acc', 'ac_tpls')).rows || [];
+    if (!box.isConnected) return;
+    box.innerHTML = `<div class="bar acx-mbar"><span class="mut" id="acx_tpn_c">${esc(acPl(rows.length, 'template'))}</span><span class="sp"></span>${w ? '<button type="button" class="btn" id="acx_tpnew"><i class="i i-plus"></i> New template</button>' : ''}</div>
+      <div class="card tw"><table class="acx-mt" id="acx_tpl" data-min="520"><colgroup><col><col style="width:80px"><col style="width:220px">${'<col style="width:' + (w ? 130 : 70) + 'px">'}</colgroup>
+        <thead><tr><th>Template</th><th class="num">Items</th><th>Last changed</th><th><span class="acx-sr">Actions</span></th></tr></thead>
+        <tbody>${rows.map(t => `<tr data-id="${+t.id}"><td class="acx-nm">${esc(t.name)}</td><td class="num">${+t.n}</td><td>${esc(acTplWhen(t))}</td><td class="acx-act">${w
+          ? `<button type="button" class="ib" data-acx-t="edit" title="Edit" aria-label="Edit ${esc(t.name)}"><i class="i i-pencil"></i></button><button type="button" class="ib" data-acx-t="copy" title="Duplicate" aria-label="Duplicate ${esc(t.name)}"><i class="i i-copy"></i></button><button type="button" class="ib" data-acx-t="del" title="Delete" aria-label="Delete ${esc(t.name)}"><i class="i i-trash"></i></button>`
+          : `<button type="button" class="ib" data-acx-t="view" title="View" aria-label="View ${esc(t.name)}"><i class="i i-eye"></i></button>`}</td></tr>`).join('') || '<tr><td colspan="4" class="mut">No templates yet.</td></tr>'}</tbody></table></div>
+      <p class="acx-note">A template is a list of products with quantities for one kind of plant. On an Expense sheet, <b>Load from template</b> puts it there with the dealer prices, profit % and GST of the price list that day. <b>Save as template</b> on an Expense sheet makes one from a finished sheet. A deleted template goes to the Recycle bin.</p>`;
+    if (typeof fitSoon === 'function') fitSoon();
+    if (w) $('#acx_tpnew', box).onclick = () => acTplEdit({ items: [] }, draw);
+    $('#acx_tpl', box).onclick = async e => {
+      const b = e.target.closest('[data-acx-t]'), tr = b && b.closest('tr[data-id]'), t = tr && rows.find(y => y.id === +tr.dataset.id); if (!t) return;
+      const a = b.dataset.acxT; b.disabled = true;
+      try {
+        if (a === 'edit' || a === 'view') { const full = await api('acc', 'ac_tpl_get', undefined, `&id=${t.id}`); b.disabled = false; acTplEdit(full, draw, a === 'view'); return; }
+        if (a === 'copy') { const r = await api('acc', 'tpl_copy', { id: t.id }); toast(`Duplicated as “${r.name}”`); }
+        if (a === 'del') {
+          if (!confirm(`Delete the template '${t.name}'?\n\nIt goes to the Recycle bin.`)) { b.disabled = false; return; }
+          await api('acc', 'tpl_del', { id: t.id }); toast('Template deleted. It is in the Recycle bin.');
+        }
+        await draw();
+      } catch (er) { b.disabled = false; }
+    };
+  };
+  await draw();
 }
 
 /* ---- the price list (Accounts › Price list, Settings › Price list) ---- */
