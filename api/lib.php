@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 48; // bump when tables/columns change
+const SCHEMA_VERSION = 49; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -354,6 +354,9 @@ function migrate($db) {
   /* v48: the total plant cost agreed when a customer is added (api/onboard.php), and whether the KSEB charges are paid on top of it.
      Its own table, so it is never sent along with the customer record. */
   $db->exec("CREATE TABLE IF NOT EXISTS cust_cost(customer_id INTEGER PRIMARY KEY, plant_cost REAL DEFAULT 0, kseb_extra INTEGER DEFAULT 0, kseb_extra_amt REAL DEFAULT 0, updated_by TEXT DEFAULT '', updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  /* v49: Accounts › In progress / Completed. A customer is tracked from their first payment; this table only holds the "Completed" mark
+     the accounts team sets once the payment is complete (api/accounts.php acc_track_rows). */
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_track(customer_id INTEGER PRIMARY KEY, done INTEGER DEFAULT 0, done_at TEXT DEFAULT '', done_by TEXT DEFAULT '')");
   require_once __DIR__ . '/qm_seed.php';
   qm_seed($db); // only fills an empty catalogue
   $db->exec('ANALYZE'); // give the query planner row counts for the new indexes

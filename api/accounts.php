@@ -306,6 +306,38 @@ function acc_tpl_out($r) {
   return ['id' => (int)$r['id'], 'name' => $r['name'], 'items' => is_array($it) ? $it : [], 'updated' => $r['updated'], 'updated_by' => (string)$r['updated_by']];
 }
 
+/* Accounts › In progress / Completed (owner's rule, Nov 2026): a customer comes onto the list by themselves with their first payment — any
+   payment on any of their projects — and stays "In progress" until someone moves them to "Completed" (acc_track.done), which is meant for a
+   customer whose payment is complete. One row per customer, their projects added up; the stage shown is the latest project's. */
+function acc_track_rows($done) {
+  $pays = 'FROM payments pa JOIN projects p ON p.id=pa.project_id WHERE p.customer_id=c.id';
+  $rs = rows("SELECT c.id customer_id, c.name customer, c.phone, COALESCE(t.done,0) done, COALESCE(t.done_at,'') done_at, COALESCE(t.done_by,'') done_by,
+      (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects,
+      (SELECT COALESCE(SUM(cost),0) FROM projects WHERE customer_id=c.id) cost,
+      (SELECT COALESCE(SUM(pa.amount),0) $pays) paid, (SELECT COUNT(*) $pays) pays, (SELECT MAX(pa.date) $pays) last_pay,
+      lp.id project_id, lp.title, lp.kw, lp.stage, lp.loan
+    FROM customers c LEFT JOIN acc_track t ON t.customer_id=c.id LEFT JOIN projects lp ON lp.id=(SELECT MAX(id) FROM projects WHERE customer_id=c.id)
+    WHERE " . cust_scope('c') . " AND COALESCE(t.done,0)=" . ($done ? 1 : 0) . " AND EXISTS(SELECT 1 $pays)
+    ORDER BY " . ($done ? 't.done_at DESC' : 'last_pay DESC') . ', c.id DESC');
+  foreach ($rs as &$r) {
+    foreach (['customer_id', 'done', 'projects', 'pays', 'project_id'] as $k) $r[$k] = (int)$r[$k];
+    $r['cost'] = round((float)$r['cost'], 2); $r['paid'] = round((float)$r['paid'], 2);
+    $r['due'] = $r['cost'] > 0 ? max(0, round($r['cost'] - $r['paid'], 2)) : 0; /* no plant cost entered yet: nothing can be called due */
+    $r['full'] = $r['cost'] > 0 && $r['due'] <= 1 ? 1 : 0;
+  }
+  unset($r);
+  return $rs;
+}
+function acc_track_state($cid) { /* 'none' = no payment yet, 'open' = In progress, 'done' = Completed */
+  $t = row('SELECT done, done_at, done_by FROM acc_track WHERE customer_id=?', [(int)$cid]);
+  $has = (bool)row('SELECT 1 FROM payments pa JOIN projects p ON p.id=pa.project_id WHERE p.customer_id=? LIMIT 1', [(int)$cid]);
+  return ['state' => !$has ? 'none' : ($t && (int)$t['done'] ? 'done' : 'open'), 'done_at' => $t ? (string)$t['done_at'] : '', 'done_by' => $t ? (string)$t['done_by'] : ''];
+}
+function acc_track_set($cid, $done) {
+  q("INSERT INTO acc_track(customer_id,done,done_at,done_by) VALUES(?,?,?,?) ON CONFLICT(customer_id) DO UPDATE SET done=excluded.done, done_at=excluded.done_at, done_by=excluded.done_by",
+    [(int)$cid, $done ? 1 : 0, $done ? gmdate('Y-m-d H:i:s') : '', $done ? (string)($_SESSION['name'] ?? '') : '']);
+}
+
 function handle_acc($a) {
   /* receipts, templates and the share log are also open to the Payments roles; everything else needs Accounts.
      ac_receipt returns the price and amounts, so it also needs Finance; the writes (receipt_no, log) need write access. */
@@ -513,6 +545,33 @@ function handle_acc($a) {
       out(['ok' => true]);
     }
 
+    case 'ac_track': { /* Accounts › In progress (default) or Completed (&state=done), with the size of the other list */
+      $done = ($_GET['state'] ?? '') === 'done';
+      $rs = acc_track_rows($done);
+      $other = (int)row("SELECT COUNT(*) n FROM customers c LEFT JOIN acc_track t ON t.customer_id=c.id WHERE " . cust_scope('c') . " AND COALESCE(t.done,0)=" . ($done ? 0 : 1) . " AND EXISTS(SELECT 1 FROM payments pa JOIN projects p ON p.id=pa.project_id WHERE p.customer_id=c.id)")['n'];
+      out(['rows' => $rs, 'open_n' => $done ? $other : count($rs), 'done_n' => $done ? count($rs) : $other]);
+    }
+    case 'track_set': { /* move a customer to Completed (done:1) or back to In progress (done:0) */
+      need('accounts', true);
+      $cid = (int)($in['customer_id'] ?? 0); $done = !empty($in['done']);
+      $c = row('SELECT c.id, c.name FROM customers c WHERE c.id=? AND ' . cust_scope('c'), [$cid]); if (!$c) fail('Customer not found', 404);
+      $st = acc_track_state($cid); if ($st['state'] === 'none') fail('This customer has no payment yet, so they are not in Accounts');
+      if ($done) {
+        $r = row('SELECT (SELECT COALESCE(SUM(cost),0) FROM projects WHERE customer_id=?) cost, (SELECT COALESCE(SUM(pa.amount),0) FROM payments pa JOIN projects p ON p.id=pa.project_id WHERE p.customer_id=?) paid', [$cid, $cid]);
+        $due = (float)$r['cost'] > 0 ? round((float)$r['cost'] - (float)$r['paid'], 2) : -1; /* -1 = no plant cost entered */
+        /* Completed is for a customer whose payment is complete; an admin may close one with a balance (a discount, a write-off) after a confirm */
+        if (($due > 1 || $due < 0) && !(is_admin() && !empty($in['force']))) fail($due < 0 ? 'Enter the total plant cost first: without it the payment cannot be called complete.' : '₹' . number_format($due) . ' is still pending, so this customer stays In progress.', 409);
+      }
+      acc_track_set($cid, $done);
+      audit($done ? 'acc_completed' : 'acc_reopened', 'customers', $cid, $c['name'] . ($done ? ' · moved to Completed' : ' · moved back to In progress'));
+      out(['ok' => true, 'state' => $done ? 'done' : 'open']);
+    }
+    case 'track_all': { /* every In progress customer whose payment is complete goes to Completed */
+      need('accounts', true); $n = 0;
+      foreach (acc_track_rows(false) as $r) if ($r['full']) { acc_track_set($r['customer_id'], true); $n++; }
+      if ($n) audit('acc_completed', 'customers', null, "$n fully paid customer(s) moved to Completed");
+      out(['ok' => true, 'moved' => $n]);
+    }
     case 'ac_pending':
       out(['rows' => acc_pending_rows(!empty($_GET['early']), 0)]); /* every owing project: the tab draws its rows lazily */
 
@@ -584,7 +643,8 @@ function handle_acc($a) {
       /* profit_n = billed projects counted in the profit; no_cost_n = billed projects with no cost lines, left out (the Profit tab lists them) */
       out(['received' => round(array_sum(array_column($rec, 'amount')), 2), 'received_n' => count($rec),
         'pending' => round(array_sum(array_column($pend, 'due')), 2), 'pending_n' => count($pend), 'pending_loan_n' => count(array_filter($pend, fn($r) => $r['loan'] === 'Yes')),
-        'expenses' => $x, 'profit' => round($pf['counted']['profit'] - $x['total'], 2), 'profit_n' => count($pf['rows']), 'no_cost_n' => count($pf['no_cost']), 'top' => array_slice($pend, 0, 10)]);
+        'expenses' => $x, 'profit' => round($pf['counted']['profit'] - $x['total'], 2), 'profit_n' => count($pf['rows']), 'no_cost_n' => count($pf['no_cost']), 'top' => array_slice($pend, 0, 10),
+        'track_open_n' => count(acc_track_rows(false)), 'track_done_n' => (int)row('SELECT COUNT(*) n FROM acc_track t JOIN customers c ON c.id=t.customer_id WHERE t.done=1 AND ' . cust_scope('c'))['n']]);
     }
   }
   fail('Unknown action', 404);

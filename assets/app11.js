@@ -137,17 +137,28 @@ function locModal(c, id) {
 async function costCard(box, c, id) {
   let s; try { s = await api('profile', 'cost_get', undefined, '&customer_id=' + id); } catch (e) { box.remove(); return; }
   if (!box.isConnected) return;
-  const multi = s.projects.length > 1, has = s.cost > 0;
+  const multi = s.projects.length > 1, has = s.cost > 0, tk = s.track || { state: 'none' }, redraw = () => costCard(box, c, id);
   const kseb = s.kseb_extra ? `Additional — paid on top${s.kseb_extra_amt > 0 ? ' · ' + inr(s.kseb_extra_amt) : ' (amount not entered)'}` : has ? 'Included in the plant cost' : '—';
-  const pays = p => p.payments.length ? `<div class="pcz-tw"><table class="pcz-t" data-nofit="1"><thead><tr><th>Date</th><th class="num">Amount</th><th>Mode</th><th>Reference</th><th>Receipt no.</th><th>Paid by</th></tr></thead><tbody>${p.payments.map(x => `<tr><td>${esc(dmy(x.date))}</td><td class="num"><b>${inr(x.amount)}</b></td><td>${esc(x.mode || '—')}</td><td>${esc(x.ref_no || '—')}</td><td>${esc(x.receipt_no || '—')}</td><td>${x.src === 'bank' ? 'Bank (loan)' : 'Customer'}</td></tr>`).join('')}</tbody></table></div>`
+  const pays = p => p.payments.length ? `<div class="pcz-tw"><table class="pcz-t" data-nofit="1"><thead><tr><th>Date</th><th class="num">Amount</th><th>Mode</th><th>Reference</th><th>Receipt no.</th><th>Paid by</th><th><span class="acx-sr">Actions</span></th></tr></thead><tbody>${p.payments.map(x => `<tr><td>${esc(dmy(x.date))}</td><td class="num"><b>${inr(x.amount)}</b></td><td>${esc(x.mode || '—')}</td><td>${esc(x.ref_no || '—')}</td><td>${esc(x.receipt_no || '—')}</td><td>${x.src === 'bank' ? 'Bank (loan)' : 'Customer'}</td><td class="pcz-pa"><button class="btn sec sm" type="button" data-pr="${+x.id}" title="Open the receipt of this payment">Receipt</button><button class="btn sec sm" type="button" data-pe="${+x.id}" data-pp="${+p.id}">Edit</button></td></tr>`).join('')}</tbody></table></div>`
     : '<p class="mut pcz-none">No payment recorded yet.</p>';
-  box.innerHTML = `<div class="pfch"><i class="i i-coin"></i><h3>Plant cost and payments</h3><span class="pill">Admin only</span><span class="sp"></span><button class="btn sec sm" id="pczed"><i class="i i-pencil"></i> ${has ? 'Edit' : 'Enter the cost'}</button></div>
+  box.innerHTML = `<div class="pfch"><i class="i i-coin"></i><h3>Plant cost and payments</h3><span class="pill">Admin only</span><span class="sp"></span><button class="btn sm" id="pczpay" type="button"><i class="i i-plus"></i> Record payment</button><button class="btn sec sm" id="pczed"><i class="i i-pencil"></i> ${has ? 'Edit' : 'Enter the cost'}</button></div>
     <div class="pcz-sum"><div><small>Total plant cost</small><b>${has ? inr(s.cost) : 'Not entered'}</b></div><div><small>Received</small><b class="pcz-g">${inr(s.paid)}</b></div><div><small>Balance</small><b class="${s.balance > 0 ? 'over' : ''}">${has ? inr(s.balance) : '—'}</b></div></div>
     <div class="pcz-rows"><div><span>KSEB charges</span><b>${kseb}</b></div>
      <div><span>Approved quotation</span><span class="pcz-q">${s.quote ? `<a href="api.php?m=files&a=get&id=${+s.quote.id}&v=1" target="_blank" rel="noopener"><i class="i i-file"></i> ${esc(s.quote.name)}</a><small class="mut">${esc(dmy(String(s.quote.created).slice(0, 10)))}</small>` : '<b class="over">Not uploaded</b>'}<button class="btn sec sm" id="pczup"><i class="i i-upload"></i> ${s.quote ? 'Add a revised one' : 'Upload'}</button></span></div>
-     ${s.from_project && s.agreed > 0 && Math.abs(s.agreed - s.cost) > 0.5 ? `<div><span>Agreed in the quotation</span><b>${inr(s.agreed)}</b></div>` : ''}</div>
+     ${s.from_project && s.agreed > 0 && Math.abs(s.agreed - s.cost) > 0.5 ? `<div><span>Agreed in the quotation</span><b>${inr(s.agreed)}</b></div>` : ''}
+     <div><span>In Accounts</span><span class="pcz-q">${tk.state === 'done' ? `<b>Completed</b><small class="mut">${esc(dmy(String(tk.done_at).slice(0, 10)))}${tk.done_by ? ' · ' + esc(tk.done_by) : ''}</small>` : tk.state === 'open' ? '<b>In progress</b>' : '<span class="mut">Not yet — the first payment puts this customer in Accounts</span>'}${tk.state !== 'none' && canR('accounts') ? `<a class="btn sec sm" href="#/accounts/${tk.state === 'done' ? 'done' : 'progress'}">Open in Accounts</a>` : ''}</span></div></div>
     ${s.projects.length ? s.projects.map(p => `${multi ? `<h4 class="pcz-h"><a href="#/projects/${+p.id}">${esc(p.title || 'Project')}</a><span>${inr(p.cost)} · received ${inr(p.paid)}</span></h4>` : '<h4 class="pcz-h">Payments received</h4>'}${pays(p)}`).join('')
       : '<p class="mut pcz-none">No project yet. Payments are recorded on the project — start one from Progress above.</p>'}`;
+  /* Record payment: the same form as Accounts. A payment belongs to a project, so the first one starts the project with the plant cost. */
+  $('#pczpay', box).onclick = async e => {
+    if (!has) return toast('Enter the total plant cost first', true);
+    const b = e.currentTarget; let pj = s.projects[s.projects.length - 1];
+    if (!pj) { b.disabled = true; try { const r = await api('gen', 'cost', { kind: 'tax', customer_id: id, cost: s.cost }); pj = { id: r.acct.project_id, kw: '', loan: '' }; } catch (x) { return; } finally { b.disabled = false; } }
+    const first = !(s.paid > 0);
+    acPayForm({ pid: pj.id, customer: c.name, kw: pj.kw, loan: pj.loan, due: s.balance }, null, { done: () => { if (first) toast(`${c.name} is now in Accounts › In progress`); redraw(); }, open: pid => acReceipt(pid, { onChange: redraw }) }); /* the receipt number shows on the card as soon as it is given */
+  };
+  $$('[data-pr]', box).forEach(b => b.onclick = () => acReceipt(+b.dataset.pr, { onChange: redraw }));
+  $$('[data-pe]', box).forEach(b => b.onclick = () => { const p = s.projects.find(y => y.id == b.dataset.pp), x = p && p.payments.find(y => y.id == b.dataset.pe); if (x) acPayForm({ pid: p.id, customer: c.name, kw: p.kw, loan: p.loan }, x, { done: redraw }); });
   $('#pczed', box).onclick = () => {
     const m = modal(`<h2 style="margin-top:0">Plant cost</h2><div class="two"><div><label>Total plant cost (₹)</label><input id="pczc" inputmode="numeric" autocomplete="off" value="${s.agreed > 0 || has ? (multi ? s.agreed || '' : s.cost).toLocaleString('en-IN') : ''}"></div>
       <div><label>KSEB charges</label><select id="pczx"><option value="0">Included in the plant cost</option><option value="1" ${s.kseb_extra ? 'selected' : ''}>Additional (paid on top)</option></select></div>

@@ -62,7 +62,7 @@ function cust_cost_summary($cid) {
   $cost = $pcost > 0 ? $pcost : (float)$c['plant_cost'];
   $q = row("SELECT id, name, size, created, user FROM files WHERE customer_id=? AND kind='approved' ORDER BY id DESC LIMIT 1", [$cid]);
   return ['cost' => $cost, 'agreed' => (float)$c['plant_cost'], 'from_project' => $pcost > 0 ? 1 : 0, 'kseb_extra' => (int)$c['kseb_extra'], 'kseb_extra_amt' => (float)$c['kseb_extra_amt'],
-    'updated_by' => (string)$c['updated_by'], 'updated' => (string)$c['updated'], 'projects' => $projs, 'paid' => $paid, 'balance' => max(0, round($cost - $paid, 2)), 'quote' => $q ?: null];
+    'updated_by' => (string)$c['updated_by'], 'updated' => (string)$c['updated'], 'projects' => $projs, 'paid' => $paid, 'balance' => max(0, round($cost - $paid, 2)), 'quote' => $q ?: null, 'track' => acc_track_state($cid)];
 }
 /* profile/cost_get (GET) and profile/cost_save (POST): admin only */
 function handle_cust_cost($a) {

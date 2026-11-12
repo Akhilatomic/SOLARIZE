@@ -35,7 +35,7 @@ function trash_spec_project($pid) {
     ['checklist', 'project_id=?', [$pid]], ['payments', 'project_id=?', [$pid]], ['acc_costs', 'project_id=?', [$pid]], ['files', 'project_id=?', [$pid]], ['notes', "entity='projects' AND entity_id=?", [$pid]]];
 }
 function trash_spec_customer($cid, $withLinked = true) {
-  $s = [['customers', 'id=?', [$cid]], ['plant', 'customer_id=?', [$cid]], ['fees', 'customer_id=?', [$cid]], ['gen_docs', 'customer_id=?', [$cid]], ['commissions', 'customer_id=?', [$cid]], ['cust_cost', 'customer_id=?', [$cid]]];
+  $s = [['customers', 'id=?', [$cid]], ['plant', 'customer_id=?', [$cid]], ['fees', 'customer_id=?', [$cid]], ['gen_docs', 'customer_id=?', [$cid]], ['commissions', 'customer_id=?', [$cid]], ['cust_cost', 'customer_id=?', [$cid]], ['acc_track', 'customer_id=?', [$cid]]];
   foreach (rows('SELECT id FROM projects WHERE customer_id=?', [$cid]) as $p) $s = array_merge($s, trash_spec_project($p['id']));
   $s[] = ['files', 'customer_id=? AND (project_id IS NULL OR project_id=0)', [$cid]];
   if ($withLinked) { $s[] = ['quotes', 'customer_id=?', [$cid]]; $s[] = ['messages', 'customer_id=?', [$cid]]; $s[] = ['notes', "entity='customers' AND entity_id=?", [$cid]];

@@ -807,3 +807,4 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .bkr-note{margin:8px 0 0;font-size:12px;line-height:1.45}
 .bkr-full{margin-top:18px;padding:14px;border:1px solid rgba(229,52,43,.25);border-radius:12px}
 @media(max-width:700px){.bkr-g{grid-template-columns:minmax(0,1fr)}}
+.pcz-pa{white-space:nowrap;text-align:right}.pcz-pa .btn+.btn{margin-left:4px}
