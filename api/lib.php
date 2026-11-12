@@ -412,11 +412,37 @@ function kseb_items_upgrade(&$s) {
   $s['kseb_items'] = KSEB_ITEMS; $s['kseb_items_rev'] = 2;
 }
 
+/* Company details (Settings › Company): a field left empty takes the current details — the company block of the Quotation maker first, then the built-in ones.
+   Nov 2026: "Save company" stored an empty record for a while (it read the wrong card), which blanked the form and took the GSTIN off tax bills and receipts;
+   filling here brings the details back everywhere. $qmRaw = the stored qm_settings JSON (may be null). */
+function company_fill($co, $qmRaw = null) {
+  $def = defaults()['company']; $co = is_array($co) ? $co : []; $o = [];
+  foreach ($def as $k => $_) $o[$k] = trim((string)($co[$k] ?? ''));
+  $ids = ['name', 'gstin', 'phone', 'email', 'address'];
+  $blank = !array_filter(array_intersect_key($o, array_flip([...$ids, 'terms'])), fn($v) => $v !== ''); /* nothing typed at all = the wiped record */
+  if (array_filter($ids, fn($k) => $o[$k] === '')) {
+    $saved = $qmRaw ? json_decode($qmRaw, true) : null;
+    $qc = (array)(is_array($saved) ? ($saved['company'] ?? []) : []) + (defined('QM_DEFAULTS') ? QM_DEFAULTS['company'] : []);
+    $qm = ['name' => trim((string)($qc['name'] ?? '')), 'phone' => trim((string)($qc['phone'] ?? '')), 'email' => trim((string)($qc['email'] ?? '')), 'address' => '', 'gstin' => ''];
+    if (strcasecmp($qm['name'], $def['name']) === 0) $qm['name'] = $def['name']; /* same name: keep the ordinary spelling, not the capitals of the letterhead */
+    foreach ((array)($qc['lines'] ?? []) as $l) if (preg_match('/office|address/i', (string)($l['label'] ?? ''))) { $qm['address'] = trim((string)($l['text'] ?? '')); break; }
+    if (preg_match('/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]\b/', strtoupper((string)($qc['gstin'] ?? '')), $g)) $qm['gstin'] = $g[0];
+    foreach ($ids as $k) if ($o[$k] === '') $o[$k] = $qm[$k] !== '' ? $qm[$k] : $def[$k];
+  }
+  if ($o['quote_prefix'] === '') $o['quote_prefix'] = $def['quote_prefix'];
+  if ($o['terms'] === '' && ($blank || !array_key_exists('terms', $co))) $o['terms'] = $def['terms']; /* terms cleared on purpose stay empty */
+  return $o;
+}
+
 function settings($fresh = false) { // read once per request; only the keys we use (skips big blobs such as mail / Meta state)
   static $s = null;
   if ($s !== null && !$fresh) return $s;
-  $s = defaults(); $keys = array_keys($s);
-  foreach (rows('SELECT k,v FROM settings WHERE k IN (' . implode(',', array_fill(0, count($keys), '?')) . ')', $keys) as $r) $s[$r['k']] = json_decode($r['v'], true);
+  $s = defaults(); $keys = array_keys($s); $qm = null;
+  foreach (rows('SELECT k,v FROM settings WHERE k IN (' . implode(',', array_fill(0, count($keys), '?')) . ",'qm_settings')", $keys) as $r) {
+    if ($r['k'] === 'qm_settings') { $qm = $r['v']; continue; } /* only read for the company details below */
+    $s[$r['k']] = json_decode($r['v'], true);
+  }
+  $s['company'] = company_fill($s['company'], $qm);
   if ((int)($s['kseb_items_rev'] ?? 0) < 2) kseb_items_upgrade($s);
   return $s;
 }

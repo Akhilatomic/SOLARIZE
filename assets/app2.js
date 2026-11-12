@@ -116,7 +116,7 @@ async function pgSettings() {
   const lines = k => (S[k] || []).join('\n');
   const co = S.company, r = S.subsidy_rates;
   $('#main').innerHTML = `${adm ? '' : '<p class="mut">View only — only an administrator can change settings.</p>'}<div class="grid cols2">
-   <div class="card"><h3>Company (used on quotations)</h3><div class="two">${[{ k: 'name', l: 'Company name', full: 1 }, { k: 'gstin', l: 'GSTIN' }, { k: 'quote_prefix', l: 'Quote number prefix' }, { k: 'phone', l: 'Phone' }, { k: 'email', l: 'Email' }, { k: 'address', l: 'Address', full: 1 }, { k: 'terms', l: 'Default quotation terms', t: 'textarea', rows: 6, full: 1 }].map(f => fld(f, co)).join('')}</div><div id="co"></div>${adm ? '<button class="btn" id="s-co" style="margin-top:10px">Save company</button>' : ''}</div>
+   <div class="card" id="cocard"><h3>Company (used on quotations)</h3><p class="mut" style="margin:0 0 8px;font-size:12px">A field left empty takes the company details set in the Quotation maker.</p><div class="two">${[{ k: 'name', l: 'Company name', full: 1 }, { k: 'gstin', l: 'GSTIN' }, { k: 'quote_prefix', l: 'Quote number prefix' }, { k: 'phone', l: 'Phone' }, { k: 'email', l: 'Email' }, { k: 'address', l: 'Address', full: 1 }, { k: 'terms', l: 'Default quotation terms', t: 'textarea', rows: 6, full: 1 }].map(f => fld(f, co)).join('')}</div><div id="co"></div>${adm ? '<button class="btn" id="s-co" style="margin-top:10px">Save company</button>' : ''}</div>
    <div class="card"><h3>Login page</h3><p class="mut" style="margin:0 0 8px;font-size:12px">Background image for the sign-in screen (JPG, PNG or WebP, up to 6 MB). A wide, landscape photo works best.</p>
     <div id="lgprev" style="height:150px;border-radius:12px;border:1px solid var(--bd);background:var(--fill) center/cover no-repeat;display:grid;place-items:center;color:var(--mut);font-size:13px;overflow:hidden">Loading…</div>
     ${adm ? '<div class="bar" style="margin:10px 0 0"><button class="btn" id="lgup">Upload image</button><button class="btn sec" id="lgrm">Remove</button></div>' : ''}
@@ -147,7 +147,7 @@ async function pgSettings() {
   }
   if (adm) { drawAccess(); drawHrSettings(); }
   if (adm) {
-    $('#s-co').onclick = () => save('company', collect($('.card'))); // first card
+    $('#s-co').onclick = async () => { await save('company', collect($('#cocard'))); $$('#cocard [data-k]').forEach(e => e.value = S.company[e.dataset.k] ?? ''); }; /* the Company card itself — $('.card') is the hidden bell panel and saved an empty record */
     $('#s-rates').onclick = async () => { await save('gst_rate', +$('#s-gst').value); await save('lead_target', +$('#s-tgt').value || 1000); await save('customer_target', +$('#s-ctgt').value || 2000); await save('subsidy_rates', { per_kw_first2: +$('#s-r1').value, third_kw: +$('#s-r2').value, cap: +$('#s-r3').value }); };
     $$('[data-sl]').forEach(b => b.onclick = () => save(b.dataset.sl, arr(b.dataset.sl)));
     $('#s-cat').onclick = () => save('catalog', arr('catalog').map(l => { const [d, r] = l.split('|'); return { desc: d.trim(), rate: +(r || 0) }; }));

@@ -126,7 +126,13 @@ function handle_settings($a) {
     $in = body(); $k = $in['key'] ?? ''; if (!array_key_exists($k, defaults())) fail('Unknown setting');
     $val = $in['value'];
     if ($k === 'role_perms') { $clean = []; foreach ((array)$val as $role => $p) { if ($role === 'admin' || !isset(ROLE_DEFAULTS[$role])) continue; $no = ROLE_NEVER[$role] ?? []; $clean[$role] = ['read' => array_values(array_diff(array_intersect((array)($p['read'] ?? []), MODULES), $no)), 'write' => array_values(array_diff(array_intersect((array)($p['write'] ?? []), MODULES), $no))]; } $clean['_modules'] = MODULES; $val = $clean; }
-    if ($k === 'login') { $val = ['bg' => settings()['login']['bg'], 'tagline' => mb_substr((string)($val['tagline'] ?? ''), 0, 80), 'dim' => max(0, min(80, (int)($val['dim'] ?? 35)))]; }
+    if ($k === 'company') { /* only the company fields, as text; a field not sent keeps its current value (an empty post once wiped the record) */
+      $val = is_array($val) ? $val : []; $cur = settings()['company']; $def = defaults()['company'];
+      if (!array_intersect_key($val, $def)) fail('Nothing to save');
+      $clean = []; foreach ($def as $ck => $_) $clean[$ck] = array_key_exists($ck, $val) ? mb_substr(trim(is_scalar($val[$ck]) ? (string)$val[$ck] : ''), 0, $ck === 'terms' ? 4000 : 300) : $cur[$ck];
+      if ($clean['name'] === '') fail('Type the company name');
+      $val = $clean; }
+    if ($k === 'login') { $val =['bg' => settings()['login']['bg'], 'tagline' => mb_substr((string)($val['tagline'] ?? ''), 0, 80), 'dim' => max(0, min(80, (int)($val['dim'] ?? 35)))]; }
     q('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', [$k, json_encode($val, JSON_UNESCAPED_UNICODE)]);
     audit('settings', 'settings', null, $k); out(['ok' => true]);
   }
