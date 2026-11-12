@@ -100,7 +100,7 @@ async function pgCustomer(id) {
       if (a === 'np2') startModal({ customer_id: id });
       if (a === 'own' && acLeaveOk() && await reassignBox('customers', c)) { acLeft(); route(); }
       if (a === 'rv') revertToLead(id, c.name);
-      if (a === 'dl' && confirm('Delete this customer and all their projects, quotes and files?\n\nIt goes to the Recycle bin and can be restored for 72 hours.')) { await api('customers', 'delete', { id }); toast('Moved to Recycle bin'); location.hash = '#/customers'; } });
+      if (a === 'dl' && confirm('Delete this customer and all their projects, quotes and files?\n\nIt goes to the Recycle bin and can be restored for ' + RULE('trash_hours') + ' hours.')) { await api('customers', 'delete', { id }); toast('Moved to Recycle bin'); location.hash = '#/customers'; } });
     setTimeout(() => document.addEventListener('click', () => m.remove(), { once: true }));
   };
 }

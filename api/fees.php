@@ -29,8 +29,8 @@ function fee_alerts() {
   $today = new DateTime(date('Y-m-d'));
   $to = array_values(array_filter(rows('SELECT id, role FROM users WHERE active=1'), fn($u) => $u['role'] === 'admin' || disc_role_can($u['role'], 'fees')));
   foreach (rows("SELECT f.*, c.name FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.kind='feasibility' AND f.paid=1 AND f.paid_on<>'' AND f.alert<2") as $f) {
-    $exp = (new DateTime($f['paid_on']))->modify('+' . FEAS_VALID_DAYS . ' days'); $left = (int)$today->diff($exp)->format('%r%a');
-    $lvl = $left < 0 ? 2 : ($left <= FEAS_ALERT_DAYS ? 1 : 0);
+    $exp = (new DateTime($f['paid_on']))->modify('+' . rule('feas_valid_days') . ' days'); $left = (int)$today->diff($exp)->format('%r%a');
+    $lvl = $left < 0 ? 2 : ($left <= rule('feas_alert_days') ? 1 : 0);
     if ($lvl <= (int)$f['alert']) continue;
     $text = $lvl === 2 ? "Feasibility EXPIRED for {$f['name']} on " . $exp->format('d M Y') . ' — renew the feasibility payment'
       : "Feasibility for {$f['name']} expires " . ($left === 0 ? 'today' : "in $left day" . ($left === 1 ? '' : 's')) . ' (' . $exp->format('d M Y') . ')';
@@ -46,9 +46,9 @@ function handle_fees($a) {
       need('fees'); $kind = fee_kind($_GET['kind'] ?? '');
       $rs = rows('SELECT f.*, c.name, c.phone, c.consumer_no, c.address, c.district, c.pincode, c.kseb_section, c.landmark FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.kind=? ORDER BY f.paid ASC, CASE WHEN f.paid_on<>\'\' THEN f.paid_on ELSE f.created END DESC, f.id DESC', [$kind]);
       if ($kind === 'feasibility') { $today = new DateTime(date('Y-m-d'));
-        foreach ($rs as &$r) if ((int)$r['paid'] && $r['paid_on']) { $e = (new DateTime($r['paid_on']))->modify('+' . FEAS_VALID_DAYS . ' days'); $r['expires'] = $e->format('Y-m-d'); $r['days_left'] = (int)$today->diff($e)->format('%r%a'); }
+        foreach ($rs as &$r) if ((int)$r['paid'] && $r['paid_on']) { $e = (new DateTime($r['paid_on']))->modify('+' . rule('feas_valid_days') . ' days'); $r['expires'] = $e->format('Y-m-d'); $r['days_left'] = (int)$today->diff($e)->format('%r%a'); }
         unset($r); }
-      out(['kind' => $kind, 'title' => FEE_KINDS[$kind], 'valid_days' => FEAS_VALID_DAYS, 'alert_days' => FEAS_ALERT_DAYS, 'rows' => $rs, 'default_amount' => fee_default_amount($kind)]);
+      out(['kind' => $kind, 'title' => FEE_KINDS[$kind], 'valid_days' => rule('feas_valid_days'), 'alert_days' => rule('feas_alert_days'), 'rows' => $rs, 'default_amount' => fee_default_amount($kind)]);
 
     case 'member': // which Finance lists each customer is on (for the customer menus)
       need('fees'); $cid = (int)($_GET['customer_id'] ?? 0);
@@ -56,7 +56,7 @@ function handle_fees($a) {
       foreach (rows('SELECT customer_id, kind, paid, paid_on, demanded, demanded_on, amount FROM fees' . ($cid ? ' WHERE customer_id=' . $cid : '')) as $r) {
         $m[$r['customer_id']][$r['kind']] = (int)$r['paid'];
         if ($r['kind'] === 'feasibility') { $x = ['paid' => (int)$r['paid'], 'paid_on' => $r['paid_on'], 'demanded' => (int)$r['demanded'], 'demanded_on' => $r['demanded_on'], 'amount' => (float)$r['amount']];
-          if ($x['paid'] && $r['paid_on']) { $e = (new DateTime($r['paid_on']))->modify('+' . FEAS_VALID_DAYS . ' days'); $x['expires'] = $e->format('Y-m-d'); $x['days_left'] = (int)$today->diff($e)->format('%r%a'); }
+          if ($x['paid'] && $r['paid_on']) { $e = (new DateTime($r['paid_on']))->modify('+' . rule('feas_valid_days') . ' days'); $x['expires'] = $e->format('Y-m-d'); $x['days_left'] = (int)$today->diff($e)->format('%r%a'); }
           $m[$r['customer_id']]['_feas'] = $x; }
       }
       out($m ?: new stdClass);

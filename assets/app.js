@@ -203,8 +203,11 @@ function csvDownload(name, cols, data) {
 }
 function pickFile(accept = '') { return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => res(i.files[0]); i.click(); }); }
 async function upload(extra) { const f = await pickFile('.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt'); if (!f) return false; const fd = new FormData(); fd.append('file', f); Object.entries(extra).forEach(([k, v]) => fd.append(k, v ?? '')); await api('files', 'upload', fd); return true; }
-const DOC_DAYS = 365; /* uploaded documents go to the Recycle bin this many days after upload (api/trash.php DOC_LIFE_DAYS) */
-const GEN_DAYS = 120; /* papers the CRM makes for a customer and keeps on the Documents page (api/trash.php GEN_LIFE_DAYS) */
+/* The numbers the CRM works by. The owner changes them in Settings › Rules (S.rules; api/lib.php rule()); these are the usual values. */
+const RULE_DEF = { doc_days: 365, gen_days: 120, trash_hours: 72, lead_lost_hours: 24, lead_remind_min: 15, feas_valid_days: 30, feas_alert_days: 3 };
+const RULE = k => { const v = ((S && S.rules) || {})[k]; return v == null || v === '' || isNaN(+v) ? RULE_DEF[k] : +v; };
+/* DOC_DAYS = days an uploaded document is kept, GEN_DAYS = days a paper made in the CRM is kept: read from the rules each time they are used */
+Object.defineProperty(window, 'DOC_DAYS', { get: () => RULE('doc_days') }); Object.defineProperty(window, 'GEN_DAYS', { get: () => RULE('gen_days') });
 /* days a document is kept: its own files.life (0 = until someone deletes it: tax bills, warranty cards), else the usual DOC_DAYS */
 const docDays = f => f.kind === 'warranty' ? 0 : f.life == null ? DOC_DAYS : +f.life;
 const docLeft = f => { const k = docDays(f); return k ? Math.ceil((new Date(String(f.created).replace(' ', 'T') + 'Z').getTime() + k * 864e5 - Date.now()) / 864e5) : 1e9; }; /* 1e9 = kept until deleted */

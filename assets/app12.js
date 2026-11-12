@@ -1,4 +1,5 @@
 // Customer profile tabs: Plant details (panels / inverters with serial numbers) and Documents (typed upload, previews, viewer, share, download all).
+const docTypes = () => S && S.doc_types && S.doc_types.length ? S.doc_types : DOC_TYPES; /* Settings › Documents › Document types */
 const DOC_TYPES = ['Aadhaar card', 'Aadhaar card back side', 'Aadhaar 2', 'PAN card', 'Electricity bill', 'Latest paid bill', 'Passbook', 'Passbook or cancelled cheque', 'DCR Certificate',
   'Loan Quotation', 'Loan Papers', 'Building tax', 'Land tax', 'Agreement', 'Feasibility', 'Acknowledgement', 'Site Photo', 'Geo-tagged Photo', 'Customer Geo Tagged Photo'];
 const PL_OPTS = {
@@ -120,7 +121,7 @@ function renderDocs(box, c, id) {
   const F = c.files, w = canW('files'), have = new Set(F.map(f => f.item).filter(Boolean));
   box.innerHTML = `<div class="card pfc"><div class="pfch"><i class="i i-file"></i><h3>Documents</h3><small class="mut">${F.length} file${F.length === 1 ? '' : 's'}</small><span class="sp"></span>
       ${F.length ? `<a class="btn sec sm dlall" href="api.php?m=files&a=zip&customer_id=${id}"><i class="i i-download"></i> Download all</a>` : ''}${w ? '<button class="btn sm" id="dcadd"><i class="i i-plus"></i> Add documents</button>' : ''}</div>
-     <div class="dcchk">${DOC_TYPES.map(t => `<button class="dcc ${have.has(t) ? 'ok' : ''}" data-t="${esc(t)}" ${w ? '' : 'disabled'} title="${have.has(t) ? 'Uploaded' : 'Missing — click to upload'}">${have.has(t) ? '<i class="i i-check"></i>' : ''}${esc(t)}</button>`).join('')}</div>
+     <div class="dcchk">${docTypes().map(t => `<button class="dcc ${have.has(t) ? 'ok' : ''}" data-t="${esc(t)}" ${w ? '' : 'disabled'} title="${have.has(t) ? 'Uploaded' : 'Missing — click to upload'}">${have.has(t) ? '<i class="i i-check"></i>' : ''}${esc(t)}</button>`).join('')}</div>
      <p class="mut dckeep">Uploads are kept ${DOC_DAYS} days and papers made in the CRM (KSEB, bank, quotation, receipt) ${GEN_DAYS} days, then they move to the Recycle bin. Tax bills, warranty cards and the approved quotation stay until someone deletes them.</p></div>
     <div class="dcgrid">${F.map((f, i) => { const d = docLeft(f);
       return `<div class="card dcard"><button class="dcth" data-v="${i}" title="View">${isImg(f) ? `<img loading="lazy" src="${fileUrl(f)}" alt="">` : `<span class="dcic"><i class="i i-file"></i><b>${esc((f.name.split('.').pop() || '').toUpperCase())}</b></span>`}</button>
@@ -136,7 +137,7 @@ function renderDocs(box, c, id) {
   $$('[data-v]', box).forEach(b => b.onclick = () => docViewer(F, +b.dataset.v));
   $$('[data-sh]', box).forEach(b => b.onclick = () => docShare(F[+b.dataset.sh], c));
   $$('[data-rd]', box).forEach(b => b.onclick = () => docRead(F[+b.dataset.rd], id, () => route()));
-  $$('[data-del]', box).forEach(b => b.onclick = async () => { const f = F[+b.dataset.del]; if (!confirm(`Delete "${f.item || f.name}"?\n\nIt goes to the Recycle bin and can be restored for 72 hours.`)) return; await api('files', 'delete', { id: f.id }); toast('Moved to Recycle bin'); reload(); });
+  $$('[data-del]', box).forEach(b => b.onclick = async () => { const f = F[+b.dataset.del]; if (!confirm(`Delete "${f.item || f.name}"?\n\nIt goes to the Recycle bin and can be restored for ${RULE('trash_hours')} hours.`)) return; await api('files', 'delete', { id: f.id }); toast('Moved to Recycle bin'); reload(); });
   if (DOC_STALE.delete(+id)) reload(); /* a paper was kept since this customer was loaded */
 }
 async function docShare(f, c) {
@@ -171,7 +172,7 @@ async function shrinkImage(f) {
 }
 function docUploadModal(c, id, only, done) {
   const have = {}; c.files.forEach(f => f.item && (have[f.item] = (have[f.item] || 0) + 1));
-  const types = only ? [only] : DOC_TYPES;
+  const types = only ? [only] : docTypes();
   const m = modal(`<div class="duw"><div class="duh"><h2>Add documents</h2><small class="mut">${esc(c.name)} · photo, scan or PDF (max 10 MB)</small><button class="lvx" id="dux"><i class="i i-x"></i></button></div>
     <div class="dul">${types.map(t => `<div class="dur" data-t="${esc(t)}"><div><b>${esc(t)}</b><small class="mut">${have[t] ? '✓ ' + have[t] + ' uploaded' : ''}</small></div><label class="duup" title="Upload ${esc(t)}"><input type="file" accept="image/*,.pdf" multiple hidden><i class="i i-upload"></i></label></div>`).join('')}
      ${only ? '' : `<div class="dur other"><input id="duo" placeholder="Other document — type its name"><label class="duup" title="Upload"><input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" multiple hidden><i class="i i-upload"></i></label></div>`}</div>

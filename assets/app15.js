@@ -1,6 +1,6 @@
 // Finance: Feasibility fee (30-day validity) · Registration fee · Stamp paper
 const FEES = {
-  feasibility: { title: 'Feasibility fee', sub: 'KSEB feasibility payments — valid 30 days from the payment date', icon: 'check', tc: 't-feas', paid: 'Paid', pend: 'Pending', filters: [['pending', 'Pending'], ['demanded', 'Demanded'], ['paid', 'Paid'], ['expiring', 'Expiring'], ['all', 'All']] },
+  feasibility: { title: 'Feasibility fee', get sub() { return `KSEB feasibility payments — valid ${RULE('feas_valid_days')} days from the payment date`; }, icon: 'check', tc: 't-feas', paid: 'Paid', pend: 'Pending', filters: [['pending', 'Pending'], ['demanded', 'Demanded'], ['paid', 'Paid'], ['expiring', 'Expiring'], ['all', 'All']] },
   registration: { title: 'Registration fee', sub: 'KSEB registration fee payments', icon: 'card', tc: 't-reg', paid: 'Paid', pend: 'Pending', filters: [['pending', 'Pending'], ['demanded', 'Demanded'], ['paid', 'Paid'], ['all', 'All']] },
   stamp: { title: 'Stamp paper', sub: 'Stamp paper purchases for customer agreements', icon: 'note', tc: 't-stamp', paid: 'Purchased', pend: 'Pending', filters: [['pending', 'Pending'], ['paid', 'Purchased'], ['all', 'All']] },
 };
@@ -69,7 +69,7 @@ async function pgFees() {
       if (+r.paid) { if (!confirm(`Mark ${r.name}'s ${K.title.toLowerCase()} as NOT ${K.paid.toLowerCase()}?`)) return; await api('fees', 'set', { id: r.id, paid: 0 }); reload(); } else payModal(r); });
     $$('[data-renew]').forEach(b => b.onclick = () => payModal(d.rows.find(x => x.id == b.dataset.renew)));
     $$('[data-amt]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.amt), v = prompt(`${kind === 'stamp' ? 'Stamp value' : 'Amount'} for ${r.name} (₹)`, r.amount); if (v === null || v.trim() === '' || isNaN(+v)) return; await api('fees', 'set', { id: r.id, amount: +v }); reload(); });
-    $$('[data-rm]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.rm); if (!confirm(`Remove ${r.name} from ${K.title}?\n\nIt goes to the Recycle bin for 72 hours.`)) return; await api('fees', 'remove', { id: r.id }); toast('Removed — in the Recycle bin'); reload(); });
+    $$('[data-rm]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.rm); if (!confirm(`Remove ${r.name} from ${K.title}?\n\nIt goes to the Recycle bin for ${RULE('trash_hours')} hours.`)) return; await api('fees', 'remove', { id: r.id }); toast('Removed — in the Recycle bin'); reload(); });
   };
   $('#fq').oninput = e => { FEEQ.q = e.target.value; draw(); };
   $$('[data-ff]').forEach(b => b.onclick = () => { FEEQ.f[kind] = b.dataset.ff; $$('[data-ff]').forEach(x => x.classList.toggle('on', x === b)); draw(); });

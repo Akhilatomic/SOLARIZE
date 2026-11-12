@@ -120,7 +120,7 @@ async function renderWarranty(box, c, id) {
           ${wf && item !== 'Warranty card' ? `<label class="btn sec sm wyup" title="Upload the ${label.toLowerCase()} warranty card"><input type="file" accept="image/*,.pdf" hidden multiple data-item="${item}"><i class="i i-upload"></i> Upload</label>` : ''}</div>
           ${L.length ? `<div class="wyf">${L.map(([f, i]) => card(f, i)).join('')}</div>` : ''}</div>`; }).join('')}`;
     $$('[data-wv]', box).forEach(b => b.onclick = () => docViewer(F, +b.dataset.wv));
-    $$('[data-wx]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this warranty card? It goes to the Recycle bin for 72 hours.')) return; try { await api('files', 'delete', { id: +b.dataset.wx }); toast('Warranty card deleted'); renderWarranty(box, c, id); } catch (e) { } });
+    $$('[data-wx]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this warranty card? It goes to the Recycle bin for ' + RULE('trash_hours') + ' hours.')) return; try { await api('files', 'delete', { id: +b.dataset.wx }); toast('Warranty card deleted'); renderWarranty(box, c, id); } catch (e) { } });
     $$('.wyup input', box).forEach(inp => inp.onchange = async () => { const files = [...inp.files]; inp.value = ''; if (!files.length) return; const lab = inp.parentElement; lab.classList.add('busy'); let n = 0;
       for (const f0 of files) { const f = f0.size > 10 * 1024 * 1024 && /^image\//.test(f0.type) ? await shrinkImage(f0) : f0;
         if (f.size > 10 * 1024 * 1024) { toast(`${f0.name} is larger than 10 MB`, true); continue; }
@@ -324,7 +324,7 @@ async function renderTax(box, c, id) {
       if (s) s.value = ACC.payFrom(md, s.value); }; /* mode Loan: from the bank */
     $$('[data-pedit]', box).forEach(b => b.onclick = () => editPayment(b.dataset.pedit));
     $$('[data-prc]', box).forEach(b => b.onclick = () => openReceipt(b.dataset.prc));
-    $$('[data-pdel]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this payment? It goes to the Recycle bin for 72 hours.')) return; try { await api('payments', 'delete', { id: +b.dataset.pdel }); toast('Payment deleted'); } catch (x) { } reload(); }); };
+    $$('[data-pdel]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this payment? It goes to the Recycle bin for ' + RULE('trash_hours') + ' hours.')) return; try { await api('payments', 'delete', { id: +b.dataset.pdel }); toast('Payment deleted'); } catch (x) { } reload(); }); };
   // ---- payment receipt (the receipt window, its PDF and sharing live in app35.js: acReceipt)
   const isCash = p => String(p.mode || '').trim().toLowerCase() === 'cash';
   const REF_PH = 'Reference no. (UTR / cheque / txn)';

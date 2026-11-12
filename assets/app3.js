@@ -1,7 +1,7 @@
 // Meta leads: live feed, notifications (bell, dashboard panel, toast, sound), 30-minute auto sync,
 // and a reminder every 15 minutes while new leads wait unattended (they turn Lost after 24 hours — lead_autolost() in api/claims.php)
 let FEED = { leads: [], count: 0, state: {} }, KNOWN = null, FEEDTIMER = null, SYNCTIMER = null, REMINDTIMER = null, SOUND = true;
-const REMIND_MS = 15 * 60 * 1000;
+const REMIND_MS = () => RULE('lead_remind_min') * 60 * 1000; /* Settings › Rules */
 try { SOUND = localStorage.metaSound !== '0'; } catch (e) { }
 const agoStr = c => { const t = new Date(String(c).replace(' ', 'T') + 'Z').getTime(); const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
 const clock = ts => ts ? new Date(ts * 1000).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
@@ -47,9 +47,9 @@ function alertNew(fresh) {
 /* Owner's rule: while new leads this user can see are still unattended (not opened, called, marked contacted or edited),
    remind every 15 minutes — toast, sound and a desktop notification. Runs in hidden tabs too (that is when it matters). */
 async function leadRemind() {
-  if (Date.now() - remindAt() < REMIND_MS) return;
+  if (Date.now() - remindAt() < REMIND_MS()) return;
   await refreshFeed();
-  const n = FEED.count || 0; if (!n || Date.now() - remindAt() < REMIND_MS) return; /* another tab may have reminded meanwhile */
+  const n = FEED.count || 0; if (!n || Date.now() - remindAt() < REMIND_MS()) return; /* another tab may have reminded meanwhile */
   remindMark();
   const L = FEED.leads.slice(0, 3).map(l => l.name + (l.phone ? ' · ' + l.phone : ''));
   const head = n === 1 ? '1 new lead is waiting — not attended yet' : n + ' new leads are waiting — not attended yet';
@@ -57,7 +57,7 @@ async function leadRemind() {
   leadBeep();
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
-      const nt = new Notification('Leads waiting', { body: head + (L.length ? '\n' + L.join('\n') : '') + '\nUnattended leads turn Lost after 24 hours.', icon: 'assets/logo.png', tag: 'lead-remind', renotify: true });
+      const nt = new Notification('Leads waiting', { body: head + (L.length ? '\n' + L.join('\n') : '') + '\nUnattended leads turn Lost after ' + RULE('lead_lost_hours') + ' hours.', icon: 'assets/logo.png', tag: 'lead-remind', renotify: true });
       nt.onclick = () => { window.focus(); location.hash = '#/dashboard'; nt.close(); };
     }
   } catch (e) { }

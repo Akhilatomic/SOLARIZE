@@ -316,7 +316,7 @@ async function pgFolder(id) {
     };
     if ($('#fmmv')) $('#fmmv').onclick = () => moveDialog();
     if ($('#fmrm')) $('#fmrm').onclick = async () => {
-      if (!confirm(`Delete ${n} item${n === 1 ? '' : 's'}${fo.length ? ' (folders include everything inside them)' : ''}?\n\nThey go to the Recycle bin for 72 hours, then are removed. Share links already sent stop working.`)) return;
+      if (!confirm(`Delete ${n} item${n === 1 ? '' : 's'}${fo.length ? ' (folders include everything inside them)' : ''}?\n\nThey go to the Recycle bin for ${RULE('trash_hours')} hours, then are removed. Share links already sent stop working.`)) return;
       try { await api('folder', 'delete', { files: fl, folders: fo }); clearSel(); toast('Moved to the Recycle bin'); reload(); } catch (e) { }
     };
   };

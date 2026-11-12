@@ -285,7 +285,7 @@ function handle_files($a) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
     $cid = (int)($_GET['customer_id'] ?? 0); $key = (string)($_GET['gen'] ?? '');
     if (!preg_match('/^([a-z]+)(?::[a-z0-9_-]{1,40})?$/', $key, $mm) || !isset(GEN_KEEP[$mm[1]])) fail('Unknown paper');
-    [$mod, $life] = GEN_KEEP[$mm[1]]; need('customers'); need($mod);
+    [$mod, $life] = GEN_KEEP[$mm[1]]; if ($life) $life = rule('gen_days'); need('customers'); need($mod);
     if (!$cid || !row('SELECT id FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
     $fl = $_FILES['file'] ?? null; sec_upload($fl, ['pdf'], 25);
     $title = mb_substr(trim((string)($_POST['title'] ?? '')), 0, 120); if ($title === '') $title = 'Document';

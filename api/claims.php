@@ -125,14 +125,14 @@ function callback_alerts() {
 const LEAD_STALE_HOURS = 24;
 function lead_autolost() {
   $rs = rows("SELECT id FROM leads WHERE notify=1 AND status NOT IN ('Won','Lost') AND (customer_id IS NULL OR customer_id=0)
-    AND created <= datetime('now', ?)", ['-' . LEAD_STALE_HOURS . ' hours']);
+    AND created <= datetime('now', ?)", ['-' . rule('lead_lost_hours') . ' hours']);
   $n = 0;
   foreach ($rs as $l) {
     if (!q("UPDATE leads SET status='Lost', notify=0, updated=CURRENT_TIMESTAMP WHERE id=? AND notify=1", [$l['id']])->rowCount()) continue; // another run got it
-    q("INSERT INTO notes(entity,entity_id,text,user) VALUES('leads',?,?,'System')", [$l['id'], 'Not attended within ' . LEAD_STALE_HOURS . ' hours (automatic) — marked Lost']);
+    q("INSERT INTO notes(entity,entity_id,text,user) VALUES('leads',?,?,'System')", [$l['id'], 'Not attended within ' . rule('lead_lost_hours') . ' hours (automatic) — marked Lost']);
     $n++;
   }
-  if ($n) audit('leads_autolost', 'leads', null, "$n new lead(s) not attended within " . LEAD_STALE_HOURS . ' hours marked Lost');
+  if ($n) audit('leads_autolost', 'leads', null, "$n new lead(s) not attended within " . rule('lead_lost_hours') . ' hours marked Lost');
   return $n;
 }
 

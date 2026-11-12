@@ -4,7 +4,7 @@
 // Uploaded documents (files table) live 365 days, then go to the bin (and are purged 72 h later).
 // Exception: warranty cards (files.kind = 'warranty') are kept forever.
 
-const TRASH_HOURS = 72;
+const TRASH_HOURS = 72; /* the built-in values; the ones in force come from rule('trash_hours' | 'doc_days' | 'gen_days') — Settings › Rules */
 const DOC_LIFE_DAYS = 365;
 const GEN_LIFE_DAYS = 120; /* papers the CRM makes for a customer (they can be made again any time) */
 /* paper => [area its maker must be able to open, days the copy is kept (0 = until someone deletes it)] — used by files/keep */
@@ -105,15 +105,15 @@ function housekeeping($force = false) {
   kv_set('hk_last', time()); /* a number, so the (int) read above works — a string was stored JSON-quoted, read back as 0, and this "hourly" job ran on every request */
   $n = 0;
   /* each document has its own keeping time: files.life days (NULL = DOC_LIFE_DAYS, 0 = kept until deleted) */
-  foreach (rows("SELECT * FROM files WHERE COALESCE(kind,'') <> 'warranty' AND COALESCE(life, " . DOC_LIFE_DAYS . ") > 0 AND created < datetime('now', '-' || COALESCE(life, " . DOC_LIFE_DAYS . ") || ' days') LIMIT 200") as $f) {
-    trash_file_row($f, 'older than ' . ($f['life'] === null ? DOC_LIFE_DAYS : (int)$f['life']) . ' days');
+  foreach (rows("SELECT * FROM files WHERE COALESCE(kind,'') <> 'warranty' AND COALESCE(life, " . rule('doc_days') . ") > 0 AND created < datetime('now', '-' || COALESCE(life, " . rule('doc_days') . ") || ' days') LIMIT 200") as $f) {
+    trash_file_row($f, 'older than ' . ($f['life'] === null ? rule('doc_days') : (int)$f['life']) . ' days');
     q('UPDATE stage_data SET file_id=NULL WHERE file_id=?', [$f['id']]); q('DELETE FROM files WHERE id=?', [$f['id']]); $n++;
   }
   if ($n) { audit('docs_expired', 'files', null, "$n document(s) past their keeping time moved to the Recycle bin"); }
   try { fee_alerts(); } catch (Throwable $e) { }
   try { callback_alerts(); } catch (Throwable $e) { } /* also when nobody has the CRM open */
   try { lead_autolost(); } catch (Throwable $e) { } /* new leads nobody attended within 24 hours → Lost */
-  foreach (rows("SELECT id,data FROM trash WHERE deleted_at < datetime('now', ?)", ['-' . TRASH_HOURS . ' hours']) as $t) trash_purge_row($t);
+  foreach (rows("SELECT id,data FROM trash WHERE deleted_at < datetime('now', ?)", ['-' . rule('trash_hours') . ' hours']) as $t) trash_purge_row($t);
   try { db()->exec('PRAGMA optimize'); } catch (Throwable $e) { } // keeps the query planner's statistics current (cheap, usually a no-op)
 }
 
@@ -122,7 +122,7 @@ function handle_trash($a) {
   switch ($a) {
     case 'list':
       need('recycle'); housekeeping();
-      out(['hours' => TRASH_HOURS, 'doc_days' => DOC_LIFE_DAYS, 'now' => gmdate('Y-m-d H:i:s'),
+      out(['hours' => rule('trash_hours'), 'doc_days' => rule('doc_days'), 'gen_days' => rule('gen_days'), 'now' => gmdate('Y-m-d H:i:s'),
         'rows' => array_map(function ($t) { $d = json_decode($t['data'], true) ?: []; unset($t['data']);
           $t['count'] = array_sum(array_map(fn($x) => count($x[1]), $d['rows'] ?? [])); $t['files'] = count($d['files'] ?? []); return $t; },
           rows('SELECT * FROM trash ORDER BY id DESC LIMIT 500'))]);

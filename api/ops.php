@@ -102,7 +102,7 @@ function handle_whatsapp($a) {
 function handle_settings($a) {
   if ($a === 'get' && !can('settings')) { $s = settings(); unset($s['catalog'], $s['role_perms']); out($s + ['modules' => MODULES, 'role_names' => ROLE_NAMES]); }
   need('settings', in_array($a, ['save', 'upload_bg', 'remove_bg']));
-  if ($a === 'get') out(settings() + ['modules' => MODULES, 'role_names' => ROLE_NAMES, 'role_defaults' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], ROLE_DEFAULTS), 'roles_now' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], roles()), 'role_never' => ROLE_NEVER]);
+  if ($a === 'get') out(settings() + ['rule_limits' => RULE_LIMITS, 'rule_names' => RULE_NAMES, 'kseb_defaults' => kseb_defaults(), 'incentive' => ['own_rate' => INC_OWN_RATE, 'tiers' => array_map(fn($t) => [$t[0] === PHP_INT_MAX ? null : $t[0], $t[1]], INC_TIERS), 'start' => INC_START], 'modules' => MODULES, 'role_names' => ROLE_NAMES, 'role_defaults' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], ROLE_DEFAULTS), 'roles_now' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], roles()), 'role_never' => ROLE_NEVER]);
   if ($a === 'upload_bg' || $a === 'remove_bg') {
     if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
     $dir = dirname(__DIR__) . '/uploads';
@@ -132,6 +132,16 @@ function handle_settings($a) {
       $clean = []; foreach ($def as $ck => $_) $clean[$ck] = array_key_exists($ck, $val) ? mb_substr(trim(is_scalar($val[$ck]) ? (string)$val[$ck] : ''), 0, $ck === 'terms' ? 4000 : 300) : $cur[$ck];
       if ($clean['name'] === '') fail('Type the company name');
       $val = $clean; }
+    if ($k === 'rules') { /* whole numbers inside their limits; a rule not sent keeps its value */
+      $cur = settings()['rules']; $clean = [];
+      foreach (RULE_LIMITS as $rk => [$lo, $hi]) {
+        $x = is_array($val) && array_key_exists($rk, $val) ? $val[$rk] : ($cur[$rk] ?? defaults()['rules'][$rk]);
+        if (!is_numeric($x) || (int)$x != $x || $x < $lo || $x > $hi) fail(RULE_NAMES[$rk] . ": a whole number from $lo to $hi");
+        $clean[$rk] = (int)$x; }
+      if ($clean['feas_alert_days'] >= $clean['feas_valid_days']) fail('The feasibility warning must come before the feasibility runs out');
+      $val = $clean; }
+    if ($k === 'doc_types') { $clean = []; foreach ((array)$val as $x) { if (!is_scalar($x)) continue; $x = mb_substr(trim((string)$x), 0, 60); if ($x !== '' && !in_array($x, $clean, true)) $clean[] = $x; }
+      if (!$clean) fail('Keep at least one document type'); $val = array_slice($clean, 0, 60); }
     if ($k === 'login') { $val =['bg' => settings()['login']['bg'], 'tagline' => mb_substr((string)($val['tagline'] ?? ''), 0, 80), 'dim' => max(0, min(80, (int)($val['dim'] ?? 35)))]; }
     q('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', [$k, json_encode($val, JSON_UNESCAPED_UNICODE)]);
     audit('settings', 'settings', null, $k); out(['ok' => true]);
@@ -143,7 +153,7 @@ function handle_admin($a) {
   if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
   $in = body();
   switch ($a) {
-    case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,u.avatar,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads,(SELECT COUNT(*) FROM mail_accounts WHERE user_id=u.id) mails FROM users u ORDER BY u.id'));
+    case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,u.avatar,u.seen_at,u.active_at,(SELECT COUNT(*) FROM customers WHERE owner_id=u.id) customers,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads,(SELECT COUNT(*) FROM mail_accounts WHERE user_id=u.id) mails FROM users u ORDER BY u.id'));
     case 'user_save':
       $role = $in['role'] ?? 'sales'; if (!isset(ROLE_DEFAULTS[$role])) fail('Bad role');
       $name = trim($in['name'] ?? ''); $u = trim($in['username'] ?? ''); if ($u === '' || $name === '') fail('Name and username required');
@@ -164,6 +174,16 @@ function handle_admin($a) {
       foreach (array_unique([strtolower($u), strtolower((string)($was_name ?? ''))]) as $k) if ($k !== '') q('DELETE FROM login_guard WHERE k=?', ['u:' . $k]);
       if ($role === 'ba') q('UPDATE wa_chats SET assigned_to=NULL WHERE assigned_to=?', [(int)$id]); // BAs never have WhatsApp
       audit('user_save', 'users', (int)$id, "$u ($role)"); out(['id' => $id]);
+    case 'user_signout': /* signs the person out on every device; their password stays as it is */
+      $id = (int)($in['id'] ?? 0); $u = row('SELECT id, username FROM users WHERE id=?', [$id]); if (!$u) fail('User not found', 404);
+      if ($id === (int)$_SESSION['uid']) fail('To sign out your own other devices, change your password in My account');
+      q('UPDATE users SET sess_ver=sess_ver+1 WHERE id=?', [$id]); audit('user_signout', 'users', $id, $u['username']); out(['ok' => true]);
+    case 'user_active': /* switch a login on or off without opening the user form */
+      $id = (int)($in['id'] ?? 0); $on = empty($in['active']) ? 0 : 1; $u = row('SELECT id, username FROM users WHERE id=?', [$id]); if (!$u) fail('User not found', 404);
+      if ($id === (int)$_SESSION['uid'] && !$on) fail('You cannot demote or disable yourself');
+      q('UPDATE users SET active=?' . ($on ? '' : ', sess_ver=sess_ver+1') . ' WHERE id=?', [$on, $id]); /* switched off: signed out everywhere at once */
+      if ($on) q('DELETE FROM login_guard WHERE k=?', ['u:' . strtolower($u['username'])]);
+      audit('user_save', 'users', $id, $u['username'] . ($on ? ' (enabled)' : ' (disabled)')); out(['ok' => true]);
     case 'audit': out(rows("SELECT * FROM audit_log WHERE created >= datetime('now', '-72 hours') ORDER BY id DESC LIMIT 3000"));
     case 'stats':
       $s = []; foreach (['users', 'leads', 'customers', 'projects', 'quotes', 'files', 'campaigns', 'messages', 'audit_log'] as $t) $s[$t] = (int)row("SELECT COUNT(*) c FROM $t")['c'];

@@ -118,13 +118,19 @@ const STG_TABS = [ /* id, name, icon, group (a gap separates groups), what is in
   ['company', 'Company', 'building', 0, 'The name, GSTIN and contacts printed on quotations and papers, and the picture on the sign-in screen.'],
   ['rates', 'Rates & targets', 'gauge', 0, 'Default GST, the lead and customer targets on the dashboard, and the PM Surya Ghar subsidy amounts.'],
   ['leads', 'Leads', 'target', 1, 'The choices offered for a lead’s source and status.'],
-  ['projects', 'Projects', 'project', 1, 'Pipeline stages, subsidy steps and the KSEB documents checklist, in the order they are worked through.'],
-  ['quotes', 'Quotations', 'receipt', 1, 'Ready-made lines for the “From catalog” menu of a quotation.'],
-  ['whatsapp', 'WhatsApp', 'whatsapp', 1, 'Ready-made messages to pick from when sending a WhatsApp.'],
-  ['prices', 'Price list', 'tag', 2, 'Material and service costs: dealer price, profit % and the customer price. The same list as Accounts › Price list.', 'acc'],
-  ['tpls', 'Material templates', 'clipboard', 2, 'Ready-made item lists with quantities for the Expense sheet, for example 10 kW SolarEdge on a sheet roof.', 'acc'],
-  ['access', 'User access', 'lock', 3, 'What each role can view and edit. Admin always has full access. Changes apply the next time the person loads a page.', 'adm'],
-  ['hr', 'Attendance & leave', 'clock', 3, 'Office hours, weekly off, leave types and the holiday list.', 'adm'],
+  ['quotes', 'Quotations', 'receipt', 1, 'Ready-made lines for the “From catalog” menu of a quotation, and the Quotation maker’s products, bank details and wording.'],
+  ['whatsapp', 'WhatsApp', 'whatsapp', 1, 'Ready-made messages to pick from when sending a WhatsApp, and the business number.'],
+  ['projects', 'Projects', 'project', 2, 'Pipeline stages, subsidy steps and the KSEB documents checklist, in the order they are worked through.'],
+  ['docs', 'Documents', 'file', 2, 'The papers asked for on a customer’s Documents page, and the company details printed on KSEB papers.'],
+  ['prices', 'Price list', 'tag', 3, 'Material and service costs: dealer price, profit % and the customer price. The same list as Accounts › Price list.', 'acc'],
+  ['tpls', 'Material templates', 'clipboard', 3, 'Ready-made item lists with quantities for the Expense sheet, for example 10 kW SolarEdge on a sheet roof.', 'acc'],
+  ['accounts', 'Accounts', 'coin', 3, 'The messages sent with receipts and tax bills, expense categories and the incentive scheme.', 'adm'],
+  ['users', 'Users', 'users', 4, 'Everyone who can sign in: their role, whether the login is on and what they hold. Add a person, reset a password, switch a login off or sign someone out.', 'adm'],
+  ['access', 'User access', 'lock', 4, 'What each role can view and edit. Admin always has full access. Changes apply the next time the person loads a page.', 'adm'],
+  ['hr', 'Attendance & leave', 'clock', 4, 'Office hours, weekly off, leave types and the holiday list.', 'adm'],
+  ['rules', 'Rules', 'refresh', 5, 'The numbers the CRM works by: how long documents and deleted items are kept, and when it acts on its own.', 'adm'],
+  ['connect', 'Connections', 'link', 5, 'Meta lead ads, the WhatsApp business number and email: whether each is connected, and where it is set up.', 'adm'],
+  ['data', 'Data & backup', 'download', 5, 'What the CRM holds, database backups, the audit log and a total reset.', 'adm'],
 ];
 const STG_LISTS = { /* settings key: title, hint, count words, section */
   lead_sources: ['Lead sources', 'One per line.', 'source|sources', 'leads'],
@@ -132,6 +138,7 @@ const STG_LISTS = { /* settings key: title, hint, count words, section */
   project_stages: ['Project stages', 'One per line, in order. Keep “Project completed” as the last stage.', 'stage|stages', 'projects'],
   subsidy_steps: ['Subsidy steps', 'PM Surya Ghar steps, one per line, in order.', 'step|steps', 'projects'],
   kseb_items: ['KSEB documents checklist', 'One per line.', 'document|documents', 'projects'],
+  doc_types: ['Document types', 'One per line. Each is a button on a customer’s Documents page, ticked once that paper is uploaded.', 'type|types', 'docs'],
 };
 /* what "Find a setting" looks through: section, card id, card title, the settings and current values inside */
 function stgIndex() {
@@ -148,6 +155,16 @@ function stgIndex() {
     ['access', 'uacc', 'User access', ['Role permissions', ...Object.values(S.role_names || {}), ...(S.modules || []).map(m => short(MOD_LABELS[m] || m))]],
     ['hr', 'hrset', 'Working hours & leave', ['Office start time', 'Office end time', 'Grace minutes', 'Half day', 'Full day hours', 'Salary day', 'Weekly off', 'Leave types']],
     ['hr', 'holset', 'Holidays', []],
+    ['docs', 'stg-kdef', 'Company details on KSEB papers', ['Vendor name', 'Vendor address', 'Signed by', 'Signatory', 'Designation']],
+    ['quotes', 'stg-qm', 'Quotation maker', ['Products and prices', 'Bank details', 'Quotation validity', 'Quotation number format', 'KSEB fees on quotations', 'Loan wording', 'Terms and conditions']],
+    ['whatsapp', 'stg-wac', 'Business number', ['WhatsApp connection', 'Webhook', 'Access token']],
+    ['accounts', 'stg-actpl', 'Messages for receipts and tax bills', ['Email to the bank', 'Tax bill email', 'Payment reminder']],
+    ['accounts', 'stg-accat', 'Expense categories and profit', ['Default profit %']],
+    ['accounts', 'stg-inc', 'Incentive scheme', ['Own lead rate', 'Company lead rates', 'Commission']],
+    ['users', 'stgusers', 'Users', ['Add a user', 'New user', 'Reset a password', 'Disable a login', 'Sign out everywhere', 'Leads access', 'Profile photo', ...Object.values(S.role_names || {})]],
+    ['rules', 'stg-rules', 'Rules', Object.values(S.rule_names || {}).concat(['Document expiry', 'Recycle bin time', 'Auto Lost', 'Lead reminder', 'Feasibility validity'])],
+    ['connect', 'stgconn', 'Connections', ['Meta lead ads', 'Facebook page', 'WhatsApp Business', 'Email addresses', 'Mailboxes']],
+    ['data', 'stgdata', 'Data & backup', ['Download database backup', 'Saved backups', 'Total reset', 'Audit log', 'Storage']],
   ];
 }
 /* matches for the typed text: sections first, then cards, then settings that start with it, then the rest (at most 8) */
@@ -170,6 +187,8 @@ function stgPanes(adm) {
   const dis = adm ? '' : 'disabled', co = S.company, r = S.subsidy_rates || {}, lg = S.login || {};
   const num = (id, label, val, extra = '') => `<div><label for="${id}">${label}</label><input id="${id}" type="number" ${extra} value="${esc(val ?? '')}" ${dis}></div>`;
   const act = html => adm ? `<div class="stg-act">${html}</div>` : '';
+  const link = (id, title, text, btn) => `<div class="card" id="${id}"><h3>${title}</h3><p class="stg-hint">${text}</p><div class="stg-act">${btn}</div></div>`;
+  const rn = (k, label) => { const lim = (S.rule_limits || {})[k] || [0, 9999]; return `<div><label for="rl-${k}">${label}</label><input id="rl-${k}" data-rule="${k}" type="number" step="1" min="${lim[0]}" max="${lim[1]}" value="${RULE(k)}" ${dis}><small class="mut stg-lim">from ${lim[0]} to ${lim[1]}</small></div>`; };
   const area = (id, card, title, hint, words, val, btn) => `<div class="card" id="${card}"><div class="stg-ct"><h3>${title}</h3><span class="stg-n" data-cnt="${id}" data-w="${words}"></span></div><p class="stg-hint">${hint}</p>
      <textarea id="${id}" data-fit rows="6" spellcheck="false" ${dis}>${esc(val)}</textarea>${act(btn)}</div>`;
   const list = k => area('s-' + k, 'stg-' + k, STG_LISTS[k][0], STG_LISTS[k][1], STG_LISTS[k][2], (S[k] || []).join('\n'), `<button class="btn" data-sl="${k}">Save ${STG_LISTS[k][0].toLowerCase().replace('kseb', 'KSEB')}</button>`);
@@ -190,12 +209,29 @@ function stgPanes(adm) {
        ${act('<button class="btn" id="s-rates">Save rates and targets</button>')}</div></div>`,
     leads: () => `<div class="stg-cards">${list('lead_sources')}${list('lead_statuses')}</div>`,
     projects: () => `<div class="stg-cards">${list('project_stages')}${list('subsidy_steps')}${list('kseb_items')}</div>`,
-    quotes: () => `<div class="stg-cards stg-one">${area('s-catalog', 'stg-catalog', 'Item catalog', 'One per line: description | rate', 'item|items', (S.catalog || []).map(c => String(c.desc || '').trim() + ' | ' + c.rate).join('\n'), '<button class="btn" id="s-cat">Save item catalog</button>')}</div>`,
-    whatsapp: () => `<div class="stg-cards stg-one">${area('s-wa', 'stg-wa', 'Message templates', 'One per line: name :: message. These are filled in when the message is sent: <code>{name}</code> <code>{company}</code> <code>{amount}</code> <code>{quote_no}</code> <code>{date}</code>', 'template|templates', (S.wa_templates || []).map(t => t.name + ' :: ' + t.text).join('\n'), '<button class="btn" id="s-wab">Save message templates</button>')}</div>`,
+    quotes: () => `<div class="stg-cards stg-one">${area('s-catalog', 'stg-catalog', 'Item catalog', 'One per line: description | rate', 'item|items', (S.catalog || []).map(c => String(c.desc || '').trim() + ' | ' + c.rate).join('\n'), '<button class="btn" id="s-cat">Save item catalog</button>')}${adm ? link('stg-qm', 'Quotation maker', 'Products and prices, brand pictures, the company and bank details, validity, numbering, KSEB fees, and the loan and terms wording printed on quotations.', '<button class="btn" id="stgqm" type="button"><i class="i i-gear"></i> Open Quotation maker settings</button>') : ''}</div>`,
+    whatsapp: () => `<div class="stg-cards stg-one">${area('s-wa', 'stg-wa', 'Message templates', 'One per line: name :: message. These are filled in when the message is sent: <code>{name}</code> <code>{company}</code> <code>{amount}</code> <code>{quote_no}</code> <code>{date}</code>', 'template|templates', (S.wa_templates || []).map(t => t.name + ' :: ' + t.text).join('\n'), '<button class="btn" id="s-wab">Save message templates</button>')}${adm ? link('stg-wac', 'Business number', 'The WhatsApp Business number, its access token and the webhook are set up on the WhatsApp page.', '<a class="btn sec" href="#/whatsapp">Open WhatsApp setup</a>') : ''}</div>`,
     prices: () => `<section class="acx-setpl"><div id="acx_setpl"><p class="mut">Loading…</p></div></section>`,
     tpls: () => `<section class="acx-setpl"><div id="acx_settp"><p class="mut">Loading…</p></div></section>`,
     access: () => `<div class="card" id="uacc"><p class="mut">Loading…</p></div>`,
     hr: () => `<div class="stg-cards stg-stack"><div class="card" id="hrset"><p class="mut">Loading…</p></div><div class="card" id="holset"></div></div>`,
+    docs: () => `<div class="stg-cards">${list('doc_types')}
+      <div class="card" id="stg-kdef"><h3>Company details on KSEB papers</h3><p class="stg-hint">Printed on the work completion report and the other KSEB papers of every customer.</p>
+       <div class="two">${[{ k: 'vendor_name', l: 'Company name', full: 1 }, { k: 'vendor_address', l: 'Address', full: 1 }, { k: 'vendor_email', l: 'Email' }, { k: 'vendor_phone', l: 'Phone' }, { k: 'sign_name', l: 'Signed by' }, { k: 'sign_designation', l: 'Designation' }, { k: 'sign_phone', l: 'Signatory’s phone' }].map(f => fld(f, S.kseb_defaults || {})).join('')}</div>
+       ${act('<button class="btn" id="s-kdef">Save KSEB details</button>')}</div></div>`,
+    accounts: () => `<div class="stg-cards">
+      ${link('stg-actpl', 'Messages for receipts and tax bills', 'The email to the bank with a payment receipt, the email with the final tax bill, and the WhatsApp payment reminder.', '<button class="btn" id="stgtpl"><i class="i i-mail"></i> Edit the messages</button>')}
+      ${link('stg-accat', 'Expense categories and profit', 'Expense categories are kept in Accounts › Expenses. The default profit % is at the top of the Price list.', '<a class="btn sec" href="#/accounts">Open Accounts</a><button class="btn sec" type="button" data-stgo="prices">Open Price list</button>')}
+      <div class="card" id="stg-inc"><h3>Incentive scheme</h3><div id="stginc"><p class="mut" style="margin:0;font-size:13px">Loading…</p></div></div></div>`,
+    users: () => `<div id="stgusers"><p class="mut">Loading…</p></div>`,
+    rules: () => `<div class="stg-cards stg-one"><div class="card" id="stg-rules"><div class="stg-grp">
+       <div><h4>Documents</h4>${rn('doc_days', 'Uploaded documents are kept (days)')}${rn('gen_days', 'Papers made in the CRM are kept (days)')}${rn('trash_hours', 'Deleted items stay in the Recycle bin (hours)')}</div>
+       <div><h4>New leads</h4>${rn('lead_lost_hours', 'Marked Lost if nobody attends within (hours)')}${rn('lead_remind_min', 'Reminder while leads wait, every (minutes)')}</div>
+       <div><h4>KSEB feasibility</h4>${rn('feas_valid_days', 'A feasibility payment is valid for (days)')}${rn('feas_alert_days', 'Warn this many days before it runs out')}</div></div>
+       <p class="stg-hint" style="margin:14px 0 0">Tax bills, warranty cards and the approved quotation are always kept until someone deletes them. A new keeping time applies to documents already uploaded; a paper made in the CRM keeps the time it was saved with.</p>
+       ${act('<button class="btn" id="s-rules">Save rules</button><button class="btn sec" id="s-rulesd" type="button">Fill in the usual values</button>')}</div></div>`,
+    connect: () => `<div class="stg-cards" id="stgconn"><p class="mut">Loading…</p></div>`,
+    data: () => `<div id="stgdata"><p class="mut">Loading…</p></div>`,
   };
 }
 async function pgSettings() {
@@ -221,6 +257,7 @@ async function pgSettings() {
     prices: () => later('acx_setpl', typeof acMaterials === 'function' && acMaterials, 'The price list'), /* its own permission (accounts), not the admin's */
     tpls: () => later('acx_settp', typeof acTemplates === 'function' && acTemplates, 'The templates'),
     access: () => drawAccess(), hr: () => drawHrSettings(),
+    users: () => usersPanel($('#stgusers')), data: () => systemPanel($('#stgdata'), true), connect: () => stgConnect($('#stgconn')), accounts: () => stgIncentive($('#stginc')),
   };
   /* text boxes grow with their lines, so a whole list is in view; the count beside the title follows */
   const fit = ta => { const c = $(`[data-cnt="${ta.id}"]`);
@@ -236,6 +273,7 @@ async function pgSettings() {
     $$('#stgp-' + id + ' textarea[data-fit]').forEach(fit); autoFit();
   };
   list.onclick = e => { const b = e.target.closest('.stg-tab'); if (b) show(b.dataset.stg); };
+  $('.stg-body').addEventListener('click', e => { const b = e.target.closest('[data-stgo]'); if (b && has(b.dataset.stgo)) { show(b.dataset.stgo); scrollTo({ top: 0 }); } });
   list.onkeydown = e => { const i = tabs.findIndex(t => t[0] === cur), k = e.key; let n;
     if (k === 'ArrowDown' || k === 'ArrowRight') n = (i + 1) % tabs.length; else if (k === 'ArrowUp' || k === 'ArrowLeft') n = (i - 1 + tabs.length) % tabs.length; else if (k === 'Home') n = 0; else if (k === 'End') n = tabs.length - 1; else return;
     e.preventDefault(); show(tabs[n][0]); $('#stgt-' + tabs[n][0]).focus(); };
@@ -268,9 +306,97 @@ async function pgSettings() {
       await put('subsidy_rates', { per_kw_first2: +$('#s-r1').value, third_kw: +$('#s-r2').value, cap: +$('#s-r3').value }); await done('Rates and targets saved'); };
     $$('[data-sl]').forEach(b => b.onclick = async () => { await put(b.dataset.sl, arr(b.dataset.sl)); await done(STG_LISTS[b.dataset.sl][0] + ' saved'); });
     $('#s-cat').onclick = async () => { await put('catalog', arr('catalog').map(l => { const [d, r] = l.split('|'); return { desc: d.trim(), rate: +(r || 0) }; })); await done('Item catalog saved'); };
+    if ($('#stgqm')) $('#stgqm').onclick = () => qmOpenSettings();
+    if ($('#stgtpl')) $('#stgtpl').onclick = () => acTplEditor();
+    $('#s-kdef').onclick = async () => { const r = await api('kseb', 'defaults_save', { data: collect($('#stg-kdef')) }); S.kseb_defaults = r.defaults; toast('KSEB details saved'); };
+    $('#s-rules').onclick = async () => { const v = {}; $$('[data-rule]').forEach(e => v[e.dataset.rule] = e.value.trim() === '' ? null : +e.value); await put('rules', v); await done('Rules saved'); $$('[data-rule]').forEach(e => e.value = RULE(e.dataset.rule)); };
+    $('#s-rulesd').onclick = () => { $$('[data-rule]').forEach(e => e.value = RULE_DEF[e.dataset.rule]); toast('The usual values are filled in. Press Save rules to keep them.'); };
     $('#s-wab').onclick = async () => { await put('wa_templates', arr('wa').map(l => { const [n, ...t] = l.split('::'); return { name: n.trim(), text: t.join('::').trim() }; })); await done('Message templates saved'); };
   }
   show(cur);
+}
+
+/* ---------- Settings › Connections: what is linked to the outside, and where each is set up ---------- */
+async function stgConnect(box) {
+  if (!box) return;
+  const get = (m, a) => api(m, a).catch(() => null), [meta, wa, mail] = await Promise.all([get('meta', 'config'), get('wa', 'config'), get('mail', 'config')]);
+  if (!box.isConnected) return;
+  const st = (ok, yes, no) => `<span class="pill ${ok ? 'g' : ''}">${ok ? yes : no}</span>`, ms = (meta && meta.state) || {}, boxes = (mail && (mail.accounts || mail.boxes || mail.list)) || [];
+  const card = (id, title, pillHtml, lines, btn) => `<div class="card" id="${id}"><div class="stg-ct"><h3>${title}</h3><span class="stg-n">${pillHtml}</span></div><p class="stg-hint">${lines.filter(Boolean).join('<br>')}</p><div class="stg-act">${btn}</div></div>`;
+  box.innerHTML = card('stg-cmeta', 'Meta lead ads', st(meta && meta.token_set && ms.connected, 'Connected', meta && meta.token_set ? 'Token saved' : 'Not connected'),
+      ['New leads from Facebook and Instagram lead forms come into Leads on their own.', meta && meta.page_id ? 'Facebook Page ID ' + esc(meta.page_id) : '', ms.last_error ? `<span class="over">Last sync failed: ${esc(ms.last_error)}</span>` : ''], '<a class="btn sec" href="#/ads">Open Meta Ads setup</a>')
+    + card('stg-cwa', 'WhatsApp business number', st(wa && wa.token_set, 'Connected', 'Not connected'),
+      ['The shared WhatsApp inbox and message sending.', wa && wa.display ? 'Number ' + esc(wa.display) : '', wa && wa.phone_id ? 'Phone number ID ' + esc(wa.phone_id) : ''], '<a class="btn sec" href="#/whatsapp">Open WhatsApp setup</a>')
+    + card('stg-cmail', 'Email', st(boxes.length > 0, boxes.length + (boxes.length === 1 ? ' address' : ' addresses'), 'None connected'),
+      ['Each person connects their own email addresses; nobody else sees their mail. Yours are below.', boxes.map(x => esc(x.email || '')).filter(Boolean).join(', '), 'Other people’s addresses are listed in Users, in each person’s window.'], '<a class="btn sec" href="#/email">Open Email</a><button class="btn sec" type="button" data-stgo="users">Open Users</button>');
+}
+/* Settings › Accounts › Incentive scheme: the rates as the program has them (shown, not changed here) */
+function stgIncentive(box) {
+  if (!box) return; const m = S.incentive || null;
+  const T = (m && m.tiers) || [], own = m && (m.own_rate || m.own_per_kw), rng = (i) => { const a = i ? T[i - 1][0] + 1 : 1, b = T[i][0]; return b == null ? `from project ${a} of the month` : a === b ? `project ${a} of the month` : `projects ${a}–${b} of the month`; };
+  box.innerHTML = `<p class="stg-hint">Paid per kW once the admin approves the customer. Business Associates get a commission the admin types in.</p>
+    <div class="pcz-rows">${own ? `<div><span>Own lead</span><b>${inr(own)} per kW</b></div>` : '<div><span>Own lead</span><b>A flat rate per kW</b></div>'}
+     ${T.map((t, i) => `<div><span>Company lead, ${rng(i)}</span><b>${inr(t[1])} per kW</b></div>`).join('')}</div>
+    <p class="stg-hint" style="margin:10px 0 0">These rates are part of the program. Tell me the new figures to change them. Approvals and payments are in <a href="#/comm/incentive">Finance › Incentive</a>.</p>`;
+}
+
+/* ---------- Users (Settings › Users and Admin › Users): everyone who can sign in ---------- */
+let USF = { q: '', role: '', off: true };
+const agoTxt = s => { s = +s || 0; if (!s) return 'Never'; const d = Math.floor(Date.now() / 1000) - s;
+  return d < 150 ? 'Online now' : d < 3600 ? Math.round(d / 60) + ' min ago' : d < 86400 ? Math.round(d / 3600) + ' h ago' : d < 86400 * 30 ? Math.round(d / 86400) + ' d ago' : dmy(new Date(s * 1000).toISOString()); };
+async function usersPanel(box) {
+  if (!box) return;
+  let us; try { us = await api('admin', 'users'); } catch (e) { box.innerHTML = '<p class="mut">The users could not be loaded.</p>'; return; }
+  if (!box.isConnected) return;
+  const rn = S.role_names || {}, on = us.filter(u => +u.active).length, reload = () => usersPanel(box);
+  box.innerHTML = `<div class="bar usr-bar"><input id="usq" type="search" placeholder="Search name or username" value="${esc(USF.q)}" autocomplete="off" aria-label="Search users">
+     <select id="usrole" aria-label="Role"><option value="">All roles</option>${Object.entries(rn).map(([k, v]) => `<option value="${k}" ${USF.role === k ? 'selected' : ''}>${esc(v)} (${us.filter(u => u.role === k).length})</option>`).join('')}</select>
+     <label class="ck"><input type="checkbox" id="usoff" ${USF.off ? 'checked' : ''}> Show disabled logins</label>
+     <span class="mut usr-n">${us.length} ${us.length === 1 ? 'person' : 'people'} · ${on} on${us.length - on ? ' · ' + (us.length - on) + ' disabled' : ''}</span><span class="sp"></span>
+     <button class="btn" id="usnew"><i class="i i-userplus"></i> New user</button></div><div id="ustb"></div>`;
+  const draw = () => {
+    const t = USF.q.trim().toLowerCase(), L = us.filter(u => (!USF.role || u.role === USF.role) && (USF.off || +u.active) && (!t || (u.name + ' ' + u.username).toLowerCase().includes(t)));
+    $('#ustb', box).innerHTML = table([
+      ['Name', u => `<span class="usr-who"><span class="uav" data-pres="${u.id}">${avImg(u.id, u.avatar, u.name)}</span><span><b>${esc(u.name)}</b>${u.id == ME.id ? ' <span class="pill">You</span>' : ''}<small class="mut">${esc(u.username)}</small></span></span>`],
+      ['Role', u => pill(rn[u.role] || u.role, u.role === 'admin' ? 'y' : u.role === 'assistant_manager' ? 'p' : 'b')],
+      ['Login', u => +u.active ? pill('On', 'g') : pill('Disabled', 'r')],
+      ['Leads access', u => u.role === 'admin' ? pill('All leads', 'b') : +u.can_claim ? pill('Can see & claim', 'g') : pill('Own leads only')],
+      ['Holds', u => `<span class="usr-h">${+u.leads || 0} lead${+u.leads === 1 ? '' : 's'} · ${+u.customers || 0} customer${+u.customers === 1 ? '' : 's'}${+u.mails ? ` · ${u.mails} email` : ''}</span>`],
+      ['Last seen', u => `<span class="usr-h">${esc(agoTxt(u.seen_at))}</span>`],
+      ['', u => `<span class="usr-act"><button class="btn sec sm" type="button" data-ue="${u.id}">Edit</button>${u.id == ME.id ? '' : `<button class="btn sec sm" type="button" data-um="${u.id}" title="Sign out or switch the login off" aria-label="More for ${esc(u.name)}"><i class="i i-dots"></i></button>`}</span>`],
+    ], L, id => userModal(us.find(u => u.id == id)));
+    const by = id => us.find(u => u.id == id);
+    $$('[data-ue]', box).forEach(b => b.onclick = () => userModal(by(b.dataset.ue)));
+    $$('[data-um]', box).forEach(b => b.onclick = () => { const u = by(b.dataset.um), isOn = +u.active;
+      popMenu(b, [isOn && ['out', 'lock', 'Sign out on every device'], ['act', isOn ? 'x' : 'check', isOn ? 'Switch the login off' : 'Switch the login on']], async a => {
+        if (a === 'out') { if (!confirm(`Sign ${u.name} out on every device?\n\nThey can sign in again with their password.`)) return;
+          try { await api('admin', 'user_signout', { id: u.id }); toast(u.name + ' is signed out everywhere'); } catch (e) { } }
+        if (a === 'act') { if (!confirm(isOn ? `Switch off ${u.name}’s login?\n\nThey are signed out at once and cannot sign in until you switch it on again. Their leads and customers stay with them.` : `Switch ${u.name}’s login back on?`)) return;
+          try { await api('admin', 'user_active', { id: u.id, active: isOn ? 0 : 1 }); toast(u.name + (isOn ? '’s login is switched off' : '’s login is on again')); reload(); } catch (e) { } }
+      }); });
+    if (typeof autoFit === 'function') autoFit();
+  };
+  $('#usq', box).oninput = e => { USF.q = e.target.value; draw(); };
+  $('#usrole', box).onchange = e => { USF.role = e.target.value; draw(); };
+  $('#usoff', box).onchange = e => { USF.off = e.target.checked; draw(); };
+  $('#usnew', box).onclick = () => userModal({});
+  draw();
+}
+/* ---------- System (Settings › Data & backup and Admin › System & backup) ---------- */
+async function systemPanel(box, withAudit) {
+  if (!box) return;
+  let st, bk; try { [st, bk] = await Promise.all([api('admin', 'stats'), api('reset', 'backups')]); } catch (e) { box.innerHTML = '<p class="mut">The system details could not be loaded.</p>'; return; }
+  if (!box.isConnected) return;
+  box.innerHTML = `<div class="grid stats">${Object.entries(st).map(([k, v]) => `<div class="card stat"><b>${v}</b><span>${k.replace('_', ' ')}</span></div>`).join('')}</div>
+     <div class="grid cols2" style="margin-top:12px">
+      <div class="card"><h3>Backup</h3><p class="mut">Download a full copy of the database (customers, projects, users, settings). Uploaded files are stored separately in the server's data/uploads folder.</p><a class="btn" href="api.php?m=admin&a=backup"><i class="i i-download"></i> Download database backup</a>
+       <h3 style="margin-top:18px">Saved backups</h3>${bk.map(b => `<div class="act"><a href="api.php?m=reset&a=backup_get&name=${encodeURIComponent(b.name)}"><i class="i i-download"></i> ${esc(b.name)}</a> <small>${b.time} · ${Math.round(b.size / 1024)} KB</small></div>`).join('') || '<p class="mut" style="font-size:13px">None yet. A backup is saved automatically before every reset.</p>'}</div>
+      <div class="card danger"><h3>Total reset</h3><p style="margin:0 0 8px">Start fresh: deletes all customers, projects, quotations, payments, receipts & files, KSEB/subsidy checklists, AMC & service records, calendar events, notes and WhatsApp history.</p>
+       <p class="mut" style="font-size:13px;margin:0 0 12px"><b>Always kept:</b> all leads, Meta Ads connection & sync, campaigns & ad spend, and your admin login. A full backup is saved first.</p>
+       <button class="btn bad" id="rst"><i class="i i-alert"></i> Total reset…</button></div>
+      ${withAudit ? '<div class="card"><h3>Audit log</h3><p class="mut">Who did what in the last 72 hours. Older entries stay on the customer and lead timelines.</p><button class="btn sec" type="button" id="sysaud">Open the audit log</button></div>' : ''}</div>`;
+  $('#rst', box).onclick = resetModal;
+  if ($('#sysaud', box)) $('#sysaud', box).onclick = () => { TAB.adm = 'audit'; location.hash = '#/admin'; };
 }
 
 // ---------- Admin ----------
@@ -279,28 +405,15 @@ async function pgAdmin() {
   $('#main').innerHTML = tabsBar('adm', [['users', 'Users & roles'], ['audit', 'Audit log'], ['system', 'System & backup']], 'users') + '<div id="ab"></div>';
   bindTabs('adm', pgAdmin);
   const ab = $('#ab');
-  if (t === 'users') {
-    const us = await api('admin', 'users');
-    ab.innerHTML = `<div class="bar"><span class="sp"></span><button class="btn" id="nu">+ New user</button></div>` +
-      table([['Name', u => `<span class="uav" data-pres="${u.id}">${avImg(u.id, u.avatar, u.name)}</span><b>${esc(u.name)}</b>`], ['Username', u => esc(u.username)], ['Role', u => pill((S.role_names || {})[u.role] || u.role, u.role === 'admin' ? 'y' : u.role === 'assistant_manager' ? 'p' : 'b')], ['Active', u => u.active ? pill('Yes', 'g') : pill('Disabled', 'r')], ['Leads access', u => u.role === 'admin' ? pill('All leads', 'b') : u.can_claim ? pill('Can see & claim', 'g') : pill('Own leads only')], ['Claimed leads', u => u.leads || 0], ['Email', u => +u.mails ? `${u.mails} address${+u.mails === 1 ? '' : 'es'}` : '<span class="mut">—</span>'], ['Created', u => dt(u.created)]], us, id => userModal(us.find(u => u.id == id))) +
-      `<div class="card" style="margin-top:12px"><h3>Role permissions</h3><p class="mut" style="margin:0">Choose what each role can view and edit in <a href="#/settings/access">Settings → User access</a>. Admin always has full access.</p></div>`;
-    $('#nu').onclick = () => userModal({});
+  if (t === 'users') { /* the same panel as Settings › Users */
+    ab.innerHTML = `<div id="adusers"><p class="mut">Loading…</p></div><div class="card" style="margin-top:12px"><h3>Role permissions</h3><p class="mut" style="margin:0">Choose what each role can view and edit in <a href="#/settings/access">Settings → User access</a>. Admin always has full access.</p></div>`;
+    await usersPanel($('#adusers'));
   }
   if (t === 'audit') {
     const log = await api('admin', 'audit');
     ab.innerHTML = `<p class="mut" style="margin:0 0 10px">Last 72 hours · ${log.length} entr${log.length === 1 ? 'y' : 'ies'}. Older entries are kept for the customer and lead timelines.</p>` + table([['When', l => l.created], ['User', l => esc(l.user)], ['Action', l => esc(l.action)], ['Entity', l => esc(l.entity) + (l.entity_id ? ' #' + l.entity_id : '')], ['Detail', l => esc(l.detail)]], log, () => { });
   }
-  if (t === 'system') {
-    const [st, bk] = await Promise.all([api('admin', 'stats'), api('reset', 'backups')]);
-    ab.innerHTML = `<div class="grid stats">${Object.entries(st).map(([k, v]) => `<div class="card stat"><b>${v}</b><span>${k.replace('_', ' ')}</span></div>`).join('')}</div>
-     <div class="grid cols2" style="margin-top:12px">
-      <div class="card"><h3>Backup</h3><p class="mut">Download a full copy of the database (customers, projects, users, settings). Uploaded files are stored separately in the server's data/uploads folder.</p><a class="btn" href="api.php?m=admin&a=backup"><i class="i i-download"></i> Download database backup</a>
-       <h3 style="margin-top:18px">Saved backups</h3>${bk.map(b => `<div class="act"><a href="api.php?m=reset&a=backup_get&name=${encodeURIComponent(b.name)}"><i class="i i-download"></i> ${esc(b.name)}</a> <small>${b.time} · ${Math.round(b.size / 1024)} KB</small></div>`).join('') || '<p class="mut" style="font-size:13px">None yet. A backup is saved automatically before every reset.</p>'}</div>
-      <div class="card danger"><h3>Total reset</h3><p style="margin:0 0 8px">Start fresh: deletes all customers, projects, quotations, payments, receipts & files, KSEB/subsidy checklists, AMC & service records, calendar events, notes and WhatsApp history.</p>
-       <p class="mut" style="font-size:13px;margin:0 0 12px"><b>Always kept:</b> all leads, Meta Ads connection & sync, campaigns & ad spend, and your admin login. A full backup is saved first.</p>
-       <button class="btn bad" id="rst"><i class="i i-alert"></i> Total reset…</button></div></div>`;
-    $('#rst').onclick = resetModal;
-  }
+  if (t === 'system') await systemPanel(ab, false); /* the same panel as Settings › Data & backup */
 }
 function resetModal() {
   const opt = (k, t, d, on) => `<label class="ropt"><input type="checkbox" data-o="${k}" ${on ? 'checked' : ''}><span><b>${t}</b><small>${d}</small></span></label>`;
@@ -347,26 +460,50 @@ function userModal(u) {
 // ---------- Settings → User access (role × module matrix) ----------
 const MOD_LABELS = { accounts: 'Accounts — payments, receipts, project cost & profit, expenses', incentive: 'Incentive — View = own incentive received · Edit = manage every staff member’s incentive', email: 'Email — each person’s own mailboxes (Edit = send, move, delete)', fees: 'Finance — feasibility, registration, stamp paper', recycle: 'Recycle bin (Edit = restore)', dashboard: 'Dashboard', calendar: 'Calendar', attendance: 'Attendance (Edit = manage team)', leaves: 'Leaves (Edit = approve team)', leads: 'Leads', customers: 'Customers', projects: 'Project pipeline', checklist: 'Subsidy & KSEB checklists', loans: 'Bank documentation (loan papers: feasibility report, agreement)', files: 'Files & documents', folder: 'Folder (datasheets)', whatsapp: 'WhatsApp', quotes: 'Quotations', payments: 'Payments', ads: 'Meta Ads & ad spend', finance: 'Finance figures (values, balances, costs)', settings: 'Settings (view)' };
 const FIN_MODS = ['quotes', 'payments', 'loans', 'ads', 'finance', 'accounts'];
-function drawAccess() {
+/* areas in the order people think of them; an area the list misses falls under "Other" */
+const UAC_GROUPS = [['Everyday', ['dashboard', 'calendar', 'attendance', 'leaves']], ['Sales', ['leads', 'whatsapp', 'quotes', 'ads']], ['Customers and projects', ['customers', 'projects', 'checklist', 'loans', 'files', 'folder']],
+  ['Money', ['payments', 'finance', 'fees', 'accounts', 'incentive']], ['System', ['email', 'recycle', 'settings']]];
+let UAF = { q: '', user: '' };
+async function drawAccess() {
   const box = $('#uacc'); if (!box) return;
-  const roles = Object.keys(S.role_names).filter(r => r !== 'admin'), now = JSON.parse(JSON.stringify(S.roles_now));
+  const roles = Object.keys(S.role_names).filter(r => r !== 'admin'), was = S.roles_now; let now = JSON.parse(JSON.stringify(was));
+  let us = []; try { us = await api('admin', 'users'); } catch (e) { }
+  if (!box.isConnected) return;
+  const cnt = r => us.filter(u => u.role === r && +u.active).length, never = (r, m) => ((S.role_never && S.role_never[r]) || []).includes(m), noEdit = m => m === 'finance' || m === 'dashboard' || m === 'settings';
+  const used = new Set(UAC_GROUPS.flatMap(g => g[1])), rest = S.modules.filter(m => !used.has(m));
+  const groups = UAC_GROUPS.map(([t, ms]) => [t, ms.filter(m => S.modules.includes(m))]).concat(rest.length ? [['Other', rest]] : []).filter(g => g[1].length);
+  const changed = () => roles.reduce((n, r) => n + ['read', 'write'].reduce((k, x) => k + S.modules.filter(m => now[r][x].includes(m) !== was[r][x].includes(m)).length, 0), 0);
+  const label = m => String(MOD_LABELS[m] || m);
   const render = () => {
-    box.innerHTML = `
-     <div class="tw"><table class="acc"><thead><tr><th>Area</th>${roles.map(r => `<th>${esc(S.role_names[r])}<small><a href="#" data-allr="${r}">all</a> · <a href="#" data-nofin="${r}">no finance</a> · <a href="#" data-def="${r}">default</a></small></th>`).join('')}</tr></thead><tbody>
-     ${S.modules.map(mod => `<tr class="${FIN_MODS.includes(mod) ? 'finrow' : ''}"><td><b>${MOD_LABELS[mod] || mod}</b>${FIN_MODS.includes(mod) ? ' <span class="pill y">finance</span>' : ''}</td>${roles.map(r => { const rd = now[r].read.includes(mod), wt = now[r].write.includes(mod);
-       if ((S.role_never && S.role_never[r] || []).includes(mod)) return `<td><span class="mut" style="font-size:12px" title="${esc(S.role_names[r])} never has ${esc(String(MOD_LABELS[mod] || mod).replace(/<[^>]*>/g, ''))}">Not for this role</span></td>`;
-       return `<td><label class="ck"><input type="checkbox" data-r="${r}" data-m="${mod}" data-k="read" ${rd ? 'checked' : ''}> View</label>${mod === 'finance' || mod === 'dashboard' || mod === 'settings' ? '' : `<label class="ck"><input type="checkbox" data-r="${r}" data-m="${mod}" data-k="write" ${wt ? 'checked' : ''}> Edit</label>`}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>
-     <div class="bar" style="margin-top:12px"><button class="btn" id="uasv">Save user access</button><button class="btn sec" id="uars">Reset all to defaults</button></div>`;
+    const focusQ = document.activeElement && document.activeElement.id === 'uaq', t = UAF.q.trim().toLowerCase(), pu = us.find(u => u.id == UAF.user), hi = pu && pu.role !== 'admin' ? pu.role : '', n = changed();
+    const who = !pu ? '' : pu.role === 'admin' ? `<b>${esc(pu.name)}</b> is an admin: full access to everything.`
+      : `<b>${esc(pu.name)}</b> is ${esc(S.role_names[pu.role] || pu.role)}: can view ${now[pu.role].read.length} areas and edit ${now[pu.role].write.length} — the highlighted column. Leads: ${+pu.can_claim ? 'sees and can claim unclaimed leads' : 'only the leads assigned to them'}.${+pu.active ? '' : ' This login is switched off.'}`;
+    const cell = (r, mod) => { if (never(r, mod)) return `<td class="${hi === r ? 'uac-hi' : ''}"><span class="mut" style="font-size:12px" title="${esc(S.role_names[r])} never has ${esc(label(mod).replace(/<[^>]*>/g, ''))}">Not for this role</span></td>`;
+      const rd = now[r].read.includes(mod), wt = now[r].write.includes(mod), cr = rd !== was[r].read.includes(mod), cw = wt !== was[r].write.includes(mod);
+      return `<td class="${hi === r ? 'uac-hi' : ''}"><label class="ck ${cr ? 'uac-chg' : ''}"><input type="checkbox" data-r="${r}" data-m="${mod}" data-k="read" ${rd ? 'checked' : ''}> View</label>${noEdit(mod) ? '' : `<label class="ck ${cw ? 'uac-chg' : ''}"><input type="checkbox" data-r="${r}" data-m="${mod}" data-k="write" ${wt ? 'checked' : ''}> Edit</label>`}</td>`; };
+    const body = groups.map(([g, ms]) => { const L = ms.filter(m => !t || label(m).toLowerCase().includes(t) || g.toLowerCase().includes(t));
+      return L.length ? `<tr class="uac-g"><td colspan="${roles.length + 1}">${g}</td></tr>` + L.map(mod => `<tr class="${FIN_MODS.includes(mod) ? 'finrow' : ''}"><td><b>${label(mod)}</b>${FIN_MODS.includes(mod) ? ' <span class="pill y">finance</span>' : ''}</td>${roles.map(r => cell(r, mod)).join('')}</tr>`).join('') : ''; }).join('');
+    box.innerHTML = `<div class="bar uac-bar"><input id="uaq" type="search" placeholder="Find an area" value="${esc(UAF.q)}" autocomplete="off" aria-label="Find an area">
+       <select id="uau" aria-label="Check a person"><option value="">Check a person…</option>${us.map(u => `<option value="${u.id}" ${UAF.user == u.id ? 'selected' : ''}>${esc(u.name)} · ${esc(S.role_names[u.role] || u.role)}</option>`).join('')}</select><span class="sp"></span>
+       <span class="uac-n ${n ? 'on' : ''}">${n ? n + (n === 1 ? ' change' : ' changes') + ' not saved' : 'No changes'}</span><button class="btn" id="uasv" ${n ? '' : 'disabled'}>Save user access</button><button class="btn sec" id="uadc" ${n ? '' : 'disabled'}>Discard</button></div>
+     ${who ? `<p class="uac-who">${who}</p>` : ''}
+     <div class="tw"><table class="acc"><thead><tr><th>Area</th>${roles.map(r => `<th class="${hi === r ? 'uac-hi' : ''}">${esc(S.role_names[r])}<small class="mut">${cnt(r)} ${cnt(r) === 1 ? 'person' : 'people'}</small><small><a href="#" data-allr="${r}">all</a> · <a href="#" data-nofin="${r}">no finance</a> · <a href="#" data-def="${r}">default</a></small></th>`).join('')}</tr></thead><tbody>
+     ${body || `<tr><td colspan="${roles.length + 1}" class="mut">No area matches “${esc(UAF.q)}”.</td></tr>`}</tbody></table></div>
+     <div class="bar" style="margin-top:12px"><button class="btn sec" id="uars">Reset all to defaults</button><span class="mut" style="font-size:12.5px">Ticking Edit also ticks View. Changes apply the next time the person loads a page.</span></div>`;
     $$('input[data-r]', box).forEach(c => c.onchange = () => { const r = now[c.dataset.r], m = c.dataset.m, k = c.dataset.k, set = new Set(r[k]);
       c.checked ? set.add(m) : set.delete(m); r[k] = [...set];
-      if (k === 'write' && c.checked && !r.read.includes(m)) r.read.push(m);          // edit needs view
-      if (k === 'read' && !c.checked) r.write = r.write.filter(x => x !== m);           // no view → no edit
+      if (k === 'write' && c.checked && !r.read.includes(m)) r.read.push(m);          /* edit needs view */
+      if (k === 'read' && !c.checked) r.write = r.write.filter(x => x !== m);           /* no view → no edit */
       render(); });
-    $$('[data-allr]', box).forEach(x => x.onclick = e => { e.preventDefault(); const r = x.dataset.allr; const no = (S.role_never && S.role_never[r]) || []; now[r] = { read: S.modules.filter(m => !no.includes(m)), write: S.modules.filter(m => !['finance', 'dashboard', 'settings'].includes(m) && !no.includes(m)) }; render(); });
+    $$('[data-allr]', box).forEach(x => x.onclick = e => { e.preventDefault(); const r = x.dataset.allr; now[r] = { read: S.modules.filter(m => !never(r, m)), write: S.modules.filter(m => !noEdit(m) && !never(r, m)) }; render(); });
     $$('[data-nofin]', box).forEach(x => x.onclick = e => { e.preventDefault(); const r = x.dataset.nofin; now[r].read = now[r].read.filter(m => !FIN_MODS.includes(m)); now[r].write = now[r].write.filter(m => !FIN_MODS.includes(m)); render(); });
     $$('[data-def]', box).forEach(x => x.onclick = e => { e.preventDefault(); const r = x.dataset.def; now[r] = JSON.parse(JSON.stringify(S.role_defaults[r])); render(); });
+    const q = $('#uaq', box); q.oninput = () => { UAF.q = q.value; render(); }; if (focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+    $('#uau', box).onchange = e => { UAF.user = e.target.value; render(); };
     $('#uasv', box).onclick = async () => { await api('settings', 'save', { key: 'role_perms', value: now }); S = await api('settings', 'get'); toast('User access saved'); drawAccess(); };
+    $('#uadc', box).onclick = () => { now = JSON.parse(JSON.stringify(was)); render(); };
     $('#uars', box).onclick = async () => { if (!confirm('Reset every role to its default access?')) return; await api('settings', 'save', { key: 'role_perms', value: {} }); S = await api('settings', 'get'); toast('Defaults restored'); drawAccess(); };
+    if (typeof autoFit === 'function') autoFit();
   };
   render();
 }

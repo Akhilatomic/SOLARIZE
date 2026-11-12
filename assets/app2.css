@@ -785,3 +785,14 @@ a.fm-cpath:hover{color:var(--pri)}
 .pcz-t .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .pcz-none{margin:6px 0 0;font-size:13px}
 @media(max-width:600px){.pcz-sum{grid-template-columns:minmax(0,1fr)}.pcz-rows>div{flex-wrap:wrap;gap:2px 12px}.pcz-rows>div>span:first-child{flex-basis:100%}}
+/* ---------- Settings: Users, User access, Rules (usersPanel, drawAccess, stgPanes in app2.js) ---------- */
+.usr-bar{flex-wrap:wrap;gap:8px 10px;margin:0 0 12px}.usr-bar input[type=search]{flex:1 1 220px;max-width:320px}.usr-bar select{width:auto}.usr-n{font-size:13px}
+.usr-act{display:inline-flex;gap:6px;flex-wrap:nowrap;justify-content:flex-end}
+.usr-who{display:flex;align-items:center;gap:9px;white-space:nowrap}.usr-who small{display:block;font-size:12px}.usr-h{white-space:nowrap}
+.uac-bar{flex-wrap:wrap;gap:8px 10px;margin:0 0 10px}.uac-bar input[type=search]{flex:1 1 180px;max-width:260px}.uac-bar select{width:auto;max-width:280px}
+.uac-n{font-size:13px;color:var(--mut)}.uac-n.on{color:var(--pri);font-weight:600}
+.uac-who{margin:0 0 10px;padding:9px 12px;border-radius:10px;background:rgba(0,113,227,.07);font-size:13.5px}
+table.acc tr.uac-g td{padding:14px 8px 5px;background:none;border-bottom:1px solid var(--bd);font-size:12.5px;font-weight:600;color:var(--mut)}
+table.acc .uac-hi{background:rgba(0,113,227,.06)}
+.ck.uac-chg{color:var(--pri);font-weight:600}
+.stg-lim{display:block;margin-top:3px;font-size:11.5px}
