@@ -185,7 +185,7 @@ function handle_crud($t, $a) {
 function purge_project($id) { // files were already moved to the Recycle bin by trash_put
   foreach (rows('SELECT path FROM files WHERE project_id=?', [$id]) as $f) @unlink(dirname(__DIR__) . '/data/uploads/' . basename($f['path']));
   q('DELETE FROM files WHERE project_id=?', [$id]); q('DELETE FROM checklist WHERE project_id=?', [$id]);
-  q('DELETE FROM payments WHERE project_id=?', [$id]); q('DELETE FROM notes WHERE entity=? AND entity_id=?', ['projects', $id]);
+  q('DELETE FROM payments WHERE project_id=?', [$id]); q('DELETE FROM acc_costs WHERE project_id=?', [$id]); q('DELETE FROM notes WHERE entity=? AND entity_id=?', ['projects', $id]);
 }
 
 function prep_quote($v, $in) {

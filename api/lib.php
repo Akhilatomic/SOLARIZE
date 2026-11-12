@@ -1,23 +1,23 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 41; // bump when tables/columns change
+const SCHEMA_VERSION = 42; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
 // entity => [module, columns]
 $E = [
   'leads' => ['leads', ['name','phone','email','address','city','location','remark','appt','added_by','source','campaign_id','status','assigned_to','followup','kw','budget','customer_id','notes','meta_id','meta_form','meta_ad','meta_campaign','notify','claimed_at','site','plant','lead_type']],
-  'customers' => ['customers', ['name','phone','email','address','district','consumer_no','kseb_section','sanctioned_load','roof_type','gst_no','notes','added_by','alt_phone','pincode','phase','tariff','meter_no','bank_holder','bank_name','bank_branch','bank_account','bank_ifsc','lat','lng','landmark','kseb_circle','kseb_division','kseb_subdivision','local_body','village_survey','jansamarth_id','lead_type','premises','transformer','pole_no','aadhaar_no','pan_no','loan_bank','loan_branch','loan_amount','loan_sanctioned_on']],
+  'customers' => ['customers', ['name','phone','email','address','district','consumer_no','kseb_section','sanctioned_load','roof_type','gst_no','notes','added_by','alt_phone','pincode','phase','tariff','meter_no','bank_holder','bank_name','bank_branch','bank_account','bank_ifsc','lat','lng','landmark','kseb_circle','kseb_division','kseb_subdivision','local_body','village_survey','jansamarth_id','lead_type','premises','transformer','pole_no','aadhaar_no','pan_no','loan_bank','loan_branch','loan_amount','loan_sanctioned_on','loan_bank_email','loan_mgr_name','loan_mgr_phone']],
   'projects' => ['projects', ['customer_id','title','kw','panel','inverter','stage','engineer','start','end','cost','application_no','subsidy_status','subsidy_amount','notes','loan','amc_start','amc_end','amc_interval']],
   'quotes' => ['quotes', ['customer_id','lead_id','number','date','items','gst_rate','subsidy','terms','status','total']],
   'campaigns' => ['ads', ['name','platform','objective','start','end','budget','status']],
   'ad_spend' => ['ads', ['campaign_id','date','spend','impressions','clicks','leads']],
-  'payments' => ['payments', ['project_id','date','amount','mode','note','ref_no']],
+  'payments' => ['payments', ['project_id','date','amount','mode','note','ref_no','src']],
 ];
 
 // role => [read modules, write modules]; '*' = everything
 // Permission modules. 'finance' = every money figure (project values, payments, balances, ad spend, dashboard money cards).
-const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','loans','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email','incentive'];
+const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','loans','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email','incentive','accounts'];
 // 'incentive': View = Finance › Incentive received (my customers the admin shared); Edit = manage every staff member's incentive (api/comm.php)
 const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts', 'ba' => 'Business Associate (BA)'];
 // role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
@@ -26,7 +26,7 @@ const ROLE_DEFAULTS = [
   'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','settings','recycle','fees','email','incentive'], ['attendance','leaves','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','recycle','fees','email']],
   'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','whatsapp','ads','settings','email','incentive'], ['leads','customers','quotes','loans','whatsapp','files','folder','calendar','projects','email']],
   'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','settings','fees','email','incentive'], ['projects','checklist','files','customers','folder','calendar','email']],
-  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','ads','whatsapp','settings','finance','fees','email','incentive'], ['quotes','payments','loans','ads','calendar','fees','email']],
+  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','ads','whatsapp','settings','finance','fees','email','incentive','accounts'], ['quotes','payments','loans','ads','calendar','fees','email','accounts']],
   // Business Associate: their own leads and customers, their customers' projects (view only), no money. Rows are limited in claims.php (ba_gate, cust_scope).
   'ba' => [['dashboard','leads','customers','projects'], ['leads','customers']],
 ];
@@ -51,7 +51,7 @@ function lead_type_save($t, $in, $id) {
 function cust_from_lead($cid) { return (int)$cid > 0 && (bool)row('SELECT 1 FROM leads WHERE customer_id=? LIMIT 1', [(int)$cid]); }
 // Areas a role never gets, whatever is ticked in Settings → User access or granted by "Can see & claim leads".
 // Business Associates are outside partners: no WhatsApp (inbox, business number, message history), and commission instead of incentive.
-const ROLE_NEVER = ['ba' => ['whatsapp', 'incentive']];
+const ROLE_NEVER = ['ba' => ['whatsapp', 'incentive', 'accounts']];
 function claim_grants($role) { return array_values(array_diff(CLAIM_GRANTS, ROLE_NEVER[$role] ?? [])); }
 function roles() {
   static $r = null; if ($r !== null) return $r;
@@ -59,7 +59,7 @@ function roles() {
   try { $o = row("SELECT v FROM settings WHERE k='role_perms'"); } catch (Throwable $e) { $o = null; }
   $saved = $o ? (json_decode($o['v'], true) ?: []) : [];
   // areas added after the admin saved custom access start from their defaults
-  $seen = $saved['_modules'] ?? array_values(array_diff(MODULES, ['attendance', 'leaves', 'incentive']));
+  $seen = $saved['_modules'] ?? array_values(array_diff(MODULES, ['attendance', 'leaves', 'incentive', 'accounts']));
   $fresh = array_values(array_diff(MODULES, $seen));
   foreach ($saved as $role => $p) {
     if ($role === '_modules' || $role === 'admin' || !isset(ROLE_DEFAULTS[$role]) || !is_array($p)) continue;
@@ -304,6 +304,18 @@ function migrate($db) {
   /* v33: every customer's empty KSEB sub division / division / circle (and section) filled from the consumer number or section */
   require_once __DIR__ . '/kseb_offices.php';
   kseb_backfill($db);
+  /* v42: Accounts. payments.src and customers.loan_bank_email / loan_mgr_name / loan_mgr_phone come from the column lists above */
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_materials(id INTEGER PRIMARY KEY AUTOINCREMENT, grp TEXT, name TEXT, unit TEXT DEFAULT 'Nos', gst REAL DEFAULT 18, rate REAL DEFAULT 0, hidden INTEGER DEFAULT 0, sort INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS accm_name ON acc_materials(grp, lower(name))');
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_costs(id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER, material_id INTEGER, grp TEXT, name TEXT, qty REAL DEFAULT 0, unit TEXT DEFAULT '', rate REAL DEFAULT 0, gst REAL DEFAULT 18, supplier TEXT DEFAULT '', bill_no TEXT DEFAULT '', bill_date TEXT DEFAULT '', note TEXT DEFAULT '', auto TEXT DEFAULT '', sort INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE INDEX IF NOT EXISTS accc_proj ON acc_costs(project_id)');
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_expenses(id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, cat TEXT, amount REAL DEFAULT 0, gst REAL DEFAULT 0, paid_to TEXT DEFAULT '', mode TEXT DEFAULT '', note TEXT DEFAULT '', created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE INDEX IF NOT EXISTS acce_date ON acc_expenses(date)');
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_log(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, payment_id INTEGER, customer_id INTEGER, project_id INTEGER, via TEXT, to_whom TEXT, to_addr TEXT DEFAULT '', user_id INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE INDEX IF NOT EXISTS accl_proj ON acc_log(project_id)');
+  $db->exec('CREATE INDEX IF NOT EXISTS accl_pay ON acc_log(payment_id)');
+  require_once __DIR__ . '/acc_seed.php';
+  acc_seed($db); // only fills an empty materials list
   require_once __DIR__ . '/qm_seed.php';
   qm_seed($db); // only fills an empty catalogue
   $db->exec('ANALYZE'); // give the query planner row counts for the new indexes

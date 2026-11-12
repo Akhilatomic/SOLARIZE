@@ -86,7 +86,10 @@ var PFP = (function () {
         f('loan_bank', 'Loan bank', 'c', [], due('loan', { perm: 'loans' })),
         f('loan_branch', 'Loan branch', 'c', [], due('loan', { perm: 'loans', opt: true })),
         f('loan_amount', 'Loan amount', 'c', [], due('loan', { perm: 'loans', t: 'num' })),
-        f('loan_sanctioned_on', 'Sanctioned on', 'c', [], due('loan', { perm: 'loans', t: 'date' }))
+        f('loan_sanctioned_on', 'Sanctioned on', 'c', [], due('loan', { perm: 'loans', t: 'date' })),
+        f('loan_bank_email', 'Bank email', 'c', [], due('loan', { perm: 'loans', opt: true })),
+        f('loan_mgr_name', 'Bank manager name', 'c', [], due('loan', { perm: 'loans', opt: true })),
+        f('loan_mgr_phone', 'Bank manager phone', 'c', [], due('loan', { perm: 'loans', opt: true }))
       ] }
     ] },
     { key: 'plant', tab: 'Plant details', icon: 'sun', sections: [{ paper: 'Plant details', fields: [

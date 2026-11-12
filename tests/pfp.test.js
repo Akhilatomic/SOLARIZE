@@ -7,7 +7,7 @@ const PHP = {
   kseb: ['name', 'consumer_no', 'kseb_section', 'kseb_subdivision', 'kseb_division', 'kseb_circle', 'tariff', 'phase', 'sanctioned_load', 'meter_no', 'transformer', 'pole_no', 'address', 'district', 'pincode', 'local_body', 'village_survey', 'premises'],
   contact: ['phone', 'alt_phone', 'email', 'aadhaar_no', 'pan_no', 'gst_no', 'lead_type', 'landmark', 'notes'],
   reg: ['application_no', 'application_date', 'applied_kw', 'etoken_id', 'approved_kw', 'approved_on', 'kseb_reg_no', 'spin', 'installed_on', 'inspected_on', 'netmeter_on', 'commissioned_on', 'subsidy_amount'],
-  bank: ['bank_holder', 'bank_name', 'bank_branch', 'bank_account', 'bank_ifsc', 'jansamarth_id', 'loan_bank', 'loan_branch', 'loan_amount', 'loan_sanctioned_on']
+  bank: ['bank_holder', 'bank_name', 'bank_branch', 'bank_account', 'bank_ifsc', 'jansamarth_id', 'loan_bank', 'loan_branch', 'loan_amount', 'loan_sanctioned_on', 'loan_bank_email', 'loan_mgr_name', 'loan_mgr_phone']
 };
 const PLANT = ['capacity', 'panel_make', 'panel_type', 'panel_wattage', 'panel_count', 'panel_model', 'panel_efficiency', 'inverter_make', 'inverter_capacity', 'inverter_dc_voltage', 'meter_make', 'meter_serial', 'meter_reading', 'cell_invoice_no'];
 
@@ -34,8 +34,8 @@ test('field keys match the server lists', function () {
   assert.deepStrictEqual(keys('plant').slice().sort(), PLANT.concat(['panel_serials', 'inverter_serials']).sort());
 });
 
-test('all five loan keys carry perm loans and due loan', function () {
-  ['jansamarth_id', 'loan_bank', 'loan_branch', 'loan_amount', 'loan_sanctioned_on'].forEach(function (k) {
+test('all eight loan keys carry perm loans and due loan', function () {
+  ['jansamarth_id', 'loan_bank', 'loan_branch', 'loan_amount', 'loan_sanctioned_on', 'loan_bank_email', 'loan_mgr_name', 'loan_mgr_phone'].forEach(function (k) {
     var f = fields('bank').filter(function (x) { return x.k === k; })[0];
     assert.strictEqual(f.perm, 'loans', k);
     assert.strictEqual(f.due, 'loan', k);

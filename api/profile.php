@@ -8,7 +8,7 @@ const PF_PAGES = [
   'contact' => ['c' => ['phone', 'alt_phone', 'email', 'aadhaar_no', 'pan_no', 'gst_no', 'lead_type', 'landmark', 'notes']],
   'reg' => ['p' => ['application_no', 'application_date', 'applied_kw', 'etoken_id', 'approved_kw', 'approved_on', 'kseb_reg_no', 'spin', 'installed_on', 'inspected_on', 'netmeter_on', 'commissioned_on'], 'j' => ['subsidy_amount']],
   'loc' => ['c' => ['lat', 'lng', 'landmark']],
-  'bank' => ['c' => ['bank_holder', 'bank_name', 'bank_branch', 'bank_account', 'bank_ifsc', 'jansamarth_id', 'loan_bank', 'loan_branch', 'loan_amount', 'loan_sanctioned_on']],
+  'bank' => ['c' => ['bank_holder', 'bank_name', 'bank_branch', 'bank_account', 'bank_ifsc', 'jansamarth_id', 'loan_bank', 'loan_branch', 'loan_amount', 'loan_sanctioned_on', 'loan_bank_email', 'loan_mgr_name', 'loan_mgr_phone']],
 ];
 
 function profile_page_save($cid, $old) {

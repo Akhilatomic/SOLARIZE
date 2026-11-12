@@ -30,6 +30,7 @@ require __DIR__ . '/api/bank.php';
 require __DIR__ . '/api/mail.php';
 require __DIR__ . '/api/quotemaker.php';
 require __DIR__ . '/api/comm.php';
+require __DIR__ . '/api/accounts.php';
 require __DIR__ . '/api/import.php';
 
 try {
@@ -47,7 +48,7 @@ try {
   try { housekeeping(); } catch (Throwable $e) { } // hourly: expire 200-day documents, purge the 72-hour recycle bin
   ba_gate($m, $a); // Business Associate: only their own customers, projects and leads
   // CSRF-light: state-changing calls must be POST
-  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status', 'me', 'today', 'month', 'range', 'pending', 'summary', 'notifs', 'timeline', 'serial', 'zip', 'candidates', 'member', 'avatar', 'leaves', 'balances', 'days', 'folders', 'att', 'admin_list', 'boot', 'img', 'owners', 'next', 'presence', 'office', 'offices', 'milestone']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
+  if ($a !== '' && !in_array($a, ['list', 'get', 'report', 'recent', 'users', 'audit', 'stats', 'backup', 'overview', 'feed', 'config', 'upcoming', 'board', 'services', 'backups', 'backup_get', 'chats', 'thread', 'templates', 'media', 'unread', 'status', 'me', 'today', 'month', 'range', 'pending', 'summary', 'notifs', 'timeline', 'serial', 'zip', 'candidates', 'member', 'avatar', 'leaves', 'balances', 'days', 'folders', 'att', 'admin_list', 'boot', 'img', 'owners', 'next', 'presence', 'office', 'offices', 'milestone', 'ac_cost', 'ac_materials']) && $_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
   if (isset($E[$m])) handle_crud($m, $a);
   switch ($m) {
     case 'dashboard': handle_dashboard();
@@ -78,6 +79,7 @@ try {
     case 'mail': handle_mail($a);
     case 'qm': handle_qm($a);
     case 'comm': handle_comm($a);
+    case 'acc': handle_acc($a);
     case 'import': handle_import($a);
   }
   fail('Unknown module', 404);

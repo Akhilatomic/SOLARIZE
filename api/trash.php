@@ -28,7 +28,7 @@ function trash_put($kind, $label, array $spec, array $needs = [], array $relink 
 // building blocks
 function trash_spec_project($pid) {
   return [['projects', 'id=?', [$pid]], ['project_steps', 'project_id=?', [$pid]], ['stage_data', 'project_id=?', [$pid]], ['services', 'project_id=?', [$pid]],
-    ['checklist', 'project_id=?', [$pid]], ['payments', 'project_id=?', [$pid]], ['files', 'project_id=?', [$pid]], ['notes', "entity='projects' AND entity_id=?", [$pid]]];
+    ['checklist', 'project_id=?', [$pid]], ['payments', 'project_id=?', [$pid]], ['acc_costs', 'project_id=?', [$pid]], ['files', 'project_id=?', [$pid]], ['notes', "entity='projects' AND entity_id=?", [$pid]]];
 }
 function trash_spec_customer($cid, $withLinked = true) {
   $s = [['customers', 'id=?', [$cid]], ['plant', 'customer_id=?', [$cid]], ['fees', 'customer_id=?', [$cid]], ['gen_docs', 'customer_id=?', [$cid]], ['commissions', 'customer_id=?', [$cid]]];
