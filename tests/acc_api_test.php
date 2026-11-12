@@ -28,8 +28,12 @@ foreach ([['Acc Person', 'accts', 'accounts', $acct], ['Sales Person', 'sales1',
   chk(call($who, 'auth', 'login', ['username' => $un, 'password' => $pw])['_code'] === 200, "$role signed in");
 }
 
-$m = call($acct, 'acc', 'ac_materials');
-chk($m['_code'] === 200 && count($m) - 1 >= 49, 'accounts role sees 49 seeded materials');
+/* the price list: {rows, profit_default}; mats() = its rows */
+$mats = fn() => call($acct, 'acc', 'ac_materials')['rows'] ?? [];
+$mr = call($acct, 'acc', 'ac_materials'); $m = $mr['rows'] ?? [];
+chk($mr['_code'] === 200 && count($m) >= 49, 'accounts role sees 49 seeded materials');
+chk(($mr['profit_default'] ?? null) !== null && (float)$mr['profit_default'] === 15.0, 'the price list carries the default profit % (15 at first)');
+chk(array_key_exists('profit', $m[0] ?? []) && $m[0]['profit'] === null, 'a seeded item has no profit % of its own (blank = the default)');
 chk(($m[0]['grp'] ?? '') === 'Inverter & optimizers', 'first material is in Inverter & optimizers');
 chk(call($sales, 'acc', 'ac_materials')['_code'] === 403, 'sales gets 403 on materials');
 chk(call($ba, 'acc', 'ac_materials')['_code'] === 403, 'ba gets 403 on materials');
@@ -46,7 +50,7 @@ $cs = call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'lines' => [
 ]]);
 chk($cs['_code'] === 200 && count($cs['lines'] ?? []) === 2, 'cost_save returns 2 lines');
 chk(($cs['project']['cost'] ?? 0) == 108900 && ($cs['customer']['name'] ?? '') === 'Test Person One', 'cost sheet carries project and customer');
-$m2 = call($acct, 'acc', 'ac_materials');
+$m2 = $mats();
 $tp = find_by($m2, 'name', 'Test Panel 550'); $sd = find_by($m2, 'id', $seedId);
 chk($tp && (float)$tp['rate'] == 9000 && $tp['grp'] === 'Solar panels', 'new line was added to materials with its rate');
 chk($sd && (float)$sd['rate'] == 50000, 'priced line updated its material rate');
@@ -57,13 +61,13 @@ $s2 = call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'version' => $v1, '
 $v2 = (string)($s2['version'] ?? '');
 chk($s2['_code'] === 200 && $v2 !== '' && $v2 !== $v1, 'a save with the fresh version is accepted and gives a new version (same second)');
 $st = call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'version' => $v1, 'lines' => [['grp' => 'Solar panels', 'name' => 'Stale Only Panel', 'qty' => 9, 'rate' => 1, 'gst' => 5], ['grp' => 'Solar panels', 'name' => 'Test Panel 550', 'qty' => 7, 'rate' => 1, 'gst' => 5]]]);
-chk($st['_code'] === 409 && ($st['error'] ?? '') === 'This cost sheet was changed since you opened it — reload to see the latest', 'a save with a stale version is 409 with the reload message');
+chk($st['_code'] === 409 && ($st['error'] ?? '') === 'This Expense sheet was changed since you opened it — reload to see the latest', 'a save with a stale version is 409 with the reload message');
 $g = call($acct, 'acc', 'ac_cost', null, "&project_id=$pid");
 chk($g['_code'] === 200 && count($g['lines']) === 1 && (float)$g['lines'][0]['qty'] == 4 && (string)$g['version'] === $v2, 'the stale save wrote nothing: the fresh save replaced all lines (1 line) and stays');
-chk(find_by(call($acct, 'acc', 'ac_materials'), 'name', 'Stale Only Panel') === null, 'the stale save added no material');
+chk(find_by($mats(), 'name', 'Stale Only Panel') === null, 'the stale save added no material');
 $s3 = call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'lines' => [['grp' => 'Solar panels', 'name' => 'Test Panel 550', 'qty' => 4, 'rate' => 9100, 'gst' => 5]]]);
 chk($s3['_code'] === 200 && (string)$s3['version'] !== $v2, 'a save with no version (older page) is still accepted and moves the version on');
-$cnt = 0; foreach (call($acct, 'acc', 'ac_materials') as $x) if (is_array($x) && ($x['name'] ?? '') === 'Test Panel 550') $cnt++;
+$cnt = 0; foreach ($mats() as $x) if (is_array($x) && ($x['name'] ?? '') === 'Test Panel 550') $cnt++;
 chk($cnt === 1, 'no duplicate material created on re-save');
 chk(call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'lines' => [['grp' => 'Solar panels', 'name' => 'X', 'qty' => 1, 'rate' => -5, 'gst' => 5]]])['_code'] === 400, 'negative rate refused');
 chk(call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'lines' => [['grp' => 'Solar panels', 'name' => 'X', 'qty' => 1, 'rate' => 5, 'gst' => 7]]])['_code'] === 400, 'bad GST refused');
@@ -85,17 +89,17 @@ $n = call($acct, 'acc', 'material_save', ['grp' => 'Services and charges', 'name
 $nid = (int)($n['id'] ?? 0);
 chk($n['_code'] === 200 && $nid > 0, 'material_save adds a material');
 call($acct, 'acc', 'material_save', ['id' => $nid, 'grp' => 'Services and charges', 'name' => 'Test Service', 'unit' => 'Job', 'gst' => 18, 'rate' => 150, 'hidden' => 1]);
-$hit = find_by(call($acct, 'acc', 'ac_materials'), 'id', $nid);
+$hit = find_by($mats(), 'id', $nid);
 chk($hit && (float)$hit['rate'] == 150 && (int)$hit['hidden'] === 1, 'material edited and hidden, still listed');
 $svcLine = ['material_id' => $nid, 'grp' => 'Services and charges', 'name' => 'Test Service', 'qty' => 1, 'unit' => 'Job', 'rate' => 150, 'gst' => 18];
 call($acct, 'acc', 'cost_save', ['project_id' => $pidM, 'lines' => [$svcLine]]);
 chk(call($sales, 'acc', 'material_delete', ['id' => $nid])['_code'] === 403, 'sales cannot delete materials');
 chk(call($acct, 'acc', 'material_delete', ['id' => $nid])['_code'] === 200, 'material_delete ok');
-chk(find_by(call($acct, 'acc', 'ac_materials'), 'id', $nid) === null, 'deleted material is gone');
+chk(find_by($mats(), 'id', $nid) === null, 'deleted material is gone');
 /* a cost line of a deleted material keeps its name and never brings the material back, however often the sheet is saved */
 call($acct, 'acc', 'cost_save', ['project_id' => $pidM, 'lines' => [$svcLine]]);
 $sv2 = call($acct, 'acc', 'cost_save', ['project_id' => $pidM, 'lines' => (call($acct, 'acc', 'ac_cost', null, "&project_id=$pidM")['lines'] ?? [])]);
-chk($sv2['_code'] === 200 && count($sv2['lines']) === 1 && $sv2['lines'][0]['name'] === 'Test Service' && find_by(call($acct, 'acc', 'ac_materials'), 'name', 'Test Service') === null, 'saving a line of a deleted material (twice) keeps the line and creates no material');
+chk($sv2['_code'] === 200 && count($sv2['lines']) === 1 && $sv2['lines'][0]['name'] === 'Test Service' && find_by($mats(), 'name', 'Test Service') === null, 'saving a line of a deleted material (twice) keeps the line and creates no material');
 
 /* bank fields */
 call($admin, 'profile', 'page_save', ['customer_id' => $cid, 'page' => 'bank', 'data' => ['loan_bank_email' => 'loans@test.example', 'loan_mgr_name' => 'Test Manager', 'loan_mgr_phone' => '9000000099']]);
@@ -303,7 +307,7 @@ foreach ([[$pidS, 'Loan', null, 'fill-a'], [$pidS, 'Loan', '', 'fill-b'], [$pidS
 $dbq('PRAGMA user_version=41');
 call($acct, 'acc', 'ac_tpl'); /* the next request upgrades the database again */
 $fill = []; foreach ($dbq("SELECT note, src FROM payments WHERE note LIKE 'fill-%'")->fetchAll(PDO::FETCH_ASSOC) as $x) $fill[$x['note']] = $x['src'];
-chk($dbq('PRAGMA user_version')->fetchColumn() == 42 && ($fill['fill-a'] ?? '') === 'bank' && ($fill['fill-b'] ?? '') === 'bank', 'backfill: Loan-mode payments with no source on a loan project are now bank');
+chk($dbq('PRAGMA user_version')->fetchColumn() == 43 &&($fill['fill-a'] ?? '') === 'bank' && ($fill['fill-b'] ?? '') === 'bank', 'backfill: Loan-mode payments with no source on a loan project are now bank');
 chk(array_key_exists('fill-c', $fill) && $fill['fill-c'] === null && ($fill['fill-d'] ?? '') === 'customer' && array_key_exists('fill-e', $fill) && $fill['fill-e'] === null,'backfill: other modes, a set source and non-loan projects are left alone');
 $ixs = $dbq("SELECT name FROM sqlite_master WHERE type='index'")->fetchAll(PDO::FETCH_COLUMN);
 chk(!array_diff(['pay_date', 'spend_date', 'accl_kind'], $ixs), 'indexes on payments(date), ad_spend(date), acc_log(kind, project_id)');
@@ -373,6 +377,80 @@ $np = count(call($acct, 'acc', 'ac_pending')['rows'] ?? []); $npe = count(call($
 chk($np > 505 && $npe > $np, "ac_pending lists every owing project (no 500 cap): $np, with early stages $npe");
 chk(count(call($admin, 'dashboard', 'get')['dues'] ?? []) === 500, 'the Dashboard dues list keeps its 500 cap');
 $dbq("DELETE FROM projects WHERE title LIKE 'Bulk Owing %'"); $dbq("DELETE FROM customers WHERE name LIKE 'Bulk Owing %'");
+
+/* ---- Expense sheet and price list (v43): dealer price + profit % = customer price, quantity required, commission / incentive line ---- */
+echo "Accounts: expense sheet and price list\n";
+$cols = fn($t) => $dbq("PRAGMA table_info($t)")->fetchAll(PDO::FETCH_COLUMN, 1);
+chk(in_array('profit', $cols('acc_materials'), true) && in_array('profit', $cols('acc_costs'), true), 'v43: acc_materials.profit and acc_costs.profit exist');
+$dbq('PRAGMA user_version=42');
+chk(call($acct, 'acc', 'ac_tpl')['_code'] === 200 && $dbq('PRAGMA user_version')->fetchColumn() == 43, 'the v43 upgrade runs again on a database that already has the columns (idempotent)');
+chk(count(array_keys($cols('acc_costs'), 'profit')) === 1 && count(array_keys($cols('acc_materials'), 'profit')) === 1, 'each profit column exists once after the rerun');
+/* default profit % (Settings › Price list) */
+chk(call($acct, 'acc', 'profit_default_save', null, '&pct=20')['_code'] === 405, 'profit_default_save over GET is refused');
+chk(call($sales, 'acc', 'profit_default_save', ['pct' => 20])['_code'] === 403, 'sales cannot change the default profit %');
+chk(call($eng, 'acc', 'profit_default_save', ['pct' => 20])['_code'] === 403, 'engineer cannot change the default profit %');
+foreach ([501, -1, 'abc', '', null] as $bad) chk(call($acct, 'acc', 'profit_default_save', ['pct' => $bad])['_code'] === 400, 'profit_default_save refuses ' . var_export($bad, true));
+$pd = call($acct, 'acc', 'profit_default_save', ['pct' => '12.5']);
+chk($pd['_code'] === 200 && (float)($pd['profit_default'] ?? 0) === 12.5, 'accounts write saves the default profit % (12.5)');
+chk((float)(call($acct, 'acc', 'ac_materials')['profit_default'] ?? 0) === 12.5, 'ac_materials returns the saved default');
+chk(call($acct, 'acc', 'profit_default_save', ['pct' => 0])['_code'] === 200 && (float)call($acct, 'acc', 'ac_materials')['profit_default'] === 0.0, 'a default of 0 % is allowed');
+call($acct, 'acc', 'profit_default_save', ['pct' => 15]);
+/* profit % per item */
+$pm = call($acct, 'acc', 'material_save', ['grp' => 'Solar panels', 'name' => 'Exp Panel 600', 'unit' => 'Nos', 'gst' => 5, 'rate' => 14200, 'profit' => 10]);
+$pmId = (int)($pm['id'] ?? 0);
+$px = find_by($mats(), 'id', $pmId);
+chk($pm['_code'] === 200 && $px && (float)$px['rate'] == 14200 && $px['profit'] !== null && (float)$px['profit'] === 10.0, 'material_save stores the dealer price and the profit %');
+call($acct, 'acc', 'material_save', ['id' => $pmId, 'grp' => 'Solar panels', 'name' => 'Exp Panel 600', 'unit' => 'Nos', 'gst' => 5, 'rate' => 14200, 'hidden' => 0]);
+chk((float)(find_by($mats(), 'id', $pmId)['profit'] ?? -1) === 10.0, 'a save without profit (older page) keeps the item\'s profit %');
+call($acct, 'acc', 'material_save', ['id' => $pmId, 'grp' => 'Solar panels', 'name' => 'Exp Panel 600', 'unit' => 'Nos', 'gst' => 5, 'rate' => 14200, 'profit' => '']);
+chk(find_by($mats(), 'id', $pmId)['profit'] === null, 'a blank profit % goes back to the default (null)');
+foreach ([-5, 501, 'x'] as $bad) chk(call($acct, 'acc', 'material_save', ['grp' => 'Solar panels', 'name' => 'Exp Bad ' . $bad, 'unit' => 'Nos', 'gst' => 5, 'rate' => 1, 'profit' => $bad])['_code'] === 400, 'material_save refuses profit % ' . var_export($bad, true));
+call($acct, 'acc', 'material_save', ['id' => $pmId, 'grp' => 'Solar panels', 'name' => 'Exp Panel 600', 'unit' => 'Nos', 'gst' => 5, 'rate' => 14200, 'profit' => 10]);
+/* lines: quantity required, profit % stored per line */
+[$cidX, $pidX] = $mkc('Exp Xray', '9000000031', 'Electrical installation', 435600, 10);
+$q0 = call($acct, 'acc', 'cost_save', ['project_id' => $pidX, 'lines' => [['material_id' => $pmId, 'grp' => 'Solar panels', 'name' => 'Exp Panel 600', 'qty' => 0, 'unit' => 'Nos', 'rate' => 14200, 'gst' => 5, 'profit' => 10]]]);
+chk($q0['_code'] === 400 && ($q0['error'] ?? '') === 'Enter the quantity for Exp Panel 600', 'cost_save refuses a line with quantity 0 ("Enter the quantity for …")');
+$qb = call($acct, 'acc', 'cost_save', ['project_id' => $pidX, 'lines' => [['grp' => 'Solar panels', 'name' => 'Exp Blank Qty', 'qty' => '', 'unit' => 'Nos', 'rate' => 1, 'gst' => 5]]]);
+chk($qb['_code'] === 400 && ($qb['error'] ?? '') === 'Enter the quantity for Exp Blank Qty' && find_by($mats(), 'name', 'Exp Blank Qty') === null, 'a blank quantity is refused too, and nothing goes on the list');
+chk(call($acct, 'acc', 'cost_save', ['project_id' => $pidX, 'lines' => [['grp' => 'Solar panels', 'name' => 'Exp Neg', 'qty' => 1, 'rate' => 1, 'gst' => 5, 'profit' => -2]]])['_code'] === 400, 'a negative line profit % is refused');
+$xs = call($acct, 'acc', 'cost_save', ['project_id' => $pidX, 'lines' => [
+  ['material_id' => $pmId, 'grp' => 'Solar panels', 'name' => 'Exp Panel 600', 'qty' => 16, 'unit' => 'Nos', 'rate' => 14200, 'gst' => 5, 'profit' => 25],
+  ['grp' => 'Services and charges', 'name' => 'Exp Install Job', 'qty' => 1, 'unit' => 'Job', 'rate' => 8000, 'gst' => 18, 'profit' => 0],
+  ['grp' => 'Inverter & optimizers', 'name' => 'Exp Old Line', 'qty' => 1, 'unit' => 'Nos', 'rate' => 27500, 'gst' => 5],
+]]);
+$xl = $xs['lines'] ?? [];
+chk($xs['_code'] === 200 && count($xl) === 3 && (float)$xl[0]['profit'] === 25.0 && (float)$xl[1]['profit'] === 0.0 && $xl[2]['profit'] === null, 'cost_save stores each line\'s profit % (25, 0, blank)');
+chk((float)(find_by($mats(), 'id', $pmId)['profit'] ?? -1) === 10.0, 'a line\'s profit % does not change the price list item');
+$ij = find_by($mats(), 'name', 'Exp Install Job');
+chk($ij && $ij['profit'] !== null && (float)$ij['profit'] === 0.0 && (float)$ij['rate'] == 8000, 'a typed new line goes on the price list with its dealer price and profit %');
+$xg = call($acct, 'acc', 'ac_cost', null, "&project_id=$pidX");
+chk((float)($xg['profit_default'] ?? -1) === 15.0 && (float)$xg['lines'][0]['profit'] === 25.0 && $xg['lines'][2]['profit'] === null, 'ac_cost returns the lines\' profit % and the default');
+/* income: payments received for this project */
+$pay($pidX, 100000, '2026-11-09'); $pay($pidX, 50000, '2026-11-10');
+chk((float)(call($acct, 'acc', 'ac_cost', null, "&project_id=$pidX")['paid'] ?? -1) === 150000.0, 'ac_cost returns the payments received for the project (150000)');
+/* commission / incentive line */
+$uid = function ($un) use ($dbq) { return (int)$dbq('SELECT id FROM users WHERE username=?', [$un])->fetchColumn(); };
+$baId = $uid('ba1'); $salesId = $uid('sales1');
+$dbq('UPDATE customers SET owner_id=? WHERE id=?', [$baId, $cidX]);
+chk(call($admin, 'comm', 'save', ['customer_id' => $cidX, 'user_id' => $baId, 'amount' => 15000, 'p1_amount' => 5000, 'p1_date' => '2026-11-11'])['_code'] === 200, 'admin records a commission with part 1 paid');
+$xc = call($acct, 'acc', 'ac_cost', null, "&project_id=$pidX");
+$cm = $xc['comm'] ?? [];
+chk(($cm['kind'] ?? '') === 'commission' && ($cm['person'] ?? '') === 'Ba Person' && (float)($cm['amount'] ?? 0) === 15000.0 && (float)($cm['p1'] ?? -1) === 5000.0 && (float)($cm['p2'] ?? -1) === 0.0, 'ac_cost comm: a BA-owned customer -> commission, the person, amount, part 1 and part 2');
+chk((float)($xc['auto']['comm'] ?? 0) === 15000.0, 'auto.comm keeps working');
+[$cidY, $pidY] = $mkc('Exp Yankee', '9000000032', 'Electrical installation', 200000, 5);
+$dbq('UPDATE customers SET owner_id=? WHERE id=?', [$salesId, $cidY]);
+$yc = call($acct, 'acc', 'ac_cost', null, "&project_id=$pidY")['comm'] ?? [];
+chk(($yc['kind'] ?? '') === 'incentive' && ($yc['person'] ?? '') === 'Sales Person' && (float)($yc['amount'] ?? -1) === 0.0, 'ac_cost comm: a staff-owned customer with nothing recorded -> incentive, the person, amount 0');
+$dbq('INSERT INTO commissions(customer_id, user_id, amount, p1_amount, p2_amount) VALUES(?,?,?,?,?)', [$cidY, $salesId, 6000, 3000, 3000]);
+$yc = call($acct, 'acc', 'ac_cost', null, "&project_id=$pidY")['comm'] ?? [];
+chk(($yc['kind'] ?? '') === 'incentive' && (float)$yc['amount'] === 6000.0 && (float)$yc['p1'] === 3000.0 && (float)$yc['p2'] === 3000.0, 'ac_cost comm: the incentive amount and both parts');
+[$cidZ, $pidZ] = $mkc('Exp Zulu', '9000000033', 'Electrical installation', 100000, 3); /* added by the admin: owned by the admin, so no one earns on it */
+$zc = call($acct, 'acc', 'ac_cost', null, "&project_id=$pidZ")['comm'] ?? null;
+chk(is_array($zc) && $zc['kind'] === '' && $zc['person'] === '' && (float)$zc['amount'] === 0.0, 'ac_cost comm: an admin-owned customer -> no person, no kind');
+/* Accounts › Profit math is unchanged: cost = Σ qty × dealer price, commission subtracted */
+call($admin, 'gen', 'save', ['kind' => 'tax', 'early' => 1, 'customer_id' => $cidX, 'issued_on' => '2026-06-10', 'number' => 'T3-090', 'data' => ['taxable' => 400000, 'grand' => 435600]]);
+$xp = find_by(call($acct, 'acc', 'ac_profit', null, '&period=2026-06')['rows'] ?? [], 'project_id', $pidX);
+chk($xp && (float)$xp['cost'] == 16 * 14200 + 8000 + 27500 && (float)$xp['comm'] == 15000 && (float)$xp['profit'] == 400000 - (16 * 14200 + 8000 + 27500) - 15000, 'ac_profit: cost = Σ qty × dealer price, commission subtracted (profit % plays no part)');
 
 echo "\n$pass ok, $fail FAIL\n";
 exit($fail ? 1 : 0);

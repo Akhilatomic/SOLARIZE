@@ -131,3 +131,25 @@ table.acx-ex.stack tr.acx-auto{background:#fbfaf3}
 .acx-tpf textarea{width:100%;box-sizing:border-box;font-family:inherit}
 .acx-tpv{font-size:12px;margin:3px 0 0;word-break:break-word}
 @media(max-width:600px){.acx-fbar input[type=search]{max-width:none;flex:1 1 100%}.acx-fbar .tabs{flex:1 1 100%}.acx-nc li{flex-wrap:wrap}}
+/* Expense sheet, Add item window and the price list (app34.js; Settings › Price list in app2.js) */
+input.acx-need{border-color:#e0a100;background:#fffbea}
+table.acx-cst.stack td[colspan]{grid-column:1/-1}
+.acx-cst td.acx-cpr,.acx-cst td.acx-amt{font-variant-numeric:tabular-nums}
+.acx-cst td.acx-cpr{color:#1d1d1f;font-weight:600}
+.acx-amode{margin:0 0 12px}
+.acx-pi.acx-on{background:#e8f3ff;box-shadow:inset 3px 0 0 var(--pri)}
+.acx-addbar{display:flex;align-items:flex-end;gap:10px 14px;flex-wrap:wrap;margin-top:12px;padding:12px 14px;border:1px solid var(--bd);border-radius:12px;background:#fafafa}
+.acx-chosen{flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:13.5px;overflow-wrap:anywhere}
+.acx-chosen small{color:var(--mut);font-size:12px}
+.acx-qty{display:grid;grid-template-columns:auto auto;align-items:center;gap:3px 6px}
+.acx-qty label{grid-column:1/-1;margin:0;font-size:12px;font-weight:600}
+.acx-qty input{width:110px;margin:0}
+.acx-qty span{font-size:13px;min-width:24px}
+.acx-addbar .btn:disabled{background:#e5e5ea;color:#8e8e93;border-color:#e5e5ea;cursor:not-allowed;box-shadow:none}
+.acx-fcp{font-size:13.5px;margin:2px 0 6px}
+.acx-pdef{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;margin:0 0 10px}
+.acx-pdef label{margin:0;font-size:13.5px;font-weight:600}
+.acx-pdef input{width:90px;margin:0;text-align:right}
+.acx-setpl{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;min-width:0;margin-top:6px}
+.acx-setpl .acx-ch{margin:0}
+@media(max-width:600px){.acx-addbar{flex-direction:column;align-items:stretch}.acx-qty input{width:100%}.acx-qty{grid-template-columns:1fr auto}}

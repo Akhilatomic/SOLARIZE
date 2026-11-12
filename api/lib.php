@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 42; // bump when tables/columns change
+const SCHEMA_VERSION = 43; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -319,6 +319,8 @@ function migrate($db) {
   /* projects.cost_ver: the cost sheet's version, +1 on every acc/cost_save (two people saving the same sheet: the older page gets 409).
      Not in the projects column list, so a project save never touches it. */
   if (!in_array('cost_ver', array_column($db->query('PRAGMA table_info(projects)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE projects ADD COLUMN cost_ver INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  /* v43: the price list's profit % per item and the Expense sheet's profit % per line (NULL = the default, settings acc_profit_default) */
+  foreach (['acc_materials', 'acc_costs'] as $tb) if (!in_array('profit', array_column($db->query("PRAGMA table_info($tb)")->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE $tb ADD COLUMN profit REAL"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   /* payments.src is new: a Loan-mode payment on a loan project recorded before it was the bank's disbursement (only rows with no source, so a rerun changes nothing) */
   $db->exec("UPDATE payments SET src='bank' WHERE (src IS NULL OR src='') AND mode='Loan' AND project_id IN (SELECT id FROM projects WHERE loan='Yes')");
   require_once __DIR__ . '/acc_seed.php';

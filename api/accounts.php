@@ -1,10 +1,13 @@
 <?php
-// Accounts: material list and the per-project cost sheet (what the plant cost us). Needs the "accounts" permission.
+// Accounts: the price list (materials and services: dealer price + profit %) and the per-project Expense sheet (what the plant cost us,
+// acc_costs; the browser still routes it as #/accounts/cost/<project>). Needs the "accounts" permission.
 // Same order as ACC.GROUPS in assets/app32.js.
 const ACC_GROUPS = ['Inverter & optimizers', 'Solar panels', 'Structure & supports', 'Distribution boards', 'Metering & isolation', 'DC cables & connectors',
   'AC cables & lugs', 'Earthing & lightning protection', 'Pipes & conduit fittings', 'Cable accessories & consumables', 'Services and charges'];
 const ACC_GST = [0, 5, 12, 18, 28];
 const ACC_MAX_LINES = 400;
+const ACC_PROFIT_DEF = 15; /* the price list's default profit % until Settings › Price list changes it (ACC.PROFIT_DEF in app32.js) */
+const ACC_PROFIT_MAX = 500;
 
 /* rupee amount: blank = 0, negative or not a number is refused (same rules as comm_money) */
 function acc_money($v, $label) {
@@ -14,19 +17,46 @@ function acc_money($v, $label) {
   return round((float)$s, 2);
 }
 
+/* a profit %: blank = null (the item / line uses the default), else 0-500 */
+function acc_pct($v, $label) {
+  if ($v === null || is_array($v) || is_bool($v)) return null;
+  $s = trim(str_replace('%', '', (string)$v));
+  if ($s === '') return null;
+  if (!is_numeric($s) || (float)$s < 0 || (float)$s > ACC_PROFIT_MAX) fail("$label: enter a profit % from 0 to " . ACC_PROFIT_MAX);
+  return round((float)$s, 2);
+}
+/* the default profit % (Settings › Price list): a plain JSON number in settings, read directly (kv_get only merges arrays) */
+function acc_profit_default() {
+  $v = json_decode((string)(row("SELECT v FROM settings WHERE k='acc_profit_default'")['v'] ?? ''), true);
+  return is_int($v) || is_float($v) ? (float)$v : (float)ACC_PROFIT_DEF;
+}
+/* a stored profit % for the browser: null stays null (= the default) */
+function acc_pct_out($v) { return $v === null || $v === '' ? null : (float)$v; }
+
 /* project with its customer; a Business Associate only reaches their own (cust_scope) */
 function acc_project($pid) {
-  $r = row('SELECT p.*, c.name c_name, c.phone c_phone, c.address c_address, c.district c_district, c.pincode c_pincode, c.consumer_no c_consumer_no, c.kseb_section c_kseb_section, c.landmark c_landmark, c.lat c_lat, c.lng c_lng, c.phase c_phase FROM projects p JOIN customers c ON c.id=p.customer_id WHERE p.id=? AND ' . cust_scope('c'), [(int)$pid]);
+  $r = row('SELECT p.*, c.name c_name, c.phone c_phone, c.address c_address, c.district c_district, c.pincode c_pincode, c.consumer_no c_consumer_no, c.kseb_section c_kseb_section, c.landmark c_landmark, c.lat c_lat, c.lng c_lng, c.phase c_phase, c.owner_id c_owner_id FROM projects p JOIN customers c ON c.id=p.customer_id WHERE p.id=? AND ' . cust_scope('c'), [(int)$pid]);
   if (!$r) fail('Project not found', 404);
   return $r;
+}
+
+/* the customer's commission (a Business Associate) or incentive (staff), as Finance › Commission / Incentive has it: the person is the
+   one saved on the commissions row, else the customer's owner (comm_rows); an admin (or no one) earns nothing, so kind and person are ''.
+   {amount, kind: commission | incentive | '', person, p1, p2} */
+function acc_comm($cid, $ownerId) {
+  $cm = row('SELECT user_id, amount, p1_amount, p2_amount FROM commissions WHERE customer_id=?', [(int)$cid]);
+  $uid = (int)($cm['user_id'] ?? 0) ?: (int)$ownerId;
+  $u = $uid ? row("SELECT name, role FROM users WHERE id=? AND role<>'admin'", [$uid]) : null;
+  return ['amount' => round((float)($cm['amount'] ?? 0), 2), 'kind' => $u ? comm_kind_of($u['role']) : '', 'person' => $u ? (string)$u['name'] : '',
+    'p1' => round((float)($cm['p1_amount'] ?? 0), 2), 'p2' => round((float)($cm['p2_amount'] ?? 0), 2)];
 }
 
 function acc_cost_get($pid) {
   $p = acc_project($pid); $cid = (int)$p['customer_id'];
   [$plant] = plant_get($cid);
   $lines = rows('SELECT * FROM acc_costs WHERE project_id=? ORDER BY sort, id', [(int)$pid]);
-  foreach ($lines as &$l) { foreach (['id', 'project_id', 'material_id', 'sort'] as $k) $l[$k] = (int)$l[$k]; foreach (['qty', 'rate', 'gst'] as $k) $l[$k] = (float)$l[$k]; } unset($l);
-  $comm = (float)(row('SELECT amount FROM commissions WHERE customer_id=?', [$cid])['amount'] ?? 0);
+  foreach ($lines as &$l) { foreach (['id', 'project_id', 'material_id', 'sort'] as $k) $l[$k] = (int)$l[$k]; foreach (['qty', 'rate', 'gst'] as $k) $l[$k] = (float)$l[$k]; $l['profit'] = acc_pct_out($l['profit'] ?? null); } unset($l);
+  $cmx = acc_comm($cid, $p['c_owner_id'] ?? 0); $comm = $cmx['amount'];
   $fees = [];
   $fk = ['feasibility' => ['KSEB feasibility', 18], 'registration' => ['KSEB registration', 18], 'stamp' => ['Stamp paper', 0]];
   foreach (rows("SELECT kind, amount FROM fees WHERE customer_id=? AND amount>0 AND kind IN ('feasibility','registration','stamp') ORDER BY id", [$cid]) as $f)
@@ -45,6 +75,9 @@ function acc_cost_get($pid) {
     'lines' => $lines,
     'version' => (string)(int)($p['cost_ver'] ?? 0), /* send it back with cost_save: a save from an older copy of the sheet is refused (409) */
     'auto' => ['comm' => $comm, 'fees' => $fees],
+    'comm' => $cmx, /* the automatic commission / incentive line of the Expense sheet */
+    'paid' => round((float)row('SELECT COALESCE(SUM(amount),0) s FROM payments WHERE project_id=?', [(int)$pid])['s'], 2), /* income: payments received for this project */
+    'profit_default' => acc_profit_default(),
     'taxable' => $taxable,
     'quote_no' => (string)($q['number'] ?? ''),
   ];
@@ -58,8 +91,11 @@ function acc_line($l, $i) {
   $gst = (float)($l['gst'] ?? 18);
   if (!in_array($gst, array_map('floatval', ACC_GST), true)) fail('Line ' . ($i + 1) . ': GST must be 0, 5, 12, 18 or 28');
   $t = fn($k, $n) => mb_substr(trim((string)($l[$k] ?? '')), 0, $n);
-  return ['material_id' => (int)($l['material_id'] ?? 0), 'grp' => $t('grp', 100), 'name' => $name, 'qty' => acc_money($l['qty'] ?? 0, "Line " . ($i + 1) . " quantity"),
+  $qty = acc_money($l['qty'] ?? 0, "Line " . ($i + 1) . " quantity");
+  if ($qty <= 0) fail("Enter the quantity for $name"); /* every project is different: no line without its quantity */
+  return ['material_id' => (int)($l['material_id'] ?? 0), 'grp' => $t('grp', 100), 'name' => $name, 'qty' => $qty,
     'unit' => $t('unit', 20), 'rate' => acc_money($l['rate'] ?? 0, "Line " . ($i + 1) . " rate"), 'gst' => $gst,
+    'profit' => acc_pct($l['profit'] ?? null, 'Line ' . ($i + 1) . " ($name)"),
     'supplier' => $t('supplier', 120), 'bill_no' => $t('bill_no', 60), 'bill_date' => $t('bill_date', 10), 'note' => $t('note', 300)];
 }
 
@@ -67,7 +103,7 @@ function acc_materials_list() {
   $rs = rows('SELECT * FROM acc_materials ORDER BY sort, name COLLATE NOCASE');
   $ord = array_flip(ACC_GROUPS);
   usort($rs, fn($a, $b) => [$ord[$a['grp']] ?? 99, (int)$a['sort'], strtolower($a['name'])] <=> [$ord[$b['grp']] ?? 99, (int)$b['sort'], strtolower($b['name'])]);
-  foreach ($rs as &$r) { foreach (['id', 'hidden', 'sort'] as $k) $r[$k] = (int)$r[$k]; foreach (['gst', 'rate'] as $k) $r[$k] = (float)$r[$k]; } unset($r);
+  foreach ($rs as &$r) { foreach (['id', 'hidden', 'sort'] as $k) $r[$k] = (int)$r[$k]; foreach (['gst', 'rate'] as $k) $r[$k] = (float)$r[$k]; $r['profit'] = acc_pct_out($r['profit'] ?? null); } unset($r);
   return $rs;
 }
 
@@ -273,8 +309,17 @@ function handle_acc($a) {
     case 'ac_cost':
       out(acc_cost_get((int)($_GET['project_id'] ?? 0)));
 
-    case 'ac_materials':
-      out(acc_materials_list());
+    case 'ac_materials': /* the price list: items (dealer price = rate, profit % or null = the default) and the default profit % */
+      out(['rows' => acc_materials_list(), 'profit_default' => acc_profit_default()]);
+
+    case 'profit_default_save': { /* POST {pct}: the price list's default profit % (0-500) */
+      need('accounts', true);
+      $pct = acc_pct($in['pct'] ?? null, 'Default profit %');
+      if ($pct === null) fail('Enter the default profit % (0 to ' . ACC_PROFIT_MAX . ')');
+      kv_set('acc_profit_default', $pct); /* a plain number, read by acc_profit_default() */
+      audit('acc_profit_default', 'settings', null, "default profit $pct%");
+      out(['ok' => true, 'profit_default' => acc_profit_default()]);
+    }
 
     case 'cost_save': {
       need('accounts', true);
@@ -296,18 +341,19 @@ function handle_acc($a) {
             if (!$mid) { /* typed on the sheet: the material with that group + name, else it goes on the Materials list */
               $m = row('SELECT id FROM acc_materials WHERE grp=? AND lower(name)=lower(?)', [$l['grp'], $l['name']]);
               if ($m) $mid = (int)$m['id'];
-              else { q('INSERT INTO acc_materials(grp,name,unit,gst,rate,sort) VALUES(?,?,?,?,?,?)', [$l['grp'], $l['name'], $l['unit'] !== '' ? $l['unit'] : 'Nos', $l['gst'], $l['rate'], ++$nextSort]); $mid = (int)db()->lastInsertId(); }
+              else { q('INSERT INTO acc_materials(grp,name,unit,gst,rate,profit,sort) VALUES(?,?,?,?,?,?,?)', [$l['grp'], $l['name'], $l['unit'] !== '' ? $l['unit'] : 'Nos', $l['gst'], $l['rate'], $l['profit'], ++$nextSort]); $mid = (int)db()->lastInsertId(); }
               $onList = true;
             } else $onList = (bool)row('SELECT 1 FROM acc_materials WHERE id=?', [$mid]); /* a deleted material: the line keeps its name and id, the material is not made again */
+            /* a typed dealer price becomes the item's dealer price; a line's profit % is this project's own and leaves the price list alone */
             if ($l['rate'] > 0 && $onList) q('UPDATE acc_materials SET rate=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$l['rate'], $mid]);
-            q('INSERT INTO acc_costs(project_id,material_id,grp,name,qty,unit,rate,gst,supplier,bill_no,bill_date,note,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
-              [$pid, $mid, $l['grp'], $l['name'], $l['qty'], $l['unit'], $l['rate'], $l['gst'], $l['supplier'], $l['bill_no'], $l['bill_date'], $l['note'], $i + 1]);
+            q('INSERT INTO acc_costs(project_id,material_id,grp,name,qty,unit,rate,gst,profit,supplier,bill_no,bill_date,note,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+              [$pid, $mid, $l['grp'], $l['name'], $l['qty'], $l['unit'], $l['rate'], $l['gst'], $l['profit'], $l['supplier'], $l['bill_no'], $l['bill_date'], $l['note'], $i + 1]);
           }
           q('UPDATE projects SET cost_ver=COALESCE(cost_ver,0)+1 WHERE id=?', [$pid]);
         }
         db()->exec($stale ? 'ROLLBACK' : 'COMMIT');
       } catch (Throwable $e) { try { db()->exec('ROLLBACK'); } catch (Throwable $e2) { } throw $e; }
-      if ($stale) out(['error' => 'This cost sheet was changed since you opened it — reload to see the latest', 'stale' => 1, 'quiet' => 1], 409);
+      if ($stale) out(['error' => 'This Expense sheet was changed since you opened it — reload to see the latest', 'stale' => 1, 'quiet' => 1], 409);
       audit('acc_cost_save', 'projects', $pid, count($clean) . ' line(s)');
       out(acc_cost_get($pid));
     }
@@ -321,18 +367,24 @@ function handle_acc($a) {
       if (mb_strlen($name) > 200) fail('Name is too long (200 characters at most)');
       $gst = (float)($in['gst'] ?? 18); if (!in_array($gst, array_map('floatval', ACC_GST), true)) fail('GST must be 0, 5, 12, 18 or 28');
       $unit = mb_substr(trim((string)($in['unit'] ?? '')), 0, 20); if ($unit === '') $unit = 'Nos';
-      $rate = acc_money($in['rate'] ?? 0, 'Rate'); $hidden = !empty($in['hidden']) ? 1 : 0;
+      $rate = acc_money($in['rate'] ?? 0, 'Dealer price'); $hidden = !empty($in['hidden']) ? 1 : 0;
+      /* profit %: blank = the default; not sent at all (an older page) = an existing item keeps its own */
+      $hasPct = array_key_exists('profit', $in); $pct = $hasPct ? acc_pct($in['profit'], 'Profit %') : null;
       $dup = row('SELECT id FROM acc_materials WHERE grp=? AND lower(name)=lower(?) AND id<>?', [$grp, $name, $id]);
       if ($dup) fail("$name is already in $grp", 409);
       if ($id) {
-        if (!row('SELECT 1 FROM acc_materials WHERE id=?', [$id])) fail('Material not found', 404);
-        q('UPDATE acc_materials SET grp=?, name=?, unit=?, gst=?, rate=?, hidden=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$grp, $name, $unit, $gst, $rate, $hidden, $id]);
+        $old = row('SELECT profit FROM acc_materials WHERE id=?', [$id]);
+        if (!$old) fail('Material not found', 404);
+        if (!$hasPct) $pct = $old['profit'] === null ? null : (float)$old['profit'];
+        q('UPDATE acc_materials SET grp=?, name=?, unit=?, gst=?, rate=?, profit=?, hidden=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$grp, $name, $unit, $gst, $rate, $pct, $hidden, $id]);
       } else {
-        q('INSERT INTO acc_materials(grp,name,unit,gst,rate,hidden,sort) VALUES(?,?,?,?,?,?,(SELECT COALESCE(MAX(sort),0)+1 FROM acc_materials))', [$grp, $name, $unit, $gst, $rate, $hidden]);
+        q('INSERT INTO acc_materials(grp,name,unit,gst,rate,profit,hidden,sort) VALUES(?,?,?,?,?,?,?,(SELECT COALESCE(MAX(sort),0)+1 FROM acc_materials))', [$grp, $name, $unit, $gst, $rate, $pct, $hidden]);
         $id = (int)db()->lastInsertId();
       }
       audit('acc_material_save', 'acc_materials', $id, "$grp · $name");
-      out(['ok' => true, 'id' => $id]);
+      $item = row('SELECT * FROM acc_materials WHERE id=?', [$id]);
+      foreach (['id', 'hidden', 'sort'] as $k) $item[$k] = (int)$item[$k]; foreach (['gst', 'rate'] as $k) $item[$k] = (float)$item[$k]; $item['profit'] = acc_pct_out($item['profit']);
+      out(['ok' => true, 'id' => $id, 'item' => $item]); /* item: as on the price list, so a new product goes straight onto an Expense sheet */
     }
 
     case 'material_delete': {

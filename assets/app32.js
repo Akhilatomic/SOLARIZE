@@ -42,10 +42,42 @@ const ACC = {
       if (ACC.isFee(l)) { out.fees++; return; }
       const id = Number(l.material_id) || 0;
       if ((id && ids.has(id)) || keys.has(key(l))) { out.dup++; return; }
-      out.lines.push({ material_id: id, grp: String(l.grp || ''), name: String(l.name || ''), qty: Number(l.qty) || 0, unit: String(l.unit || ''), rate: rates ? Number(l.rate) || 0 : 0, gst: Number(l.gst) });
+      out.lines.push({ material_id: id, grp: String(l.grp || ''), name: String(l.name || ''), qty: Number(l.qty) || 0, unit: String(l.unit || ''), rate: rates ? Number(l.rate) || 0 : 0, gst: Number(l.gst),
+        profit: ACC.pctSet(l.profit) ? Number(l.profit) : null });
     });
     return out;
   },
+  /* ---- Expense sheet and price list: dealer price (before GST) + profit % = customer price ---- */
+  SVC: 'Services and charges', /* the services group; every other group is a purchase */
+  PROFIT_DEF: 15,              /* the default profit % until Settings › Price list changes it (acc_profit_default) */
+  pctSet: p => p !== null && p !== undefined && String(p).trim() !== '' && isFinite(Number(p)),
+  /* a profit % as stored: blank (null / '') = the default (def, else 15); a typed 0 stays 0 */
+  pctOf(p, def) { return ACC.pctSet(p) ? Number(p) : ACC.pctSet(def) ? Number(def) : ACC.PROFIT_DEF; },
+  custPrice(dealer, pct) { return ACC.r2((Number(dealer) || 0) * (1 + (Number(pct) || 0) / 100)); },
+  lineExpense(l) { return ACC.lineAmount(l); },
+  lineCust(l, def) { return ACC.r2((Number(l && l.qty) || 0) * (Number(l && l.rate) || 0) * (1 + ACC.pctOf(l && l.profit, def) / 100)); },
+  /* the sheet's money: purchases (every group but services), services, commission / incentive, expense (all three), customer total from the list */
+  sheetTotals(lines, comm, def) {
+    const t = { purchases: 0, services: 0, comm: ACC.r2(comm), expense: 0, cust: 0, n: 0, missing: 0, noQty: 0 };
+    (lines || []).forEach(l => {
+      const q = Number(l.qty) || 0;
+      t[l.grp === ACC.SVC ? 'services' : 'purchases'] += ACC.lineAmount(l);
+      t.cust += ACC.lineCust(l, def); t.n++;
+      if (q > 0 && !((Number(l.rate) || 0) > 0)) t.missing++;
+      if (!(q > 0)) t.noQty++;
+    });
+    t.purchases = ACC.r2(t.purchases); t.services = ACC.r2(t.services); t.cust = ACC.r2(t.cust);
+    t.expense = ACC.r2(t.purchases + t.services + t.comm);
+    return t;
+  },
+  /* the automatic commission / incentive line: c = ac_cost's comm {amount, kind, person, p1, p2} */
+  commLabel(c) { return c && c.person ? `${c.kind === 'commission' ? 'Commission' : 'Incentive'} — ${c.person}` : 'Commission / incentive'; },
+  commStatus(c) {
+    const a = Number(c && c.amount) || 0, p1 = Number(c && c.p1) || 0, paid = p1 + (Number(c && c.p2) || 0);
+    return a <= 0 ? 'Not set' : paid >= a - 0.005 ? 'Paid' : p1 > 0 ? 'Part 1 paid' : 'Pending';
+  },
+  /* agreed price before GST against the customer total from the price list: within ₹1 = matches */
+  listGap(before, cust) { const diff = ACC.r2((Number(before) || 0) - (Number(cust) || 0)); return { diff, word: Math.abs(diff) < 1 ? 'matches' : diff > 0 ? 'more' : 'less' }; },
   /* message templates: {name} -> value; money placeholders are formatted en-IN (decimals only when not whole) */
   fill(tpl, vars) {
     const money = ['amount', 'pending', 'bill_total', 'received_total'];

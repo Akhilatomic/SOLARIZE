@@ -1,6 +1,6 @@
 /* Accounts page (assets/app33.js): the sidebar's Accounts entry.
    #/accounts/<tab>          tab bar + period bar + the tab's content; tab = overview | pending | received | profit | expenses | materials
-   #/accounts/cost/<project> the project's cost sheet (acCostSheet, app34.js)
+   #/accounts/cost/<project> the project's Expense sheet (acCostSheet, app34.js); Pending, Received and Profit rows have an Expense button to it
    route() turns the word after #/accounts/ into NaN, so pgAccounts reads location.hash itself.
    ACCT_TABS: tab key -> async (box, period) => void, period = {key, from, to, label, kind} (ACC.period; key goes to the API as &period=).
    Each run paints into a fresh box inside #acx_box, so a slow answer for a period the user already left lands in a box that is no longer
@@ -11,7 +11,7 @@
    acRemind(row, done)       WhatsApp payment reminder for a pending project (template ac_tpl.remind), logged as acc/log kind 'remind'
    acAddPayment(row, done)   + Payment on a pending project (payments/save), then its receipt (acReceipt) when it can be made
    Uses acTpl / acLog / acReceipt / acKw / acWhen / acIsCash (app35.js), acPl / acNum / acV / ACX_GSTS (app34.js), inr2 / fdt (app18.js). */
-const ACCT_TAB_NAMES = [['overview', 'Overview'], ['pending', 'Pending payments'], ['received', 'Payments received'], ['profit', 'Project profit'], ['expenses', 'Expenses'], ['materials', 'Materials list']];
+const ACCT_TAB_NAMES = [['overview', 'Overview'], ['pending', 'Pending payments'], ['received', 'Payments received'], ['profit', 'Project profit'], ['expenses', 'Expenses'], ['materials', 'Price list']];
 const ACCT_TABS = {};
 const ACCT_NOPER = ['pending', 'materials'];
 
@@ -95,6 +95,8 @@ const acBankLine = co => { const b = (co && co.bank) || {}, t = v => String(v ||
   return [t(b.name) && 'A/c name ' + t(b.name), t(b.account) && 'A/c no. ' + t(b.account), t(b.bank), t(b.ifsc) && 'IFSC ' + t(b.ifsc)].filter(Boolean).join(', '); };
 const acTile = (label, val, sub, cls, href, title) => `<${href ? `a href="${href}"` : 'div'} class="card acx-t ${href ? 'acx-go' : ''} ${cls || ''}"${title ? ` title="${esc(title)}"` : ''}><small>${label}</small><b>${val}</b><em>${sub}</em></${href ? 'a' : 'div'}>`;
 const acTone = n => +n < 0 ? 'acx-neg' : +n > 0 ? 'acx-pos' : '';
+/* a row's Expense button: the project's Expense sheet (purchases, services, commission / incentive, profit) */
+const acExpBtn = pid => +pid ? `<a class="btn sec sm" href="#/accounts/cost/${+pid}" title="Expense sheet of this project"><i class="i i-coin"></i> Expense</a>` : '';
 /* run fn() once the modal m is closed (any way: its buttons, the backdrop, or a share that leaves the page) */
 function acOnClose(m, fn) {
   if (!(m instanceof Element)) return;
@@ -118,6 +120,7 @@ function acPendRow(r, rem) {
   const kw = acKw(r.kw), n = r.last_pay ? acDays(r.last_pay) : 0, part = r.loan === 'Yes' && !r.bank_only && +r.cust_due < +r.due;
   const acts = (!r.early && !r.bank_only && acCanRemind() ? `<button type="button" class="btn sec sm" data-acx-a="remind" title="WhatsApp payment reminder for ${esc(inr2(ACC.remindDue(r)))}: opens WhatsApp with the message ready"><i class="i i-whatsapp"></i> Reminder</button>` : '')
     + (canW('payments') ? '<button type="button" class="btn sec sm" data-acx-a="pay" title="Record a payment received"><i class="i i-plus"></i> Payment</button>' : '')
+    + acExpBtn(r.id)
     + `<a class="ib" href="#/customers/${+r.customer_id}" title="Open customer" aria-label="Open customer"><i class="i i-user"></i></a>`;
   return `<tr data-id="${+r.id}"><td class="acx-cn"><a href="#/customers/${+r.customer_id}">${esc(r.customer || r.title || '')}</a>${acLoan(r)}${r.bank_only ? ' <span class="pill b acx-tag" title="The customer has paid their share; the rest comes from the loan bank, so there is no reminder">Bank\'s part only</span>' : ''}${r.stage ? `<small>${esc(r.stage)}</small>` : ''}</td>
     <td class="num">${kw ? esc(kw) + ' kW' : '<span class="mut">—</span>'}</td><td class="num">${inr2(r.cost)}</td><td class="num">${inr2(r.paid)}</td><td class="num over">${inr2(r.due)}${part ? `<small class="acx-cp" title="The customer's own share (price − loan amount) still unpaid; the rest comes from the bank">customer ${inr2(r.cust_due)}</small>` : ''}</td>
@@ -222,9 +225,9 @@ ACCT_TABS.overview = async (box, P) => {
       ${acTile('Received', inr2(d.received), `${acPl(+d.received_n || 0, 'payment')} in ${esc(P.label)}`, '', '#/accounts/received')}
       ${acTile('Pending', inr2(d.pending), `${acPl(n, 'project')} · ${+d.pending_loan_n || 0} loan`, +d.pending > 0 ? 'acx-neg' : '', '#/accounts/pending', 'Still due today, whatever the period')}
       ${acTile('Expenses', inr2(x.total), `Ads ${inr2(x.ads)} · AI ${inr2(x.ai)} · Other ${inr2(x.other)}`, '', '#/accounts/expenses', 'Before GST. Ads include the campaign spend from Meta Ads.')}
-      ${acTile('Profit (projects billed − expenses)', acSigned(d.profit), pSub, acTone(d.profit), '#/accounts/profit', 'Profit of the projects whose tax bill was issued in the period, less the company expenses' + (nc ? '. Projects billed without a cost sheet are left out until their cost is entered (see Project profit).' : ''))}</div>
+      ${acTile('Profit (projects billed − expenses)', acSigned(d.profit), pSub, acTone(d.profit), '#/accounts/profit', 'Profit of the projects whose tax bill was issued in the period, less the company expenses' + (nc ? '. Projects billed without an Expense sheet are left out until their cost is entered (see Project profit).' : ''))}</div>
     <div class="acx-ch"><h3>Pending payments</h3><span class="mut acx-small">${n ? 'biggest first' : ''}</span><span class="sp"></span>${n > top.length ? `<a class="btn sec sm" href="#/accounts/pending">See all ${n}</a>` : ''}</div>
-    <div class="card tw"><table class="acx-pt" data-min="900">${acPendHead(false)}</table></div></div>`;
+    <div class="card tw"><table class="acx-pt" data-min="990">${acPendHead(false)}</table></div></div>`;
   const tb = $('table', box);
   acFill(tb, top, r => acPendRow(r, false), 'Nothing pending. Every project past the early stages is paid.');
   acPendBind(tb, () => top, () => { if (box.isConnected) pgAccounts(); });
@@ -242,7 +245,7 @@ ACCT_TABS.pending = async box => {
   box.innerHTML = `<div class="acx-view"><div class="bar acx-fbar"><input type="search" data-acx-q placeholder="Search customer, phone, stage…" value="${esc(ACXP.q)}" autocomplete="off" aria-label="Search pending payments">
       <div class="tabs">${ACXP_F.map(([k, l]) => `<button type="button" data-acx-f="${k}" class="${ACXP.f === k ? 'on' : ''}">${l} <span class="acx-n"></span></button>`).join('')}</div>
       <span class="sp"></span><span class="acx-sum" aria-live="polite"></span></div>
-    <div class="card tw"><table class="acx-pt" data-min="1000">${acPendHead(true)}</table></div>
+    <div class="card tw"><table class="acx-pt" data-min="1090">${acPendHead(true)}</table></div>
     <p class="acx-note" data-acx-note></p></div>`;
   const tb = $('table', box);
   let L = [];
@@ -286,7 +289,7 @@ function acRecvRow(r) {
     <td>${esc(r.mode || '—')}${ref ? `<span class="mut"> · ${esc(ref)}</span>` : ''}</td>
     <td>${r.receipt_no ? esc(r.receipt_no) : !acIsCash(r) && !ref ? '<span class="acx-late">Needs reference no.</span>' : '<span class="mut">Not made yet</span>'}</td>
     <td class="acx-tks">${acTicks(r.shared)}</td>
-    <td class="acx-act"><button type="button" class="btn sec sm" data-acx-a="rc" title="Receipt: PDF, WhatsApp, email${r.loan === 'Yes' ? ', bank' : ''}"><i class="i i-receipt"></i> Receipt</button></td></tr>`;
+    <td class="acx-act"><button type="button" class="btn sec sm" data-acx-a="rc" title="Receipt: PDF, WhatsApp, email${r.loan === 'Yes' ? ', bank' : ''}"><i class="i i-receipt"></i> Receipt</button>${acExpBtn(r.project_id)}</td></tr>`;
 }
 ACCT_TABS.received = async (box, P) => {
   const load = () => api('acc', 'ac_received', undefined, acPer(P));
@@ -294,7 +297,7 @@ ACCT_TABS.received = async (box, P) => {
   if (!box.isConnected) return;
   box.innerHTML = `<div class="acx-view"><div class="acx-tiles" data-acx-tiles></div>
     <div class="bar acx-fbar"><input type="search" data-acx-q placeholder="Search customer, reference, receipt no.…" value="${esc(ACXR.q)}" autocomplete="off" aria-label="Search payments"><span class="sp"></span><span class="acx-sum" aria-live="polite"></span></div>
-    <div class="card tw"><table class="acx-rv" data-min="960"><thead><tr><th>Date</th><th>Customer</th><th>From</th><th class="num">Amount</th><th>Mode · reference</th><th>Receipt no.</th><th>Shared</th><th><span class="acx-sr">Actions</span></th></tr></thead><tbody></tbody></table></div>
+    <div class="card tw"><table class="acx-rv" data-min="1050"><thead><tr><th>Date</th><th>Customer</th><th>From</th><th class="num">Amount</th><th>Mode · reference</th><th>Receipt no.</th><th>Shared</th><th><span class="acx-sr">Actions</span></th></tr></thead><tbody></tbody></table></div>
     <p class="acx-note">Every payment dated in ${esc(P.label)}, the same records as the customers' Tax bill tabs. Receipt opens the receipt with PDF, WhatsApp and email (and the bank on loan projects); the first time, it also gives the payment its receipt number.</p></div>`;
   const tb = $('table', box);
   const sum = L => ACC.r2(L.reduce((s, r) => s + (+r.amount || 0), 0));
@@ -333,7 +336,7 @@ function acProfRow(r) {
   return `<tr data-id="${+r.project_id}"><td class="acx-cn"><a href="#/accounts/cost/${+r.project_id}">${esc(r.customer)}</a></td><td class="num">${kw ? esc(kw) + ' kW' : '<span class="mut">—</span>'}</td>
     <td>${esc(r.bill_no || '')}<span class="mut"> · ${acDt(r.bill_on)}</span></td><td class="num">${inr2(r.before)}</td><td class="num">${inr2(r.cost)}</td>
     <td class="num">${+r.comm ? inr2(r.comm) : '<span class="mut">—</span>'}</td><td class="num ${+r.profit < 0 ? 'over' : ''}">${acSigned(r.profit)}</td><td class="num">${acPct(r.margin)}</td>
-    <td>${acPl(+r.lines || 0, 'line')}${+r.missing ? ` <span class="pill y acx-tag" title="${acPl(+r.missing, 'line')} without a cost rate">Incomplete</span>` : ''}</td></tr>`;
+    <td>${acPl(+r.lines || 0, 'line')}${+r.missing ? ` <span class="pill y acx-tag" title="${acPl(+r.missing, 'line')} without a dealer price">Incomplete</span>` : ''}</td><td class="acx-act">${acExpBtn(r.project_id)}</td></tr>`;
 }
 ACCT_TABS.profit = async (box, P) => {
   const d = await api('acc', 'ac_profit', undefined, acPer(P));
@@ -344,10 +347,10 @@ ACCT_TABS.profit = async (box, P) => {
       ${acTile('Cost (before GST)', inr2(c.cost), +c.comm ? `+ ${inr2(c.comm)} incentive / commission` : 'materials and services')}
       ${acTile('Profit', acSigned(c.profit), `${acPct(+c.before ? c.profit / c.before * 100 : 0)} margin${inc ? ` · ${inc} incomplete` : ''}`, acTone(c.profit))}
       ${acTile('Cost not entered', nc.length ? acPl(nc.length, 'project') : 'None', nc.length ? 'left out of the profit' : 'every billed project has costs', nc.length ? 'acx-warn' : '')}</div>
-    <div class="card tw"><table class="acx-pf" data-min="940"><thead><tr><th>Customer</th><th class="num">Plant</th><th>Tax bill</th><th class="num">Price before GST</th><th class="num">Cost before GST</th><th class="num">Incentive</th><th class="num">Profit</th><th class="num">Margin</th><th>Cost lines</th></tr></thead><tbody></tbody></table></div>
-    ${nc.length ? `<div class="card acx-nc"><h3>Cost not entered (${nc.length})</h3><p class="mut acx-small">Billed in ${esc(P.label)} with no cost lines yet, so they are left out of the profit until their cost sheet is filled in.</p>
-      <ul>${nc.map(x => `<li><a href="#/accounts/cost/${+x.project_id}">${esc(x.customer)}</a><span class="mut">${x.bill_no ? ' · tax bill ' + esc(x.bill_no) : ''}</span><a class="btn sec sm" href="#/accounts/cost/${+x.project_id}">Enter cost</a></li>`).join('')}</ul></div>` : ''}
-    <p class="acx-note">A project counts in the month its tax bill was issued. Price before GST is the bill's taxable value (or the price ÷ ${ACC.GST_DIV}). Profit = price before GST − cost before GST − incentive / commission; the Overview also takes off the company expenses. Incomplete: some cost lines have no rate yet. Click a project to open its cost sheet.</p></div>`;
+    <div class="card tw"><table class="acx-pf" data-min="1040"><thead><tr><th>Customer</th><th class="num">Plant</th><th>Tax bill</th><th class="num">Price before GST</th><th class="num">Cost before GST</th><th class="num">Incentive</th><th class="num">Profit</th><th class="num">Margin</th><th>Cost lines</th><th><span class="acx-sr">Actions</span></th></tr></thead><tbody></tbody></table></div>
+    ${nc.length ? `<div class="card acx-nc"><h3>Cost not entered (${nc.length})</h3><p class="mut acx-small">Billed in ${esc(P.label)} with no Expense lines yet, so they are left out of the profit until their Expense sheet is filled in.</p>
+      <ul>${nc.map(x => `<li><a href="#/accounts/cost/${+x.project_id}">${esc(x.customer)}</a><span class="mut">${x.bill_no ? ' · tax bill ' + esc(x.bill_no) : ''}</span><a class="btn sec sm" href="#/accounts/cost/${+x.project_id}"><i class="i i-coin"></i> Expense</a></li>`).join('')}</ul></div>` : ''}
+    <p class="acx-note">A project counts in the month its tax bill was issued. Price before GST is the bill's taxable value (or the price ÷ ${ACC.GST_DIV}). Profit = price before GST − cost before GST (quantity × dealer price) − incentive / commission; the Overview also takes off the company expenses. Incomplete: some lines have no dealer price yet. Click a project to open its Expense sheet.</p></div>`;
   const tb = $('table', box);
   acFill(tb, rows, acProfRow, nc.length ? `No billed project in ${esc(P.label)} has its cost entered yet.` : `No tax bill was issued in ${esc(P.label)}.`);
   tb.onclick = e => { if (e.target.closest('a,button')) return; const tr = e.target.closest('tr[data-id]'); if (tr) location.hash = '#/accounts/cost/' + tr.dataset.id; };

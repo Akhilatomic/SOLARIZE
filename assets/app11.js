@@ -46,7 +46,7 @@ async function pgCustomer(id) {
   $('#main').innerHTML = `<p style="margin:0 0 8px"><a href="#/customers">← Customers</a></p>
    <div class="card pfhead"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="mut">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') + ' ' : ''}${c.phone ? `<button class="pfv inl" data-cp="${esc(c.phone)}" data-l="phone">${esc(c.phone)}<i class="i i-copy"></i></button>` : ''}${c.consumer_no ? ` · Consumer no. <button class="pfv inl" data-cp="${esc(c.consumer_no)}" data-l="consumer no.">${esc(c.consumer_no)}<i class="i i-copy"></i></button>` : ''}${ownHtml}</div></div>
     <div class="pfact"><button class="btn sec" id="dsc">${discBtnLabel(id)}</button>${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn ok" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}
-     ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}<button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
+     ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}${canR('accounts') ? '<button class="btn sec" id="pfexp" title="Expense sheet: purchases, services, commission / incentive and profit of the latest project"><i class="i i-coin"></i> Expense</button>' : ''}<button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
    <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, `${i + 1} · ${pg.tab}`, pg.icon]), ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : [])].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${esc(l)}${pgKeys.includes(k) ? ` <span class="ppn" data-ppn="${k}"${cnt0[k] > 0 ? '' : ' hidden'}>${cnt0[k] || 0}</span>` : ''}</button>`).join('')}</div>
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
@@ -69,6 +69,8 @@ async function pgCustomer(id) {
   $('#dsc').onclick = () => discOpen(id);
   if ($('#wa')) $('#wa').onclick = () => waOpen({ name: c.name, phone: c.phone, customer_id: id });
   if ($('#ed')) $('#ed').onclick = () => showTab(pgKeys.includes(PFT) ? PFT : 'kseb', true);
+  /* Expense: the latest project's Expense sheet (c.projects is newest first) */
+  if ($('#pfexp')) $('#pfexp').onclick = () => { const j = (c.projects || [])[0]; if (j && +j.id) location.hash = '#/accounts/cost/' + +j.id; else toast('Start a project for this customer first', true); };
   if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
   if ($('#nq')) $('#nq').onclick = () => { sessionStorage.lead2quote = JSON.stringify({ customer_id: id, name: c.name }); location.hash = '#/quotes/new'; };
   if ($('#up')) $('#up').onclick = () => docUploadModal(c, id);

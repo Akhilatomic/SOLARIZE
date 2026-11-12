@@ -34,7 +34,7 @@ test('copy from another project: no fee lines, nothing twice, rates only when as
   assert.deepEqual(all.lines.map(l => l.name), ['Test Inverter', 'Test Panel', 'Test Box', 'Installation']);
   assert.equal(all.fees, 3); assert.equal(all.dup, 0);
   assert.ok(all.lines.every(l => l.rate === 0 && l.supplier === undefined && l.note === undefined));
-  assert.deepEqual(all.lines[0], { material_id: 1, grp: 'Inverter & optimizers', name: 'Test Inverter', qty: 1, unit: 'Nos', rate: 0, gst: 5 });
+  assert.deepEqual(all.lines[0], { material_id: 1, grp: 'Inverter & optimizers', name: 'Test Inverter', qty: 1, unit: 'Nos', rate: 0, gst: 5, profit: null });
   assert.equal(ACC.copyLines(src, [], true).lines[1].rate, 14200);
   /* add below: same material id, or same group + name in any case, is already there */
   const have = [{ material_id: 2, grp: 'Solar panels', name: 'Other name', qty: 10 }, { material_id: 0, grp: 'dc cables & connectors', name: 'TEST BOX ', qty: 1 },
@@ -141,4 +141,71 @@ test('reminder amount: the customer part on a loan project, else what is due', (
   assert.equal(ACC.remindDue({ due: 120000.456 }), 120000.46);
   assert.equal(ACC.remindDue({ due: 300000, cust_due: null }), 300000);
   assert.equal(ACC.remindDue({ due: 270000, cust_due: 0 }), 0);
+});
+/* ---- Expense sheet and price list ---- */
+test('customer price = dealer price + profit %, 2 decimals', () => {
+  assert.equal(ACC.custPrice(14200, 15), 16330);
+  assert.equal(ACC.custPrice(1000, 0), 1000);
+  assert.equal(ACC.custPrice(0.33, 15), 0.38);
+  assert.equal(ACC.custPrice('2,500', 10), 0, 'not a plain number -> 0');
+  assert.equal(ACC.custPrice(999.99, 12.5), 1124.99);
+  assert.equal(ACC.custPrice(100, null), 100, 'no % -> dealer price');
+});
+test('profit %: blank uses the default, a typed 0 stays 0', () => {
+  assert.equal(ACC.PROFIT_DEF, 15);
+  assert.equal(ACC.pctOf(null, 20), 20);
+  assert.equal(ACC.pctOf('', 20), 20);
+  assert.equal(ACC.pctOf(undefined, 20), 20);
+  assert.equal(ACC.pctOf(0, 20), 0);
+  assert.equal(ACC.pctOf('12.5', 20), 12.5);
+  assert.equal(ACC.pctOf(null, null), 15, 'no default given -> 15');
+  assert.equal(ACC.pctOf(null, 0), 0, 'a default of 0 is kept');
+  assert.equal(ACC.pctOf('abc', 18), 18);
+});
+test('line expense and line customer price', () => {
+  const l = { qty: 16, rate: 14200, profit: 10 };
+  assert.equal(ACC.lineExpense(l), 227200);
+  assert.equal(ACC.lineCust(l, 15), 249920);
+  assert.equal(ACC.lineCust({ qty: 16, rate: 14200, profit: null }, 15), 261280, 'blank % -> the default');
+  assert.equal(ACC.lineCust({ qty: 3, rate: 0.33, profit: 15 }, 15), 1.14);
+  assert.equal(ACC.lineCust({ qty: 0, rate: 500, profit: 15 }, 15), 0);
+});
+test('sheet totals: purchases, services, commission, expense, customer total', () => {
+  const lines = [
+    { grp: 'Solar panels', qty: 16, rate: 14200, profit: 10 },
+    { grp: 'Inverter & optimizers', qty: 1, rate: 27500, profit: null },
+    { grp: 'Services and charges', qty: 1, rate: 8000, profit: 0 },
+    { grp: 'Solar panels', qty: 2, rate: 0, profit: 15 },
+  ];
+  const t = ACC.sheetTotals(lines, 12000, 20);
+  assert.deepEqual(t, { purchases: 254700, services: 8000, comm: 12000, expense: 274700, cust: 249920 + 33000 + 8000, n: 4, missing: 1, noQty: 0 });
+  /* the Profit tile uses the same numbers as ACC.profit (Accounts › Profit) */
+  const P = ACC.profit({ price: 0, taxable: 300000, lines, comm: 12000 });
+  assert.equal(P.cost + P.comm, t.expense);
+  assert.equal(P.profit, ACC.r2(300000 - t.expense));
+  assert.equal(ACC.sheetTotals([{ grp: 'Solar panels', qty: 0, rate: 10 }, { grp: 'Solar panels', qty: '', rate: 5 }], 0, 15).noQty, 2);
+  assert.deepEqual(ACC.sheetTotals(null, null, null), { purchases: 0, services: 0, comm: 0, expense: 0, cust: 0, n: 0, missing: 0, noQty: 0 });
+});
+test('commission / incentive line: label and status', () => {
+  assert.equal(ACC.commLabel({ kind: 'commission', person: 'Test Ba' }), 'Commission — Test Ba');
+  assert.equal(ACC.commLabel({ kind: 'incentive', person: 'Test Staff' }), 'Incentive — Test Staff');
+  assert.equal(ACC.commLabel({ kind: '', person: '' }), 'Commission / incentive');
+  assert.equal(ACC.commLabel(null), 'Commission / incentive');
+  assert.equal(ACC.commStatus({ amount: 0, p1: 0, p2: 0 }), 'Not set');
+  assert.equal(ACC.commStatus({ amount: 15000, p1: 0, p2: 0 }), 'Pending');
+  assert.equal(ACC.commStatus({ amount: 15000, p1: 7500, p2: 0 }), 'Part 1 paid');
+  assert.equal(ACC.commStatus({ amount: 15000, p1: 7500, p2: 7500 }), 'Paid');
+  assert.equal(ACC.commStatus({ amount: 15000, p1: 15000, p2: 0 }), 'Paid');
+  assert.equal(ACC.commStatus(null), 'Not set');
+});
+test('customer price from the list against the agreed price', () => {
+  assert.deepEqual(ACC.listGap(300000, 290920), { diff: 9080, word: 'more' });
+  assert.deepEqual(ACC.listGap(280000, 290920), { diff: -10920, word: 'less' });
+  assert.deepEqual(ACC.listGap(290920.4, 290920), { diff: 0.4, word: 'matches' });
+  assert.deepEqual(ACC.listGap(0, 0), { diff: 0, word: 'matches' });
+});
+test('copy from another project keeps each line\'s profit %', () => {
+  const r = ACC.copyLines([{ material_id: 3, grp: 'Solar panels', name: 'Test Panel', qty: 16, unit: 'Nos', rate: 14200, gst: 5, profit: 12 }, { material_id: 4, grp: 'Solar panels', name: 'Old Line', qty: 1, unit: 'Nos', rate: 1, gst: 5 }], [], false);
+  assert.equal(r.lines[0].profit, 12);
+  assert.equal(r.lines[1].profit, null, 'a line with no % stays blank (the default)');
 });
