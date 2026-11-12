@@ -4,6 +4,11 @@
 // Same order as ACC.GROUPS in assets/app32.js.
 const ACC_GROUPS = ['Inverter & optimizers', 'Solar panels', 'Structure & supports', 'Distribution boards', 'Metering & isolation', 'DC cables & connectors',
   'AC cables & lugs', 'Earthing & lightning protection', 'Pipes & conduit fittings', 'Cable accessories & consumables', 'Services and charges'];
+const ACC_SVC = 'Services and charges'; /* the services group; every other group is a purchase (ACC.SVC) */
+/* the short tab names of the built-in groups, in the same order (ACC.GRP_SHORT): a new category cannot take one of these either */
+const ACC_GROUP_SHORT = ['Inverter', 'Panels', 'Structure', 'DB boxes', 'Meter', 'DC cables', 'AC cables', 'Earthing', 'Pipes', 'Accessories', 'Services'];
+const ACC_GROUP_MAX = 40; /* categories added in the app, at most */
+const ACC_GROUP_LEN = 40; /* characters in a category name (ACC.GRP_LEN) */
 const ACC_GST = [0, 5, 12, 18, 28];
 const ACC_MAX_LINES = 400;
 const ACC_PROFIT_DEF = 15; /* the price list's default profit % until Settings › Price list changes it (ACC.PROFIT_DEF in app32.js) */
@@ -25,6 +30,40 @@ function acc_pct($v, $label) {
   if (!is_numeric($s) || (float)$s < 0 || (float)$s > ACC_PROFIT_MAX) fail("$label: enter a profit % from 0 to " . ACC_PROFIT_MAX);
   return round((float)$s, 2);
 }
+/* ---- categories: the built-in groups (ACC_GROUPS) plus the ones added in the app (settings acc_groups, a plain JSON list) ---- */
+function acc_groups_own() {
+  $c = json_decode((string)(row("SELECT v FROM settings WHERE k='acc_groups'")['v'] ?? ''), true);
+  return is_array($c) ? array_values(array_filter(array_map('strval', $c), fn($g) => $g !== '' && !in_array($g, ACC_GROUPS, true))) : [];
+}
+function acc_groups_put($list) { kv_set('acc_groups', array_values(array_unique(array_map('strval', $list)))); }
+/* where a group sorts: the built-in purchase groups in their order, the added categories next (by name), Services, then no group */
+function acc_group_idx($g) {
+  $i = array_search($g, ACC_GROUPS, true);
+  return $i !== false ? $i : ($g !== '' ? array_search(ACC_SVC, ACC_GROUPS, true) - 0.5 : count(ACC_GROUPS));
+}
+/* every category in order: built-in purchases, the added ones and any other group a product has (by name), Services last */
+function acc_groups_all() {
+  $own = acc_groups_own();
+  foreach (rows("SELECT DISTINCT grp FROM acc_materials WHERE COALESCE(grp,'')<>''") as $r) if (!in_array($r['grp'], ACC_GROUPS, true) && !in_array($r['grp'], $own, true)) $own[] = (string)$r['grp'];
+  usort($own, fn($a, $b) => [mb_strtolower($a), $a] <=> [mb_strtolower($b), $b]);
+  return array_merge(array_values(array_diff(ACC_GROUPS, [ACC_SVC])), $own, [ACC_SVC]);
+}
+/* a category name as typed: trimmed, single spaces; refused when blank, too long or a word the screens use themselves */
+function acc_group_name($raw) {
+  $n = trim((string)preg_replace('/[\s\x00-\x1F\x7F]+/u', ' ', (string)$raw));
+  if ($n === '') fail('Type the category name');
+  if (mb_strlen($n) > ACC_GROUP_LEN) fail('The category name is too long (' . ACC_GROUP_LEN . ' characters at most)');
+  if (in_array(mb_strtolower($n), ['all', 'other'], true)) fail("“{$n}” is a name the app uses itself. Pick another name.");
+  return $n;
+}
+/* the category already there under that name (any case) or under a built-in group's short tab name; null = the name is free */
+function acc_group_taken($n, $skip = null) {
+  $l = mb_strtolower($n);
+  foreach (acc_groups_all() as $g) if ($g !== $skip && mb_strtolower($g) === $l) return $g;
+  foreach (ACC_GROUP_SHORT as $i => $sn) if (mb_strtolower($sn) === $l) return ACC_GROUPS[$i];
+  return null;
+}
+
 /* the default profit % (Settings › Price list): a plain JSON number in settings, read directly (kv_get only merges arrays) */
 function acc_profit_default() {
   $v = json_decode((string)(row("SELECT v FROM settings WHERE k='acc_profit_default'")['v'] ?? ''), true);
@@ -135,8 +174,9 @@ function acc_line($l, $i) {
 
 function acc_materials_list() {
   $rs = rows('SELECT * FROM acc_materials ORDER BY sort, name COLLATE NOCASE');
-  $ord = array_flip(ACC_GROUPS);
-  usort($rs, fn($a, $b) => [$ord[$a['grp']] ?? 99, (int)$a['sort'], strtolower($a['name'])] <=> [$ord[$b['grp']] ?? 99, (int)$b['sort'], strtolower($b['name'])]);
+  /* group order: the built-in purchase groups, the added categories (by name), Services, then items with no group */
+  $key = fn($r) => [acc_group_idx((string)$r['grp']), mb_strtolower((string)$r['grp']), (string)$r['grp'], (int)$r['sort'], strtolower((string)$r['name'])];
+  usort($rs, fn($a, $b) => $key($a) <=> $key($b));
   foreach ($rs as &$r) { foreach (['id', 'hidden', 'sort'] as $k) $r[$k] = (int)$r[$k]; foreach (['gst', 'rate'] as $k) $r[$k] = (float)$r[$k]; $r['profit'] = acc_pct_out($r['profit'] ?? null); } unset($r);
   return $rs;
 }
@@ -408,8 +448,8 @@ function handle_acc($a) {
     case 'ac_cost':
       out(acc_cost_get((int)($_GET['project_id'] ?? 0)));
 
-    case 'ac_materials': /* the price list: items (dealer price = rate, profit % or null = the default) and the default profit % */
-      out(['rows' => acc_materials_list(), 'profit_default' => acc_profit_default()]);
+    case 'ac_materials': /* the price list: items (dealer price = rate, profit % or null = the default), the default profit % and every category in order */
+      out(['rows' => acc_materials_list(), 'profit_default' => acc_profit_default(), 'groups' => acc_groups_all()]);
 
     case 'profit_default_save': { /* POST {pct}: the price list's default profit % (0-500) */
       need('accounts', true);
@@ -463,11 +503,64 @@ function handle_acc($a) {
       out(acc_cost_get($pid));
     }
 
+    case 'group_add': { /* {name}: a new category (a purchase group). A name already there is not an error: that category comes back (existed 1) */
+      need('accounts', true);
+      $n = acc_group_name($in['name'] ?? '');
+      $has = acc_group_taken($n);
+      if ($has !== null) out(['ok' => true, 'name' => $has, 'existed' => 1, 'groups' => acc_groups_all()]);
+      $own = acc_groups_own();
+      if (count($own) >= ACC_GROUP_MAX) fail('At most ' . ACC_GROUP_MAX . ' added categories. Delete one that is no longer used first.');
+      $own[] = $n; acc_groups_put($own);
+      audit('acc_group_add', 'settings', null, $n);
+      out(['ok' => true, 'name' => $n, 'existed' => 0, 'groups' => acc_groups_all()]);
+    }
+
+    case 'group_rename': { /* {from, to}: an added category only. Its products, Expense sheet lines and template items take the new name */
+      need('accounts', true);
+      $from = trim((string)($in['from'] ?? '')); $to = acc_group_name($in['to'] ?? '');
+      if (in_array($from, ACC_GROUPS, true)) fail('The built-in categories keep their names');
+      if ($from === '' || !in_array($from, acc_groups_all(), true)) fail('Category not found', 404);
+      if ($to === $from) out(['ok' => true, 'name' => $to, 'groups' => acc_groups_all()]);
+      $has = acc_group_taken($to, $from);
+      if ($has !== null) fail("“{$has}” is already a category");
+      db()->exec('BEGIN IMMEDIATE');
+      try {
+        /* sheets that have a line in it count as changed: one open elsewhere reloads before it can save the old name back */
+        q('UPDATE projects SET cost_ver=COALESCE(cost_ver,0)+1 WHERE id IN (SELECT DISTINCT project_id FROM acc_costs WHERE grp=?)', [$from]);
+        q('UPDATE acc_materials SET grp=?, updated=CURRENT_TIMESTAMP WHERE grp=?', [$to, $from]);
+        q('UPDATE acc_costs SET grp=? WHERE grp=?', [$to, $from]);
+        foreach (rows('SELECT id, items FROM acc_tpls') as $t) {
+          $its = json_decode((string)$t['items'], true); if (!is_array($its)) continue;
+          $ch = false;
+          foreach ($its as &$it) if (is_array($it) && ($it['grp'] ?? null) === $from) { $it['grp'] = $to; $ch = true; }
+          unset($it);
+          if ($ch) q('UPDATE acc_tpls SET items=? WHERE id=?', [json_encode($its, JSON_UNESCAPED_UNICODE), $t['id']]);
+        }
+        $own = array_values(array_filter(acc_groups_own(), fn($g) => $g !== $from)); $own[] = $to; acc_groups_put($own);
+        db()->exec('COMMIT');
+      } catch (Throwable $e) { try { db()->exec('ROLLBACK'); } catch (Throwable $e2) { } throw $e; }
+      audit('acc_group_rename', 'settings', null, "$from → $to");
+      out(['ok' => true, 'name' => $to, 'groups' => acc_groups_all()]);
+    }
+
+    case 'group_delete': { /* {name}: an added category with no products left in it */
+      need('accounts', true);
+      $n = trim((string)($in['name'] ?? ''));
+      if (in_array($n, ACC_GROUPS, true)) fail('The built-in categories cannot be deleted');
+      if ($n === '' || !in_array($n, acc_groups_all(), true)) fail('Category not found', 404);
+      $c = (int)row('SELECT COUNT(*) c FROM acc_materials WHERE grp=?', [$n])['c'];
+      if ($c) fail("“{$n}” still has $c " . ($c === 1 ? 'product' : 'products') . '. Move them to another category or delete them first.');
+      acc_groups_put(array_filter(acc_groups_own(), fn($g) => $g !== $n));
+      audit('acc_group_delete', 'settings', null, $n);
+      out(['ok' => true, 'groups' => acc_groups_all()]);
+    }
+
     case 'material_save': {
       need('accounts', true);
       $id = (int)($in['id'] ?? 0);
       $grp = trim((string)($in['grp'] ?? '')); $name = trim((string)($in['name'] ?? ''));
-      if ($grp === '') fail('Choose a group');
+      if ($grp === '') fail('Choose a category');
+      if (mb_strlen($grp) > 200) fail('The category name is too long');
       if ($name === '') fail('Material name is required');
       if (mb_strlen($name) > 200) fail('Name is too long (200 characters at most)');
       $gst = (float)($in['gst'] ?? 18); if (!in_array($gst, array_map('floatval', ACC_GST), true)) fail('GST must be 0, 5, 12, 18 or 28');

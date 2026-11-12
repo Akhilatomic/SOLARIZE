@@ -18,7 +18,7 @@ const ACX_UNITS = ['Nos', 'm', 'kg', 'kW', 'Job', 'Set', 'Lot', 'Pair', 'Roll', 
 const ACX_COLS = 14;
 /* the open Expense sheet: d = the ac_cost answer, lines = the lines being edited (in group order);
    mats / mdef = the price list and its default profit % as last loaded (acMats) */
-const ACS = { pid: 0, d: null, lines: [], dirty: false, hash: '', w: false, busy: false, mats: null, mdef: ACC.PROFIT_DEF, emb: null, seq: 0, sel: new Set() };
+const ACS = { pid: 0, d: null, lines: [], dirty: false, hash: '', w: false, busy: false, mats: null, grps: [], mdef: ACC.PROFIT_DEF, emb: null, seq: 0, sel: new Set() };
 
 /* a typed amount: '' = 0, '1,250.50' = 1250.5, anything else (or below 0) = null */
 const acNum = v => { const s = String(v ?? '').replace(/[,₹\s]/g, ''); if (s === '') return 0; const n = Number(s); return isFinite(n) && n >= 0 ? n : null; };
@@ -27,9 +27,9 @@ const acPctIn = v => { const s = String(v ?? '').replace(/[%\s]/g, ''); if (s ==
 const acV = n => +n ? String(+n) : '';
 const acPv = p => ACC.pctSet(p) ? String(+p) : '';
 const acPctTxt = n => `${(+n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}%`;
-const acGi = g => { const i = ACC.GROUPS.indexOf(g); return i < 0 ? ACC.GROUPS.length : i; };
-/* quotation group order, groups not in ACC.GROUPS last (by name); lines keep their order inside a group */
-const acSort = ls => ls.map((l, i) => [l, i]).sort((a, b) => acGi(a[0].grp) - acGi(b[0].grp) || (acGi(a[0].grp) === ACC.GROUPS.length ? String(a[0].grp || '').localeCompare(String(b[0].grp || '')) : 0) || a[1] - b[1]).map(x => x[0]);
+const acGi = ACC.grpIdx;
+/* quotation group order: the built-in purchase groups, the added categories (by name), Services, lines with no group last; lines keep their order inside a group */
+const acSort = ls => ls.map((l, i) => [l, i]).sort((a, b) => acGi(a[0].grp) - acGi(b[0].grp) || ACC.grpCmp(a[0].grp, b[0].grp) || a[1] - b[1]).map(x => x[0]);
 const acIn = l => ({ material_id: +l.material_id || 0, grp: String(l.grp || ''), name: String(l.name || ''), qty: +l.qty || 0, unit: String(l.unit || ''), rate: +l.rate || 0, gst: ACX_GSTS.includes(+l.gst) ? +l.gst : 18,
   profit: ACC.pctSet(l.profit) ? +l.profit : null, supplier: String(l.supplier || ''), bill_no: String(l.bill_no || ''), bill_date: String(l.bill_date || ''), note: String(l.note || ''),
   bought: +l.bought === 1 ? 1 : 0, bought_on: +l.bought === 1 ? String(l.bought_on || '') : '' });
@@ -42,10 +42,13 @@ const acDef = () => ACC.pctOf(ACS.d && ACS.d.profit_default, ACS.mdef);
    KSEB / stamp paper fee, else today's default, copied) */
 const acFromMat = (m, qty) => acIn({ material_id: m.id, grp: m.grp, name: m.name, qty, unit: m.unit, rate: m.rate, gst: m.gst, profit: ACC.addPct(m, acDef()) });
 const acMats = async fresh => {
-  if (fresh || !ACS.mats) { const r = await api('acc', 'ac_materials'); ACS.mats = r.rows || []; ACS.mdef = ACC.pctOf(r.profit_default, null); }
+  if (fresh || !ACS.mats) { const r = await api('acc', 'ac_materials'); ACS.mats = r.rows || []; ACS.grps = r.groups || []; ACS.mdef = ACC.pctOf(r.profit_default, null); }
   return ACS.mats;
 };
-const acGroups = mats => [...new Set(ACC.GROUPS.concat((mats || []).map(m => m.grp).filter(Boolean)))];
+/* every category in order: the built-in groups, the ones added in the app (ACS.grps, as acMats loaded them) and any other group a product has */
+const acGroups = mats => ACC.grpAll(ACS.grps, (mats || []).map(m => m.grp));
+const ACX_NEWCAT = '__new__'; /* the Category box's last choice: + New category */
+const acCatOpts = (groups, sel) => groups.map(g => `<option value="${esc(g)}" ${g === sel ? 'selected' : ''}>${esc(g)}</option>`).join('') + `<option value="${ACX_NEWCAT}">+ New category…</option>`;
 const acUnits = () => { if (!document.getElementById('acx_units')) document.body.insertAdjacentHTML('beforeend', `<datalist id="acx_units">${ACX_UNITS.map(u => `<option value="${u}">`).join('')}</datalist>`); };
 const acPl = (n, one, many) => `${n} ${n === 1 ? one : many || one + 's'}`;
 const ACX_CST = { 'Not set': '', Pending: 'y', 'Part 1 paid': 'b', Paid: 'g' };
@@ -309,8 +312,7 @@ async function acCsAdd(ctx) {
   /* ctx (the Settings template editor): {lines: () => the lines already there, add(line), keep: what to save} ; none = this Expense sheet */
   ctx = ctx || { lines: () => ACS.lines, add: l => { ACS.lines.push(l); acChanged(); }, keep: 'the sheet', sheet: true };
   let mats; try { mats = await acMats(); } catch (e) { return; }
-  const groups = acGroups(mats), def = acDef();
-  const gOpts = sel => groups.map(g => `<option ${g === sel ? 'selected' : ''}>${esc(g)}</option>`).join('');
+  let groups = acGroups(mats); const def = acDef();
   const m = modal(`<div class="mh"><h3>Add item</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
     <div class="tabs acx-amode" role="tablist"><button type="button" role="tab" data-acx-mode="list" class="on" aria-selected="true">From the price list</button><button type="button" role="tab" data-acx-mode="new" aria-selected="false">New product</button></div>
     <div data-acx-pane="list"><div class="acx-kt" id="acx_kt" role="tablist" aria-label="Categories"></div>
@@ -318,7 +320,7 @@ async function acCsAdd(ctx) {
       <p class="mut acx-small acx-pnote">Tick one or more products, then type each quantity below.</p>
       <div class="acx-pick" id="acx_pl" role="group" aria-label="Products"></div></div>
     <div data-acx-pane="new" hidden><p class="mut acx-small acx-top0">Saved to the price list as soon as you add it, so it is there for the next projects.</p>
-      <div class="two"><div><label for="acx_ng">Group</label><select id="acx_ng">${gOpts(ACC.GROUPS[0])}</select></div>
+      <div class="two"><div><label for="acx_ng">Category</label><select id="acx_ng">${acCatOpts(groups, ACC.GROUPS[0])}</select></div>
       <div class="acx-two"><div><label for="acx_nu">Unit</label><input id="acx_nu" list="acx_units" value="Nos" maxlength="20"></div><div><label for="acx_nt">GST %</label><select id="acx_nt">${ACX_GSTS.map(v => `<option value="${v}" ${v === 18 ? 'selected' : ''}>${v}%</option>`).join('')}</select></div></div>
       <div class="full"><label for="acx_nn">Name, make and size</label><input id="acx_nn" maxlength="200" autocomplete="off" ${SPELL}></div>
       <div><label for="acx_nr">Dealer price, before GST (₹)</label><input id="acx_nr" inputmode="decimal" autocomplete="off" placeholder="Not known yet"></div>
@@ -333,6 +335,11 @@ async function acCsAdd(ctx) {
   /* sel: the ticked products (price list item id → the quantity as typed, '' = none yet), in tick order; kept while searching and filtering */
   let added = 0, last = null, mode = 'list', busy = false, cat = ''; /* cat: the category tab open ('' = All) */
   const sel = new Map(), many = $('#acx_many', m), one = $('#acx_one', m), mgo = $('#acx_mgo', m);
+  /* the Category box of New product: ngv = the category chosen, gPicked = chosen by hand (a category tab no longer changes it) */
+  const ng = $('#acx_ng', m); let ngv = ng.value, gPicked = false;
+  const regroup = pick => { groups = acGroups(mats); ng.innerHTML = acCatOpts(groups, pick || ngv); ngv = ng.value; };
+  /* + New category: once it is saved, straight to New product with it chosen, since a category is of use only with a product in it */
+  const newCat = () => acCatName({ mats }, name => { if (!m.isConnected) return; regroup(name); gPicked = true; cat = name; draw(); setMode('new'); });
   const qIn = $('#acx_aq', m), go = $('#acx_ago', m), nn = $('#acx_nn', m), nr = $('#acx_nr', m), np = $('#acx_np', m);
   const count = () => { $('#acx_pn', m).textContent = added ? `${acPl(added, ctx.sheet ? 'line' : 'item')} added` : ''; };
   /* what Add would do now: {ok, why} */
@@ -357,16 +364,16 @@ async function acCsAdd(ctx) {
       $('#acx_ncp', m).textContent = r && !Number.isNaN(pc) ? `Customer price ${inr2(ACC.custPrice(r, ACC.pctOf(pc, def)))} per ${$('#acx_nu', m).value.trim() || 'Nos'} (${acPctTxt(ACC.pctOf(pc, def))} profit)` : '';
     }
   };
-  /* category tabs: All + every group that has products; each shows how many match the search and how many are ticked */
+  /* category tabs: All + every group that has products + the added categories (even while empty) + New category; each shows how many match the search and how many are ticked */
   const drawTabs = hits => {
     const n = {}, k = {}; hits.forEach(x => { n[x.grp] = (n[x.grp] || 0) + 1; });
     sel.forEach((v, id) => { const x = mats.find(y => y.id === id); if (x) k[x.grp] = (k[x.grp] || 0) + 1; });
-    const has = new Set(mats.filter(x => !x.hidden).map(x => x.grp)), tabs = [''].concat(groups.filter(g => has.has(g)));
+    const has = new Set(mats.filter(x => !x.hidden).map(x => x.grp)), tabs = [''].concat(groups.filter(g => has.has(g) || !ACC.GROUPS.includes(g)));
     if (cat && !tabs.includes(cat)) cat = '';
     $('#acx_kt', m).innerHTML = tabs.map(g => {
       const c = g ? n[g] || 0 : hits.length, t = g ? k[g] || 0 : sel.size, on = g === cat;
       return `<button type="button" role="tab" data-kt="${esc(g)}" class="${on ? 'on' : ''}${c ? '' : ' acx-kt0'}" aria-selected="${on}" title="${esc(g || 'All categories')}">${esc(g ? ACC.grpShort(g) : 'All')} <span class="acx-ktn">${c}</span>${t ? `<b class="acx-ktk" aria-label="${t} ticked">${t} ✓</b>` : ''}</button>`;
-    }).join('');
+    }).join('') + '<button type="button" class="acx-ktadd" data-kt-new title="Add a new category to the price list"><i class="i i-plus"></i> New category</button>';
   };
   const draw = () => {
     const q = $('#acx_q', m).value.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -379,11 +386,14 @@ async function acCsAdd(ctx) {
       const on = ctx.lines().filter(l => l.material_id === x.id).length, tk = sel.has(x.id);
       h += `<label class="acx-pi acx-pc${tk ? ' acx-on' : ''}"><input type="checkbox" data-mid="${x.id}"${tk ? ' checked' : ''}><span>${esc(x.name)}</span><small>${esc(x.unit)} · GST ${+x.gst}%${+x.rate ? ' · dealer ' + inr2(x.rate) + ' · profit ' + esc(acPctTxt(ACC.pctOf(x.profit, def))) : ' · no dealer price yet'}${on ? ` · <b>already ${ctx.sheet ? 'on the sheet' : 'in the template'}${on > 1 ? ' ×' + on : ''}</b>` : ''}</small></label>`;
     });
-    $('#acx_pl', m).innerHTML = h || (hits.length ? `<p class="mut acx-pe">Nothing in ${esc(ACC.grpShort(cat))} matches. The numbers on the tabs show where the matches are.</p>`
+    const none = cat && !mats.some(x => !x.hidden && x.grp === cat); /* a category with no products yet */
+    $('#acx_pl', m).innerHTML = h || (none ? `<p class="mut acx-pe">No products in <b>${esc(cat)}</b> yet. <button type="button" class="acx-link" data-acx-first>Add its first product</button></p>`
+      : hits.length ? `<p class="mut acx-pe">Nothing in ${esc(ACC.grpShort(cat))} matches. The numbers on the tabs show where the matches are.</p>`
       : `<p class="mut acx-pe">Nothing matches. Use <b>New product</b> to add it to the price list.</p>`);
   };
   const setMode = k => {
     mode = k;
+    if (k === 'new' && cat && !gPicked && groups.includes(cat)) { ng.value = cat; ngv = cat; } /* New product from a category tab: that category */
     $$('[data-acx-mode]', m).forEach(b => { const on = b.dataset.acxMode === k; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
     $$('[data-acx-pane]', m).forEach(p => { p.hidden = p.dataset.acxPane !== k; });
     if (k === 'new' && !nn.value && !$('#acx_pl [data-mid]', m)) nn.value = $('#acx_q', m).value.trim(); /* a search that found nothing: start the new product from it */
@@ -433,11 +443,12 @@ async function acCsAdd(ctx) {
     $('#acx_q', m).value = ''; draw(); $('#acx_q', m).focus();
   };
   $('#acx_q', m).oninput = () => { draw(); upd(); };
-  $('#acx_kt', m).onclick = e => { const b = e.target.closest('[data-kt]'); if (!b) return; cat = b.dataset.kt; draw(); $('#acx_pl', m).scrollTop = 0; };
+  $('#acx_kt', m).onclick = e => { if (e.target.closest('[data-kt-new]')) { newCat(); return; } const b = e.target.closest('[data-kt]'); if (!b) return; cat = b.dataset.kt; draw(); $('#acx_pl', m).scrollTop = 0; };
   $('#acx_q', m).onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const b = $('#acx_pl [data-mid]', m); if (b && !b.checked) { b.checked = true; b.dispatchEvent(new Event('change', { bubbles: true })); } } };
   $$('[data-acx-mode]', m).forEach(b => b.onclick = () => setMode(b.dataset.acxMode));
   [qIn, nn, nr, np, $('#acx_nu', m)].forEach(x => { x.oninput = upd; });
-  $('#acx_ng', m).onchange = upd;
+  ng.onchange = () => { if (ng.value === ACX_NEWCAT) { ng.value = ngv; newCat(); return; } ngv = ng.value; gPicked = true; upd(); };
+  $('#acx_pl', m).onclick = e => { if (e.target.closest('[data-acx-first]')) { ng.value = cat; ngv = cat; gPicked = true; setMode('new'); } };
   [qIn, nn, nr, np].forEach(x => { x.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); if (!go.disabled) go.click(); else { const s = state(); if (s.why) toast(s.why, true); } } }; });
   go.onclick = async () => {
     const s = state(); if (!s.ok || busy) { if (s.why) toast(s.why, true); return; }
@@ -461,7 +472,7 @@ async function acCsAdd(ctx) {
       upd(); return; /* any other refusal: api() has shown why */
     }
     busy = false;
-    try { mats = await acMats(true); } catch (er) { }
+    try { mats = await acMats(true); regroup(); } catch (er) { }
     const item = r.item || mats.find(x => x.id === +r.id) || { id: +r.id, grp, name, unit, gst, rate: acNum(nr.value) || 0, profit: acPctIn(np.value) };
     addLine(acFromMat(item, qty));
     nn.value = ''; nr.value = ''; np.value = ''; draw();
@@ -745,7 +756,7 @@ async function acMaterials(box) {
       ${w ? '<button type="button" class="btn sec sm" id="acx_pds">Save</button>' : ''}<span class="mut acx-small" id="acx_pdh">For every item whose profit % is blank. Customer price = dealer price + profit %.</span></div>
     <div class="bar acx-mbar"><input id="acx_mq" type="search" placeholder="Search the price list…" value="${esc(ACM.q)}" autocomplete="off" aria-label="Search the price list">
       <div class="tabs acx-mf">${[['all', 'All'], ['shown', 'In use'], ['hidden', 'Hidden']].map(([k, l]) => `<button type="button" data-acx-mf="${k}" class="${ACM.f === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-      <span class="mut" id="acx_mn"></span><span class="sp"></span>${w ? '<button type="button" class="btn" id="acx_madd"><i class="i i-plus"></i> Add item</button>' : ''}</div>
+      <span class="mut" id="acx_mn"></span><span class="sp"></span>${w ? '<button type="button" class="btn sec" id="acx_mcat"><i class="i i-folder"></i> Categories</button><button type="button" class="btn" id="acx_madd"><i class="i i-plus"></i> Add item</button>' : ''}</div>
     <div class="card tw"><table class="acx-mt" id="acx_mt" data-min="780"></table></div>
     <p class="acx-note">Materials and services with the dealer price (what we pay, before GST) and the profit % added for the customer. Expense sheets pick from this list; a new dealer price typed on a sheet updates the item's when the sheet is saved (re-saving a sheet never undoes a price set here). KSEB fees and stamp paper start at 0 % profit. Hidden items stay here but are not offered on Expense sheets. A deleted item goes to the Recycle bin; sheets that use it keep their lines.</p>`;
   const tb = $('#acx_mt', box), nc = w ? 7 : 6;
@@ -781,6 +792,7 @@ async function acMaterials(box) {
     };
     pds.onclick = savePd; pd.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); savePd(); } };
     pd.oninput = () => { const n = acPctIn(pd.value); pd.classList.toggle('acx-bad', n === null || Number.isNaN(n)); };
+    $('#acx_mcat', box).onclick = () => acCatManage(() => mats, reload);
     $('#acx_madd', box).onclick = () => acMatForm({ grp: ACC.GROUPS[0], unit: 'Nos', gst: 18, profit: null }, mats, reload);
     tb.onclick = async e => {
       const b = e.target.closest('[data-acx-m]'), tr = b && b.closest('tr[data-id]'), x = tr && mats.find(y => y.id === +tr.dataset.id);
@@ -802,11 +814,101 @@ async function acMaterials(box) {
 }
 ACCT_TABS.materials = acMaterials;
 
+/* New category, or a new name for an added one (o.from): a small window for the name. done(name) gets the category as saved; a name
+   that is already a category is not an error when adding: done() gets that one. */
+function acCatName(o, done) {
+  const from = o.from || '';
+  const m = modal(`<div class="mh"><h3>${from ? 'Rename category' : 'New category'}</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
+    <div class="acx-cnf"><label for="acx_cn">Category name</label><input id="acx_cn" maxlength="${ACC.GRP_LEN}" autocomplete="off" value="${esc(from)}" placeholder="For example: Batteries" ${SPELL}></div>
+    <p class="acx-small acx-cnh" id="acx_cnh" aria-live="polite"></p>
+    <div class="bar acx-mft"><button type="button" class="btn" id="acx_cns">${from ? 'Save name' : 'Add category'}</button><button type="button" class="btn sec" data-x>Cancel</button></div>`);
+  const inp = $('#acx_cn', m), hint = $('#acx_cnh', m), btn = $('#acx_cns', m);
+  const tip = from ? 'Its products, Expense sheet lines and template items take the new name.'
+    : 'For materials you buy. It gets its own tab in the Add item window and its own group on the price list and the material list.';
+  const say = (t, bad) => { hint.textContent = t; hint.classList.toggle('acx-cbad', !!bad); inp.classList.toggle('acx-bad', !!bad); };
+  say(tip);
+  inp.oninput = () => say(tip);
+  $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
+  const save = async () => {
+    const c = ACC.grpCheck(inp.value, acGroups(o.mats), from);
+    if (c.error) { say(c.error, true); inp.focus(); return; }
+    if (from && c.name === from) { m.remove(); return; }
+    if (c.same) {
+      if (from) { say(`“${c.same}” is already a category`, true); inp.focus(); return; }
+      m.remove(); toast(`“${c.same}” is already a category, so that one is chosen`); done(c.same); return;
+    }
+    btn.disabled = true;
+    let r;
+    try { r = await api('acc', from ? 'group_rename' : 'group_add', from ? { from, to: c.name } : { name: c.name }); }
+    catch (er) { btn.disabled = false; return; } /* api() has shown why */
+    if (r.groups) ACS.grps = r.groups;
+    if (from) ACS.mats = null; /* its products carry the new name now */
+    m.remove();
+    toast(from ? `Category renamed to “${r.name}”` : r.existed ? `“${r.name}” is already a category, so that one is chosen` : `Category “${r.name}” added`);
+    done(r.name);
+  };
+  btn.onclick = save;
+  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); save(); } };
+  inp.focus(); if (from) inp.select();
+}
+
+/* Settings › Price list › Categories: every category with its number of products. The built-in ones keep their names; an added one
+   can be renamed, and deleted once no product is in it. getMats() = the price list as the page has it, reload() = fetch it again. */
+function acCatManage(getMats, reload) {
+  const m = modal(`<div class="mh"><h3>Categories</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
+    <p class="mut acx-small acx-top0">Categories group the products on the price list, in the Add item window and on the material list. The built-in ones keep their names. One you added can be renamed, and deleted once no product is in it.</p>
+    <div class="acx-cl" id="acx_cl"></div>
+    <div class="acx-cadd"><input id="acx_ca" maxlength="${ACC.GRP_LEN}" autocomplete="off" placeholder="New category name" aria-label="New category name" ${SPELL}><button type="button" class="btn" id="acx_cab"><i class="i i-plus"></i> Add category</button></div>
+    <p class="acx-small acx-cnh acx-cbad" id="acx_cah" aria-live="polite"></p>
+    <div class="bar acx-mft"><span class="sp"></span><button type="button" class="btn sec" data-x>Done</button></div>`);
+  const list = $('#acx_cl', m), inp = $('#acx_ca', m), hint = $('#acx_cah', m), ab = $('#acx_cab', m);
+  const draw = () => {
+    const mats = getMats() || [], n = {}; mats.forEach(x => { n[x.grp] = (n[x.grp] || 0) + 1; });
+    list.innerHTML = acGroups(mats).map(g => {
+      const own = !ACC.GROUPS.includes(g), c = n[g] || 0;
+      return `<div class="acx-cr" data-g="${esc(g)}"><span class="acx-cn"><b>${esc(g)}</b><small>${c ? acPl(c, 'product') : 'No products yet'}</small></span>${own
+        ? `<button type="button" class="ib" data-c="ren" title="Rename" aria-label="Rename ${esc(g)}"><i class="i i-pencil"></i></button><button type="button" class="ib${c ? ' acx-coff' : ''}" data-c="del" title="${c ? 'It has products: move them to another category or delete them first' : 'Delete'}" aria-label="Delete ${esc(g)}"><i class="i i-trash"></i></button>`
+        : '<span class="pill acx-tag">Built in</span>'}</div>`;
+    }).join('');
+  };
+  const bad = t => { hint.textContent = t; inp.classList.toggle('acx-bad', !!t); };
+  const refresh = async () => { try { await reload(); } catch (e) { } if (m.isConnected) draw(); };
+  const add = async () => {
+    const c = ACC.grpCheck(inp.value, acGroups(getMats()));
+    const why = c.error || (c.same ? `“${c.same}” is already a category` : '');
+    bad(why); if (why) { inp.focus(); return; }
+    ab.disabled = true;
+    try {
+      const r = await api('acc', 'group_add', { name: c.name });
+      if (r.groups) ACS.grps = r.groups;
+      inp.value = ''; toast(`Category “${r.name}” added`); draw();
+      const row = $$('.acx-cr', list).find(x => x.dataset.g === r.name); if (row) row.scrollIntoView({ block: 'nearest' });
+    } catch (er) { } /* api() has shown why */
+    ab.disabled = false; inp.focus();
+  };
+  ab.onclick = add;
+  inp.oninput = () => bad('');
+  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); add(); } };
+  list.onclick = async e => {
+    const b = e.target.closest('[data-c]'), row = b && b.closest('[data-g]'); if (!row) return;
+    const g = row.dataset.g;
+    if (b.dataset.c === 'ren') { acCatName({ mats: getMats(), from: g }, refresh); return; }
+    const c = (getMats() || []).filter(x => x.grp === g).length;
+    if (c) { toast(`“${g}” still has ${acPl(c, 'product')}. Move them to another category or delete them first.`, true); return; }
+    if (!confirm(`Delete the category “${g}”?\n\nNo product is in it. You can add it again any time.`)) return;
+    b.disabled = true;
+    try { const r = await api('acc', 'group_delete', { name: g }); if (r.groups) ACS.grps = r.groups; toast('Category deleted'); draw(); }
+    catch (er) { b.disabled = false; }
+  };
+  $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
+  draw(); inp.focus();
+}
+
 /* add / edit a price list item: group, name, unit, GST %, dealer price, profit % (blank = the default), with the customer price worked out as you type */
 function acMatForm(x, mats, done) {
   const def = ACS.mdef;
   const m = modal(`<div class="mh"><h3>${x.id ? 'Edit item' : 'Add item'}</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
-    <div class="two"><div class="full"><label for="acx_fg">Group</label><select id="acx_fg">${acGroups(mats).map(g => `<option ${g === x.grp ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select></div>
+    <div class="two"><div class="full"><label for="acx_fg">Category</label><select id="acx_fg">${acCatOpts(acGroups(mats), x.grp)}</select></div>
     <div class="full"><label for="acx_fn">Name, make and size</label><input id="acx_fn" maxlength="200" value="${esc(x.name || '')}" autocomplete="off" ${SPELL}></div>
     <div><label for="acx_fu">Unit</label><input id="acx_fu" list="acx_units" maxlength="20" value="${esc(x.unit || 'Nos')}"></div>
     <div><label for="acx_ft">GST %</label><select id="acx_ft">${ACX_GSTS.map(v => `<option value="${v}" ${+(x.gst ?? 18) === v ? 'selected' : ''}>${v}%</option>`).join('')}</select></div>
@@ -823,6 +925,12 @@ function acMatForm(x, mats, done) {
       : `<span class="mut">${r === null ? 'The dealer price is not a number.' : Number.isNaN(p) ? 'Profit % is 0 to 500, or blank for the default.' : 'Type the dealer price to see the customer price.'}</span>`;
   };
   fr.oninput = calc; fp.oninput = calc; calc();
+  const fg = $('#acx_fg', m); let fgv = fg.value;
+  fg.onchange = () => {
+    if (fg.value !== ACX_NEWCAT) { fgv = fg.value; return; }
+    fg.value = fgv;
+    acCatName({ mats }, name => { if (!m.isConnected) return; fg.innerHTML = acCatOpts(acGroups(mats), name); fgv = fg.value; });
+  };
   $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
   $('#acx_fs', m).onclick = async e => {
     const name = $('#acx_fn', m).value.trim().replace(/\s+/g, ' '), rate = acNum(fr.value), pct = acPctIn(fp.value);

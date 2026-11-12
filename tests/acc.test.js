@@ -382,3 +382,29 @@ test('category tabs: short names for the quotation groups, the full name for any
   ACC.GROUPS.forEach(g => assert.ok(ACC.grpShort(g).length <= 12, g));
   assert.equal(new Set(ACC.GROUPS.map(ACC.grpShort)).size, ACC.GROUPS.length);
 });
+
+test('categories: where a group sorts, the full list, and checking a new name', () => {
+  const svc = ACC.GROUPS.indexOf(ACC.SVC);
+  assert.equal(svc, ACC.GROUPS.length - 1);
+  assert.equal(ACC.grpIdx('Solar panels'), 1);
+  assert.ok(ACC.grpIdx('Batteries') > ACC.grpIdx('Cable accessories & consumables') && ACC.grpIdx('Batteries') < svc, 'an added category sits before Services');
+  assert.ok(ACC.grpIdx('') > svc && ACC.grpIdx(undefined) > svc, 'no group is last');
+  assert.equal(['b', 'A', 'a', 'B'].sort(ACC.grpCmp).join(''), 'AaBb');
+  assert.deepEqual(ACC.grpAll(null, null), ACC.GROUPS);
+  assert.deepEqual(ACC.grpAll(['Batteries', 'accessories 2'], ['Solar panels', 'Zinc', 'Batteries', '', null]).slice(-4), ['accessories 2', 'Batteries', 'Zinc', ACC.SVC]);
+  assert.equal(ACC.grpAll(['Solar panels', ACC.SVC], []).length, ACC.GROUPS.length, 'a built-in name is never listed twice');
+  const all = ACC.grpAll(['Batteries'], []);
+  assert.deepEqual(ACC.grpCheck('  Wind 	  turbines ', all), { name: 'Wind turbines', error: '', same: '' });
+  assert.equal(ACC.grpCheck('', all).error, 'Type the category name');
+  assert.equal(ACC.grpCheck('   ', all).error, 'Type the category name');
+  assert.equal(ACC.grpCheck(null, all).error, 'Type the category name');
+  assert.ok(ACC.grpCheck('x'.repeat(41), all).error.includes('too long'));
+  assert.equal(ACC.grpCheck('x'.repeat(40), all).error, '');
+  assert.ok(ACC.grpCheck('All', all).error && ACC.grpCheck('other', all).error);
+  assert.equal(ACC.grpCheck('batteries', all).same, 'Batteries');
+  assert.equal(ACC.grpCheck('solar PANELS', all).same, 'Solar panels');
+  assert.equal(ACC.grpCheck('Inverter', all).same, 'Inverter & optimizers', 'a short tab name is that group');
+  assert.equal(ACC.grpCheck('services', all).same, 'Services and charges');
+  assert.equal(ACC.grpCheck('BATTERIES', all, 'Batteries').same, '', 'renaming: its own name in another case is free');
+  assert.equal(ACC.grpCheck('Solar panels', all, 'Batteries').same, 'Solar panels');
+});

@@ -82,6 +82,28 @@ const ACC = {
     'Metering & isolation': 'Meter', 'DC cables & connectors': 'DC cables', 'AC cables & lugs': 'AC cables', 'Earthing & lightning protection': 'Earthing',
     'Pipes & conduit fittings': 'Pipes', 'Cable accessories & consumables': 'Accessories', 'Services and charges': 'Services' },
   grpShort: g => (g ? ACC.GRP_SHORT[g] || String(g) : 'Other'),
+  /* ---- categories: the built-in groups (GROUPS) plus the ones added in the app ---- */
+  GRP_LEN: 40, /* characters in a category name (ACC_GROUP_LEN in api/accounts.php) */
+  /* by name, any case; the exact spelling settles a tie so two groups never interleave */
+  grpCmp(a, b) { const p = String(a || ''), q = String(b || ''), x = p.toLowerCase(), y = q.toLowerCase(); return x < y ? -1 : x > y ? 1 : p < q ? -1 : p > q ? 1 : 0; },
+  /* where a group sorts: the built-in purchase groups in their order, the added categories next (by name), Services, then no group */
+  grpIdx(g) { const i = ACC.GROUPS.indexOf(g); return i >= 0 ? i : g ? ACC.GROUPS.indexOf(ACC.SVC) - 0.5 : ACC.GROUPS.length; },
+  /* every category in order: extra = the saved list (ac_materials groups), used = the groups the products have */
+  grpAll(extra, used) {
+    const own = [...new Set((extra || []).concat(used || []).map(g => String(g || '')).filter(g => g && !ACC.GROUPS.includes(g)))].sort(ACC.grpCmp);
+    return ACC.GROUPS.filter(g => g !== ACC.SVC).concat(own, [ACC.SVC]);
+  },
+  /* a category name as typed → {name, error, same}. name = trimmed, single spaces; error = why it cannot be used; same = the category
+     already there under that name (any case) or under a built-in group's short tab name. skip = the category being renamed. */
+  grpCheck(raw, groups, skip) {
+    const name = String(raw == null ? '' : raw).replace(/[\s\u0000-\u001f\u007f]+/g, ' ').trim(), l = name.toLowerCase();
+    if (!name) return { name, error: 'Type the category name', same: '' };
+    if ([...name].length > ACC.GRP_LEN) return { name, error: `The category name is too long (${ACC.GRP_LEN} characters at most)`, same: '' };
+    if (l === 'all' || l === 'other') return { name, error: `“${name}” is a name the app uses itself. Pick another name.`, same: '' };
+    const same = (groups || []).find(g => g !== skip && String(g).toLowerCase() === l)
+      || ACC.GROUPS.find(g => g !== skip && (g.toLowerCase() === l || ACC.GRP_SHORT[g].toLowerCase() === l)) || '';
+    return { name, error: '', same };
+  },
   PROFIT_DEF: 15,              /* the default profit % until Settings › Price list changes it (acc_profit_default) */
   pctSet: p => p !== null && p !== undefined && String(p).trim() !== '' && isFinite(Number(p)),
   /* a profit % as stored: blank (null / '') = the default (def, else 15); a typed 0 stays 0 */
