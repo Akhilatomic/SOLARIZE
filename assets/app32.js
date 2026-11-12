@@ -82,7 +82,8 @@ const ACC = {
         [d.no && 'No: ' + d.no, d.date && 'Date: ' + d.date].filter(Boolean).forEach((l, i) => text(R, y0 + i * 4, 9, l, { a: 'r' }));
         const sub = [co.address, co.phone && 'Ph: ' + co.phone, co.gstin && 'GSTIN: ' + co.gstin].filter(Boolean).join('  |  ');
         y += 1;
-        if (sub) wrap(sub, 120, 8).forEach(l => { y += 3.8; text(M, y, 8, l, { c: '#555555' }); });
+        /* a wrapped line never starts or ends on the | separator */
+        if (sub) wrap(sub, 120, 8).map(l => l.replace(/^\s*\|\s*|\s*\|\s*$/g, '')).filter(Boolean).forEach(l => { y += 3.8; text(M, y, 8, l, { c: '#555555' }); });
         y = Math.max(y, y0 + 4);
       } else {
         y += 5; text(R, y, 9, [d.no && 'No: ' + d.no, d.date].filter(Boolean).join('   '), { a: 'r' });
@@ -100,8 +101,8 @@ const ACC = {
       });
       y += 2;
     };
-    const tableHead = () => {
-      line(M, y - 4, R, y - 4, 0.3);
+    const tableHead = top => { /* top = false right under a continuation page's header rule (no double line) */
+      if (top !== false) line(M, y - 4, R, y - 4, 0.3);
       text(X.sr, y, 8, '#', { b: 1 }); text(X.name, y, 8, 'Item', { b: 1 });
       text(X.qr, y, 8, 'Qty', { b: 1, a: 'r' }); text(X.unit, y, 8, 'Unit', { b: 1 });
       text(X.ord, y, 8, 'Ordered', { b: 1 }); text(X.del, y, 8, 'Delivered qty', { b: 1 }); text(X.ok - 1, y, 8, 'OK', { b: 1 }); text(X.rem, y, 8, 'Remarks', { b: 1 });
@@ -111,7 +112,7 @@ const ACC = {
     block('Customer', [['Name', cu.name], ['Phone', cu.phone], ['Address', cu.address], ['Consumer no.', cu.consumer_no], ['Section', cu.section], ['Landmark', cu.landmark], ['Map', cu.map]]);
     block('Project', [['Capacity (kW)', pr.kw], ['Phase', pr.phase], ['System', pr.system], ['Panels', pr.panels], ['Inverter', pr.inverter], ['Structure', pr.structure], ['Quote no.', pr.quote_no], ['Engineer', pr.engineer], ['Install on', pr.install_on]]);
     y += 2; tableHead();
-    const next = () => { newPage(false); tableHead(); };
+    const next = () => { newPage(false); tableHead(false); };
     let grp = null, sr = 0;
     (d.lines || []).forEach(l => {
       const names = wrap(l.name || '', X.qr - X.name - 10, 9), h = Math.max(1, names.length) * LH + 2.6;
@@ -135,9 +136,11 @@ const ACC = {
     if (y + SIG_H > BOTTOM) newPage(false);
     y = Math.max(y + 10, BOTTOM - SIG_H + 8);
     if (y > BOTTOM - 4) y = BOTTOM - 4;
+    /* three columns; a label wider than its column (the 3rd is ~70 mm at 8 pt) wraps under its line */
     const cw = (R - M) / 3;
     ['Purchased by · date', 'Delivered by (driver / supplier) · date', 'Received at site (engineer / customer) · signature'].forEach((t, i) => {
-      line(M + i * cw + 1, y, M + (i + 1) * cw - 4, y, 0.3); text(M + i * cw + 1, y + 4, 8, t);
+      line(M + i * cw + 1, y, M + (i + 1) * cw - 4, y, 0.3);
+      wrap(t, cw - 5, 8).forEach((l, k) => text(M + i * cw + 1, y + 4 + k * 3.6, 8, l));
     });
     pages.forEach((p, i) => p.ops.push({ t: 'text', x: R, y: H - M + 2, s: 8, txt: `Page ${i + 1} / ${pages.length}`, a: 'r', c: '#555555' }));
     return { pages };

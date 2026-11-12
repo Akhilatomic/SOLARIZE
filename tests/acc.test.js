@@ -35,7 +35,7 @@ test('material list PDF layout: every line, pages, signature, no prices', () => 
   assert.ok(L.pages.length >= 3);
   for (let i = 1; i <= 120; i++) assert.ok(texts.includes('Item ' + i), 'line ' + i);
   L.pages.forEach((p, i) => assert.ok(p.ops.some(o => o.txt === `Page ${i + 1} / ${L.pages.length}`)));
-  assert.ok(L.pages.at(-1).ops.some(o => o.txt === 'Received at site (engineer / customer) · signature'));
+  assert.ok(L.pages.at(-1).ops.filter(o => o.t === 'text').map(o => o.txt).join(' ').includes('Received at site (engineer / customer) · signature'));
   assert.ok(!texts.some(t => /₹|rate|price/i.test(t)));
   L.pages.forEach(p => p.ops.forEach(o => { if (o.y !== undefined) assert.ok(o.y >= 0 && o.y <= 297); }));
 });
@@ -71,4 +71,33 @@ test('material list: spec §9 columns, header on every page, spacing, bounds', (
   const last = L.pages.at(-1).ops, sig = last.find(o => o.t === 'text' && o.txt.startsWith('Purchased by'));
   const rowsBottom = Math.max(...last.filter(o => o.t === 'text' && /^Item \d/.test(o.txt)).map(o => o.y));
   assert.ok(sig.y - 4 > rowsBottom, 'signature below last row');
+});
+test('material list: signature labels wrap inside their columns with a real-width wrap', () => {
+  /* a Helvetica-like measure: 0.56 em per character (wider than the default estimate) */
+  const wd = (t, s) => String(t).length * 0.56 * s * 0.3528;
+  const wrap = (t, w, s) => { const out = []; let cur = '';
+    String(t || '').split(/\s+/).filter(Boolean).forEach(word => { const nx = cur ? cur + ' ' + word : word; if (cur && wd(nx, s) > w) { out.push(cur); cur = word; } else cur = nx; });
+    if (cur) out.push(cur); return out.length ? out : ['']; };
+  const L = ACC.mlLayout({ company: { name: 'Test Co' }, no: 'N', date: 'd', lines: [{ grp: 'Solar panels', name: 'Item 1', qty: 1, unit: 'Nos' }], wrap });
+  const last = L.pages.at(-1).ops, cw = (196 - 14) / 3;
+  const sig = last.filter(o => o.t === 'text' && o.s === 8 && o.y > last.find(x => x.txt === 'Item 1').y && !/^Page /.test(o.txt));
+  assert.ok(sig.map(o => o.txt).join(' ').includes('Received at site (engineer / customer) · signature'));
+  assert.ok(sig.length > 3, 'at least one label wrapped');
+  sig.forEach(o => { const col = Math.floor((o.x - 14) / cw); assert.ok(o.x + wd(o.txt, 8) <= 14 + (col + 1) * cw - 1, o.txt + ' overflows its column'); assert.ok(o.x + wd(o.txt, 8) <= 196); });
+});
+test('material list: no double rule on continuation pages, no dangling | in the company line', () => {
+  const lines = Array.from({ length: 90 }, (_, i) => ({ grp: ACC.GROUPS[i % 10], name: 'Item ' + (i + 1), qty: 1, unit: 'Nos' }));
+  /* 72 characters: with this wrap (75 per line) the first line would end on the "|" */
+  const co = { name: 'Test Co', address: 'Test Building, Sample Road Junction, Sample Town, Sample District 695000', phone: '90000 00000', gstin: '32TESTX0000X1ZX' };
+  const wrap = (t, w, s) => { const per = Math.floor(w / (0.56 * s * 0.3528)), out = []; let cur = '';
+    String(t).split(' ').forEach(x => { const nx = cur ? cur + ' ' + x : x; if (cur && nx.length > per) { out.push(cur); cur = x; } else cur = nx; }); if (cur) out.push(cur); return out; };
+  const L = ACC.mlLayout({ company: co, no: 'N', date: 'd', lines, wrap });
+  assert.ok(L.pages.length >= 2);
+  L.pages.slice(1).forEach(p => {
+    const hz = p.ops.filter(o => o.t === 'line' && o.y1 === o.y2 && o.x1 === 14 && o.x2 === 196).map(o => o.y1).sort((a, b) => a - b);
+    for (let i = 1; i < hz.length; i++) assert.ok(hz[i] - hz[i - 1] > 2, 'rules ' + hz[i - 1] + ' and ' + hz[i] + ' too close');
+  });
+  const sub = L.pages[0].ops.filter(o => o.t === 'text' && o.s === 8 && o.c === '#555555' && o.y < 40).map(o => o.txt);
+  assert.ok(sub.length >= 2 && sub.join(' ').includes('GSTIN: 32TESTX0000X1ZX'));
+  sub.forEach(t => assert.ok(!/^\s*\||\|\s*$/.test(t), JSON.stringify(t)));
 });

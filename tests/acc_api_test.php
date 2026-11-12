@@ -61,6 +61,13 @@ chk(call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'lines' => [['grp' =>
 chk(count(call($acct, 'acc', 'ac_cost', null, "&project_id=$pid")['lines']) === 1, 'failed saves left the lines alone');
 chk(call($sales, 'acc', 'cost_save', ['project_id' => $pid, 'lines' => []])['_code'] === 403, 'sales cannot save a cost sheet');
 chk(call($acct, 'acc', 'ac_cost', null, '&project_id=999999')['_code'] === 404, 'unknown project is 404');
+/* the material list PDF's customer / project blocks */
+$cidM = (int)(call($admin, 'customers', 'save', ['name' => 'Test Person Ml', 'phone' => '9000000002', 'phase' => 'Three phase'])['id'] ?? 0);
+$pidM = (int)(call($admin, 'projects', 'save', ['customer_id' => $cidM, 'title' => 'Roof 10 kW', 'kw' => 10, 'cost' => 500000, 'engineer' => 'Test Engineer', 'start' => '2026-11-20', 'panel' => 'Test Panel 600', 'inverter' => 'Test Inverter 10'])['id'] ?? 0);
+$gm = call($acct, 'acc', 'ac_cost', null, "&project_id=$pidM");
+chk($gm['_code'] === 200 && ($gm['project']['engineer'] ?? '') === 'Test Engineer' && ($gm['project']['start'] ?? '') === '2026-11-20' && ($gm['project']['panel'] ?? '') === 'Test Panel 600'
+  && ($gm['project']['inverter'] ?? '') === 'Test Inverter 10' && ($gm['customer']['phase'] ?? '') === 'Three phase', 'ac_cost carries engineer, start, panel, inverter and phase');
+chk(isset($gm['company']['name'], $gm['company']['gstin']) && !isset($gm['company']['bank']), 'ac_cost carries the company header (no bank details)');
 
 $d = call($acct, 'acc', 'material_save', ['grp' => 'Solar panels', 'name' => 'test panel 550', 'unit' => 'Nos', 'gst' => 5, 'rate' => 1]);
 chk($d['_code'] === 409 && stripos($d['error'] ?? '', 'already in Solar panels') !== false, 'duplicate name (any case) is 409');

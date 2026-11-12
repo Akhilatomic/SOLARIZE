@@ -16,7 +16,7 @@ function acc_money($v, $label) {
 
 /* project with its customer; a Business Associate only reaches their own (cust_scope) */
 function acc_project($pid) {
-  $r = row('SELECT p.*, c.name c_name, c.phone c_phone, c.address c_address, c.district c_district, c.pincode c_pincode, c.consumer_no c_consumer_no, c.kseb_section c_kseb_section, c.landmark c_landmark, c.lat c_lat, c.lng c_lng FROM projects p JOIN customers c ON c.id=p.customer_id WHERE p.id=? AND ' . cust_scope('c'), [(int)$pid]);
+  $r = row('SELECT p.*, c.name c_name, c.phone c_phone, c.address c_address, c.district c_district, c.pincode c_pincode, c.consumer_no c_consumer_no, c.kseb_section c_kseb_section, c.landmark c_landmark, c.lat c_lat, c.lng c_lng, c.phase c_phase FROM projects p JOIN customers c ON c.id=p.customer_id WHERE p.id=? AND ' . cust_scope('c'), [(int)$pid]);
   if (!$r) fail('Project not found', 404);
   return $r;
 }
@@ -36,9 +36,11 @@ function acc_cost_get($pid) {
   if ($latest && ($t = row("SELECT data FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid]))) $taxable = (float)((json_decode((string)$t['data'], true) ?: [])['taxable'] ?? 0);
   $q = row("SELECT number FROM quotes WHERE customer_id=? ORDER BY CASE status WHEN 'Accepted' THEN 0 WHEN 'Sent' THEN 1 ELSE 2 END, id DESC LIMIT 1", [$cid]);
   return [
-    'project' => ['id' => (int)$p['id'], 'title' => $p['title'], 'kw' => $p['kw'], 'stage' => $p['stage'], 'loan' => $p['loan'], 'cost' => (float)$p['cost']],
+    'project' => ['id' => (int)$p['id'], 'title' => $p['title'], 'kw' => $p['kw'], 'stage' => $p['stage'], 'loan' => $p['loan'], 'cost' => (float)$p['cost'],
+      'panel' => (string)($p['panel'] ?? ''), 'inverter' => (string)($p['inverter'] ?? ''), 'engineer' => (string)($p['engineer'] ?? ''), 'start' => (string)($p['start'] ?? '')],
     'customer' => ['id' => $cid, 'name' => $p['c_name'], 'phone' => $p['c_phone'], 'address' => $p['c_address'], 'district' => $p['c_district'], 'pincode' => $p['c_pincode'],
-      'consumer_no' => $p['c_consumer_no'], 'kseb_section' => $p['c_kseb_section'], 'landmark' => $p['c_landmark'], 'lat' => $p['c_lat'], 'lng' => $p['c_lng']],
+      'consumer_no' => $p['c_consumer_no'], 'kseb_section' => $p['c_kseb_section'], 'landmark' => $p['c_landmark'], 'lat' => $p['c_lat'], 'lng' => $p['c_lng'], 'phase' => (string)($p['c_phase'] ?? '')],
+    'company' => array_intersect_key(acc_company(), array_flip(['name', 'address', 'phone', 'gstin'])), /* the material list PDF's header */
     'plant' => $plant,
     'lines' => $lines,
     'auto' => ['comm' => $comm, 'fees' => $fees],

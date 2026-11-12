@@ -17,3 +17,70 @@
 .acx-tsh .bar{margin:0 0 8px}
 .acx-tsh .acx-shl{margin:0}
 @media(max-width:600px){.acx-sh{white-space:normal}}
+/* Accounts page (app33.js) and the cost sheet / Materials list (app34.js) */
+.t-accounts{--tc:#1e8e3e} /* the sidebar tile of the Accounts entry: the shell names it t-<module> */
+.acx-pg{display:flex;flex-direction:column;gap:12px;min-width:0}
+.acx-pg>.tabs{margin:0;align-self:flex-start}
+.acx-per{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.acx-per[hidden]{display:none}
+.acx-perl{font-size:17px;min-width:96px;text-align:center;letter-spacing:-.01em}
+.acx-step{font-size:22px;line-height:1;padding:2px 10px;color:var(--tx)}
+.acx-per .btn.on{background:#1d1d1f;color:#fff}
+.acx-soon{display:flex;flex-direction:column;gap:4px;padding:22px}
+.acx-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.acx-crumb{font-size:13.5px;color:var(--mut)}
+.acx-hd{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}
+.acx-hd h2{margin:0;font-size:24px;letter-spacing:-.02em}.acx-hd h2 .mut{font-weight:500}
+.acx-sub{display:flex;align-items:center;gap:6px;color:var(--mut);font-size:13px;margin-top:3px}
+.acx-st{font-size:12.5px;color:var(--mut)}.acx-st.acx-dirty{color:#c76a00;font-weight:600}
+.acx-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.acx-t{padding:14px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.acx-t small{font-size:12.5px;color:var(--mut)}
+.acx-t b{font-size:22px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.acx-t em{font-style:normal;font-size:12px;color:var(--mut)}
+.acx-t.acx-pos b{color:#1e8e3e}.acx-t.acx-neg b{color:#d70015}.acx-t.acx-warn b{color:#c76a00}
+.acx-ch{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}.acx-ch h3{margin:0;font-size:17px}
+.acx-cst{table-layout:fixed}
+.card.tw>table.acx-cst:not(.stack) td{padding:4px 6px}
+.acx-cst input,.acx-cst select{padding:5px 7px;border-radius:7px;font-size:13px;min-width:0}
+.acx-cst td.num input{text-align:right}
+.acx-cst .ib{padding:6px}
+.acx-nm{font-weight:500;overflow-wrap:anywhere}
+.acx-cst tr.acx-grp>td,.acx-mt tr.acx-grp>td{background:#f5f5f7;font-size:12.5px;padding:7px 10px;color:#3a3a3c}
+.acx-gsum{color:var(--mut);font-weight:400;margin-left:8px}
+.acx-cst tr.acx-auto>td{background:#fbfaf3}
+/* stacked (narrow) tables: a group row is one full-width band; the item name leads each line */
+table.stack tr.acx-grp{background:#f5f5f7;padding:8px 14px}
+table.stack tr.acx-grp>td{grid-column:1/-1;background:none}
+table.stack tr.acx-auto{background:#fbfaf3}
+table.stack tr.acx-auto>td{background:none}
+table.acx-cst.stack td.acx-nm{grid-column:1/-1}
+.acx-tag{font-size:11px;padding:0 7px;margin-left:4px;vertical-align:1px}
+.acx-new{font-size:11px;padding:0 7px;margin-left:4px;background:#e8f3ff;color:#0a66c2}
+input.acx-bad{border-color:var(--bad);box-shadow:0 0 0 3px rgba(229,52,43,.15)}
+.acx-fee{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;font-size:12.5px}
+.acx-note{font-size:12px;color:var(--mut);margin:0 2px}
+.acx-mt tr.acx-hid>td{color:var(--mut)}
+.acx-act{white-space:nowrap;text-align:right}
+.acx-mbar{margin:0}.acx-mbar .tabs{margin:0}
+/* pickers (Add material, Copy from another project) */
+.acx-pbar{display:flex;gap:8px;margin:0 0 10px}.acx-pbar select{max-width:230px}
+.acx-pick{max-height:min(52vh,460px);overflow:auto;border:1px solid var(--bd);border-radius:12px;background:#fff;margin-top:10px}
+.acx-pbar+.acx-pick{margin-top:0}
+.acx-pgh{position:sticky;top:0;z-index:1;background:#f5f5f7;font-size:12px;font-weight:600;color:#3a3a3c;padding:6px 12px;border-bottom:1px solid var(--bd)}
+.acx-pi{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #f0f0f3;padding:8px 12px;font:inherit;font-size:13.5px;color:var(--tx);cursor:pointer}
+.acx-pi:hover,.acx-pi:focus-visible{background:#f2f7ff;outline:0}.acx-pi:disabled{opacity:.5;cursor:progress}
+.acx-pi small{color:var(--mut);font-size:12px}.acx-pi small b{color:#1e8e3e;font-weight:600}
+.acx-pe{margin:0;padding:16px 12px}
+.acx-nw{margin-top:12px;border:1px solid var(--bd);border-radius:12px;padding:8px 12px}
+.acx-nw>summary{cursor:pointer;font-weight:600;font-size:13.5px;color:var(--pri)}
+.acx-two{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.acx-nwgo{margin:12px 0 2px}
+.acx-small{font-size:12px}.acx-top0{margin-top:0}
+.acx-mft{margin:14px 0 0}
+.acx-opts{display:flex;gap:6px 16px;flex-wrap:wrap;margin:10px 0 0}
+label.acx-chk{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:400;color:var(--tx);cursor:pointer;margin:0}
+.acx-chk input{width:auto;margin:0}
+.acx-fh{display:flex;align-items:flex-end;padding:0 0 10px}
+@media(max-width:900px){.acx-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.acx-hd h2{font-size:20px}.acx-hd .btn,.acx-ch .btn{flex:1 1 auto;justify-content:center}.acx-t b{font-size:19px}.acx-pbar{flex-direction:column}.acx-pbar select{max-width:none}.acx-perl{min-width:0}}

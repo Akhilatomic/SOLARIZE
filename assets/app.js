@@ -25,7 +25,7 @@ const MODS = [ // id, label, icon, perm
   ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['calendar', 'Calendar', '<i class="i i-calendar"></i>', 'calendar'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
   ['projects', 'Project pipeline', '<i class="i i-project"></i>', 'projects'], ['folder', 'Folder', '<i class="i i-file"></i>', 'folder'], ['quotes', 'Quotations', '<i class="i i-receipt"></i>', 'quotes'],
   ['subsidy', 'Subsidy (PM Surya Ghar)', '<i class="i i-coin"></i>', 'checklist'], ['kseb', 'KSEB documentation', '<i class="i i-folder"></i>', 'checklist'], ['bank', 'Bank documentation', '<i class="i i-bank"></i>', 'loans'],
-  ['fees', 'Finance', '<i class="i i-coin"></i>', 'fees'], ['whatsapp', 'WhatsApp', '<i class="i i-whatsapp"></i>', 'whatsapp'], ['email', 'Email', '<i class="i i-mail"></i>', 'email'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['attendance', 'Attendance', '<i class="i i-clock"></i>', 'attendance'], ['leaves', 'Leaves', '<i class="i i-leave"></i>', 'leaves'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['recycle', 'Recycle bin', '<i class="i i-trash"></i>', 'recycle'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
+  ['fees', 'Finance', '<i class="i i-coin"></i>', 'fees'], ['accounts', 'Accounts', '<i class="i i-coin"></i>', 'accounts'], ['whatsapp', 'WhatsApp', '<i class="i i-whatsapp"></i>', 'whatsapp'], ['email', 'Email', '<i class="i i-mail"></i>', 'email'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['attendance', 'Attendance', '<i class="i i-clock"></i>', 'attendance'], ['leaves', 'Leaves', '<i class="i i-leave"></i>', 'leaves'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['recycle', 'Recycle bin', '<i class="i i-trash"></i>', 'recycle'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
 const canW = m => ME && (ME.write === '*' || ME.write.includes(m));
 const FIN = () => canR('finance');
 const canR = m => ME && (ME.read === '*' || ME.read.includes(m));
@@ -128,7 +128,7 @@ async function route() {
   const t = MODS.find(m => m[0] === mod);
   $('#title').innerHTML = t ? `<span class="ft t-${t[0]}">${t[2]}</span><span class="ttl">${esc(t[1])}</span>` : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
-  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, subsidy: () => pgOverview('subsidy'), kseb: pgKseb, bank: pgBank, comm: pgComm, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
+  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, subsidy: () => pgOverview('subsidy'), kseb: pgKseb, bank: pgBank, comm: pgComm, accounts: pgAccounts, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
   try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { if (nav === ROUTE_N) main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
@@ -825,7 +825,7 @@ async function pgProject(id) {
   };
   $('#main').innerHTML = `<p><a href="#/projects">← Pipeline</a> · <a href="#/customers/${p.customer_id}">${esc(p.customer?.name || '')}</a></p>
    <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(p.title)} <span class="mut" style="font-size:14px">${p.kw} kW</span></h2>
-   ${w ? `<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>` : pill(p.stage)}</div></div><div id="pstp" style="margin-top:12px"></div><div id="pb" style="margin-top:12px"></div>`;
+   ${canR('accounts') ? `<a class="btn sec" href="#/accounts/cost/${id}"><i class="i i-coin"></i> Project cost</a>` : ''}${w ? `<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>` : pill(p.stage)}</div></div><div id="pstp" style="margin-top:12px"></div><div id="pb" style="margin-top:12px"></div>`;
   renderStepper(p, $('#pstp'));
   if ($('#ed')) $('#ed').onclick = () => projectModal(id, p);
   if ($('#dl')) $('#dl').onclick = async () => { if (confirm('Delete this project with its payments, checklists and files?')) { await api('projects', 'delete', { id }); location.hash = '#/projects'; } };
