@@ -896,22 +896,49 @@ function acLeaveOk() {
 }
 /* the unsaved sheet is being dropped (its box replaced or the page reloaded): the guards stop asking about it */
 function acLeft() { ACS.dirty = false; }
-/* customer profile › Purchases and services (admin only, app11.js): the Expense sheet of the customer's latest project in this box, with a project
-   picker when there are several (the pick is kept while the same customer stays open). The same sheet and data as #/accounts/cost/<project>. */
+/* customer profile › Purchases and services (admin only, app11.js): what the project needs, what is bought and what is still to buy — read only and
+   without money, laid out like the other profile tabs. The owner keeps the figures in Accounts: "Edit in Accounts" opens the Expense sheet
+   (#/accounts/cost/<project>), which holds the same lines. A project picker when there are several (kept while the same customer stays open). */
 const ACX_PICK = { cid: 0, pid: 0 };
+let ACX_PUSEQ = 0; /* the latest load wins when the picker changes quickly */
 function acProfileTab(box, c, cid) {
   const ps = (c.projects || []).filter(p => +p.id); /* newest first */
   if (!ps.length) { box.innerHTML = '<div class="card pfc"><p class="mut" style="margin:0">Start a project for this customer first.</p></div>'; return; }
   const sel = (ACX_PICK.cid === +cid && ps.find(p => +p.id === ACX_PICK.pid)) || ps[0];
-  box.innerHTML = `<div class="acx-ps">${ps.length > 1 ? `<div class="acx-proj"><label for="acx_pp">Project</label><select id="acx_pp">${ps.map(p => `<option value="${+p.id}"${p === sel ? ' selected' : ''}>${esc([p.title || 'Project', acKw(p.kw) ? acKw(p.kw) + ' kW' : '', p.stage].filter(Boolean).join(' · '))}</option>`).join('')}</select></div>` : ''}<div id="acx_psb"></div></div>`;
+  box.innerHTML = `<div class="acx-ps">${ps.length > 1 ? `<div class="acx-proj"><label for="acx_pp">Project</label><select id="acx_pp">${ps.map(p => `<option value="${+p.id}"${p === sel ? ' selected' : ''}>${esc([p.title || 'Project', acKw(p.kw) ? acKw(p.kw) + ' kW' : '', p.stage].filter(Boolean).join(' · '))}</option>`).join('')}</select></div>` : ''}<div id="acx_psb"><p class="mut">Loading…</p></div></div>`;
   const pp = $('#acx_pp', box);
-  if (pp) pp.onchange = () => {
-    if (!acLeaveOk()) { pp.value = String(ACS.pid); return; }
-    acLeft();
-    Object.assign(ACX_PICK, { cid: +cid, pid: +pp.value });
-    acCostSheet(+pp.value, $('#acx_psb', box));
+  if (pp) pp.onchange = () => { Object.assign(ACX_PICK, { cid: +cid, pid: +pp.value }); acPuView(+pp.value, $('#acx_psb', box)); };
+  acPuView(+sel.id, $('#acx_psb', box));
+}
+async function acPuView(pid, el) {
+  const seq = ++ACX_PUSEQ;
+  el.innerHTML = '<p class="mut">Loading…</p>';
+  let d; try { d = await api('acc', 'ac_cost', undefined, '&project_id=' + pid); }
+  catch (e) { if (seq === ACX_PUSEQ && el.isConnected) el.innerHTML = `<div class="card pfc"><p class="over" style="margin:0">${esc((e && (e.error || e.message)) || 'Could not load the purchases')}</p></div>`; return; }
+  if (seq !== ACX_PUSEQ || !el.isConnected) return;
+  const lines = acSort((d.lines || []).map(acIn)), bought = lines.filter(ACC.isBought).length, edit = `#/accounts/cost/${+pid}`;
+  const sum = lines.length ? `${acPl(lines.length, 'item')} · ${bought} purchased / paid · ${lines.length - bought} still to buy / pay` : 'Nothing listed yet';
+  let cards = '';
+  [...new Set(lines.map(l => l.grp))].forEach(g => {
+    const L = lines.filter(l => l.grp === g), b = L.filter(ACC.isBought).length;
+    cards += `<div class="card pfc acx-pu"><div class="pfch"><i class="i i-${g === ACX_SVC ? 'check' : 'project'}"></i><h3>${esc(g || 'Other')}</h3><span class="sp"></span><span class="mut acx-small">${acPl(L.length, 'item')}${b ? ` · ${b} ${g === ACX_SVC ? 'paid' : 'purchased'}` : ''}</span></div>
+      <div class="acx-pul">${L.map(l => `<div class="acx-pur${l.bought ? ' acx-puok' : ''}"><span class="acx-pun">${esc(l.name)}</span><span class="acx-puq">${l.qty > 0 ? esc(acV(l.qty)) : '—'} <small>${esc(l.unit)}</small></span>
+        <span class="acx-pus">${acBCell(l, false)}</span></div>`).join('')}</div></div>`;
+  });
+  el.innerHTML = `<div class="card pfc acx-puh"><div class="pfch"><i class="i i-coin"></i><h3>Purchases and services</h3><span class="sp"></span>
+      ${lines.some(l => l.grp !== ACX_SVC) ? '<button type="button" class="btn sec sm" id="acx_pudl"><i class="i i-download"></i> Download material list</button>' : ''}
+      <a class="btn sm" href="${edit}"><i class="i i-pencil"></i> Edit in Accounts</a></div>
+      <p class="mut acx-small" style="margin:0">${esc(sum)}. Prices, expense and profit are kept in Accounts › Expense.</p></div>
+    ${cards || `<div class="card pfc"><p class="mut" style="margin:0">No purchases or services listed for this project yet. Use <b>Edit in Accounts</b> to add them.</p></div>`}`;
+  const dl = $('#acx_pudl', el);
+  if (dl) dl.onclick = async () => {
+    dl.disabled = true;
+    try {
+      const only = ACC.hasBoughtMaterial(lines) ? await acPdfAsk() : 'all';
+      if (only) await acMaterialPdf(Object.assign({}, d, { lines, onlyToBuy: only === 'tobuy' }));
+    } catch (e) { toast((e && (e.error || e.message)) || 'Could not make the material list', true); }
+    finally { dl.disabled = false; }
   };
-  acCostSheet(+sel.id, $('#acx_psb', box));
 }
 
 /* leaving an Expense sheet with unsaved changes (another page, the browser's back, closing the tab); Ctrl+S saves */
