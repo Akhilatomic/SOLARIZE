@@ -51,3 +51,24 @@ test('material list: empty fields skipped, ticks present, long names wrap, signa
     assert.ok(M.pages.at(-1).ops.some(o => o.txt && o.txt.startsWith('Purchased by')), 'n=' + n);
   }
 });
+test('material list: spec §9 columns, header on every page, spacing, bounds', () => {
+  const lines = Array.from({ length: 90 }, (_, i) => ({ grp: ACC.GROUPS[i % 10], name: 'Item ' + (i + 1), qty: 1000 + i, unit: 'Nos' }));
+  const L = ACC.mlLayout({ company: { name: 'Test Co' }, no: 'N', date: 'd', customer: { name: 'Test Person' }, lines });
+  const BOTTOM = 297 - 14 - 6;
+  assert.ok(L.pages.length >= 2);
+  L.pages.forEach(p => {
+    const tx = p.ops.filter(o => o.t === 'text').map(o => o.txt);
+    ['Test Co', 'Item', 'Ordered', 'Delivered qty', 'OK', 'Remarks'].forEach(h => assert.ok(tx.includes(h), h));
+    p.ops.forEach(o => { if (o.t === 'text' && !/^Page /.test(o.txt)) assert.ok(o.y <= BOTTOM, o.txt + ' y=' + o.y); });
+    p.ops.forEach(o => { for (const k of ['x', 'x1', 'x2']) if (o[k] !== undefined) assert.ok(o[k] >= 14 && o[k] <= 196, k + '=' + o[k]); });
+    // qty right edge sits left of the unit text on every row
+    new Set(p.ops.filter(o => o.t === 'text' && o.txt === 'Nos').map(o => o.y)).forEach(y => {
+      const q = p.ops.find(o => o.t === 'text' && o.y === y && o.a === 'r'), u = p.ops.find(o => o.t === 'text' && o.y === y && o.txt === 'Nos');
+      assert.ok(q.x < u.x, 'qty/unit overlap at y=' + y);
+    });
+  });
+  assert.ok(L.pages[0].ops.some(o => o.txt === 'MATERIAL LIST') && L.pages[0].ops.some(o => o.txt === 'Purchase & site delivery check'));
+  const last = L.pages.at(-1).ops, sig = last.find(o => o.t === 'text' && o.txt.startsWith('Purchased by'));
+  const rowsBottom = Math.max(...last.filter(o => o.t === 'text' && /^Item \d/.test(o.txt)).map(o => o.y));
+  assert.ok(sig.y - 4 > rowsBottom, 'signature below last row');
+});

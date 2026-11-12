@@ -67,7 +67,7 @@ const ACC = {
       return out.length ? out : [''];
     });
     const co = d.company || {}, cu = d.customer || {}, pr = d.project || {};
-    const X = { sr: M + 1, name: M + 9, qty: 118, unit: 121, ord: 138, del: 150, ok: 183 };
+    const X = { sr: 15, name: 23, qr: 108, unit: 111, ord: 125, del: 137, ok: 159, rem: 168 };
     const pages = [];
     let ops, y;
     const text = (x, yy, s, txt, o) => ops.push(Object.assign({ t: 'text', x, y: yy, s, txt }, o));
@@ -77,7 +77,8 @@ const ACC = {
       text(M, y, first ? 15 : 11, co.name || '', { b: 1 });
       text(R, y, 13, 'MATERIAL LIST', { b: 1, a: 'r' });
       if (first) {
-        const y0 = y + 5;
+        text(R, y + 4.5, 8, 'Purchase & site delivery check', { a: 'r', c: '#555555' });
+        const y0 = y + 9;
         [d.no && 'No: ' + d.no, d.date && 'Date: ' + d.date].filter(Boolean).forEach((l, i) => text(R, y0 + i * 4, 9, l, { a: 'r' }));
         const sub = [co.address, co.phone && 'Ph: ' + co.phone, co.gstin && 'GSTIN: ' + co.gstin].filter(Boolean).join('  |  ');
         y += 1;
@@ -102,8 +103,8 @@ const ACC = {
     const tableHead = () => {
       line(M, y - 4, R, y - 4, 0.3);
       text(X.sr, y, 8, '#', { b: 1 }); text(X.name, y, 8, 'Item', { b: 1 });
-      text(X.qty + 8, y, 8, 'Qty', { b: 1, a: 'r' }); text(X.unit + 1, y, 8, 'Unit', { b: 1 });
-      text(X.ord - 1, y, 8, 'Ordered', { b: 1 }); text(X.del + 3, y, 8, 'Delivered qty', { b: 1 }); text(X.ok - 1, y, 8, 'OK', { b: 1 });
+      text(X.qr, y, 8, 'Qty', { b: 1, a: 'r' }); text(X.unit, y, 8, 'Unit', { b: 1 });
+      text(X.ord, y, 8, 'Ordered', { b: 1 }); text(X.del, y, 8, 'Delivered qty', { b: 1 }); text(X.ok - 1, y, 8, 'OK', { b: 1 }); text(X.rem, y, 8, 'Remarks', { b: 1 });
       y += 2; line(M, y, R, y, 0.3); y += 5;
     };
     newPage(true);
@@ -113,7 +114,7 @@ const ACC = {
     const next = () => { newPage(false); tableHead(); };
     let grp = null, sr = 0;
     (d.lines || []).forEach(l => {
-      const names = wrap(l.name || '', X.qty - X.name - 8, 9), h = Math.max(1, names.length) * LH + 2.6;
+      const names = wrap(l.name || '', X.qr - X.name - 10, 9), h = Math.max(1, names.length) * LH + 2.6;
       const g = l.grp || '';
       const needG = g && g !== grp;
       if (y + h + (needG ? 7 : 0) > BOTTOM) { next(); grp = null; }
@@ -124,10 +125,10 @@ const ACC = {
       sr++;
       text(X.sr, y, 9, String(sr));
       names.forEach((n, i) => text(X.name, y + i * LH, 9, n));
-      text(X.qty + 8, y, 9, String(l.qty === undefined || l.qty === null ? '' : l.qty), { a: 'r' });
-      text(X.unit + 1, y, 9, String(l.unit || ''));
-      ops.push({ t: 'box', x: X.ord + 3, y: y - 3, w: 3.6, h: 3.6 });
-      line(X.del, y + 0.4, X.del + 24, y + 0.4, 0.2);
+      text(X.qr, y, 9, String(l.qty === undefined || l.qty === null ? '' : l.qty), { a: 'r' });
+      text(X.unit, y, 9, String(l.unit || ''));
+      ops.push({ t: 'box', x: X.ord + 3.2, y: y - 3, w: 3.6, h: 3.6 });
+      line(X.del, y + 0.4, X.del + 18, y + 0.4, 0.2);
       ops.push({ t: 'box', x: X.ok, y: y - 3, w: 3.6, h: 3.6 });
       y += h - 2.6 + 1; line(M, y - 3.2, R, y - 3.2, 0.1); y += 2.2;
     });
