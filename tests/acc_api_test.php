@@ -141,9 +141,9 @@ chk(count(call($acct, 'acc', 'ac_received', null, '&period=fy-25-26')['rows']) =
 [$cidE, $pidE] = $mkc('Prof Echo', '9000000015', 'Electrical installation', 108900, 5);
 if ($dbPath) { $pdo = new PDO('sqlite:' . $dbPath); $pdo->exec("INSERT INTO commissions(customer_id,user_id,amount) VALUES($cidE,1,5000)"); $pdo = null; }
 call($acct, 'acc', 'cost_save', ['project_id' => $pidE, 'lines' => [['grp' => 'Solar panels', 'name' => 'Prof Panel', 'qty' => 6, 'rate' => 10000, 'gst' => 0]]]);
-call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $cidE, 'issued_on' => '2026-11-10', 'number' => 'T3-001', 'data' => ['taxable' => 100000, 'grand' => 108900]]);
+call($admin, 'gen', 'save', ['kind' => 'tax', 'early' => 1, 'customer_id' => $cidE, 'issued_on' => '2026-11-10', 'number' => 'T3-001', 'data' => ['taxable' => 100000, 'grand' => 108900]]);
 [$cidF, $pidF] = $mkc('Prof Foxtrot', '9000000016', 'Electrical installation', 54450, 3);
-call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $cidF, 'issued_on' => '2026-11-11', 'number' => 'T3-002', 'data' => ['grand' => 54450]]);
+call($admin, 'gen', 'save', ['kind' => 'tax', 'early' => 1, 'customer_id' => $cidF, 'issued_on' => '2026-11-11', 'number' => 'T3-002', 'data' => ['grand' => 54450]]);
 $pf = call($acct, 'acc', 'ac_profit', null, '&period=2026-11');
 $re = find_by($pf['rows'] ?? [], 'project_id', $pidE);
 $cm = $dbPath ? 5000 : 0;
@@ -156,10 +156,10 @@ chk(count(call($acct, 'acc', 'ac_profit', null, '&period=2026-10')['rows']) === 
 /* profit: price / 1.089 fallback (bill without taxable) and unpriced lines (own period so the November totals stay put) */
 [$cidG, $pidG] = $mkc('Prof Golf', '9000000017', 'Electrical installation', 108900, 3);
 call($acct, 'acc', 'cost_save', ['project_id' => $pidG, 'lines' => [['grp' => 'Solar panels', 'name' => 'Golf Panel', 'qty' => 1, 'rate' => 50000, 'gst' => 0]]]);
-call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $cidG, 'issued_on' => '2026-09-10', 'number' => 'T3-003', 'data' => ['grand' => 108900]]);
+call($admin, 'gen', 'save', ['kind' => 'tax', 'early' => 1, 'customer_id' => $cidG, 'issued_on' => '2026-09-10', 'number' => 'T3-003', 'data' => ['grand' => 108900]]);
 [$cidH, $pidH] = $mkc('Prof Hotel', '9000000018', 'Electrical installation', 80000, 3);
 call($acct, 'acc', 'cost_save', ['project_id' => $pidH, 'lines' => [['grp' => 'Solar panels', 'name' => 'Hotel Panel', 'qty' => 1, 'rate' => 10000, 'gst' => 0], ['grp' => 'Solar panels', 'name' => 'Hotel Unpriced', 'qty' => 2, 'rate' => 0, 'gst' => 0]]]);
-call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $cidH, 'issued_on' => '2026-09-11', 'number' => 'T3-004', 'data' => ['taxable' => 50000, 'grand' => 54450]]);
+call($admin, 'gen', 'save', ['kind' => 'tax', 'early' => 1, 'customer_id' => $cidH, 'issued_on' => '2026-09-11', 'number' => 'T3-004', 'data' => ['taxable' => 50000, 'grand' => 54450]]);
 $ps = call($acct, 'acc', 'ac_profit', null, '&period=2026-09');
 $rg = find_by($ps['rows'] ?? [], 'project_id', $pidG); $rh = find_by($ps['rows'] ?? [], 'project_id', $pidH);
 chk($rg && (float)$rg['before'] == round(108900 / 1.089, 2) && (float)$rg['cost'] == 50000 && (float)$rg['profit'] == 50000 && (int)$rg['missing'] === 0, 'ac_profit: no taxable on the bill falls back to price / 1.089');
@@ -191,6 +191,92 @@ chk(call($acct, 'acc', 'expense_delete', ['id' => $e1['id']])['_code'] === 200 &
 foreach (['ac_overview', 'ac_pending', 'ac_received', 'ac_profit', 'ac_expenses'] as $act) {
   chk(call($sales, 'acc', $act)['_code'] === 403 && call($ba, 'acc', $act)['_code'] === 403, "sales and ba get 403 on $act");
 }
+
+/* ---- tax bill lock, receipts data, share log, templates ---- */
+echo "Accounts: tax bill lock, receipts, log, templates\n";
+$dbq = function ($sql, $args = []) use ($dbPath) { $pdo = new PDO('sqlite:' . $dbPath); $st = $pdo->prepare($sql); $st->execute($args); return $st; };
+$taxSave = fn($who, $cid, $extra = []) => call($who, 'gen', 'save', array_merge(['kind' => 'tax', 'customer_id' => $cid, 'issued_on' => '2026-11-12', 'data' => ['grand' => 100000, 'taxable' => 91827]], $extra));
+$lockOf = fn($cid) => call($admin, 'gen', 'get', null, "&kind=tax&customer_id=$cid")['lock'] ?? null;
+$hasBill = fn($cid) => (bool)$dbq("SELECT 1 FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid])->fetch();
+[$cidL, $pidL] = $mkc('Lock India', '9000000021', 'Electrical installation', 100000);
+$pay($pidL, 60000, '2026-11-02');
+$lk = $lockOf($cidL);
+chk($lk && $lk['locked'] === true && $lk['why'] === 'due' && (float)$lk['due'] == 40000 && $lk['msg'] === '₹40,000 still due', 'lock: non-loan with 40000 due is locked');
+$r = $taxSave($admin, $cidL);
+chk($r['_code'] === 409 && ($r['error'] ?? '') === '₹40,000 still due' && !$hasBill($cidL), 'gen/save tax is 409 while locked and creates no bill');
+$r = $taxSave($acct, $cidL, ['early' => 1]);
+chk(in_array($r['_code'], [403, 409], true) && !$hasBill($cidL), 'a non-admin early:1 is refused and creates no bill');
+$r = $taxSave($eng, $cidL, ['early' => 1]);
+chk(in_array($r['_code'], [403, 409], true) && !$hasBill($cidL), 'engineer early:1 refused too');
+$r = $taxSave($admin, $cidL, ['early' => 1]);
+chk($r['_code'] === 200 && $hasBill($cidL) && $dbq("SELECT COUNT(*) FROM audit_log WHERE action='tax_bill_early' AND entity_id=?", [$cidL])->fetchColumn() == 1, 'admin early:1 issues the bill and audits tax_bill_early');
+$pay2 = $pay($pidL, 40000, '2026-11-03');
+call($admin, 'payments', 'delete', ['id' => (int)($pay2['id'] ?? 0)]);
+$r = $taxSave($admin, $cidL, ['data' => ['grand' => 100000, 'taxable' => 91800]]);
+chk($r['_code'] === 200, 'an issued bill can still be edited while money is due');
+[$cidM, $pidM] = $mkc('Lock Mike', '9000000022', 'Electrical installation', 50000);
+$pay($pidM, 50000);
+$lk = $lockOf($cidM);
+chk($lk && $lk['locked'] === false && $lk['why'] === 'paid', 'lock: fully paid is unlocked (paid)');
+chk($taxSave($admin, $cidM)['_code'] === 200, 'gen/save tax allowed when fully paid');
+$mkl = function ($name, $phone, $cost, $loanAmt) use ($mkc, $dbq) {
+  [$c, $p] = $mkc($name, $phone, 'Electrical installation', $cost);
+  $dbq("UPDATE projects SET loan='Yes' WHERE id=?", [$p]); $dbq('UPDATE customers SET loan_amount=? WHERE id=?', [$loanAmt, $c]);
+  return [$c, $p];
+};
+[$cidN, $pidN] = $mkl('Lock November', '9000000023', 300000, '270000');
+$pay($pidN, 30000, '2026-11-04', 'customer');
+$lk = $lockOf($cidN);
+chk($lk && $lk['locked'] === false && $lk['why'] === 'bank_left' && $lk['msg'] === "Only the bank's part is left (₹2,70,000)", 'lock: loan, customer share paid -> unlocked bank_left (Indian grouping)');
+chk($taxSave($admin, $cidN)['_code'] === 200, 'gen/save tax allowed when only the bank part is left');
+[$cidO, $pidO] = $mkl('Lock Oscar', '9000000024', 300000, '270000');
+$pay($pidO, 20000, '2026-11-04', 'customer'); $pay($pidO, 50000, '2026-11-05', 'bank');
+$lk = $lockOf($cidO);
+chk($lk && $lk['locked'] === true && $lk['why'] === 'due' && $lk['msg'] === '₹10,000 still due from the customer', 'lock: loan, customer paid 20000 of 30000 -> locked (bank money does not count)');
+[$cidP, $pidP] = $mkl('Lock Papa', '9000000025', 300000, '');
+$lk = $lockOf($cidP);
+chk($lk && $lk['locked'] === true && $lk['why'] === 'loan_amount' && $lk['msg'] === 'Enter the loan amount on the Bank & loan page', 'lock: loan with blank loan amount is locked (loan_amount)');
+[$cidQ, $pidQ] = $mkl('Lock Quebec', '9000000026', 300000, '400000');
+$lk = $lockOf($cidQ);
+chk($lk && $lk['locked'] === false && $lk['why'] === 'bank_left', 'lock: loan larger than cost -> share 0 -> unlocked');
+
+/* receipt data */
+[$cidR, $pidR] = $mkc('Rcpt Romeo', '9000000027', 'Electrical installation', 100000, 4);
+$chq = call($admin, 'payments', 'save', ['project_id' => $pidR, 'date' => '2026-11-06', 'amount' => 25000, 'mode' => 'Cheque', 'src' => 'customer']);
+$chqId = (int)($chq['id'] ?? 0);
+chk($chqId > 0 && call($acct, 'acc', 'ac_receipt', null, "&payment_id=$chqId")['_code'] === 422, 'ac_receipt: cheque without a reference is 422');
+call($admin, 'payments', 'save', ['id' => $chqId, 'project_id' => $pidR, 'date' => '2026-11-06', 'amount' => 25000, 'mode' => 'Cheque', 'ref_no' => 'CHQ0001', 'src' => 'customer']);
+$rc1 = call($acct, 'acc', 'ac_receipt', null, "&payment_id=$chqId");
+chk($rc1['_code'] === 200 && preg_match('#/RCPT/\d\d-\d\d/\d+$#', $rc1['payment']['receipt_no'] ?? '') === 1, 'ac_receipt: cheque with a reference gets a receipt number');
+$rc2 = call($acct, 'acc', 'ac_receipt', null, "&payment_id=$chqId");
+chk(($rc2['payment']['receipt_no'] ?? 'x') === ($rc1['payment']['receipt_no'] ?? 'y'), 'ac_receipt: second call returns the same number');
+chk(($rc1['project']['id'] ?? 0) == $pidR && ($rc1['customer']['name'] ?? '') === 'Rcpt Romeo' && count($rc1['payments'] ?? []) === 1 && array_key_exists('bill', $rc1) && $rc1['bill'] === null && !empty($rc1['company']['gstin']) && array_key_exists('loan_bank_email', $rc1['customer']), 'ac_receipt: project, customer with bank fields, payments, bill null, company gstin');
+$taxSave($admin, $cidR, ['early' => 1]);
+$rc3 = call($acct, 'acc', 'ac_receipt', null, "&payment_id=$chqId");
+chk(!empty($rc3['bill']['no']) && (float)$rc3['bill']['total'] == 100000, 'ac_receipt: bill data once the tax bill exists');
+chk(call($ba, 'acc', 'ac_receipt', null, "&payment_id=$chqId")['_code'] === 403, 'ac_receipt: ba is refused');
+chk(call($acct, 'acc', 'ac_receipt', null, '&payment_id=99999999')['_code'] === 404, 'ac_receipt: unknown payment is 404');
+/* log */
+$lg = call($acct, 'acc', 'log', ['kind' => 'receipt', 'payment_id' => $chqId, 'customer_id' => $cidR, 'project_id' => $pidR, 'via' => 'email', 'to_whom' => 'bank', 'to_addr' => 'bank@test.example']);
+chk($lg['_code'] === 200 && $dbq('SELECT COUNT(*) FROM acc_log WHERE payment_id=?', [$chqId])->fetchColumn() == 1, 'log: a share is recorded');
+chk(call($acct, 'acc', 'log', ['kind' => 'nope', 'customer_id' => $cidR, 'via' => 'email', 'to_whom' => 'bank'])['_code'] === 400, 'log: bad kind refused');
+chk(call($acct, 'acc', 'log', ['kind' => 'receipt', 'customer_id' => $cidR, 'via' => 'fax', 'to_whom' => 'bank'])['_code'] === 400, 'log: bad via refused');
+chk(in_array(call($ba, 'acc', 'log', ['kind' => 'receipt', 'customer_id' => $cidR, 'via' => 'email', 'to_whom' => 'bank'])['_code'], [403, 404], true), 'log: ba refused (403, or 404 from the BA customer gate)');
+call($acct, 'acc', 'log', ['kind' => 'remind', 'customer_id' => $cidA, 'project_id' => $pidA, 'via' => 'whatsapp', 'to_whom' => 'customer', 'to_addr' => '9000000011']);
+$ra = find_by(call($acct, 'acc', 'ac_pending')['rows'], 'id', $pidA);
+chk(($ra['last_remind']['by'] ?? '') === 'Acc Person' && !empty($ra['last_remind']['at']), 'ac_pending: last_remind shows the logged reminder');
+$rcvd = call($acct, 'acc', 'ac_received', null, '&period=2026-11');
+call($admin, 'payments', 'delete', ['id' => $chqId]);
+$rcvd2 = call($acct, 'acc', 'ac_received', null, '&period=2026-11');
+chk(abs($rcvd['total'] - $rcvd2['total'] - 25000) < 0.01 && $dbq('SELECT COUNT(*) FROM acc_log WHERE payment_id=?', [$chqId])->fetchColumn() == 1, 'deleting a payment lowers received and keeps its log rows');
+/* templates */
+$t0 = call($acct, 'acc', 'ac_tpl');
+chk($t0['_code'] === 200 && strpos($t0['rc_subject'] ?? '', '{receipt_no}') !== false && strpos($t0['remind'] ?? '', '{pending}') !== false && isset($t0['company']['name']), 'ac_tpl: defaults and company');
+chk(call($sales, 'acc', 'ac_tpl')['_code'] === 200 && call($ba, 'acc', 'ac_tpl')['_code'] === 403, 'ac_tpl: sales (payments) allowed, ba refused');
+chk(call($acct, 'acc', 'tpl_save', ['rc_subject' => 'X'])['_code'] === 403, 'tpl_save by accounts role is 403');
+chk(call($admin, 'acc', 'tpl_save', ['rc_subject' => 'My subject {receipt_no}', 'rc_body' => 'B1', 'tb_subject' => 'S2', 'tb_body' => 'B2', 'remind' => 'R'])['_code'] === 200, 'tpl_save by admin ok');
+$t1 = call($acct, 'acc', 'ac_tpl');
+chk($t1['rc_subject'] === 'My subject {receipt_no}' && $t1['remind'] === 'R' && $t1['tb_body'] === 'B2', 'ac_tpl returns the saved templates');
 
 echo "\n$pass ok, $fail FAIL\n";
 exit($fail ? 1 : 0);

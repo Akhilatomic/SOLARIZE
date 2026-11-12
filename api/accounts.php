@@ -150,12 +150,93 @@ function acc_ads_by_month($from, $to) {
     rows('SELECT substr(date,1,7) month, SUM(spend) spend FROM ad_spend WHERE date >= ? AND date <= ? GROUP BY month ORDER BY month', [$from, $to]));
 }
 
+/* company details for the receipt / email: name, contacts, bank (Quotation maker) and the GSTIN */
+function acc_company() {
+  return (gen_qm_info() ?: []) + ['gstin' => (string)(settings()['company']['gstin'] ?? '')] + ['name' => '', 'phone' => '', 'bank' => null];
+}
+
+/* rupees with Indian grouping (12,34,567); paise only when there are some */
+function acc_inr($n) {
+  $n = round((float)$n, 2); $s = number_format(abs($n), floor($n) == $n ? 0 : 2, '.', ''); [$i, $d] = array_pad(explode('.', $s), 2, '');
+  if (strlen($i) > 3) $i = preg_replace('/\B(?=(\d{2})+(?!\d))/', ',', substr($i, 0, -3)) . ',' . substr($i, -3);
+  return '₹' . ($n < 0 ? '-' : '') . $i . ($d !== '' ? '.' . $d : '');
+}
+
+/* Can the customer's tax bill be issued yet? For their latest project (same as the Tax bill tab).
+   {locked, due, msg, why: paid | bank_left | due | loan_amount}. Loan projects unlock when the payments marked Customer cover the customer's share (price - loan),
+   because the bank releases its last part only after it gets the final tax bill. */
+function acc_bill_lock($cid) {
+  $g = gen_acct((int)$cid); $cost = (float)$g['cost']; $due = max(0, $cost - (float)$g['paid']);
+  if ($due <= 1) return ['locked' => false, 'due' => $due, 'msg' => '', 'why' => 'paid'];
+  $isLoan = $g['project_id'] && row('SELECT loan FROM projects WHERE id=?', [$g['project_id']])['loan'] === 'Yes';
+  if (!$isLoan) return ['locked' => true, 'due' => $due, 'msg' => acc_inr($due) . ' still due', 'why' => 'due'];
+  $loan = (float)str_replace([',', '₹', ' '], '', (string)(row('SELECT loan_amount FROM customers WHERE id=?', [(int)$cid])['loan_amount'] ?? ''));
+  if ($loan <= 0) return ['locked' => true, 'due' => $due, 'msg' => 'Enter the loan amount on the Bank & loan page', 'why' => 'loan_amount'];
+  $share = max(0, $cost - $loan);
+  $custPaid = (float)row("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE project_id=? AND COALESCE(src,'') <> 'bank'", [$g['project_id']])['s'];
+  if ($custPaid >= $share - 1) return ['locked' => false, 'due' => $due, 'msg' => "Only the bank's part is left (" . acc_inr($due) . ')', 'why' => 'bank_left'];
+  return ['locked' => true, 'due' => $due, 'msg' => acc_inr($share - $custPaid) . ' still due from the customer', 'why' => 'due'];
+}
+
+const ACC_TPL_DEFAULT = [
+  'rc_subject' => 'Payment receipt {receipt_no} – {customer} – solar plant {kw} kW',
+  'rc_body' => "Dear {manager},\n\nPlease find attached the payment receipt {receipt_no} for ₹{amount} received on {date} ({mode_ref}) towards the {kw} kW rooftop solar plant of {customer} (consumer no. {consumer_no}, loan ref {loan_ref}). Kindly process the next disbursement.\n\nRegards,\n{sender}\n{company}\n{sender_phone}",
+  'tb_subject' => 'Final tax invoice {bill_no} – {customer} – solar plant {kw} kW',
+  'tb_body' => "Dear {manager},\n\nThe {kw} kW rooftop solar plant of {customer} (consumer no. {consumer_no}, loan ref {loan_ref}) is complete. Please find attached the final tax invoice {bill_no} for ₹{bill_total}. Kindly release the final disbursement.\n\nRegards,\n{sender}\n{company}\n{sender_phone}",
+  'remind' => 'Dear {customer}, a balance of ₹{pending} is pending for your {kw} kW solar plant. Kindly pay at the earliest. Account: {bank_details}. Thank you, {company}.',
+];
+
 function acc_expense_row($r) { foreach (['id', 'created_by'] as $k) $r[$k] = (int)$r[$k]; foreach (['amount', 'gst'] as $k) $r[$k] = (float)$r[$k]; return $r; }
 
 function handle_acc($a) {
-  need('accounts');
+  /* receipts, templates and the share log are also open to anyone who can see payments; everything else needs Accounts */
+  if (in_array($a, ['ac_tpl', 'ac_receipt', 'log'], true)) { if (!can('payments') && !can('accounts')) fail('Not allowed for your role', 403); }
+  else need('accounts');
   $in = body();
   switch ($a) {
+    case 'ac_tpl':
+      out(kv_get('acc_tpl', ACC_TPL_DEFAULT) + ['company' => acc_company()]);
+
+    case 'tpl_save': {
+      if (!is_admin()) fail('Only the admin can change the templates', 403);
+      $cur = kv_get('acc_tpl', ACC_TPL_DEFAULT);
+      foreach (array_keys(ACC_TPL_DEFAULT) as $k) if (isset($in[$k])) { $v = str_replace("\r\n", "\n", (string)$in[$k]); if (mb_strlen($v) > 4000) fail('A template is too long (4000 characters at most)'); $cur[$k] = $v; }
+      kv_set('acc_tpl', $cur);
+      audit('acc_tpl_save', 'settings', null, 'email / WhatsApp templates');
+      out(['ok' => true] + $cur);
+    }
+
+    case 'ac_receipt': {
+      $pay = row('SELECT pa.* FROM payments pa JOIN projects p ON p.id=pa.project_id JOIN customers c ON c.id=p.customer_id WHERE pa.id=? AND ' . cust_scope('c'), [(int)($_GET['payment_id'] ?? 0)]);
+      if (!$pay) fail('Payment not found', 404);
+      $pay['receipt_no'] = rcpt_issue($pay);
+      $p = acc_project((int)$pay['project_id']); $cid = (int)$p['customer_id'];
+      $cols = 'id, name, phone, email, address, district, pincode, consumer_no' . (can('loans') ? ', jansamarth_id, loan_bank, loan_bank_email, loan_mgr_name, loan_mgr_phone' : '');
+      $cu = row("SELECT $cols FROM customers WHERE id=?", [$cid]); $cu['id'] = (int)$cu['id'];
+      $pays = rows('SELECT id, date, amount, mode, ref_no, receipt_no, src, note FROM payments WHERE project_id=? ORDER BY date, id', [(int)$p['id']]);
+      foreach ($pays as &$x) { $x['id'] = (int)$x['id']; $x['amount'] = (float)$x['amount']; $x['src'] = $x['src'] === 'bank' ? 'bank' : 'customer'; } unset($x);
+      $latest = (int)(row('SELECT id FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid])['id'] ?? 0) === (int)$p['id'];
+      $bill = null;
+      if ($latest && ($b = row("SELECT number, issued_on, data FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid]))) $bill = ['no' => $b['number'], 'date' => $b['issued_on'], 'total' => (float)((json_decode((string)$b['data'], true) ?: [])['grand'] ?? 0)];
+      $one = ['id' => (int)$pay['id'], 'project_id' => (int)$p['id'], 'date' => $pay['date'], 'amount' => (float)$pay['amount'], 'mode' => $pay['mode'], 'ref_no' => $pay['ref_no'], 'receipt_no' => $pay['receipt_no'], 'src' => $pay['src'] === 'bank' ? 'bank' : 'customer', 'note' => $pay['note']];
+      out(['payment' => $one, 'project' => ['id' => (int)$p['id'], 'kw' => $p['kw'], 'loan' => $p['loan'], 'cost' => (float)$p['cost']], 'customer' => $cu, 'payments' => $pays, 'bill' => $bill, 'company' => acc_company()]);
+    }
+
+    case 'log': {
+      $kind = (string)($in['kind'] ?? ''); $via = (string)($in['via'] ?? ''); $to = (string)($in['to_whom'] ?? '');
+      if (!in_array($kind, ['receipt', 'tax', 'remind'], true)) fail('Unknown kind');
+      if (!in_array($via, ['email', 'whatsapp', 'pdf'], true)) fail('Unknown way of sharing');
+      if (!in_array($to, ['customer', 'bank'], true)) fail('Unknown recipient');
+      $cid = (int)($in['customer_id'] ?? 0);
+      if (!row('SELECT 1 FROM customers c WHERE c.id=? AND ' . cust_scope('c'), [$cid])) fail('Customer not found', 404);
+      $pid = (int)($in['project_id'] ?? 0); $payId = (int)($in['payment_id'] ?? 0);
+      if ($pid && !row('SELECT 1 FROM projects WHERE id=? AND customer_id=?', [$pid, $cid])) fail('Project not found', 404);
+      if ($payId && !row('SELECT 1 FROM payments pa JOIN projects p ON p.id=pa.project_id WHERE pa.id=? AND p.customer_id=?', [$payId, $cid])) fail('Payment not found', 404);
+      q('INSERT INTO acc_log(kind,payment_id,customer_id,project_id,via,to_whom,to_addr,user_id) VALUES(?,?,?,?,?,?,?,?)',
+        [$kind, $payId ?: null, $cid, $pid ?: null, $via, $to, mb_substr(trim((string)($in['to_addr'] ?? '')), 0, 200), uid()]);
+      out(['ok' => true, 'id' => (int)db()->lastInsertId()]);
+    }
+
     case 'ac_cost':
       out(acc_cost_get((int)($_GET['project_id'] ?? 0)));
 

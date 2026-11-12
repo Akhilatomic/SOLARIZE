@@ -42,6 +42,16 @@ function rcpt_next_no($date) {
   $pre = trim((string)(settings()['company']['quote_prefix'] ?? 'JS')) ?: 'JS';
   return sprintf('%s/RCPT/%s/%03d', $pre, $fy, $n);
 }
+/* Receipt number of a payment row (payments.*): gives it one the first time. A receipt needs the payment's reference (UTR / cheque / transaction no.) unless it was paid in cash (422). */
+function rcpt_issue($pay): string {
+  if (strcasecmp(trim((string)$pay['mode']), 'Cash') !== 0 && trim((string)($pay['ref_no'] ?? '')) === '') fail('Add the reference number (UTR / cheque / transaction no.) to this payment first, or set the mode to Cash.', 422);
+  if (($pay['receipt_no'] ?? '') === '') { $no = rcpt_next_no($pay['date'] ?: date('Y-m-d'));
+    q("UPDATE payments SET receipt_no=? WHERE id=? AND COALESCE(receipt_no,'')=''", [$no, $pay['id']]);
+    $pay['receipt_no'] = row('SELECT receipt_no FROM payments WHERE id=?', [$pay['id']])['receipt_no'];
+    $cid = (int)(row('SELECT customer_id FROM projects WHERE id=?', [(int)$pay['project_id']])['customer_id'] ?? 0);
+    audit('payment_receipt', 'customers', $cid, $pay['receipt_no'] . ' · ₹' . $pay['amount']); }
+  return (string)$pay['receipt_no'];
+}
 // The company address, contacts, bank account and KSEB fees set in the Quotation maker — the tax bill prints the same details.
 function gen_qm_info() {
   try { $s = qm_settings(); } catch (Throwable $e) { return null; }
@@ -84,6 +94,7 @@ function handle_gen($a) {
         'tax' => row("SELECT number, issued_on FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid]) ?: null, // bill no. also prints on the warranty card
         'next_no' => !$r && GEN_KINDS[$kind] !== '' ? gen_next_no($kind, date('Y-m-d'), true) : null, // what a new bill will get (the editor shows it)
         'acct' => $kind === 'tax' ? gen_acct($cid) : null,
+        'lock' => $kind === 'tax' ? acc_bill_lock($cid) : null, /* the tax bill is issued only at the final payment */
         'qm' => $kind === 'tax' ? gen_qm_info() : null,
         'mnre' => $kind === 'warranty' ? kv_get('mnre_defaults', ['sign_name' => '', 'sign_desig' => 'Proprietor', 'sign_phone' => (gen_qm_info() ?: [])['phone'] ?? '']) : null]);
 
@@ -102,11 +113,7 @@ function handle_gen($a) {
       $pay = row('SELECT p.* FROM payments p JOIN projects pr ON pr.id=p.project_id WHERE p.id=? AND pr.customer_id=?', [(int)($in['payment_id'] ?? 0), $cid]);
       if (!$pay) fail('Payment not found', 404);
       /* a receipt needs the payment's reference (UTR / cheque / transaction no.), unless it was paid in cash */
-      if (strcasecmp(trim((string)$pay['mode']), 'Cash') !== 0 && trim((string)($pay['ref_no'] ?? '')) === '') fail('Add the reference number (UTR / cheque / transaction no.) to this payment first, or set the mode to Cash.', 422);
-      if (($pay['receipt_no'] ?? '') === '') { $pay['receipt_no'] = rcpt_next_no($pay['date'] ?: date('Y-m-d'));
-        q("UPDATE payments SET receipt_no=? WHERE id=? AND COALESCE(receipt_no,'')=''", [$pay['receipt_no'], $pay['id']]);
-        $pay['receipt_no'] = row('SELECT receipt_no FROM payments WHERE id=?', [$pay['id']])['receipt_no']; audit('payment_receipt', 'customers', $cid, $pay['receipt_no'] . ' · ₹' . $pay['amount']); }
-      out(['receipt_no' => $pay['receipt_no']]);
+      out(['receipt_no' => rcpt_issue($pay)]);
 
     case 'next': // the number the next bill would get on that date (not used up)
       if (GEN_KINDS[$kind] === '') out(['number' => '']);
@@ -122,6 +129,9 @@ function handle_gen($a) {
       $what = $kind === 'tax' ? ['Invoice number', 'bill'] : ['Ref no.', 'warranty certificate'];
       if ($man !== '') { if (mb_strlen($man) > 40) fail("The {$what[0]} is too long (40 characters at most)");
         if (gen_no_taken($kind, $man, $cid)) fail("{$what[0]} $man is already used on another {$what[1]}", 409); }
+      /* first issue of a tax bill: only at the final payment (an admin may issue early with early:1, audited); editing an issued bill is never blocked */
+      if ($kind === 'tax' && !$r) { $lk = acc_bill_lock($cid);
+        if ($lk['locked']) { if (is_admin() && !empty($in['early'])) audit('tax_bill_early', 'customers', $cid, $lk['msg']); else fail($lk['msg'], 409); } }
       if ($r) { q('UPDATE gen_docs SET data=?, issued_on=?, updated=CURRENT_TIMESTAMP, updated_by=? WHERE id=?', [json_encode($data, JSON_UNESCAPED_UNICODE), $issued, $_SESSION['name'] ?? '', $r['id']]); $no = $r['number'];
         if ($man !== '' && $man !== $no) { q('UPDATE gen_docs SET number=? WHERE id=?', [$man, $r['id']]); audit($kind === 'tax' ? 'tax_bill_number' : 'warranty_ref', 'customers', $cid, "$no → $man"); $no = $man; } }
       elseif ($man !== '') { $no = $man; q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, $no, $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
