@@ -16,7 +16,7 @@ const ACX_UNITS = ['Nos', 'm', 'kg', 'kW', 'Job', 'Set', 'Lot', 'Pair', 'Roll', 
 const ACX_COLS = 13;
 /* the open Expense sheet: d = the ac_cost answer, lines = the lines being edited (in group order);
    mats / mdef = the price list and its default profit % as last loaded (acMats) */
-const ACS = { pid: 0, d: null, lines: [], dirty: false, hash: '', w: false, busy: false, mats: null, mdef: ACC.PROFIT_DEF };
+const ACS = { pid: 0, d: null, lines: [], dirty: false, hash: '', w: false, busy: false, mats: null, mdef: ACC.PROFIT_DEF, emb: null, seq: 0 };
 
 /* a typed amount: '' = 0, '1,250.50' = 1250.5, anything else (or below 0) = null */
 const acNum = v => { const s = String(v ?? '').replace(/[,₹\s]/g, ''); if (s === '') return 0; const n = Number(s); return isFinite(n) && n >= 0 ? n : null; };
@@ -58,19 +58,21 @@ function acDirty(on) {
 /* lines added, removed or copied: back into group order and drawn again */
 function acChanged() { ACS.lines = acSort(ACS.lines); acCsTable(); acCsTiles(); acDirty(true); }
 
-async function acCostSheet(pid) {
-  $('#title').innerHTML = '<span class="ft t-accounts"><i class="i i-coin"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› Expense</span>';
-  const main = $('#main'), nav = ROUTE_N;
+/* emb: a box element = the sheet inside the customer profile's Purchases and services tab (no page title, no back link to Accounts, an
+   "Open as full page" link); omitted = the Expense page in #main */
+async function acCostSheet(pid, emb) {
+  if (!emb) $('#title').innerHTML = '<span class="ft t-accounts"><i class="i i-coin"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› Expense</span>';
+  const main = emb || $('#main'), nav = ROUTE_N, seq = ++ACS.seq; /* seq: a later sheet load (project picker) wins over a slower earlier one */
   if (!pid) { main.innerHTML = '<p class="over">No project chosen. Open a customer or a project and press Expense.</p>'; return; }
   let d;
   try { d = await api('acc', 'ac_cost', undefined, `&project_id=${pid}`); }
-  catch (e) { if (nav === ROUTE_N) main.innerHTML = `<p class="over">${esc((e && e.error) || 'Could not open the Expense sheet')}</p>`; return; }
-  if (nav !== ROUTE_N) return; /* the user moved on while it loaded */
-  Object.assign(ACS, { pid, d, lines: acSort((d.lines || []).map(acIn)), hash: location.hash, w: canW('accounts'), busy: false, dirty: false });
+  catch (e) { if (nav === ROUTE_N && seq === ACS.seq && main.isConnected) main.innerHTML = `<p class="over">${esc((e && e.error) || 'Could not open the Expense sheet')}</p>`; return; }
+  if (nav !== ROUTE_N || seq !== ACS.seq || !main.isConnected) return; /* the user moved on while it loaded */
+  Object.assign(ACS, { emb: emb || null, pid, d, lines: acSort((d.lines || []).map(acIn)), hash: location.hash, w: canW('accounts'), busy: false, dirty: false });
   const p = d.project || {}, cu = d.customer || {}, kw = acKw(p.kw), w = ACS.w;
   acUnits();
-  main.innerHTML = `<div class="acx-pg" id="acx_cs">
-    <div class="acx-crumb"><a href="#/accounts/profit">← Project profit</a>${cu.id ? ` · <a href="#/customers/${+cu.id}">${esc(cu.name)}</a>` : ''} · <a href="#/projects/${+p.id}">Open project</a></div>
+  main.innerHTML = `<div class="acx-pg${emb ? ' acx-emb' : ''}" id="acx_cs">
+    ${emb ? `<div class="acx-crumb"><a href="#/accounts/cost/${+p.id}">Open as full page</a> · <a href="#/projects/${+p.id}">Open project</a></div>` : `<div class="acx-crumb"><a href="#/accounts/profit">← Project profit</a>${cu.id ? ` · <a href="#/customers/${+cu.id}">${esc(cu.name)}</a>` : ''} · <a href="#/projects/${+p.id}">Open project</a></div>`}
     <div class="acx-hd"><div><h2>Expense · ${esc(cu.name || p.title || '')}${kw ? ` <span class="mut">${esc(kw)} kW</span>` : ''}</h2>
       <div class="acx-sub">${p.loan === 'Yes' ? '<span class="pill acx-tag">Loan</span>' : ''}<span>${esc([p.title, p.stage].filter(Boolean).join(' · '))}</span></div></div>
       <span class="sp"></span><span class="acx-st" id="acx_st" aria-live="polite"></span>
@@ -239,7 +241,7 @@ async function acCsSave() {
   if (ok) { acDirty(false); toast('Expense sheet saved'); }
   else if ($('#acx_cs')) acDirty(ACS.dirty);
   if (stale && $('#acx_cs')) {
-    if (confirm(`${stale.error || 'This Expense sheet was changed since you opened it — reload to see the latest'}.\n\nReload it now? Your changes here are not saved and will be lost. Press Cancel to keep them on screen (note them down, then reload).`)) { ACS.dirty = false; acCostSheet(ACS.pid); }
+    if (confirm(`${stale.error || 'This Expense sheet was changed since you opened it — reload to see the latest'}.\n\nReload it now? Your changes here are not saved and will be lost. Press Cancel to keep them on screen (note them down, then reload).`)) { ACS.dirty = false; acCostSheet(ACS.pid, ACS.emb && ACS.emb.isConnected ? ACS.emb : undefined); }
     else toast('Not saved: someone else saved this Expense sheet. Reload the page to see their lines.', true);
   }
   return ok;
@@ -712,6 +714,30 @@ async function acMaterialPdf(d) {
   pdf.setProperties({ title: name.replace(/\.pdf$/i, ''), subject: 'Material list: purchase and site delivery check' });
   pdf.save(name);
   return L.pages.length;
+}
+
+/* true when it is fine to replace the Expense sheet on screen: nothing unsaved, or the user agreed to lose it (profile tab switch, project picker) */
+function acLeaveOk() {
+  if (!(ACS.dirty && document.getElementById('acx_cs'))) return true;
+  if (!confirm('This Expense sheet has changes that are not saved.\n\nLeave without saving?')) return false;
+  ACS.dirty = false;
+  return true;
+}
+/* customer profile › Purchases and services (admin only, app11.js): the Expense sheet of the customer's latest project in this box, with a project
+   picker when there are several (the pick is kept while the same customer stays open). The same sheet and data as #/accounts/cost/<project>. */
+const ACX_PICK = { cid: 0, pid: 0 };
+function acProfileTab(box, c, cid) {
+  const ps = (c.projects || []).filter(p => +p.id); /* newest first */
+  if (!ps.length) { box.innerHTML = '<div class="card pfc"><p class="mut" style="margin:0">Start a project for this customer first.</p></div>'; return; }
+  const sel = (ACX_PICK.cid === +cid && ps.find(p => +p.id === ACX_PICK.pid)) || ps[0];
+  box.innerHTML = `<div class="acx-ps">${ps.length > 1 ? `<div class="acx-proj"><label for="acx_pp">Project</label><select id="acx_pp">${ps.map(p => `<option value="${+p.id}"${p === sel ? ' selected' : ''}>${esc([p.title || 'Project', acKw(p.kw) ? acKw(p.kw) + ' kW' : '', p.stage].filter(Boolean).join(' · '))}</option>`).join('')}</select></div>` : ''}<div id="acx_psb"></div></div>`;
+  const pp = $('#acx_pp', box);
+  if (pp) pp.onchange = () => {
+    if (!acLeaveOk()) { pp.value = String(ACS.pid); return; }
+    Object.assign(ACX_PICK, { cid: +cid, pid: +pp.value });
+    acCostSheet(+pp.value, $('#acx_psb', box));
+  };
+  acCostSheet(+sel.id, $('#acx_psb', box));
 }
 
 /* leaving an Expense sheet with unsaved changes (another page, the browser's back, closing the tab); Ctrl+S saves */

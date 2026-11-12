@@ -157,3 +157,7 @@ table.acx-cst.stack td[colspan]{grid-column:1/-1}
 .acx-mt td.num input{width:100%;box-sizing:border-box;text-align:right;padding:5px 7px;border-radius:7px;font-size:13px;margin:0}
 .acx-mt .acx-act .ib+.ib{margin-left:2px}
 #acx_tpl td.acx-nm{overflow-wrap:anywhere}
+/* customer profile › Purchases and services (app34.js acProfileTab): the Expense sheet inside the profile */
+.acx-ps{display:flex;flex-direction:column;gap:12px;min-width:0}
+.acx-proj{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.acx-proj label{margin:0;font-size:13px;color:var(--mut)}.acx-proj select{max-width:420px;width:auto;min-width:220px;margin:0}
+.acx-emb .acx-hd h2{font-size:20px}
