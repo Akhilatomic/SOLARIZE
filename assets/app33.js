@@ -11,7 +11,7 @@
    acRemind(row, done)       WhatsApp payment reminder for a pending project (template ac_tpl.remind), logged as acc/log kind 'remind'
    acAddPayment(row, done)   + Payment on a pending project (payments/save), then its receipt (acReceipt) when it can be made
    Uses acTpl / acLog / acReceipt / acKw / acWhen / acIsCash (app35.js), acPl / acNum / acV / ACX_GSTS (app34.js), inr2 / fdt (app18.js). */
-const ACCT_TAB_NAMES = [['overview', 'Overview'], ['books', 'Cash & bank'], ['dues', 'Supplier dues'], ['gst', 'GST'], ['progress', 'In progress'], ['done', 'Completed'], ['pending', 'Pending payments'], ['received', 'Payments received'], ['profit', 'Project profit'], ['expenses', 'Expenses'], ['materials', 'Price list']];
+const ACCT_TAB_NAMES = [['overview', 'Overview'], ['books', 'Cash & bank'], ['dues', 'Supplier dues'], ['gst', 'GST'], ['salary', 'Salaries'], ['pl', 'Profit & loss'], ['progress', 'In progress'], ['done', 'Completed'], ['pending', 'Pending payments'], ['received', 'Payments received'], ['profit', 'Project profit'], ['expenses', 'Expenses'], ['materials', 'Price list']];
 const ACCT_TABS = {};
 const ACCT_NOPER = ['pending', 'materials', 'progress', 'done', 'dues']; /* lists as they stand today: no month to choose */
 
@@ -234,7 +234,7 @@ ACCT_TABS.overview = async (box, P) => {
       ${acTile('Received', inr2(d.received), `${acPl(+d.received_n || 0, 'payment')} in ${esc(P.label)}`, '', '#/accounts/received')}
       ${acTile('Pending', inr2(d.pending), `${acPl(n, 'project')} · ${+d.pending_loan_n || 0} loan`, +d.pending > 0 ? 'acx-neg' : '', '#/accounts/pending', 'Still due today, whatever the period')}
       ${acTile('Expenses', inr2(x.total), `Ads ${inr2(x.ads)} · AI ${inr2(x.ai)} · Other ${inr2(x.other)}`, '', '#/accounts/expenses', 'Before GST. Ads include the campaign spend from Meta Ads.')}
-      ${acTile('Profit (projects billed − expenses)', acSigned(d.profit), pSub, acTone(d.profit), '#/accounts/profit', 'Profit of the projects whose tax bill was issued in the period, less the company expenses' + (nc ? '. Projects billed without a Project cost sheet are left out until their cost is entered (see Project profit).' : ''))}</div>
+      ${acTile('Net profit', acSigned(d.profit), pSub, acTone(d.profit), '#/accounts/pl', 'Profit of the projects whose tax bill was issued in the period, less the company expenses' + (nc ? '. Projects billed without a Project cost sheet are left out until their cost is entered (see Project profit).' : ''))}</div>
     <div class="acx-ch"><h3>Pending payments</h3><span class="mut acx-small">${n ? 'biggest first' : ''}</span><span class="sp"></span>${n > top.length ? `<a class="btn sec sm" href="#/accounts/pending">See all ${n}</a>` : ''}</div>
     <div class="card tw"><table class="acx-pt" data-min="990">${acPendHead(false)}</table></div></div>`;
   const tb = $('table', box);

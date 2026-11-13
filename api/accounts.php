@@ -457,6 +457,7 @@ function handle_acc($a) {
   books_handle($a, $in); /* Cash & bank (api/books.php); comes back when $a is not one of its actions */
   dues_handle($a, $in); /* Supplier dues (api/dues.php), the same way */
   gst_handle($a); /* GST working (api/gst.php) */
+  pl_handle($a, $in); /* Salaries and Profit & loss (api/pl.php) */
   switch ($a) {
     case 'ac_tpl':
       out(kv_get('acc_tpl', ACC_TPL_DEFAULT) + ['company' => acc_company(), 'defaults' => ACC_TPL_DEFAULT]);
@@ -900,7 +901,7 @@ function handle_acc($a) {
       /* profit_n = billed projects counted in the profit; no_cost_n = billed projects with no cost lines, left out (the Profit tab lists them) */
       out(['received' => round(array_sum(array_column($rec, 'amount')), 2), 'received_n' => count($rec),
         'pending' => round(array_sum(array_column($pend, 'due')), 2), 'pending_n' => count($pend), 'pending_loan_n' => count(array_filter($pend, fn($r) => $r['loan'] === 'Yes')),
-        'expenses' => $x, 'profit' => round($pf['counted']['profit'] - $x['total'], 2), 'profit_n' => count($pf['rows']), 'no_cost_n' => count($pf['no_cost']), 'top' => array_slice($pend, 0, 10),
+        'expenses' => $x, 'profit' => pl_calc($f, $t)['net'], /* the Profit & loss net: project profit + other income − every overhead (salaries too) */ 'profit_n' => count($pf['rows']), 'no_cost_n' => count($pf['no_cost']), 'top' => array_slice($pend, 0, 10),
         'track_open_n' => acc_track_count(false), 'track_done_n' => acc_track_count(true)]);
     }
   }

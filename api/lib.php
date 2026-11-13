@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 54; // bump when tables/columns change
+const SCHEMA_VERSION = 55; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -358,6 +358,9 @@ function migrate($db) {
      else the account it was paid from); acc_sup_pay = payments to suppliers, on account. */
   $db->exec("CREATE TABLE IF NOT EXISTS acc_bills(id INTEGER PRIMARY KEY AUTOINCREMENT, supplier TEXT, bill_no TEXT DEFAULT '', date TEXT, amount REAL DEFAULT 0, gst_amt REAL DEFAULT 0, note TEXT DEFAULT '', pay_book INTEGER DEFAULT 0, created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE TABLE IF NOT EXISTS acc_sup_pay(id INTEGER PRIMARY KEY AUTOINCREMENT, supplier TEXT, date TEXT, amount REAL DEFAULT 0, book_id INTEGER, ref TEXT DEFAULT '', bill_no TEXT DEFAULT '', note TEXT DEFAULT '', created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  /* v55: Accounts › Salaries (api/pl.php): payments to people (salary, advance, bonus), each out of a cash or bank account */
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_salary(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER DEFAULT 0, name TEXT, kind TEXT DEFAULT 'Salary', date TEXT, amount REAL DEFAULT 0, for_what TEXT DEFAULT '', book_id INTEGER, ref TEXT DEFAULT '', note TEXT DEFAULT '', created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE INDEX IF NOT EXISTS accsal_date ON acc_salary(date)');
   require_once __DIR__ . '/acc_seed.php';
   acc_seed($db); // only fills an empty materials list
   acc_prices_v1($db); /* v51: dealer prices from the supplier's quotation and invoice of Nov 2026, once */

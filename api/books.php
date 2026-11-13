@@ -66,6 +66,13 @@ function book_entries() {
     $add('bill', $r['id'], $r['date'], (int)$r['pay_book'], 'out', $r['amount'], 'Purchase · ' . $r['supplier'], (string)$r['note'], $r['bill_no'], '#/accounts/dues', false);
   foreach (rows('SELECT * FROM acc_sup_pay') as $r)
     $add('spay', $r['id'], $r['date'], (int)$r['book_id'], 'out', $r['amount'], 'Paid to ' . $r['supplier'], trim(($r['bill_no'] !== '' ? 'against bill ' . $r['bill_no'] : '') . ($r['note'] !== '' ? ' · ' . $r['note'] : ''), ' ·'), $r['ref'], '#/accounts/dues', false);
+  /* salaries and other payments to people (api/pl.php) */
+  foreach (rows('SELECT * FROM acc_salary') as $r)
+    $add('sal', $r['id'], $r['date'], (int)$r['book_id'], 'out', $r['amount'], $r['kind'] . ' · ' . $r['name'], trim($r['for_what'] . ($r['note'] !== '' ? ' · ' . $r['note'] : ''), ' ·'), $r['ref'], '#/accounts/salary', false);
+  /* Meta ad spend, when the owner chose the account it is paid from: one entry per month, dated its last day with spend */
+  $ac = ads_cfg();
+  if ($ac['book']) foreach (rows('SELECT substr(date,1,7) m, MAX(date) d, SUM(spend) s FROM ad_spend GROUP BY m') as $r)
+    $add('ads', (int)str_replace('-', '', $r['m']), $r['d'], $ac['book'], 'out', (float)$r['s'] * ($ac['gst'] ? 1.18 : 1), 'Meta ads · ' . date('M Y', strtotime($r['m'] . '-01')), $ac['gst'] ? 'ad spend + 18% GST' : 'ad spend', '', '#/accounts/pl', false);
   foreach (rows('SELECT * FROM acc_txn') as $r) {
     $lab = BOOK_CATS[$r['cat']][0] ?? 'Entry'; $sub = trim($r['party'] . ($r['note'] ? ' · ' . $r['note'] : ''), ' ·');
     if ($r['cat'] === 'transfer') {
@@ -142,7 +149,7 @@ function books_handle($a, $in) {
       need('accounts', true);
       $id = (int)($in['id'] ?? 0); $b = row('SELECT * FROM acc_books WHERE id=?', [$id]); if (!$b) fail('Account not found', 404);
       foreach (book_entries() as $e) if ($e['book_id'] === $id && $e['kind'] !== 'open') fail('This account has entries, so it cannot be deleted. Hide it instead.');
-      if (row('SELECT 1 FROM acc_txn WHERE book_id=? OR to_book_id=?', [$id, $id]) || row('SELECT 1 FROM acc_costs WHERE pay_book=?', [$id]) || row('SELECT 1 FROM acc_bills WHERE pay_book=?', [$id]) || row('SELECT 1 FROM acc_sup_pay WHERE book_id=?', [$id])) fail('This account has entries, so it cannot be deleted. Hide it instead.');
+      if (row('SELECT 1 FROM acc_txn WHERE book_id=? OR to_book_id=?', [$id, $id]) || row('SELECT 1 FROM acc_costs WHERE pay_book=?', [$id]) || row('SELECT 1 FROM acc_bills WHERE pay_book=?', [$id]) || row('SELECT 1 FROM acc_sup_pay WHERE book_id=?', [$id]) || row('SELECT 1 FROM acc_salary WHERE book_id=?', [$id]) || ads_cfg()['book'] === $id) fail('This account has entries, so it cannot be deleted. Hide it instead.');
       if ((int)row('SELECT COUNT(*) c FROM acc_books WHERE id<>? AND hidden=0', [$id])['c'] === 0) fail('Keep at least one account');
       trash_put('Account', $b['name'], [['acc_books', 'id=?', [$id]]]);
       q('DELETE FROM acc_book_map WHERE book_id=?', [$id]);
