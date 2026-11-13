@@ -10,6 +10,10 @@ function copyText(t, what) {
 const tlTime = (ts, local) => { const d = local ? new Date(String(ts).replace(' ', 'T')) : new Date(String(ts).replace(' ', 'T') + (String(ts).length > 10 ? 'Z' : '')); return isNaN(d) ? { day: ts, time: '' } : { day: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }), time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) }; };
 const mapsLink = c => c.lat && c.lng ? `https://www.google.com/maps?q=${c.lat},${c.lng}` : (c.address ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([c.address, c.district, c.pincode].filter(Boolean).join(', ')) : '');
 
+/* a value on one line: line breaks (an address) become commas */
+/* All details card: empty fields hidden (remembered in this browser) */
+const pfaHide = () => { try { return localStorage.pfaHide === '1'; } catch (e) { return false; } };
+const pfaLine = v => String(v).split(String.fromCharCode(10)).map(x => x.trim()).filter(Boolean).join(', ');
 let PFT = 'overview', PFT_ID = 0;
 /* set by the Customers list (Edit): { id, key, edit } - pgCustomer opens that page once, in edit mode, then clears it */
 let PFT_OPEN = null;
@@ -27,6 +31,21 @@ async function pgCustomer(id) {
   const pgKeys = PFP.PAGES.map(x => x.key);
   const cnt0 = PFP.counts(pfCtx(st));
   const sumHtml = n => PFP.PAGES.map((pg, i) => `<button class="pp-sum" data-goto="${esc(pg.key)}"><i class="i i-${esc(pg.icon)}"></i><span>${i + 1} · ${esc(pg.tab)}</span>${n[pg.key] > 0 ? `<b class="pp-need">${n[pg.key]} missing</b>` : '<b class="pp-ok">Complete</b>'}</button>`).join('');
+  /* Overview: every detail of the customer in one card (the five pages' fields, in page order), each value click to copy; a hidden
+     value (masked account numbers) is shown as it is, without copy. "Copy all" = the filled ones as "Label: value" lines. */
+  const allCtx = pfCtx(st), allTxt = [];
+  const allSecs = PFP.PAGES.map((pg, i) => {
+    const fs = [].concat(...pg.sections.map(sec => sec.fields)).filter(f => pfShown(f, st) && (!f.ro || f.k === 'gps'));
+    let filled = 0;
+    const cells = fs.map(f => {
+      const l = f.l.split(' (')[0]; let v = PFP.value(f, allCtx);
+      if (f.k === 'lead_type' && v) v = (LT_OPTS.find(o => o[0] === v) || [0, v])[1];
+      if (v) { filled++; if (!pfMasked(v)) allTxt.push(l + ': ' + pfaLine(v)); }
+      return `<div class="pfa-f${v ? '' : ' pfa-e'}"><span>${esc(l)}</span>${!v ? '<em class="mut">—</em>' : pfMasked(v) ? `<b>${esc(v)}</b>` : pfCopy(v, l)}</div>`;
+    }).join('');
+    return cells ? `<div class="pfa-s"><button class="pfa-h" data-goto="${esc(pg.key)}" title="Open this page"><i class="i i-${esc(pg.icon)}"></i>${i + 1} · ${esc(pg.tab)}<small>${filled} of ${fs.length} filled</small></button><div class="pfa-g">${cells}</div></div>` : '';
+  }).join('');
+  const allCard = `<div class="card pfc pfa${pfaHide() ? ' pfa-hide' : ''}"><div class="pfch"><i class="i i-user"></i><h3>All details</h3><span class="sp"></span><small class="mut">Click a value to copy it</small><button class="btn sec sm" id="pfaem">${pfaHide() ? 'Show empty' : 'Hide empty'}</button><button class="btn sec sm" id="pfacp"><i class="i i-copy"></i> Copy all</button></div>${allSecs}</div>`;
   const ml = mapsLink(c), hasPin = c.lat && c.lng;
   const locCard = `<div class="card pfc"><div class="pfch"><i class="i i-target"></i><h3>Location</h3><span class="sp"></span>${w ? '<button class="btn sec sm" id="pfloc"><i class="i i-pencil"></i> ' + (hasPin ? 'Change' : 'Set location') + '</button>' : ''}</div>
      ${hasPin ? `<iframe class="pfmap" loading="lazy" title="Map" referrerpolicy="strict-origin" src="https://www.openstreetmap.org/export/embed.html?bbox=${+c.lng - .004},${+c.lat - .0025},${+c.lng + .004},${+c.lat + .0025}&layer=mapnik&marker=${c.lat},${c.lng}"></iframe>` : `<p class="mut" style="font-size:13px;margin:4px 0 8px">No map pin yet.${w ? ' Use <b>Set location</b> at the site, or paste a Google Maps link.' : ''}</p>`}
@@ -50,6 +69,7 @@ async function pgCustomer(id) {
    <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, `${i + 1} · ${pg.tab}`, pg.icon]), ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(ME.role === 'admin' ? [['pay', 'Payments', 'card']] : []), ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : []), ...(ME.role === 'admin' ? [['ps', 'Purchases and services', 'coin'], ['comm', 'Commission / Incentive', 'users']] : [])].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${esc(l)}${pgKeys.includes(k) ? ` <span class="ppn" data-ppn="${k}"${cnt0[k] > 0 ? '' : ' hidden'}>${cnt0[k] || 0}</span>` : ''}</button>`).join('')}</div>
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
+    ${allCard}
     <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut" style="margin:0">No project yet.</p></div>`}
      <div class="pfcols"><div class="card pfc"><div class="pfch"><i class="i i-clipboard"></i><h3>Details by page</h3></div><div id="ppsum">${sumHtml(cnt0)}</div></div>${locCard}
      <div class="card pfc"><div class="pfch"><i class="i i-receipt"></i><h3>Quotations</h3><span class="sp"></span>${canW('quotes') ? '<button class="btn sec sm" id="nq">+ New</button>' : ''}</div>${c.quotes.map(q => `<div class="pfdoc"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${q.total != null ? inr(q.total) : ''}<br><small class="mut">${q.date}</small></div>`).join('') || '<p class="mut" style="margin:0;font-size:13px">No quotations</p>'}</div>
@@ -60,6 +80,8 @@ async function pgCustomer(id) {
     </div>`;
   // click to copy
   $$('[data-cp]').forEach(b => b.onclick = e => { e.preventDefault(); copyText(b.dataset.cp, b.dataset.l || ''); b.classList.add('ok'); setTimeout(() => b.classList.remove('ok'), 900); });
+  if ($('#pfaem')) $('#pfaem').onclick = e => { const on = !pfaHide(); try { localStorage.pfaHide = on ? '1' : ''; } catch (er) { } $('.pfa').classList.toggle('pfa-hide', on); e.currentTarget.textContent = on ? 'Show empty' : 'Hide empty'; };
+  if ($('#pfacp')) $('#pfacp').onclick = () => copyText(allTxt.join(String.fromCharCode(10)), 'all details');
   // location sharing
   const locText = () => `${c.name}${c.landmark ? ' — ' + c.landmark : ''}\n${[c.address, c.district].filter(Boolean).join(', ')}\n${ml}`;
   if ($('#pfwa')) $('#pfwa').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent(locText()), '_blank');

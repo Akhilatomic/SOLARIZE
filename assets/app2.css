@@ -823,3 +823,18 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .pyt-sw{font-size:14px;font-weight:600}
 .pyt-st{margin:8px 0 0;font-size:13px}
 @media(max-width:980px){.pyt{grid-template-columns:minmax(0,1fr)}}
+
+/* customer Overview: the All details card (app11.js allCard) */
+.pfgrid>.pfa{grid-column:1/-1}
+.pfa .pfch{flex-wrap:wrap}.pfa .pfch .btn{margin:0}
+.pfa-s+.pfa-s{margin-top:10px;padding-top:10px;border-top:1px solid var(--fill)}
+.pfa-h{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:#0b3a75;background:#e3edfb;border-radius:8px;padding:3px 10px;margin-bottom:8px}
+.pfa-h:hover{background:#d5e4f9}.pfa-h:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+.pfa-h .i{width:14px;height:14px;background:#0b3a75}.pfa-h small{font-weight:400;color:#4a6d9c;margin-left:4px}
+.pfa-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:6px 16px}
+.pfa-hide .pfa-e{display:none}.pfa-hide .pfa-g:not(:has(.pfa-f:not(.pfa-e)))::after{content:"Nothing filled yet";color:var(--mut);font-size:13px}
+.pfa-f{display:flex;flex-direction:column;gap:1px;min-width:0;font-size:14px}
+.pfa-f>span{font-size:11px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.pfa-f .pfv{margin:0 0 0 -6px;align-self:flex-start;white-space:pre-line}
+.pfa-f>b{font-weight:500}
+@media(max-width:600px){.pfa-g{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}}
