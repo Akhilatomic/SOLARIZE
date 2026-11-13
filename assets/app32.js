@@ -148,19 +148,31 @@ const ACC = {
     const f = form || {}, pick = new Set((idxs || []).map(Number));
     return (lines || []).map((l, i) => {
       if (!pick.has(i)) return l;
-      const n = Object.assign({}, l, { bought: 1, bought_on: String(f.date || ''), supplier: String(f.supplier || '').trim() || l.supplier, bill_no: String(f.bill_no || '').trim() || l.bill_no, bill_date: String(f.bill_date || '') || String(f.date || '') });
+      const n = Object.assign({}, l, { bought: 1, bought_on: String(f.date || ''), pay_book: f.pay_book === undefined ? (l.pay_book === undefined ? null : l.pay_book) : f.pay_book, pay_on: '', supplier: String(f.supplier || '').trim() || l.supplier, bill_no: String(f.bill_no || '').trim() || l.bill_no, bill_date: String(f.bill_date || '') || String(f.date || '') });
       const r = (f.rates || {})[i];
       if (r !== undefined && r !== null && isFinite(Number(r))) { if (Math.abs(Number(r) - (Number(l.rate) || 0)) > 0.0001) n.typed = true; n.rate = Number(r); }
       return n;
     });
   },
   /* Undo: back to To buy; supplier and bill text stay */
-  undoBought: l => Object.assign({}, l, { bought: 0, bought_on: '' }),
+  undoBought: l => Object.assign({}, l, { bought: 0, bought_on: '', pay_book: null, pay_on: '' }),
   /* the material list's lines: materials only (no services, no blank names); onlyToBuy also drops the purchased ones */
   mlLines(lines, onlyToBuy) { return (lines || []).filter(l => l.grp !== ACC.SVC && String(l.name || '').trim() && !(onlyToBuy && ACC.isBought(l))); },
   /* true when a material (not a service) is already purchased: only then the PDF asks All items / Only items still to buy */
   hasBoughtMaterial: lines => (lines || []).some(l => l.grp !== ACC.SVC && ACC.isBought(l)),
   custPrice(dealer, pct) { return ACC.r2((Number(dealer) || 0) * (1 + (Number(pct) || 0) / 100)); },
+  /* Cash & bank: the rows of a book with the running balance after each (bal), starting from the opening balance */
+  bookRun(open, rows) {
+    let b = Number(open) || 0;
+    return (rows || []).map(e => { b = ACC.r2(b + (e.dir === 'in' ? 1 : -1) * (Number(e.amount) || 0)); return Object.assign({}, e, { bal: b }); });
+  },
+  /* a purchased line's Paid from, in words: the account's name, Not paid yet, or '' when nothing is recorded */
+  paidFrom(l, books) {
+    if (!l || !l.bought || l.pay_book === null || l.pay_book === undefined || l.pay_book === '') return '';
+    if (+l.pay_book === 0) return 'Not paid yet';
+    const b = (books || []).find(x => x.id === +l.pay_book);
+    return b ? 'Paid from ' + b.name : '';
+  },
   /* ---- suppliers and their prices for a price list item (mat.offers, mat.offer_id = the one in use) ---- */
   /* the short name shown beside a price: the supplier's tag, else the first word of its name */
   supTag(s) { const t = String((s && s.tag) || '').trim(); return (t || String((s && s.name) || '').trim().split(/\s+/)[0] || '').slice(0, 14); },

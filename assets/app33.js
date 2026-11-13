@@ -11,7 +11,7 @@
    acRemind(row, done)       WhatsApp payment reminder for a pending project (template ac_tpl.remind), logged as acc/log kind 'remind'
    acAddPayment(row, done)   + Payment on a pending project (payments/save), then its receipt (acReceipt) when it can be made
    Uses acTpl / acLog / acReceipt / acKw / acWhen / acIsCash (app35.js), acPl / acNum / acV / ACX_GSTS (app34.js), inr2 / fdt (app18.js). */
-const ACCT_TAB_NAMES = [['overview', 'Overview'], ['progress', 'In progress'], ['done', 'Completed'], ['pending', 'Pending payments'], ['received', 'Payments received'], ['profit', 'Project profit'], ['expenses', 'Expenses'], ['materials', 'Price list']];
+const ACCT_TAB_NAMES = [['overview', 'Overview'], ['books', 'Cash & bank'], ['progress', 'In progress'], ['done', 'Completed'], ['pending', 'Pending payments'], ['received', 'Payments received'], ['profit', 'Project profit'], ['expenses', 'Expenses'], ['materials', 'Price list']];
 const ACCT_TABS = {};
 const ACCT_NOPER = ['pending', 'materials', 'progress', 'done']; /* lists as they stand today: no month to choose */
 
@@ -223,12 +223,13 @@ function acPayForm(j, p, o = {}) {
 
 /* ---------- Overview ---------- */
 ACCT_TABS.overview = async (box, P) => {
-  const d = await api('acc', 'ac_overview', undefined, acPer(P));
+  const [d, bk] = await Promise.all([api('acc', 'ac_overview', undefined, acPer(P)), api('acc', 'ac_books').catch(() => null)]);
   if (!box.isConnected) return;
   const x = d.expenses || {}, top = d.top || [], n = +d.pending_n || 0, nc = +d.no_cost_n || 0;
   /* billed projects with no cost lines are left out of the profit: said on the tile, so a missing cost sheet never reads as a loss or a gain */
   const pSub = `before GST · ${acPl(+d.profit_n || 0, 'project')} counted${nc ? ` · <span class="acx-late">${acPl(nc, 'billed project')} without cost — left out</span>` : ''}`;
-  box.innerHTML = `<div class="acx-view"><div class="acx-tiles acx-t5">
+  box.innerHTML = `<div class="acx-view"><div class="acx-tiles ${bk ? 'acx-t6' : 'acx-t5'}">
+      ${bk ? acTile('Cash & bank', acSigned(bk.total), bk.books.filter(b => !b.hidden).map(b => `${esc(b.name)} ${acSigned(b.balance)}`).join(' · ') + (bk.due.n ? ` · owed to suppliers ${inr2(bk.due.total)}` : ''), acTone(bk.total), '#/accounts/books', 'What is in cash and in the bank accounts today, whatever the period') : ''}
       ${acTile('Customers in progress', +d.track_open_n || 0, `${+d.track_done_n || 0} completed`, '', '#/accounts/progress', 'Every customer shown in Accounts, until they are moved to Completed')}
       ${acTile('Received', inr2(d.received), `${acPl(+d.received_n || 0, 'payment')} in ${esc(P.label)}`, '', '#/accounts/received')}
       ${acTile('Pending', inr2(d.pending), `${acPl(n, 'project')} · ${+d.pending_loan_n || 0} loan`, +d.pending > 0 ? 'acx-neg' : '', '#/accounts/pending', 'Still due today, whatever the period')}

@@ -43,7 +43,7 @@ function book_entries() {
     $E[] = ['key' => "$kind:$id", 'kind' => $kind, 'ref_id' => (int)$id, 'date' => $date, 'book_id' => (int)($map[$kind][(int)$id] ?? $book), 'dir' => $dir, 'amount' => $amount,
       'title' => (string)$title, 'sub' => (string)$sub, 'ref' => (string)$ref, 'link' => (string)$link, 'movable' => $movable ? 1 : 0];
   };
-  foreach ($books as $b) if (abs($b['opening']) > 0.004) $add('open', $b['id'], $b['opening_on'] ?: '2000-01-01', $b['id'], $b['opening'] >= 0 ? 'in' : 'out', abs($b['opening']), 'Opening balance', $b['name'], '', '', false);
+  foreach ($books as $b) if (abs($b['opening']) > 0.004) $add('open', $b['id'], $b['opening_on'] ?: '2000-01-01', $b['id'], $b['opening'] >= 0 ? 'in' : 'out', abs($b['opening']), 'Opening balance', '', '', '', false);
   foreach (rows('SELECT pa.id, pa.date, pa.amount, pa.mode, pa.ref_no, pa.note, p.customer_id, c.name FROM payments pa JOIN projects p ON p.id=pa.project_id JOIN customers c ON c.id=p.customer_id') as $r)
     $add('pay', $r['id'], $r['date'], book_by_mode($r['mode'], $def), 'in', $r['amount'], 'Received from ' . $r['name'], trim($r['mode'] . ($r['note'] ? ' · ' . $r['note'] : '')), $r['ref_no'], '#/customers/' . (int)$r['customer_id'], true);
   foreach (rows('SELECT * FROM acc_expenses') as $r)

@@ -142,6 +142,7 @@ function acc_cost_get($pid) {
     'company' => array_intersect_key(acc_company(), array_flip(['name', 'address', 'phone', 'gstin'])), /* the material list PDF's header */
     'plant' => $plant,
     'lines' => $lines,
+    'books' => books_all(), /* the cash and bank accounts, for a purchased line's Paid from */
     'version' => (string)(int)($p['cost_ver'] ?? 0), /* send it back with cost_save: a save from an older copy of the sheet is refused (409) */
     'auto' => ['comm' => $comm, 'fees' => $fees],
     'comm' => $cmx, /* the automatic commission / incentive line of the Project cost sheet */

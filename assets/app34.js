@@ -32,10 +32,11 @@ const acGi = ACC.grpIdx;
 const acSort = ls => ls.map((l, i) => [l, i]).sort((a, b) => acGi(a[0].grp) - acGi(b[0].grp) || ACC.grpCmp(a[0].grp, b[0].grp) || a[1] - b[1]).map(x => x[0]);
 const acIn = l => ({ material_id: +l.material_id || 0, grp: String(l.grp || ''), name: String(l.name || ''), qty: +l.qty || 0, unit: String(l.unit || ''), rate: +l.rate || 0, gst: ACX_GSTS.includes(+l.gst) ? +l.gst : 18,
   profit: ACC.pctSet(l.profit) ? +l.profit : null, supplier: String(l.supplier || ''), bill_no: String(l.bill_no || ''), bill_date: String(l.bill_date || ''), note: String(l.note || ''),
-  bought: +l.bought === 1 ? 1 : 0, bought_on: +l.bought === 1 ? String(l.bought_on || '') : '' });
+  bought: +l.bought === 1 ? 1 : 0, bought_on: +l.bought === 1 ? String(l.bought_on || '') : '',
+  pay_book: +l.bought === 1 && l.pay_book !== null && l.pay_book !== undefined && l.pay_book !== '' ? +l.pay_book : null, pay_on: +l.bought === 1 ? String(l.pay_on || '') : '' });
 /* price_typed: the Dealer price box of this line was edited on this sheet (l.typed, never loaded from the server); only then can the
    price go back on the price list. Picked, copied and fee lines and unchanged re-saves leave the owner's price list alone. */
-const acOut = l => ({ material_id: l.material_id, grp: l.grp, name: l.name, qty: l.qty, unit: l.unit, rate: l.rate, gst: l.gst, profit: l.profit, supplier: l.supplier, bill_no: l.bill_no, bill_date: l.bill_date, note: l.note, bought: l.bought ? 1 : 0, bought_on: l.bought ? l.bought_on : '', price_typed: l.typed ? 1 : 0 });
+const acOut = l => ({ material_id: l.material_id, grp: l.grp, name: l.name, qty: l.qty, unit: l.unit, rate: l.rate, gst: l.gst, profit: l.profit, supplier: l.supplier, bill_no: l.bill_no, bill_date: l.bill_date, note: l.note, bought: l.bought ? 1 : 0, bought_on: l.bought ? l.bought_on : '', pay_book: l.bought ? l.pay_book : null, pay_on: l.bought ? l.pay_on : '', price_typed: l.typed ? 1 : 0 });
 /* the sheet's default profit % (settings acc_profit_default, as ac_cost sent it) */
 const acDef = () => ACC.pctOf(ACS.d && ACS.d.profit_default, ACS.mdef);
 /* a price list item as a sheet line with the quantity typed: its dealer price, and its profit % (ACC.addPct: its own; blank = 0 for a
@@ -111,7 +112,7 @@ async function acCostSheet(pid, emb) {
       el.classList.toggle('acx-bad', bad); el.title = bad ? 'Enter a profit % from 0 to 500, or leave it blank for the default' : '';
       l.profit = bad ? l.profit : n;
     } else {
-      l[f] = f === 'gst' ? +el.value : el.value; acDirty(true);
+      l[f] = f === 'gst' ? +el.value : f === 'pay_book' ? (el.value === '' ? null : +el.value) : el.value; acDirty(true);
       if (f === 'bought_on') el.classList.toggle('acx-need', !el.value);
       if (l.bought && (f === 'bought_on' || f === 'supplier' || f === 'bill_no')) { const sm = $('.acx-bsum', tr); if (sm) sm.textContent = acBSum(l); }
       return;
@@ -201,12 +202,16 @@ function acCsTable() {
     <thead><tr><th>Item</th><th>Status</th><th class="num">Qty</th><th>Unit</th><th class="num">Dealer price</th><th class="num">Cost</th><th class="num">Profit %</th><th class="num">Customer price</th><th class="num">GST %</th><th>Supplier</th><th>Bill no.</th><th>Bill date</th><th>Note</th>${w ? '<th><span class="acx-sr">Remove</span></th>' : ''}</tr></thead><tbody>${body}</tbody>`;
   acGsum(); acFeeBar(); acSelBar();
 }
+/* the cash and bank accounts (ac_cost answer) and the Paid from choices of a purchased line: nothing recorded, not paid yet, an account */
+const acBooks = () => (ACS.d && ACS.d.books) || [];
+const acPayOpts = sel => `<option value="" ${sel === null || sel === undefined || sel === '' ? 'selected' : ''}>Payment not recorded</option><option value="0" ${sel === 0 ? 'selected' : ''}>Not paid yet</option>${acBooks().filter(b => !b.hidden || b.id === sel).map(b => `<option value="${b.id}" ${sel === b.id ? 'selected' : ''}>Paid from ${esc(b.name)}</option>`).join('')}`;
 /* the Status cell: To buy / Purchased badge (services: To pay / Paid); w = can edit: Mark purchased button, the purchase date box and Undo */
 function acBCell(l, w) {
   const word = ACC.statusWord(l), svc = l.grp === ACX_SVC;
   if (!l.bought) return `<span class="pill y acx-bpill">${esc(word)}</span>${w ? ` <button type="button" class="acx-link acx-small" data-acx-buy>${svc ? 'Mark paid' : 'Mark purchased'}</button>` : ''}`;
   return `<span class="pill g acx-bpill">${esc(word)}</span>${w ? ` <button type="button" class="acx-link acx-small" data-acx-undo title="Back to ${svc ? 'To pay' : 'To buy'}">Undo</button>` : ''}
-    <span class="acx-bsum mut acx-small">${esc(acBSum(l))}</span>${w ? `<input data-f="bought_on" type="date" value="${esc(l.bought_on)}" class="${l.bought_on ? '' : 'acx-need'}" aria-label="${svc ? 'Paid' : 'Purchased'} on, ${esc(l.name)}">` : ''}`;
+    <span class="acx-bsum mut acx-small">${esc(acBSum(l))}</span>${w ? `<input data-f="bought_on" type="date" value="${esc(l.bought_on)}" class="${l.bought_on ? '' : 'acx-need'}" aria-label="${svc ? 'Paid' : 'Purchased'} on, ${esc(l.name)}">
+    <select data-f="pay_book" class="acb-pf" aria-label="Paid from, ${esc(l.name)}" title="Which account it was paid from (Accounts › Cash & bank)">${acPayOpts(l.pay_book)}</select>` : `<span class="mut acx-small">${esc(ACC.paidFrom(l, acBooks()))}</span>`}`;
 }
 /* the bar above the table: tick all items to buy, or N chosen with Mark purchased / Clear */
 function acSelBar() {
@@ -505,7 +510,8 @@ function acCsBuy(chosen) {
     <div class="two"><div><label for="acx_bwd">${svcOnly ? 'Paid on' : 'Purchase date'}</label><input id="acx_bwd" type="date" value="${esc(today())}"></div>
     <div><label for="acx_bwb">Bill date</label><input id="acx_bwb" type="date" value="${esc(today())}"></div>
     <div><label for="acx_bws">Supplier</label><input id="acx_bws" maxlength="120" autocomplete="off" list="acx_sups" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'supplier'))}" ${SPELL}></div>
-    <div><label for="acx_bwn">Bill no.</label><input id="acx_bwn" maxlength="60" autocomplete="off" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'bill_no'))}"></div></div>
+    <div><label for="acx_bwn">Bill no.</label><input id="acx_bwn" maxlength="60" autocomplete="off" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'bill_no'))}"></div>
+    <div class="full"><label for="acx_bwp">Paid from</label><select id="acx_bwp">${acPayOpts((acBooks().find(b => b.is_default && !b.hidden) || acBooks().find(b => !b.hidden) || {}).id ?? null)}</select></div></div>
     <div class="card tw acx-bwl"><table class="acx-mt" id="acx_bwt" data-min="420"><colgroup><col><col style="width:90px"><col style="width:150px"></colgroup>
       <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Price paid, each (₹, before GST)</th></tr></thead>
       <tbody>${idxs.map(i => { const l = ACS.lines[i]; return `<tr data-bi="${i}"><td class="acx-nm">${esc(l.name)}</td><td class="num">${esc(acV(l.qty))} ${esc(l.unit)}</td><td class="num"><input data-bp inputmode="decimal" autocomplete="off" value="${acV(l.rate)}" placeholder="0" aria-label="Price paid for ${esc(l.name)}"></td></tr>`; }).join('')}</tbody></table></div>
@@ -518,7 +524,8 @@ function acCsBuy(chosen) {
   const form = () => {
     const rates = {};
     $$('tr[data-bi]', m).forEach(tr => { const v = acNum($('[data-bp]', tr).value); rates[+tr.dataset.bi] = v === null ? NaN : v; });
-    return { date: wd.value, bill_date: wb.value, supplier: $('#acx_bws', m).value, bill_no: $('#acx_bwn', m).value, rates };
+    const pf = $('#acx_bwp', m).value;
+    return { date: wd.value, bill_date: wb.value, supplier: $('#acx_bws', m).value, bill_no: $('#acx_bwn', m).value, rates, pay_book: pf === '' ? null : +pf };
   };
   const upd = () => {
     $$('[data-bp]', m).forEach(i => { const bad = acNum(i.value) === null; i.classList.toggle('acx-bad', bad); i.title = bad ? 'Enter a number, 0 or more' : ''; });

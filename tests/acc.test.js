@@ -442,3 +442,19 @@ test('material list: where to buy each line', () => {
   assert.ok(s && s.y > a.y && b.y > s.y + 3, 'the supplier sits under its item, above the next');
   assert.equal(t.filter(o => /^Buy from/.test(o.txt)).length, 1);
 });
+
+test('cash and bank book: running balance, paid from', () => {
+  const r = ACC.bookRun(1000, [{ dir: 'in', amount: 500.5 }, { dir: 'out', amount: 2000 }, { dir: 'in', amount: 0.1 }]);
+  assert.deepEqual(r.map(e => e.bal), [1500.5, -499.5, -499.4]);
+  assert.deepEqual(ACC.bookRun(0, []), []);
+  const books = [{ id: 3, name: 'Test Bank' }];
+  assert.equal(ACC.paidFrom({ bought: 1, pay_book: 3 }, books), 'Paid from Test Bank');
+  assert.equal(ACC.paidFrom({ bought: 1, pay_book: 0 }, books), 'Not paid yet');
+  assert.equal(ACC.paidFrom({ bought: 1, pay_book: null }, books), '');
+  assert.equal(ACC.paidFrom({ bought: 0, pay_book: 3 }, books), '');
+  const lines = [{ name: 'A', rate: 10, qty: 1 }, { name: 'B', rate: 5, qty: 1, pay_book: 3 }];
+  const m = ACC.markBought(lines, [0, 1], { date: '2026-11-13', pay_book: 0 });
+  assert.deepEqual(m.map(l => l.pay_book), [0, 0]);
+  assert.deepEqual(ACC.markBought(lines, [0, 1], { date: '2026-11-13' }).map(l => l.pay_book), [null, 3]);
+  assert.equal(ACC.undoBought(m[0]).pay_book, null);
+});
