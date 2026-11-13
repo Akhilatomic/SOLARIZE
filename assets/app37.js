@@ -71,7 +71,7 @@ function acTxnForm(o, done) {
   const S2 = ACB.sum || {}, books = S2.books || [], t = o.txn || {};
   const mode = t.cat ? (t.cat === 'transfer' ? 'transfer' : (S2.cats.find(c => c.key === t.cat) || {}).dir || 'out') : o.mode;
   const cats = (S2.cats || []).filter(c => c.key !== 'transfer' && c.dir === mode);
-  const first = +t.book_id || ACB.book || (books.find(b => !b.hidden) || {}).id || 0;
+  const first = +t.book_id || ACB.book || (books.find(b => b.kind === 'bank' && b.is_default && !b.hidden) || books.find(b => !b.hidden) || {}).id || 0; /* the default bank account unless one is open */
   const m = modal(`<div class="mh"><h3>${t.id ? 'Edit entry' : mode === 'transfer' ? 'Transfer between accounts' : mode === 'in' ? 'Money in' : 'Money out'}</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
     ${mode === 'transfer' ? '' : `<p class="mut acx-small acx-top0">${mode === 'in' ? 'For money that is not a customer payment. Customer payments come here by themselves when they are recorded.' : 'For money that is not an office expense or a purchase. Those come here by themselves from Expenses and the Project cost sheets.'}</p>`}
     <div class="two">${mode === 'transfer' ? '' : `<div class="full"><label for="act_c">What is it</label><select id="act_c">${cats.map(c => `<option value="${c.key}" ${t.cat === c.key ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select></div>`}
@@ -127,7 +127,7 @@ ACCT_TABS.books = async (box, P) => {
     const card = (id, name, sub, bal) => `<button type="button" class="card acx-t acb-c${ACB.book === id ? ' on' : ''}" data-acb="${id}"><small>${esc(name)}</small><b class="${acTone(bal)}">${acSigned(bal)}</b><span class="mut">${esc(sub)}</span></button>`;
     const notes = [];
     if (d.due.n) notes.push(`<b>${inr2(d.due.total)}</b> owed to ${acPl(d.due.n, 'supplier')}. <a href="#/accounts/dues">Supplier dues</a>`);
-    if (d.unrec.n) notes.push(`${acPl(d.unrec.n, 'purchased item')} (${inr2(d.unrec.total)}) ${d.unrec.n === 1 ? 'has' : 'have'} no payment recorded, so ${d.unrec.n === 1 ? 'it is' : 'they are'} not in this book. Open the Project cost sheet and choose “Paid from” or “Not paid yet”.`);
+    if (d.unrec.n) notes.push(`${acPl(d.unrec.n, 'purchased item')} (${inr2(d.unrec.total)}) ${d.unrec.n === 1 ? 'has' : 'have'} no payment recorded, so ${d.unrec.n === 1 ? 'it is' : 'they are'} not in this book. Open the Project cost sheet and save it: they then count as paid from the bank account, unless you choose “Not paid yet”.`);
     box.innerHTML = `<div class="acx-view">
       <div class="acb-cs">${card(0, 'All accounts', `${acPl(shown.length, 'account')} · today`, d.total)}${shown.map(b => card(b.id, b.name, (b.kind === 'cash' ? 'Cash' : 'Bank') + (b.is_default ? ' · default' : '') + (b.hidden ? ' · hidden' : '') + acbLimit(b), b.balance)).join('')}</div>
       ${notes.length ? `<div class="acb-note">${notes.map(n => `<p>${n}</p>`).join('')}</div>` : ''}

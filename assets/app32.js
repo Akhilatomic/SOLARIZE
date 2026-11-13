@@ -215,9 +215,11 @@ const ACC = {
     ((d.salary && d.salary.rows) || []).forEach(r => sal.push([r.date, r.name, r.kind, r.for_what || '', bn[r.book_id] || '', r.ref || '', n(r.amount), r.note || '']));
     const du = [['Supplier', 'Bills on credit', 'Number of bills', 'Paid', 'Balance owed', 'Last payment']];
     ((d.dues && d.dues.rows) || []).forEach(r => du.push([r.name, n(r.bills), r.bills_n, n(r.paid), n(r.balance), r.last_paid || '']));
+    /* hideProfit (the outside accountant's file): no Profit & loss sheet and no profit figures on the Summary */
+    if (d.hideProfit) { const a = sum.findIndex(r => r[0] === 'Profit & loss'), b = sum.findIndex(r => r[0] === 'GST'); if (a >= 0 && b > a) sum.splice(a, b - a); }
     return [
       { name: 'Summary', rows: sum, widths: [34, 16, 14, 14, 14] },
-      { name: 'Profit & loss', rows: plRows, widths: [44, ...(pl.cols || []).map(() => 13), 14] },
+      { name: 'Profit & loss', rows: plRows, widths: [44, ...(pl.cols || []).map(() => 13), 14], profit: 1 },
       { name: 'Cash & bank', rows: cb, widths: [20, 12, 36, 40, 18, 14, 14, 14] },
       { name: 'Sales register', rows: sales, widths: [18, 12, 30, 44, 18, 15, 14, 12, 12, 12, 12, 14] },
       { name: 'Purchase register', rows: pur, widths: [12, 28, 18, 16, 40, 18, 14, 12, 14, 10, 44] },
@@ -226,7 +228,7 @@ const ACC = {
       { name: 'Expenses', rows: ex, widths: [12, 18, 26, 12, 16, 8, 14, 12, 40] },
       { name: 'Salaries', rows: sal, widths: [12, 26, 10, 24, 20, 18, 14, 40] },
       { name: 'Supplier dues', rows: du, widths: [30, 16, 14, 14, 14, 14] },
-    ];
+    ].filter(s => !(d.hideProfit && s.profit));
   },
   /* ---- suppliers and their prices for a price list item (mat.offers, mat.offer_id = the one in use) ---- */
   /* the short name shown beside a price: the supplier's tag, else the first word of its name */

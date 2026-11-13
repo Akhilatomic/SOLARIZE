@@ -204,7 +204,10 @@ function acCsTable() {
 }
 /* the cash and bank accounts (ac_cost answer) and the Paid from choices of a purchased line: nothing recorded, not paid yet, an account */
 const acBooks = () => (ACS.d && ACS.d.books) || [];
-const acPayOpts = sel => `<option value="" ${sel === null || sel === undefined || sel === '' ? 'selected' : ''}>Payment not recorded</option><option value="0" ${sel === 0 ? 'selected' : ''}>Not paid yet</option>${acBooks().filter(b => !b.hidden || b.id === sel).map(b => `<option value="${b.id}" ${sel === b.id ? 'selected' : ''}>Paid from ${esc(b.name)}</option>`).join('')}`;
+/* no choice made = the default bank account (owner's rule: a purchase is paid from the bank unless "Not paid yet" or another account is chosen) */
+const acPayDef = () => (acBooks().find(b => b.kind === 'bank' && b.is_default && !b.hidden) || acBooks().find(b => b.kind === 'bank' && !b.hidden) || {}).id ?? null;
+const acPayOpts = sel => { const v = sel === null || sel === undefined || sel === '' ? acPayDef() : sel;
+  return `${acBooks().filter(b => !b.hidden || b.id === v).map(b => `<option value="${b.id}" ${v === b.id ? 'selected' : ''}>Paid from ${esc(b.name)}</option>`).join('')}<option value="0" ${v === 0 ? 'selected' : ''}>Not paid yet</option>`; };
 /* the Status cell: To buy / Purchased badge (services: To pay / Paid); w = can edit: Mark purchased button, the purchase date box and Undo */
 function acBCell(l, w) {
   const word = ACC.statusWord(l), svc = l.grp === ACX_SVC;
@@ -511,7 +514,7 @@ function acCsBuy(chosen) {
     <div><label for="acx_bwb">Bill date</label><input id="acx_bwb" type="date" value="${esc(today())}"></div>
     <div><label for="acx_bws">Supplier</label><input id="acx_bws" maxlength="120" autocomplete="off" list="acx_sups" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'supplier'))}" ${SPELL}></div>
     <div><label for="acx_bwn">Bill no.</label><input id="acx_bwn" maxlength="60" autocomplete="off" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'bill_no'))}"></div>
-    <div class="full"><label for="acx_bwp">Paid from</label><select id="acx_bwp">${acPayOpts((acBooks().find(b => b.is_default && !b.hidden) || acBooks().find(b => !b.hidden) || {}).id ?? null)}</select></div></div>
+    <div class="full"><label for="acx_bwp">Paid from</label><select id="acx_bwp">${acPayOpts(null)}</select></div></div>
     <div class="card tw acx-bwl"><table class="acx-mt" id="acx_bwt" data-min="420"><colgroup><col><col style="width:90px"><col style="width:150px"></colgroup>
       <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Price paid, each (₹, before GST)</th></tr></thead>
       <tbody>${idxs.map(i => { const l = ACS.lines[i]; return `<tr data-bi="${i}"><td class="acx-nm">${esc(l.name)}</td><td class="num">${esc(acV(l.qty))} ${esc(l.unit)}</td><td class="num"><input data-bp inputmode="decimal" autocomplete="off" value="${acV(l.rate)}" placeholder="0" aria-label="Price paid for ${esc(l.name)}"></td></tr>`; }).join('')}</tbody></table></div>

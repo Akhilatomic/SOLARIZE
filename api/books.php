@@ -29,6 +29,8 @@ function books_defaults($books) {
   }
   return [$cash ?: ($bank ?: $first), $bank ?: ($cash ?: $first)];
 }
+/* the default bank account (the owner's default way of paying); 0 when there is no bank account */
+function books_default_bank() { return (int)(row("SELECT id FROM acc_books WHERE kind='bank' AND hidden=0 ORDER BY is_default DESC, id LIMIT 1")['id'] ?? 0); }
 function book_by_mode($mode, $def) { return strtolower(trim((string)$mode)) === 'cash' ? $def[0] : $def[1]; }
 
 /* every entry of the book, oldest first: {key, kind, ref_id, date, book_id, dir, amount, title, sub, ref, link, movable} */

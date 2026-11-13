@@ -13,6 +13,10 @@
    Uses acTpl / acLog / acReceipt / acKw / acWhen / acIsCash (app35.js), acPl / acNum / acV / ACX_GSTS (app34.js), inr2 / fdt (app18.js). */
 const ACCT_TAB_NAMES = [['overview', 'Overview'], ['books', 'Cash & bank'], ['dues', 'Supplier dues'], ['gst', 'GST'], ['salary', 'Salaries'], ['pl', 'Profit & loss'], ['progress', 'In progress'], ['done', 'Completed'], ['pending', 'Pending payments'], ['received', 'Payments received'], ['profit', 'Project profit'], ['expenses', 'Expenses'], ['materials', 'Price list']];
 const ACCT_TABS = {};
+/* the outside accountant sees the bookkeeping tabs only (the server refuses the rest): no Overview, profit, tracking or price list */
+const ACCT_CA_TABS = ['books', 'dues', 'gst', 'salary', 'pending', 'received', 'expenses'];
+const acIsCa = () => ME.role === 'accountant';
+const acTabs = () => acIsCa() ? ACCT_TAB_NAMES.filter(t => ACCT_CA_TABS.includes(t[0])) : ACCT_TAB_NAMES;
 const ACCT_NOPER = ['pending', 'materials', 'progress', 'done', 'dues']; /* lists as they stand today: no month to choose */
 
 const acP2 = n => String(n).padStart(2, '0');
@@ -31,11 +35,12 @@ function acPerStep(s, n) {
 
 async function pgAccounts() {
   const part = location.hash.replace(/^#\/?/, '').split('/');
-  if (part[1] === 'cost') return acCostSheet(parseInt(part[2], 10) || 0);
-  const tab = ACCT_TAB_NAMES.some(t => t[0] === part[1]) ? part[1] : 'overview', label = ACCT_TAB_NAMES.find(t => t[0] === tab)[1];
+  const TN = acTabs();
+  if (part[1] === 'cost') { if (!acIsCa()) return acCostSheet(parseInt(part[2], 10) || 0); toast('Project cost sheets are not shown to the accountant'); }
+  const tab = TN.some(t => t[0] === part[1]) ? part[1] : TN[0][0], label = TN.find(t => t[0] === tab)[1];
   $('#title').innerHTML = `<span class="ft t-accounts"><i class="i i-coin"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› ${esc(label)}</span>`;
   const main = $('#main');
-  main.innerHTML = `<div class="acx-pg"><div class="acx-hd"><div class="tabs acx-tabs" role="tablist">${ACCT_TAB_NAMES.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-acx-tab="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</button>`).join('')}</div><span class="acx-hdb"><button type="button" class="btn sec sm" data-acx-exp title="Download the books of the chosen period as an Excel file for your accountant"><i class="i i-download"></i> Export</button>${ME.role === 'admin' ? '<button type="button" class="btn sec sm" data-acx-tpl title="Edit the email and WhatsApp wording"><i class="i i-gear"></i> Templates</button>' : ''}</span></div>
+  main.innerHTML = `<div class="acx-pg"><div class="acx-hd"><div class="tabs acx-tabs" role="tablist">${TN.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-acx-tab="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</button>`).join('')}</div><span class="acx-hdb"><button type="button" class="btn sec sm" data-acx-exp title="Download the books of the chosen period as an Excel file for your accountant"><i class="i i-download"></i> Export</button>${ME.role === 'admin' ? '<button type="button" class="btn sec sm" data-acx-tpl title="Edit the email and WhatsApp wording"><i class="i i-gear"></i> Templates</button>' : ''}</span></div>
     <div class="acx-per" id="acx_per"></div><div id="acx_box"><p class="mut">Loading…</p></div></div>`;
   $$('[data-acx-tab]', main).forEach(b => b.onclick = () => { location.hash = '#/accounts/' + b.dataset.acxTab; });
   const box = $('#acx_box', main), per = $('#acx_per', main);

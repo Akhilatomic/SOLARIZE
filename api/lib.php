@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 56; // bump when tables/columns change
+const SCHEMA_VERSION = 57; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -367,6 +367,12 @@ function migrate($db) {
   $db->exec('CREATE INDEX IF NOT EXISTS accsal_date ON acc_salary(date)');
   /* v56: a cash credit / overdraft account has a limit (acc_books.credit_limit, 0 = none): the page shows what can still be drawn */
   if (!in_array('credit_limit', array_column($db->query('PRAGMA table_info(acc_books)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE acc_books ADD COLUMN credit_limit REAL DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  /* v57: owner's rule: a purchase is paid from the bank account unless someone says otherwise. Once (flag acc_paybank_v1): purchased
+     lines with no payment recorded count as paid from the default bank account. */
+  if (!$db->query("SELECT 1 FROM settings WHERE k='acc_paybank_v1'")->fetch()) {
+    $db->exec("UPDATE acc_costs SET pay_book=(SELECT id FROM acc_books WHERE kind='bank' AND hidden=0 ORDER BY is_default DESC, id LIMIT 1) WHERE bought=1 AND pay_book IS NULL");
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_paybank_v1','1')");
+  }
   require_once __DIR__ . '/acc_seed.php';
   acc_seed($db); // only fills an empty materials list
   acc_prices_v1($db); /* v51: dealer prices from the supplier's quotation and invoice of Nov 2026, once */

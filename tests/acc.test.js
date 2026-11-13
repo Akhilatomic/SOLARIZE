@@ -490,4 +490,7 @@ test('export for the accountant: the sheets of the workbook', () => {
   const fy = ACC.exportSheets(Object.assign({}, d, { pl: { cols: [{ label: 'Apr 34' }, { label: 'May 34' }], lines: [{ key: 'net', label: 'Net', kind: 'net', vals: [1, 2], total: 3 }] } }));
   assert.deepEqual(fy[1].rows, [['Profit & loss', 'Apr 34', 'May 34', 'Total'], ['Net', 1, 2, 3]]);
   assert.equal(ACC.exportSheets({}).length, 10);
+  const caf = ACC.exportSheets(Object.assign({}, d, { hideProfit: true }));
+  assert.deepEqual(caf.map(s => s.name), ['Summary', 'Cash & bank', 'Sales register', 'Purchase register', 'GST summary', 'Payments received', 'Expenses', 'Salaries', 'Supplier dues']);
+  assert.ok(!caf[0].rows.some(r => /profit|Sales, before GST|Overheads/i.test(String(r[0] || ''))) && caf[0].rows.some(r => r[0] === 'Net GST payable') && caf[0].rows.some(r => r[0] === 'Test Bank'));
 });

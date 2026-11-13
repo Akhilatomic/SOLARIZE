@@ -171,6 +171,7 @@ function acc_line($l, $i) {
   $pb = $l['pay_book'] ?? null; $pb = $pb === null || $pb === '' ? null : (int)$pb;
   if ($pb !== null && $pb > 0 && !row('SELECT 1 FROM acc_books WHERE id=?', [$pb])) fail("The account $name was paid from no longer exists");
   if ($pb !== null && $pb < 0) $pb = null;
+  if ($bought && $pb === null) $pb = books_default_bank() ?: null; /* owner's rule: paid from the bank account unless "Not paid yet" or another account is chosen */
   $po = trim((string)($l['pay_on'] ?? ''));
   if ($po !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $po) || date('Y-m-d', strtotime($po)) !== $po)) fail("The payment date for $name is not a valid date");
   return ['pay_book' => $bought ? $pb : null, 'pay_on' => $bought && $pb ? $po : '', 'bought' => $bought, 'bought_on' => $bought ? $on : '', 'material_id' => (int)($l['material_id'] ?? 0), 'grp' => $t('grp', 100), 'name' => $name, 'qty' => $qty,
@@ -446,6 +447,7 @@ function acc_track_set($cid, $done) {
     [(int)$cid, $done ? 1 : 0, $done ? gmdate('Y-m-d H:i:s') : '', $done ? (string)($_SESSION['name'] ?? '') : '']);
 }
 
+function acc_is_ca() { return ($_SESSION['role'] ?? '') === 'accountant'; }
 function handle_acc($a) {
   /* receipts, templates and the share log are also open to the Payments roles; everything else needs Accounts.
      ac_receipt returns the price and amounts, so it also needs Finance; the writes (receipt_no, log) need write access. */
@@ -453,6 +455,9 @@ function handle_acc($a) {
   elseif ($a === 'ac_receipt') { if (!can('accounts') && !(can('payments') && can('finance'))) fail('Not allowed for your role', 403); }
   elseif ($a === 'receipt_no' || $a === 'log') { if (!can('accounts', true) && !can('payments', true)) fail('Not allowed for your role', 403); }
   else need('accounts');
+  /* the outside accountant (role accountant) gets the bookkeeping pages only: no project profit, profit and loss, Project cost sheets,
+     price list (profit %) or project tracking. The Overview's profit is blanked below. */
+  if (acc_is_ca() && in_array($a, ['ac_profit', 'ac_pl', 'ac_cost', 'ac_materials', 'ac_track', 'ac_tpls', 'ac_tpl_get'], true)) fail('This page is not shown to the accountant', 403);
   $in = body();
   books_handle($a, $in); /* Cash & bank (api/books.php); comes back when $a is not one of its actions */
   dues_handle($a, $in); /* Supplier dues (api/dues.php), the same way */
@@ -901,7 +906,7 @@ function handle_acc($a) {
       /* profit_n = billed projects counted in the profit; no_cost_n = billed projects with no cost lines, left out (the Profit tab lists them) */
       out(['received' => round(array_sum(array_column($rec, 'amount')), 2), 'received_n' => count($rec),
         'pending' => round(array_sum(array_column($pend, 'due')), 2), 'pending_n' => count($pend), 'pending_loan_n' => count(array_filter($pend, fn($r) => $r['loan'] === 'Yes')),
-        'expenses' => $x, 'profit' => pl_calc($f, $t)['net'], /* the Profit & loss net: project profit + other income − every overhead (salaries too) */ 'profit_n' => count($pf['rows']), 'no_cost_n' => count($pf['no_cost']), 'top' => array_slice($pend, 0, 10),
+        'expenses' => $x, 'profit' => acc_is_ca() ? null : pl_calc($f, $t)['net'], /* the Profit & loss net: project profit + other income − every overhead (salaries too) */ 'profit_n' => count($pf['rows']), 'no_cost_n' => count($pf['no_cost']), 'top' => array_slice($pend, 0, 10),
         'track_open_n' => acc_track_count(false), 'track_done_n' => acc_track_count(true)]);
     }
   }

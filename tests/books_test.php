@@ -88,13 +88,13 @@ $cs = call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'lines' => [
   $line('Bk Panel A', 2, 10000, ['pay_book' => $b2]), $line('Bk Panel B', 1, 4000, ['pay_book' => $b2]),
   $line('Bk Panel C', 1, 1000, ['pay_book' => 0]), $line('Bk Panel D', 1, 2000), ['grp' => 'Solar panels', 'name' => 'Bk Panel E', 'qty' => 1, 'unit' => 'Nos', 'rate' => 500, 'gst' => 5, 'pay_book' => $b2]]]);
 $L = array_column($cs['lines'] ?? [], null, 'name');
-chk($cs['_code'] === 200 && $L['Bk Panel A']['pay_book'] === $b2 && $L['Bk Panel C']['pay_book'] === 0 && $L['Bk Panel D']['pay_book'] === null && $L['Bk Panel E']['pay_book'] === null, 'the sheet keeps Paid from per purchased line; a To buy line has none');
+chk($cs['_code'] === 200 && $L['Bk Panel A']['pay_book'] === $b2 && $L['Bk Panel C']['pay_book'] === 0 && $L['Bk Panel D']['pay_book'] === $bank && $L['Bk Panel E']['pay_book'] === null, 'the sheet keeps Paid from per purchased line; no choice = the default bank account; a To buy line has none');
 chk($bal($b2) == $b2a - 25200, 'purchases paid from the bank go out with GST (2 × 10,000 + 4,000, + 5%)');
 $bk = $book($b2);
 $pr = array_values(array_filter($bk['rows'], fn($e) => $e['kind'] === 'cost'));
 chk(count($pr) === 1 && $pr[0]['amount'] == 25200 && $pr[0]['title'] === 'Purchase · Bk Supplier' && $pr[0]['ref'] === 'BK-77' && strpos($pr[0]['sub'], '2 items') !== false && $pr[0]['movable'] === 0, 'one entry per bill, with the supplier, bill no. and number of items');
 $s = $sum();
-chk(abs($s['due']['total'] - $due0 - 1050) < 0.01 && abs($s['unrec']['total'] - $un0 - 2100) < 0.01, 'Not paid yet counts as owed to suppliers; a purchase with nothing recorded is listed apart');
+chk(abs($s['due']['total'] - $due0 - 1050) < 0.01 && abs($s['unrec']['total'] - $un0) < 0.01, 'Not paid yet counts as owed to suppliers; nothing is left without a payment recorded');
 chk(call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'version' => $cs['version'], 'lines' => [$line('Bk Panel A', 2, 10000, ['pay_book' => 999999])]])['_code'] === 400, 'an account that does not exist is refused on a line');
 
 /* the period view */

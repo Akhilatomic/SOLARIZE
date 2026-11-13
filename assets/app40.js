@@ -4,7 +4,7 @@
    acSalForm(p, d, done)  pay a person / edit a payment (d = the ac_salary answer: staff, kinds, books) */
 function acSalForm(p, d, done) {
   const books = (d.books || []).filter(b => !b.hidden || b.id === +p.book_id), staff = d.staff || [];
-  const first = +p.book_id || (books.find(b => b.kind === 'cash') || books[0] || {}).id || 0;
+  const first = +p.book_id || (books.find(b => b.kind === 'bank' && b.is_default) || books.find(b => b.kind === 'bank') || books[0] || {}).id || 0; /* the default bank account */
   const other = !!p.id && !+p.user_id;
   const m = modal(`<div class="mh"><h3>${p.id ? 'Edit payment' : 'Pay a person'}</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
     <div class="two"><div><label for="asl_u">Staff member</label><select id="asl_u">${staff.map(s => `<option value="${s.id}" ${+p.user_id === +s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}<option value="0" ${other ? 'selected' : ''}>Someone else…</option></select></div>

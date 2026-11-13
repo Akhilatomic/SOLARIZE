@@ -30,8 +30,11 @@ chk($u['_code'] === 200 && $li['_code'] === 200, 'an accountant is created and s
 $me = call($ca, 'auth', 'status');
 $perm = $me['user']['perms'] ?? $me['perms'] ?? $me['me']['perms'] ?? null;
 $P = '&period=2026-11';
-$ok = 0; foreach ([['ac_overview', $P], ['ac_books', ''], ['ac_book', $P . '&book=0'], ['ac_dues', ''], ['ac_gst', $P], ['ac_salary', $P], ['ac_pl', $P], ['ac_received', $P], ['ac_expenses', $P], ['ac_profit', $P], ['ac_materials', ''], ['ac_pending', ''], ['ac_track', '']] as [$a, $q]) if (call($ca, 'acc', $a, null, $q)['_code'] === 200) $ok++;
-chk($ok === 13, 'every Accounts page can be read (and so exported)');
+$ok = 0; foreach ([['ac_overview', $P], ['ac_books', ''], ['ac_book', $P . '&book=0'], ['ac_dues', ''], ['ac_gst', $P], ['ac_salary', $P], ['ac_received', $P], ['ac_expenses', $P], ['ac_pending', '']] as [$a, $q]) if (call($ca, 'acc', $a, null, $q)['_code'] === 200) $ok++;
+chk($ok === 9, 'the bookkeeping pages can be read (and so exported)');
+$hid = 0; foreach ([['ac_profit', $P], ['ac_pl', $P], ['ac_materials', ''], ['ac_track', ''], ['ac_cost', '&project_id=1'], ['ac_tpls', '']] as [$a, $q]) if (call($ca, 'acc', $a, null, $q)['_code'] === 403) $hid++;
+$ovw = call($ca, 'acc', 'ac_overview', null, $P);
+chk($hid === 6 && array_key_exists('profit', $ovw) && $ovw['profit'] === null && call($admin, 'acc', 'ac_overview', null, $P)['profit'] !== null && call($admin, 'acc', 'ac_pl', null, $P)['_code'] === 200, 'project profit, profit and loss, cost sheets, price list and tracking are not shown to the accountant; the admin still sees them');
 $no = 0; foreach ([['customers', 'list'], ['leads', 'list'], ['projects', 'list'], ['dashboard', 'get'], ['quotes', 'list'], ['fees', 'list'], ['hr', 'today'], ['calendar', 'upcoming'], ['folder', 'list']] as [$m, $a]) if (call($ca, $m, $a)['_code'] === 403) $no++;
 chk($no === 9, 'nothing outside Accounts can be opened, even with “can see and claim leads” ticked');
 $w = 0; foreach ([['txn_save', ['date' => '2026-11-13', 'cat' => 'other_in', 'amount' => 5, 'book_id' => 1]], ['salary_save', ['name' => 'x', 'kind' => 'Salary', 'date' => '2026-11-13', 'amount' => 5, 'book_id' => 1]], ['spay_save', ['supplier' => 'x', 'date' => '2026-11-13', 'amount' => 5, 'book_id' => 1]],
