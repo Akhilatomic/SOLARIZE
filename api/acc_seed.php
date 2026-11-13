@@ -76,6 +76,37 @@ function acc_seed_list() {
     ],
   ];
 }
+/* Dealer prices (before GST) from NetZero ITA: quotation SAL-QTN-2026-00049 (30-10-2026) and tax invoice NZ/26-27/376 (11-11-2026).
+   Only items on the price list that are the same product. Where the two papers differ, the invoice (newer, what was bought) wins. */
+function acc_prices_v1_list() {
+  return [
+    '45*45 channel slotted grey' => 115,
+    'Microtek – MC4 PV connector pair' => 31,
+    '4-6 sq mm CU palm lug' => 15,
+    'Excel Earthings – SS lightning arrester 14 mm x 1 m, single spike, insulated base' => 1180,
+    'Excel Earthings – ISI nickel sealed copper bonded earth rod 14 mm x 1.2 m' => 307,
+    'Excel Earthings – Earth pit chamber 18 x 18 cm PVC' => 278,
+    'Copper conductor earthing, 10 SWG' => 1593,
+    '50 sq mm AL cable MC, yellow with green' => 75,
+    'Earthing 16 sq mm aluminium multi iconic' => 30,
+    'AL 50 sq mm lug' => 16,
+    'Ring lug AL 16 sq mm' => 8,
+    '20 mm SS saddle' => 3,
+    'Fisher PVC 6 mm' => 0.59,
+    'Screw SS star 6*32' => 1.59,
+    'Estera – Nylon cable tie (300*4.8) black' => 237,
+    'Insulation tape black' => 9,
+    'Insulation tape red' => 9,
+    '8 mm plastic sleeve' => 10,
+  ];
+}
+/* Sets those dealer prices once (flag acc_prices_v1), matched by name in any category; an item renamed or deleted is left alone. */
+function acc_prices_v1($db) {
+  if ($db->query("SELECT 1 FROM settings WHERE k='acc_prices_v1'")->fetch()) return;
+  $up = $db->prepare('UPDATE acc_materials SET rate=?, updated=CURRENT_TIMESTAMP WHERE lower(trim(name))=lower(?)');
+  foreach (acc_prices_v1_list() as $name => $rate) $up->execute([$rate, $name]);
+  $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_prices_v1','1')");
+}
 function acc_seed($db) {
   if ((int)$db->query('SELECT COUNT(*) FROM acc_materials')->fetchColumn() > 0) return; // only fills an empty list
   $ins = $db->prepare('INSERT OR IGNORE INTO acc_materials(grp,name,unit,gst,rate,sort) VALUES(?,?,?,?,0,?)');

@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 50; // bump when tables/columns change
+const SCHEMA_VERSION = 51; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -334,6 +334,7 @@ function migrate($db) {
   $db->exec("UPDATE payments SET src='bank' WHERE (src IS NULL OR src='') AND mode='Loan' AND project_id IN (SELECT id FROM projects WHERE loan='Yes')");
   require_once __DIR__ . '/acc_seed.php';
   acc_seed($db); // only fills an empty materials list
+  acc_prices_v1($db); /* v51: dealer prices from the supplier's quotation and invoice of Nov 2026, once */
   /* v43: KSEB fees and stamp paper are passed on at cost, so their price list items get 0 % profit where the % is blank. Once
      (flag acc_fee_pct0), after the seed so a new database gets it too; a % the owner clears later stays blank. Same names as ACC.FEE_NAMES. */
   if (!$db->query("SELECT 1 FROM settings WHERE k='acc_fee_pct0'")->fetch()) {
