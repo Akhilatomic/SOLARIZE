@@ -388,7 +388,7 @@ async function acCsAdd(ctx) {
     L.slice(0, 300).forEach(x => {
       if (x.grp !== cur) { cur = x.grp; h += `<div class="acx-pgh">${esc(cur || 'Other')}</div>`; }
       const on = ctx.lines().filter(l => l.material_id === x.id).length, tk = sel.has(x.id);
-      h += `<label class="acx-pi acx-pc${tk ? ' acx-on' : ''}"><input type="checkbox" data-mid="${x.id}"${tk ? ' checked' : ''}><span>${esc(x.name)}</span><small>${esc(x.unit)} · GST ${+x.gst}%${+x.rate ? ' · dealer ' + inr2(x.rate) + ' · profit ' + esc(acPctTxt(ACC.pctOf(x.profit, def))) : ' · no dealer price yet'}${on ? ` · <b>already ${ctx.sheet ? 'on the sheet' : 'in the template'}${on > 1 ? ' ×' + on : ''}</b>` : ''}</small></label>`;
+      h += `<label class="acx-pi acx-pc${tk ? ' acx-on' : ''}"><input type="checkbox" data-mid="${x.id}"${tk ? ' checked' : ''}><span>${esc(x.name)}</span><small>${esc(x.unit)} · GST ${+x.gst}%${+x.rate ? ' · dealer ' + inr2(x.rate) + ' · profit ' + esc(acPctTxt(ACC.pctOf(x.profit, def))) : ' · no dealer price yet'}${acOfferHint(x)}${on ? ` · <b>already ${ctx.sheet ? 'on the sheet' : 'in the template'}${on > 1 ? ' ×' + on : ''}</b>` : ''}</small></label>`;
     });
     const none = cat && !mats.some(x => !x.hidden && x.grp === cat); /* a category with no products yet */
     $('#acx_pl', m).innerHTML = h || (none ? `<p class="mut acx-pe">No products in <b>${esc(cat)}</b> yet. <button type="button" class="acx-link" data-acx-first>Add its first product</button></p>`
@@ -989,6 +989,8 @@ async function acMaterialPdf(d) {
   const lines = ACC.mlLines(d.lines, !!d.onlyToBuy);
   if (!lines.length) { toast(d.onlyToBuy ? 'Every material on this sheet is already purchased, so there is nothing left to buy' : 'No materials on this sheet yet (services are not on the material list)', true); return; }
   await qpLibs();
+  /* where to buy each line: its own supplier, else the supplier in use on the price list */
+  const byId = {}; try { (await acMats()).forEach(x => { byId[x.id] = x; }); } catch (e) { }
   const p = d.project || {}, cu = d.customer || {}, pl = d.plant || {}, co0 = (typeof S === 'object' && S && S.company) || {}, co = d.company || {};
   const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
   pdf.setFont('helvetica', 'normal');
@@ -1005,7 +1007,7 @@ async function acMaterialPdf(d) {
     project: { kw, phase: cu.phase, system: pl.system_type, panels: pMake ? j([+pl.panel_count ? pl.panel_count + ' ×' : '', pMake]) : +pl.panel_count ? `${pl.panel_count} panels` : p.panel,
       inverter: iMake ? j([+pl.inverter_count > 1 ? pl.inverter_count + ' ×' : '', iMake]) : p.inverter, structure: j([pl.structure_type, pl.structure_material], ', '), quote_no: d.quote_no,
       engineer: p.engineer, install_on: pl.installed_on ? acPdfDate(pl.installed_on) : p.start ? acPdfDate(p.start) + ' (planned)' : '' },
-    lines: lines.map(l => ({ grp: l.grp || 'Other', name: l.name, qty: acV(l.qty), unit: l.unit })),
+    lines: lines.map(l => ({ grp: l.grp || 'Other', name: l.name, qty: acV(l.qty), unit: l.unit, sup: ACC.buyFrom(l, byId[l.material_id] || null, acSups()) })),
     wrap,
   });
   L.pages.forEach((pg, i) => {

@@ -252,3 +252,4 @@ table.acx-mt.stack tr.acs-alt{background:#fafafc}
 table.acx-mt.stack td.acs-an{grid-column:1/-1;padding-left:16px}
 table.acx-mt.stack td.acs-an::before{display:none}
 @media(max-width:560px){.acs-sr{grid-template-columns:1fr auto auto}.acs-sc{grid-column:1/-1;order:5}}
+.acs-hs{color:var(--tx);font-weight:500}

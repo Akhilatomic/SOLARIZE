@@ -427,3 +427,18 @@ test('supplier prices side by side', () => {
   assert.ok(!ACC.offerFilter(mat, 9, sups) && !ACC.offerFilter(mat, 'none', sups) && !ACC.offerFilter(mat, 'pick', sups));
   assert.ok(ACC.offerFilter({ rate: 0, offers: [] }, 'none', sups) && ACC.offerFilter({ rate: 0, offers: [{ id: 1, supplier_id: 1, rate: 5 }] }, 'pick', sups));
 });
+
+test('material list: where to buy each line', () => {
+  const sups = [{ id: 1, name: 'Alpha Traders' }, { id: 2, name: 'Beta Electricals' }];
+  const mat = { rate: 100, offer_id: 7, offers: [{ id: 7, supplier_id: 2, brand: 'Bx', rate: 100 }, { id: 8, supplier_id: 1, brand: '', rate: 90 }] };
+  assert.equal(ACC.buyFrom({ supplier: '' }, mat, sups), 'Beta Electricals (Bx)');
+  assert.equal(ACC.buyFrom({ supplier: ' Gamma Stores ' }, mat, sups), 'Gamma Stores');
+  assert.equal(ACC.buyFrom({ supplier: 'beta electricals' }, mat, sups), 'beta electricals (Bx)');
+  assert.equal(ACC.buyFrom({}, Object.assign({}, mat, { offer_id: null }), sups), '');
+  assert.equal(ACC.buyFrom({}, null, sups), '');
+  const L = ACC.mlLayout({ company: { name: 'Test Co' }, no: 'N', date: 'd', lines: [{ grp: 'Solar panels', name: 'Item A', qty: 1, unit: 'Nos', sup: 'Beta Electricals (Bx)' }, { grp: 'Solar panels', name: 'Item B', qty: 1, unit: 'Nos' }] });
+  const t = L.pages[0].ops.filter(o => o.t === 'text');
+  const a = t.find(o => o.txt === 'Item A'), s = t.find(o => o.txt === 'Buy from: Beta Electricals (Bx)'), b = t.find(o => o.txt === 'Item B');
+  assert.ok(s && s.y > a.y && b.y > s.y + 3, 'the supplier sits under its item, above the next');
+  assert.equal(t.filter(o => /^Buy from/.test(o.txt)).length, 1);
+});

@@ -178,6 +178,14 @@ const ACC = {
     const used = all.find(o => o.id === (mat && mat.offer_id)) || null;
     return { all, used, others: all.filter(o => o !== used), lowest, n: all.length, save: rate > 0 && all.length && rate - lowest > 0.005 ? ACC.r2(rate - lowest) : 0 };
   },
+  /* where to buy a sheet line: the supplier typed on the line, else the supplier (and brand) of the item's price in use; '' when
+     neither. mat = the price list item of the line (or null). */
+  buyFrom(line, mat, sups) {
+    const typed = String((line && line.supplier) || '').trim();
+    const u = mat ? ACC.offerView(mat, sups).used : null;
+    if (typed) return u && u.brand && typed.toLowerCase() === String(u.sup).toLowerCase() ? typed + ' (' + u.brand + ')' : typed;
+    return u ? u.sup + (u.brand ? ' (' + u.brand + ')' : '') : '';
+  },
   /* the price list's supplier filter: '' = every item, 'cheaper' = a supplier is cheaper than the dealer price, 'pick' = has supplier
      prices but none in use, 'none' = no supplier price, else a supplier id */
   offerFilter(mat, f, sups) {
@@ -244,7 +252,8 @@ const ACC = {
   },
   /* Material-list PDF layout: mm on A4 (210 x 297), text sizes in pt. Returns {pages:[{ops}]}; the caller draws the ops with jsPDF.
      d.wrap(text, widthMm, sizePt) -> string[] may be supplied (jsPDF's splitTextToSize); the default estimates the width.
-     Ops: {t:'text',x,y,s,txt,b?,c?,a?} (a:'r' = right-aligned at x), {t:'line',x1,y1,x2,y2,w}, {t:'box',x,y,w,h}. No prices. */
+     Ops: {t:'text',x,y,s,txt,b?,c?,a?} (a:'r' = right-aligned at x), {t:'line',x1,y1,x2,y2,w}, {t:'box',x,y,w,h}. No prices.
+     A line may carry sup (the supplier to buy it from, with the brand): printed under the item name. */
   mlLayout(d) {
     const M = 14, W = 210, H = 297, R = W - M, BOTTOM = H - M - 6, LH = 4.4, SIG_H = 30;
     const wrap = d.wrap || ((t, w, s) => {
@@ -307,7 +316,9 @@ const ACC = {
     const next = () => { newPage(false); tableHead(false); };
     let grp = null, sr = 0;
     (d.lines || []).forEach(l => {
-      const names = wrap(l.name || '', X.qr - X.name - 10, 9), h = Math.max(1, names.length) * LH + 2.6;
+      /* l.sup = where to buy it (supplier, brand): a small grey line under the item name */
+      const names = wrap(l.name || '', X.qr - X.name - 10, 9), sups = l.sup ? wrap('Buy from: ' + l.sup, X.qr - X.name - 10, 8) : [];
+      const h = Math.max(1, names.length) * LH + sups.length * 3.6 + 2.6;
       const g = l.grp || '';
       const needG = g && g !== grp;
       if (y + h + (needG ? 7 : 0) > BOTTOM) { next(); grp = null; }
@@ -318,6 +329,7 @@ const ACC = {
       sr++;
       text(X.sr, y, 9, String(sr));
       names.forEach((n, i) => text(X.name, y + i * LH, 9, n));
+      sups.forEach((n, i) => text(X.name, y + Math.max(1, names.length) * LH + i * 3.6 - 0.6, 8, n, { c: '#555555' }));
       text(X.qr, y, 9, String(l.qty === undefined || l.qty === null ? '' : l.qty), { a: 'r' });
       text(X.unit, y, 9, String(l.unit || ''));
       ops.push({ t: 'box', x: X.ord + 3.2, y: y - 3, w: 3.6, h: 3.6 });

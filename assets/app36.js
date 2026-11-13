@@ -117,6 +117,16 @@ function acOfferForm(mat, o, done) {
 /* the tiny line under an item's name: the brand and supplier of the price in use */
 const acOfferBy = v => v.used ? `<small class="acs-by">${[v.used.brand, v.used.sup].filter(Boolean).map(esc).join(' · ')}</small>`
   : v.n ? '<small class="acs-by acs-pick">No supplier picked yet: choose one below</small>' : '';
+/* Add item window: the supplier (and brand) of the item's price, and the lowest supplier price when another supplier is cheaper or
+   none is picked yet */
+function acOfferHint(x) {
+  const v = ACC.offerView(x, acSups());
+  if (!v.n) return '';
+  const lo = v.all[0];
+  const by = v.used ? ` · <span class="acs-hs">${[v.used.brand, v.used.sup].filter(Boolean).map(esc).join(' · ')}</span>` : '';
+  if (v.used && !v.save) return by + (v.n > 1 ? ' · <span class="acs-less">lowest price</span>' : '');
+  return `${by} · <span class="acs-less">lowest ${inr2(lo.rate)} at ${esc(lo.sup)}</span>`;
+}
 /* how a supplier's price compares with the dealer price */
 const acOfferDiff = o => o.diff === null ? '' : Math.abs(o.diff) < 0.005 ? '<span class="mut">Same price</span>'
   : o.diff < 0 ? `<span class="acs-less">${inr2(-o.diff)} less</span>` : `<span class="mut">${inr2(o.diff)} more</span>`;
