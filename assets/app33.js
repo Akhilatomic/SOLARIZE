@@ -35,11 +35,12 @@ async function pgAccounts() {
   const tab = ACCT_TAB_NAMES.some(t => t[0] === part[1]) ? part[1] : 'overview', label = ACCT_TAB_NAMES.find(t => t[0] === tab)[1];
   $('#title').innerHTML = `<span class="ft t-accounts"><i class="i i-coin"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› ${esc(label)}</span>`;
   const main = $('#main');
-  main.innerHTML = `<div class="acx-pg"><div class="acx-hd"><div class="tabs acx-tabs" role="tablist">${ACCT_TAB_NAMES.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-acx-tab="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>${ME.role === 'admin' ? '<button type="button" class="btn sec sm" data-acx-tpl title="Edit the email and WhatsApp wording"><i class="i i-gear"></i> Templates</button>' : ''}</div>
+  main.innerHTML = `<div class="acx-pg"><div class="acx-hd"><div class="tabs acx-tabs" role="tablist">${ACCT_TAB_NAMES.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-acx-tab="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</button>`).join('')}</div><span class="acx-hdb"><button type="button" class="btn sec sm" data-acx-exp title="Download the books of the chosen period as an Excel file for your accountant"><i class="i i-download"></i> Export</button>${ME.role === 'admin' ? '<button type="button" class="btn sec sm" data-acx-tpl title="Edit the email and WhatsApp wording"><i class="i i-gear"></i> Templates</button>' : ''}</span></div>
     <div class="acx-per" id="acx_per"></div><div id="acx_box"><p class="mut">Loading…</p></div></div>`;
   $$('[data-acx-tab]', main).forEach(b => b.onclick = () => { location.hash = '#/accounts/' + b.dataset.acxTab; });
   const box = $('#acx_box', main), per = $('#acx_per', main);
   const gear = $('[data-acx-tpl]', main); if (gear) gear.onclick = () => acTplEditor();
+  $('[data-acx-exp]', main).onclick = e => acExport(e.currentTarget); /* app41.js: the chosen period's books as an Excel workbook */
   const run = async () => {
     const key = acPerKey(), P = Object.assign({ key }, ACC.period(key)), now = today(), month = now.slice(0, 7), fy = 'fy-' + acFy(now);
     per.hidden = ACCT_NOPER.includes(tab);

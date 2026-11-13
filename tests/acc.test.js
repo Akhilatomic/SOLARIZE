@@ -458,3 +458,36 @@ test('cash and bank book: running balance, paid from', () => {
   assert.deepEqual(ACC.markBought(lines, [0, 1], { date: '2026-11-13' }).map(l => l.pay_book), [null, 3]);
   assert.equal(ACC.undoBought(m[0]).pay_book, null);
 });
+
+test('export for the accountant: the sheets of the workbook', () => {
+  const d = { company: 'Test Co', label: 'Jun 2034', from: '2034-06-01', to: '2034-06-30', made: '2034-07-01',
+    pl: { cols: [{ key: '2034-06', label: 'Jun 2034' }], lines: [{ key: 'h', label: 'Income', kind: 'head', vals: [], total: 0 }, { key: 'sales', label: 'Sales', kind: 'row', vals: [100000], total: 100000 }, { key: 'gross', label: 'Gross profit', kind: 'total', vals: [40000], total: 40000 }, { key: 'over', label: 'Total overheads', kind: 'total', vals: [26000], total: 26000 }, { key: 'net', label: 'Net profit', kind: 'net', vals: [14000], total: 14000 }] },
+    books: [{ name: 'Test Bank', book: { from: '2034-06-01', to: '2034-06-30', open: 1000, in: 500, out: 200, close: 1300, rows: [{ date: '2034-06-02', title: 'Received from A', sub: 'UPI', ref: 'R1', dir: 'in', amount: 500 }, { date: '2034-06-03', title: 'Expense', dir: 'out', amount: 200 }] } }],
+    gst: { out: { taxable: 100000, cgst: 4450, sgst: 4450, igst: 0, tax: 8900, by: [{ rate: 5, taxable: 70000, cgst: 1750, sgst: 1750, igst: 0, tax: 3500 }] }, itc: { yes: 3000, check: 180, no: 900, by: [{ rate: -1, taxable: 10000, tax: 1800 }] }, net: 5900, net_if_all: 5720,
+      sales: [{ no: 'B-1', date: '2034-06-05', customer: 'A', gstin: '', inter: 0, taxable: 100000, tax: 8900, total: 108900 }], purchases: [{ date: '2034-06-07', supplier: 'S', gstin: '32X', bill_no: 'P-1', what: '2 items', src: 'sheet', taxable: 60000, tax: 3000, total: 63000, mark: 'yes', why: '' }] },
+    received: [{ date: '2034-06-02', customer: 'A', amount: 500, mode: 'UPI', ref_no: 'R1', receipt_no: 'RC1', src: 'bank' }], expenses: [{ date: '2034-06-03', cat: 'Other', paid_to: 'Shop', mode: 'UPI', amount: 1180, gst: 18, note: '' }],
+    salary: { rows: [{ date: '2034-06-07', name: 'P', kind: 'Salary', for_what: 'June', book_id: 2, ref: '', amount: 12000, note: '' }] }, dues: { due: { total: 4248 }, rows: [{ name: 'S', bills: 4248, bills_n: 3, paid: 0, balance: 4248, last_paid: '' }] }, sum: { books: [{ id: 2, name: 'Test Bank' }] } };
+  const sh = ACC.exportSheets(d), by = {}; sh.forEach(s => { by[s.name] = s.rows; });
+  assert.deepEqual(sh.map(s => s.name), ['Summary', 'Profit & loss', 'Cash & bank', 'Sales register', 'Purchase register', 'GST summary', 'Payments received', 'Expenses', 'Salaries', 'Supplier dues']);
+  sh.forEach(s => assert.ok(s.name.length <= 31 && s.rows.length >= 1 && s.widths.length >= 1));
+  const find = (rows, label) => rows.find(r => r[0] === label);
+  assert.deepEqual(find(by.Summary, 'Net profit, before income tax'), ['Net profit, before income tax', 14000]);
+  assert.deepEqual(find(by.Summary, 'Net GST payable'), ['Net GST payable', 5900]);
+  assert.deepEqual(find(by.Summary, 'Test Bank'), ['Test Bank', 1000, 500, 200, 1300]);
+  assert.deepEqual(find(by.Summary, 'Owed to suppliers (today)'), ['Owed to suppliers (today)', 4248]);
+  assert.deepEqual(by['Profit & loss'][0], ['Profit & loss', 'Jun 2034']);
+  assert.deepEqual(by['Profit & loss'][1], ['Income']);
+  assert.deepEqual(by['Cash & bank'].map(r => r[7]), ['Balance', 1000, 1500, 1300, 1300]);
+  assert.deepEqual(by['Cash & bank'][2], ['Test Bank', '2034-06-02', 'Received from A', 'UPI', 'R1', 500, '', 1500]);
+  assert.deepEqual(by['Sales register'][1], ['B-1', '2034-06-05', 'A', '', 'Kerala', 100000, 8900, 4450, 4450, 0, 108900]);
+  assert.deepEqual(by['Purchase register'][1].slice(5), ['Project cost sheet', 60000, 3000, 63000, 'Claim', '']);
+  assert.ok(by['GST summary'].some(r => r[0] === 'As on the bill' && r[2] === 1800));
+  assert.deepEqual(by['Payments received'][1], ['2034-06-02', 'A', 500, 'UPI', 'R1', 'RC1', 'Bank (loan)']);
+  assert.deepEqual(by.Expenses[1], ['2034-06-03', 'Other', 'Shop', 'UPI', 1180, 18, 1000, 180, '']);
+  assert.deepEqual(by.Salaries[1], ['2034-06-07', 'P', 'Salary', 'June', 'Test Bank', '', 12000, '']);
+  assert.deepEqual(by['Supplier dues'][1], ['S', 4248, 3, 0, 4248, '']);
+  sh.forEach(s => s.rows.slice(1).forEach(r => r.forEach(c => assert.ok(typeof c === 'string' || (typeof c === 'number' && isFinite(c))))));
+  const fy = ACC.exportSheets(Object.assign({}, d, { pl: { cols: [{ label: 'Apr 34' }, { label: 'May 34' }], lines: [{ key: 'net', label: 'Net', kind: 'net', vals: [1, 2], total: 3 }] } }));
+  assert.deepEqual(fy[1].rows, [['Profit & loss', 'Apr 34', 'May 34', 'Total'], ['Net', 1, 2, 3]]);
+  assert.equal(ACC.exportSheets({}).length, 10);
+});

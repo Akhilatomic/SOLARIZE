@@ -284,3 +284,5 @@ select.acb-pf{display:block;margin:4px 0 0;padding:3px 6px;font-size:12px;border
 .acx-mt.apl-t td.apl-tot{font-weight:600;border-left:1px solid var(--bd)}
 .apl-ads{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;margin:12px 0;padding:10px 14px;font-size:13.5px}
 .apl-ads select{width:auto;margin:0;max-width:240px}
+/* Accounts header buttons: Export, Templates */
+.acx-hdb{display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center}
