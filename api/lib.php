@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 53; // bump when tables/columns change
+const SCHEMA_VERSION = 54; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -354,6 +354,10 @@ function migrate($db) {
     $db->exec("UPDATE acc_costs SET pay_book=(SELECT id FROM acc_books WHERE kind='bank' ORDER BY is_default DESC, id LIMIT 1) WHERE bought=1 AND pay_book IS NULL AND note='From Finance › Fees'");
     $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_fee_book_v1','1')");
   }
+  /* v54: Accounts › Supplier dues (api/dues.php). acc_bills = supplier bills added directly (amount with GST; pay_book 0 = on credit,
+     else the account it was paid from); acc_sup_pay = payments to suppliers, on account. */
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_bills(id INTEGER PRIMARY KEY AUTOINCREMENT, supplier TEXT, bill_no TEXT DEFAULT '', date TEXT, amount REAL DEFAULT 0, gst_amt REAL DEFAULT 0, note TEXT DEFAULT '', pay_book INTEGER DEFAULT 0, created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_sup_pay(id INTEGER PRIMARY KEY AUTOINCREMENT, supplier TEXT, date TEXT, amount REAL DEFAULT 0, book_id INTEGER, ref TEXT DEFAULT '', bill_no TEXT DEFAULT '', note TEXT DEFAULT '', created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
   require_once __DIR__ . '/acc_seed.php';
   acc_seed($db); // only fills an empty materials list
   acc_prices_v1($db); /* v51: dealer prices from the supplier's quotation and invoice of Nov 2026, once */

@@ -53,7 +53,7 @@ function book_entries() {
   /* purchases and services paid from an account: one entry per project + supplier + bill + day + account */
   $g = [];
   foreach (rows("SELECT k.project_id, k.name, k.qty, k.rate, k.gst, k.supplier, k.bill_no, k.bought_on, k.pay_book, k.pay_on, c.name c_name FROM acc_costs k JOIN projects p ON p.id=k.project_id JOIN customers c ON c.id=p.customer_id WHERE k.bought=1 AND k.pay_book>0") as $r) {
-    if (!isset($ok[(int)$r['pay_book']])) continue;
+    if (!isset($ok[(int)$r['pay_book']]) || dues_is_direct($r['supplier'], $r['bill_no'])) continue; /* a bill entered directly is counted once, as that bill */
     $d = $r['pay_on'] ?: $r['bought_on']; $k = implode('|', [(int)$r['project_id'], mb_strtolower(trim((string)$r['supplier'])), mb_strtolower(trim((string)$r['bill_no'])), $d, (int)$r['pay_book']]);
     if (!isset($g[$k])) $g[$k] = ['pid' => (int)$r['project_id'], 'date' => $d, 'book' => (int)$r['pay_book'], 'sup' => trim((string)$r['supplier']), 'bill' => trim((string)$r['bill_no']), 'cust' => $r['c_name'], 'amt' => 0.0, 'n' => 0, 'one' => $r['name']];
     $g[$k]['amt'] += round((float)$r['qty'] * (float)$r['rate'] * (1 + (float)$r['gst'] / 100), 2); $g[$k]['n']++;
@@ -61,6 +61,11 @@ function book_entries() {
   $i = 0;
   foreach ($g as $x) $add('cost', $x['pid'] * 1000 + (++$i % 1000), $x['date'], $x['book'], 'out', $x['amt'], 'Purchase' . ($x['sup'] !== '' ? ' · ' . $x['sup'] : ''),
     $x['cust'] . ' · ' . ($x['n'] === 1 ? $x['one'] : $x['n'] . ' items'), $x['bill'], '#/accounts/cost/' . $x['pid'], false);
+  /* supplier bills added directly and paid at once, and payments to suppliers (api/dues.php) */
+  foreach (rows('SELECT * FROM acc_bills WHERE pay_book>0') as $r)
+    $add('bill', $r['id'], $r['date'], (int)$r['pay_book'], 'out', $r['amount'], 'Purchase · ' . $r['supplier'], (string)$r['note'], $r['bill_no'], '#/accounts/dues', false);
+  foreach (rows('SELECT * FROM acc_sup_pay') as $r)
+    $add('spay', $r['id'], $r['date'], (int)$r['book_id'], 'out', $r['amount'], 'Paid to ' . $r['supplier'], trim(($r['bill_no'] !== '' ? 'against bill ' . $r['bill_no'] : '') . ($r['note'] !== '' ? ' · ' . $r['note'] : ''), ' ·'), $r['ref'], '#/accounts/dues', false);
   foreach (rows('SELECT * FROM acc_txn') as $r) {
     $lab = BOOK_CATS[$r['cat']][0] ?? 'Entry'; $sub = trim($r['party'] . ($r['note'] ? ' · ' . $r['note'] : ''), ' ·');
     if ($r['cat'] === 'transfer') {
@@ -80,9 +85,9 @@ function books_summary() {
   foreach (book_entries() as $e) $bal[$e['book_id']] = ($bal[$e['book_id']] ?? 0) + ($e['dir'] === 'in' ? $e['amount'] : -$e['amount']);
   foreach ($books as &$b) $b['balance'] = round($bal[$b['id']] ?? 0, 2); unset($b);
   $sum = fn($w) => row("SELECT COUNT(*) n, COALESCE(SUM(ROUND(qty*rate*(1+gst/100.0),2)),0) t FROM acc_costs WHERE bought=1 AND rate>0 AND $w");
-  $due = $sum('pay_book=0'); $un = $sum('pay_book IS NULL');
+  $un = $sum('pay_book IS NULL'); $dt = dues_total();
   return ['books' => $books, 'total' => round(array_sum(array_column(array_filter($books, fn($b) => !$b['hidden']), 'balance')), 2),
-    'due' => ['n' => (int)$due['n'], 'total' => round((float)$due['t'], 2)], 'unrec' => ['n' => (int)$un['n'], 'total' => round((float)$un['t'], 2)],
+    'due' => $dt, 'unrec' => ['n' => (int)$un['n'], 'total' => round((float)$un['t'], 2)],
     'cats' => array_map(fn($k, $v) => ['key' => $k, 'label' => $v[0], 'dir' => $v[1]], array_keys(BOOK_CATS), BOOK_CATS)];
 }
 
@@ -137,7 +142,7 @@ function books_handle($a, $in) {
       need('accounts', true);
       $id = (int)($in['id'] ?? 0); $b = row('SELECT * FROM acc_books WHERE id=?', [$id]); if (!$b) fail('Account not found', 404);
       foreach (book_entries() as $e) if ($e['book_id'] === $id && $e['kind'] !== 'open') fail('This account has entries, so it cannot be deleted. Hide it instead.');
-      if (row('SELECT 1 FROM acc_txn WHERE book_id=? OR to_book_id=?', [$id, $id]) || row('SELECT 1 FROM acc_costs WHERE pay_book=?', [$id])) fail('This account has entries, so it cannot be deleted. Hide it instead.');
+      if (row('SELECT 1 FROM acc_txn WHERE book_id=? OR to_book_id=?', [$id, $id]) || row('SELECT 1 FROM acc_costs WHERE pay_book=?', [$id]) || row('SELECT 1 FROM acc_bills WHERE pay_book=?', [$id]) || row('SELECT 1 FROM acc_sup_pay WHERE book_id=?', [$id])) fail('This account has entries, so it cannot be deleted. Hide it instead.');
       if ((int)row('SELECT COUNT(*) c FROM acc_books WHERE id<>? AND hidden=0', [$id])['c'] === 0) fail('Keep at least one account');
       trash_put('Account', $b['name'], [['acc_books', 'id=?', [$id]]]);
       q('DELETE FROM acc_book_map WHERE book_id=?', [$id]);

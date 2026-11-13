@@ -11,9 +11,9 @@
    acRemind(row, done)       WhatsApp payment reminder for a pending project (template ac_tpl.remind), logged as acc/log kind 'remind'
    acAddPayment(row, done)   + Payment on a pending project (payments/save), then its receipt (acReceipt) when it can be made
    Uses acTpl / acLog / acReceipt / acKw / acWhen / acIsCash (app35.js), acPl / acNum / acV / ACX_GSTS (app34.js), inr2 / fdt (app18.js). */
-const ACCT_TAB_NAMES = [['overview', 'Overview'], ['books', 'Cash & bank'], ['progress', 'In progress'], ['done', 'Completed'], ['pending', 'Pending payments'], ['received', 'Payments received'], ['profit', 'Project profit'], ['expenses', 'Expenses'], ['materials', 'Price list']];
+const ACCT_TAB_NAMES = [['overview', 'Overview'], ['books', 'Cash & bank'], ['dues', 'Supplier dues'], ['progress', 'In progress'], ['done', 'Completed'], ['pending', 'Pending payments'], ['received', 'Payments received'], ['profit', 'Project profit'], ['expenses', 'Expenses'], ['materials', 'Price list']];
 const ACCT_TABS = {};
-const ACCT_NOPER = ['pending', 'materials', 'progress', 'done']; /* lists as they stand today: no month to choose */
+const ACCT_NOPER = ['pending', 'materials', 'progress', 'done', 'dues']; /* lists as they stand today: no month to choose */
 
 const acP2 = n => String(n).padStart(2, '0');
 /* the financial year of a date, as used in document numbers: '2026-11-12' -> '26-27' */

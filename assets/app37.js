@@ -123,8 +123,8 @@ ACCT_TABS.books = async (box, P) => {
     const rows = ACC.bookRun(d.open, d.rows);
     const card = (id, name, sub, bal) => `<button type="button" class="card acx-t acb-c${ACB.book === id ? ' on' : ''}" data-acb="${id}"><small>${esc(name)}</small><b class="${acTone(bal)}">${acSigned(bal)}</b><span class="mut">${esc(sub)}</span></button>`;
     const notes = [];
-    if (d.due.n) notes.push(`<b>${inr2(d.due.total)}</b> owed to suppliers: ${acPl(d.due.n, 'purchased item')} marked “Not paid yet”.`);
-    if (d.unrec.n) notes.push(`${acPl(d.unrec.n, 'purchased item')} (${inr2(d.unrec.total)}) ${d.unrec.n === 1 ? 'has' : 'have'} no payment recorded, so ${d.unrec.n === 1 ? 'it is' : 'they are'} not in this book. Open the Project cost sheet and choose “Paid from”.`);
+    if (d.due.n) notes.push(`<b>${inr2(d.due.total)}</b> owed to ${acPl(d.due.n, 'supplier')}. <a href="#/accounts/dues">Supplier dues</a>`);
+    if (d.unrec.n) notes.push(`${acPl(d.unrec.n, 'purchased item')} (${inr2(d.unrec.total)}) ${d.unrec.n === 1 ? 'has' : 'have'} no payment recorded, so ${d.unrec.n === 1 ? 'it is' : 'they are'} not in this book. Open the Project cost sheet and choose “Paid from” or “Not paid yet”.`);
     box.innerHTML = `<div class="acx-view">
       <div class="acb-cs">${card(0, 'All accounts', `${acPl(shown.length, 'account')} · today`, d.total)}${shown.map(b => card(b.id, b.name, (b.kind === 'cash' ? 'Cash' : 'Bank') + (b.is_default ? ' · default' : '') + (b.hidden ? ' · hidden' : ''), b.balance)).join('')}</div>
       ${notes.length ? `<div class="acb-note">${notes.map(n => `<p>${n}</p>`).join('')}</div>` : ''}

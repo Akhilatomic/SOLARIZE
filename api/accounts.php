@@ -455,6 +455,7 @@ function handle_acc($a) {
   else need('accounts');
   $in = body();
   books_handle($a, $in); /* Cash & bank (api/books.php); comes back when $a is not one of its actions */
+  dues_handle($a, $in); /* Supplier dues (api/dues.php), the same way */
   switch ($a) {
     case 'ac_tpl':
       out(kv_get('acc_tpl', ACC_TPL_DEFAULT) + ['company' => acc_company(), 'defaults' => ACC_TPL_DEFAULT]);
