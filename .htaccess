@@ -53,3 +53,8 @@ RedirectMatch 404 /\.git
 
 # Home-screen app manifest (iPhone / iPad / Android)
 AddType application/manifest+json .webmanifest
+
+# the service worker file is always re-checked
+<FilesMatch "^sw\.js$">
+  Header set Cache-Control "no-cache"
+</FilesMatch>
