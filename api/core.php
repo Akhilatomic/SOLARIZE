@@ -22,12 +22,10 @@ function handle_auth($a) {
     if (!$u) password_verify((string)($in['password'] ?? ''), PW_DUMMY); /* same work for an unknown username, so the answer time does not tell which usernames exist */
     if ($u && password_verify((string)($in['password'] ?? ''), $u['hash'])) {
       if (pw_stale($u['hash'])) q('UPDATE users SET hash=? WHERE id=?', [pw_hash($in['password']), $u['id']]);
-      if (tfa_login_needed($u)) out(['need2' => true]); /* two-step sign-in: the code comes next (auth/login2) */
       login_guard_ok($un); login_as($u); audit('login', 'users', $u['id'], 'from ' . client_ip()); out(['ok' => true]); }
     login_guard_fail($un);
     fail('Wrong username or password', 401);
   }
-  if ($a === 'login2') tfa_login_finish($in);
   if ($a === 'logout') { session_unset(); session_destroy(); setcookie(session_name(), '', ['expires' => 1, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => !empty($_SERVER['HTTPS'])]); out(['ok' => true]); }
   if (empty($_SESSION['uid'])) fail('Unauthorized', 401);
   if ($a === 'password') {
@@ -37,10 +35,9 @@ function handle_auth($a) {
     q('UPDATE users SET hash=?, sess_ver=sess_ver+1 WHERE id=?', [pw_hash($in['new']), $u['id']]); // signs out every other device
     $_SESSION['sv'] = (int)row('SELECT sess_ver FROM users WHERE id=?', [$u['id']])['sess_ver']; audit('password', 'users', $u['id']); out(['ok' => true]);
   }
-  tfa_handle($a, $in);
   fail('Unknown action', 404);
 }
-function login_as($u) { session_regenerate_id(true); unset($_SESSION['p2']); $_SESSION['sv'] = (int)($u['sess_ver'] ?? 0); $_SESSION['seen'] = time(); $_SESSION['uid'] = (int)$u['id']; $_SESSION['role'] = $u['role']; $_SESSION['username'] = $u['username']; $_SESSION['name'] = $u['name']; }
+function login_as($u) { session_regenerate_id(true); $_SESSION['sv'] = (int)($u['sess_ver'] ?? 0); $_SESSION['seen'] = time(); $_SESSION['uid'] = (int)$u['id']; $_SESSION['role'] = $u['role']; $_SESSION['username'] = $u['username']; $_SESSION['name'] = $u['name']; }
 function me() {
   if (empty($_SESSION['uid'])) return null;
   $r = roles()[$_SESSION['role']] ?? [[], []]; $cc = can_claim();

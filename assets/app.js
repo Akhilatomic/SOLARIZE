@@ -68,7 +68,7 @@ function loginView(setup, brand) {
     <div class="err" id="e"></div><button class="btn lg-go" id="go" type="submit">${setup ? 'Create admin account' : 'Sign in'}</button>
     <p class="lg-foot">Jasper Solar Solutions</p></form></div>`;
   $('#eye').onclick = () => { const p = $('#pw'); p.type = p.type === 'password' ? 'text' : 'password'; };
-  $('#lf').onsubmit = async e => { e.preventDefault(); const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value }); if (r && r.need2 && typeof tfaStep === 'function') return tfaStep(); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
+  $('#lf').onsubmit = async e => { e.preventDefault(); const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value }); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
 }
 function shell() {
   const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : m[0] === 'fees' ? feesNavItems().length > 0 : canR(m[3]));
@@ -76,7 +76,7 @@ function shell() {
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}${m[0] === 'fees' ? feesNav() : `<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}"><span class="ft t-${m[0]}">${m[2]}</span><span class="lbl">${m[1]}</span></a>`}`).join('')}
    </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2>
    <div id="pwb" class="acctw"><button class="acct" id="acct" title="Account"><span class="acav" data-pres="${ME.id}">${avImg(ME.id, ME.avatar, ME.name)}</span><span class="acn">${esc(ME.name)}<small>${esc(ME.role_name || ME.role)}</small></span></button>
-    <div class="card menu acm hide" id="acm"><div class="acmh"><span class="acav big">${avImg(ME.id, ME.avatar, ME.name)}</span><div><b>${esc(ME.name)}</b><small class="mut">${esc(ME.role_name || ME.role)} · @${esc(ME.username || '')}</small></div></div><button id="pdp"><i class="i i-user"></i>Change photo</button><button id="pdr" ${ME.avatar ? '' : 'hidden'}><i class="i i-x"></i>Remove photo</button><button id="pwc"><i class="i i-lock"></i>Change password</button><button id="tfam"><i class="i i-shield"></i>Two-step sign-in</button><button id="lo"><i class="i i-x"></i>Sign out</button></div></div></div><main id="main"></main></div><div id="scrim"></div></div>`;
+    <div class="card menu acm hide" id="acm"><div class="acmh"><span class="acav big">${avImg(ME.id, ME.avatar, ME.name)}</span><div><b>${esc(ME.name)}</b><small class="mut">${esc(ME.role_name || ME.role)} · @${esc(ME.username || '')}</small></div></div><button id="pdp"><i class="i i-user"></i>Change photo</button><button id="pdr" ${ME.avatar ? '' : 'hidden'}><i class="i i-x"></i>Remove photo</button><button id="pwc"><i class="i i-lock"></i>Change password</button><button id="lo"><i class="i i-x"></i>Sign out</button></div></div></div><main id="main"></main></div><div id="scrim"></div></div>`;
   $('#bg').onclick = () => { $('#side').classList.toggle('open'); document.body.classList.toggle('drawer', $('#side').classList.contains('open')); };
   $('#scrim').onclick = () => { $('#side').classList.remove('open'); document.body.classList.remove('drawer'); };
   $('#acct').onclick = e => { e.stopPropagation(); $('#acm').classList.toggle('hide'); };
@@ -85,7 +85,6 @@ function shell() {
   $('#lo').onclick = async () => { await api('auth', 'logout', {}); location.hash = ''; location.reload(); };
   $('#pdp').onclick = () => { $('#acm').classList.add('hide'); pickAvatar(0, ME.name, setMyAvatar); };
   $('#pdr').onclick = () => { $('#acm').classList.add('hide'); removeAvatar(0, setMyAvatar); };
-  $('#tfam').onclick = () => { $('#acm').classList.add('hide'); tfaOpen(); };
   $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
   sideAuto();
 }

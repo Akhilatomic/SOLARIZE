@@ -848,11 +848,3 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .a2h-b{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
 .a2h-b .btn{white-space:nowrap}
 @media(prefers-reduced-motion:reduce){.a2h{animation:none}}
-/* Two-step sign-in */
-.tfa-p{margin:-4px 0 14px;font-size:13px;line-height:1.5}
-.tfa-qr{display:flex;justify-content:center;margin:4px 0 10px}.tfa-qr canvas{width:220px;height:220px;border-radius:10px;box-shadow:0 0 0 .5px rgba(0,0,0,.14);image-rendering:pixelated}
-.tfa-key{text-align:center;margin:0 0 8px;font-size:13px}.tfa-key code,.tfa-codes code{font:600 14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.04em;user-select:all}
-.tfa-open{text-align:center;margin:0 0 12px;display:none}@media(pointer:coarse){.tfa-open{display:block}}
-.tfa-codes{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tfa-codes code{background:var(--fill);border-radius:10px;padding:9px 10px;text-align:center}
-.tfa .err{min-height:18px;margin-top:8px}
-.tfa-ft{display:flex;flex-direction:column;gap:6px;align-items:center}.tfa-lk{background:none;border:0;padding:2px 4px;font:inherit;font-size:13px;color:var(--pri);cursor:pointer}.tfa-lk:hover{text-decoration:underline}

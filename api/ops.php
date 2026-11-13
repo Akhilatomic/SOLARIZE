@@ -157,7 +157,7 @@ function handle_admin($a) {
   if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
   $in = body();
   switch ($a) {
-    case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,u.avatar,u.seen_at,u.active_at,(length(u.totp)>0) tfa,(SELECT COUNT(*) FROM customers WHERE owner_id=u.id) customers,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads,(SELECT COUNT(*) FROM mail_accounts WHERE user_id=u.id) mails FROM users u ORDER BY u.id'));
+    case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,u.avatar,u.seen_at,u.active_at,(SELECT COUNT(*) FROM customers WHERE owner_id=u.id) customers,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads,(SELECT COUNT(*) FROM mail_accounts WHERE user_id=u.id) mails FROM users u ORDER BY u.id'));
     case 'user_save':
       $role = $in['role'] ?? 'sales'; if (!isset(ROLE_DEFAULTS[$role])) fail('Bad role');
       $name = trim($in['name'] ?? ''); $u = trim($in['username'] ?? ''); if ($u === '' || $name === '') fail('Name and username required');
@@ -182,10 +182,6 @@ function handle_admin($a) {
       $id = (int)($in['id'] ?? 0); $u = row('SELECT id, username FROM users WHERE id=?', [$id]); if (!$u) fail('User not found', 404);
       if ($id === (int)$_SESSION['uid']) fail('To sign out your own other devices, change your password in My account');
       q('UPDATE users SET sess_ver=sess_ver+1 WHERE id=?', [$id]); audit('user_signout', 'users', $id, $u['username']); out(['ok' => true]);
-    case 'user_tfa_off': /* the person lost their phone: two-step sign-in is switched off so they can sign in with the password and set it up again */
-      $id = (int)($in['id'] ?? 0); $u = row('SELECT id, username FROM users WHERE id=?', [$id]); if (!$u) fail('User not found', 404);
-      if ($id === (int)$_SESSION['uid']) fail('Turn your own two-step sign-in off in My account');
-      tfa_clear($id); q('UPDATE users SET sess_ver=sess_ver+1 WHERE id=?', [$id]); audit('tfa_off_admin', 'users', $id, $u['username']); out(['ok' => true]);
     case 'user_active': /* switch a login on or off without opening the user form */
       $id = (int)($in['id'] ?? 0); $on = empty($in['active']) ? 0 : 1; $u = row('SELECT id, username FROM users WHERE id=?', [$id]); if (!$u) fail('User not found', 404);
       if ($id === (int)$_SESSION['uid'] && !$on) fail('You cannot demote or disable yourself');

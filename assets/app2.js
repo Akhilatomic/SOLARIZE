@@ -359,7 +359,7 @@ async function usersPanel(box) {
     $('#ustb', box).innerHTML = table([
       ['Name', u => `<span class="usr-who"><span class="uav" data-pres="${u.id}">${avImg(u.id, u.avatar, u.name)}</span><span><b>${esc(u.name)}</b>${u.id == ME.id ? ' <span class="pill">You</span>' : ''}<small class="mut">${esc(u.username)}</small></span></span>`],
       ['Role', u => pill(rn[u.role] || u.role, u.role === 'admin' ? 'y' : u.role === 'assistant_manager' ? 'p' : 'b')],
-      ['Login', u => (+u.active ? pill('On', 'g') : pill('Disabled', 'r')) + (+u.tfa ? ' ' + pill('2-step', 'b') : '')],
+      ['Login', u => +u.active ? pill('On', 'g') : pill('Disabled', 'r')],
       ['Leads access', u => u.role === 'admin' ? pill('All leads', 'b') : +u.can_claim ? pill('Can see & claim', 'g') : pill('Own leads only')],
       ['Holds', u => `<span class="usr-h">${+u.leads || 0} lead${+u.leads === 1 ? '' : 's'} · ${+u.customers || 0} customer${+u.customers === 1 ? '' : 's'}${+u.mails ? ` · ${u.mails} email` : ''}</span>`],
       ['Last seen', u => `<span class="usr-h">${esc(agoTxt(u.seen_at))}</span>`],
@@ -368,13 +368,9 @@ async function usersPanel(box) {
     const by = id => us.find(u => u.id == id);
     $$('[data-ue]', box).forEach(b => b.onclick = () => userModal(by(b.dataset.ue)));
     $$('[data-um]', box).forEach(b => b.onclick = () => { const u = by(b.dataset.um), isOn = +u.active;
-      popMenu(b, [isOn && ['out', 'lock', 'Sign out on every device'], +u.tfa && ['tfa', 'shield', 'Turn off two-step sign-in'], ['act', isOn ? 'x' : 'check', isOn ? 'Switch the login off' : 'Switch the login on']], async a => {
+      popMenu(b, [isOn && ['out', 'lock', 'Sign out on every device'], ['act', isOn ? 'x' : 'check', isOn ? 'Switch the login off' : 'Switch the login on']], async a => {
         if (a === 'out') { if (!confirm(`Sign ${u.name} out on every device?\n\nThey can sign in again with their password.`)) return;
           try { await api('admin', 'user_signout', { id: u.id }); toast(u.name + ' is signed out everywhere'); } catch (e) { } }
-        if (a === 'tfa') { if (!confirm(`Turn off two-step sign-in for ${u.name}?
-
-Use this when they have lost their phone. They are signed out, sign in with the password only, and can set it up again in My account.`)) return;
-          try { await api('admin', 'user_tfa_off', { id: u.id }); toast('Two-step sign-in is off for ' + u.name); reload(); } catch (e) { } }
         if (a === 'act') { if (!confirm(isOn ? `Switch off ${u.name}’s login?\n\nThey are signed out at once and cannot sign in until you switch it on again. Their leads and customers stay with them.` : `Switch ${u.name}’s login back on?`)) return;
           try { await api('admin', 'user_active', { id: u.id, active: isOn ? 0 : 1 }); toast(u.name + (isOn ? '’s login is switched off' : '’s login is on again')); reload(); } catch (e) { } }
       }); });

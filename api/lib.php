@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 59; // bump when tables/columns change (53-57 were the company books, removed 2026-11-13: accounting is done in Tally; their tables are left in the database untouched)
+const SCHEMA_VERSION = 59; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -398,9 +398,6 @@ function migrateV1($db) {
       }
     }
   }
-  /* v59: two-step sign-in. totp = the authenticator key (encrypted), totp_tmp = a key being set up, totp_codes = hashes of the unused backup codes, totp_last = last code step used */
-  $ucols = array_column($db->query('PRAGMA table_info(users)')->fetchAll(), 'name');
-  foreach (['totp' => "TEXT DEFAULT ''", 'totp_tmp' => "TEXT DEFAULT ''", 'totp_codes' => "TEXT DEFAULT ''", 'totp_last' => 'INTEGER DEFAULT 0'] as $c => $t) if (!in_array($c, $ucols)) { try { $db->exec("ALTER TABLE users ADD COLUMN $c $t"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('v1_migrated','1')");
 }
 

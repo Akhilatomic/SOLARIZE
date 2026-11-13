@@ -34,7 +34,6 @@ require __DIR__ . '/api/accounts.php';
 require __DIR__ . '/api/import.php';
 require __DIR__ . '/api/onboard.php';
 require __DIR__ . '/api/backup.php';
-require __DIR__ . '/api/twofa.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';
