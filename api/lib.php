@@ -19,7 +19,7 @@ $E = [
 // Permission modules. 'finance' = every money figure (project values, payments, balances, ad spend, dashboard money cards).
 const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','loans','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email','incentive','accounts'];
 // 'incentive': View = Finance › Incentive received (my customers the admin shared); Edit = manage every staff member's incentive (api/comm.php)
-const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts', 'ba' => 'Business Associate (BA)'];
+const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts', 'accountant' => 'Accountant (Accounts page only)', 'ba' => 'Business Associate (BA)'];
 // role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
 const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
@@ -29,6 +29,9 @@ const ROLE_DEFAULTS = [
   'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','ads','whatsapp','settings','finance','fees','email','incentive','accounts'], ['quotes','payments','loans','ads','calendar','fees','email','accounts']],
   // Business Associate: their own leads and customers, their customers' projects (view only), no money. Rows are limited in claims.php (ba_gate, cust_scope).
   'ba' => [['dashboard','leads','customers','projects'], ['leads','customers']],
+  // Accountant: the company's outside accountant. Only the Accounts page, to read and export (for Tally); nothing else, ever (ROLE_NEVER).
+  // The admin may give Edit on Accounts in Settings › User access.
+  'accountant' => [['accounts'], []],
 ];
 // Lead type: who brought the lead. Meta form leads are always Meta; Own = the staff member's own contact (₹3,000/kW incentive);
 // Meta and Office are company leads (milestone incentive, api/comm.php). The admin confirms it when approving the incentive.
@@ -51,7 +54,8 @@ function lead_type_save($t, $in, $id) {
 function cust_from_lead($cid) { return (int)$cid > 0 && (bool)row('SELECT 1 FROM leads WHERE customer_id=? LIMIT 1', [(int)$cid]); }
 // Areas a role never gets, whatever is ticked in Settings → User access or granted by "Can see & claim leads".
 // Business Associates are outside partners: no WhatsApp (inbox, business number, message history), and commission instead of incentive.
-const ROLE_NEVER = ['ba' => ['whatsapp', 'incentive', 'accounts']];
+const ROLE_NEVER = ['ba' => ['whatsapp', 'incentive', 'accounts'],
+  'accountant' => ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','loans','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email','incentive']];
 function claim_grants($role) { return array_values(array_diff(CLAIM_GRANTS, ROLE_NEVER[$role] ?? [])); }
 function roles() {
   static $r = null; if ($r !== null) return $r;

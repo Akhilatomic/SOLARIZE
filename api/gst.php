@@ -36,7 +36,7 @@ function gst_working($from, $to) {
       $tv += $t1; $tx += $t2; $k = (string)$g;
       $obr[$k] = ['rate' => $g, 'taxable' => ($obr[$k]['taxable'] ?? 0) + $t1, 'cgst' => ($obr[$k]['cgst'] ?? 0) + ($inter ? 0 : $t2 / 2), 'sgst' => ($obr[$k]['sgst'] ?? 0) + ($inter ? 0 : $t2 / 2), 'igst' => ($obr[$k]['igst'] ?? 0) + ($inter ? $t2 : 0), 'tax' => ($obr[$k]['tax'] ?? 0) + $t2];
     }
-    $sales[] = ['customer_id' => (int)$b['customer_id'], 'no' => (string)$b['number'], 'date' => (string)$b['issued_on'], 'customer' => (string)($d['bill_name'] ?? '') ?: $b['name'], 'gstin' => (string)($d['cust_gstin'] ?? ''),
+    $sales[] = ['customer_id' => (int)$b['customer_id'], 'no' => (string)$b['number'], 'date' => (string)$b['issued_on'], 'customer' => (string)($d['bill_name'] ?? '') ?: $b['name'], 'address' => trim((string)preg_replace('/\s+/', ' ', (string)($d['bill_address'] ?? ''))), 'gstin' => (string)($d['cust_gstin'] ?? ''),
       'inter' => $inter ? 1 : 0, 'taxable' => $r2($tv), 'tax' => $r2($tx), 'total' => $r2((float)($d['grand'] ?? ($tv + $tx)))];
     $out['taxable'] += $tv; $out['tax'] += $tx; if ($inter) $out['igst'] += $tx; else { $out['cgst'] += $tx / 2; $out['sgst'] += $tx / 2; }
   }

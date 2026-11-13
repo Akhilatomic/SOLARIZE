@@ -196,8 +196,8 @@ const ACC = {
       ACC.bookRun(b.book.open, b.book.rows).forEach(e => cb.push([b.name, e.date, e.title, e.sub || '', e.ref || '', e.dir === 'in' ? n(e.amount) : '', e.dir === 'out' ? n(e.amount) : '', n(e.bal)]));
       cb.push([b.name, b.book.to || d.to || '', 'Closing balance', '', '', n(b.book.in), n(b.book.out), n(b.book.close)]);
     });
-    const sales = [['Bill no.', 'Date', 'Customer', 'Customer GSTIN', 'Place of supply', 'Taxable value', 'GST', 'CGST', 'SGST', 'IGST', 'Bill total']];
-    (g.sales || []).forEach(s => sales.push([s.no, s.date, s.customer, s.gstin || '', s.inter ? 'Outside Kerala' : 'Kerala', n(s.taxable), n(s.tax), s.inter ? 0 : n(s.tax / 2), s.inter ? 0 : n(s.tax / 2), s.inter ? n(s.tax) : 0, n(s.total)]));
+    const sales = [['Bill no.', 'Date', 'Customer', 'Address', 'Customer GSTIN', 'Place of supply', 'Taxable value', 'GST', 'CGST', 'SGST', 'IGST', 'Bill total']];
+    (g.sales || []).forEach(s => sales.push([s.no, s.date, s.customer, s.address || '', s.gstin || '', s.inter ? 'Outside Kerala' : 'Kerala', n(s.taxable), n(s.tax), s.inter ? 0 : n(s.tax / 2), s.inter ? 0 : n(s.tax / 2), s.inter ? n(s.tax) : 0, n(s.total)]));
     const pur = [['Date', 'Supplier', 'Supplier GSTIN', 'Bill no.', 'What', 'From', 'Taxable value', 'GST', 'Bill total', 'Credit', 'Why']];
     (g.purchases || []).forEach(p => pur.push([p.date, p.supplier, p.gstin || '', p.bill_no || '', p.what || '', SRC[p.src] || '', n(p.taxable), n(p.tax), n(p.total), MARK[p.mark] || '', p.why || '']));
     const rate = r => +r < 0 ? 'As on the bill' : +r + '%';
@@ -219,7 +219,7 @@ const ACC = {
       { name: 'Summary', rows: sum, widths: [34, 16, 14, 14, 14] },
       { name: 'Profit & loss', rows: plRows, widths: [44, ...(pl.cols || []).map(() => 13), 14] },
       { name: 'Cash & bank', rows: cb, widths: [20, 12, 36, 40, 18, 14, 14, 14] },
-      { name: 'Sales register', rows: sales, widths: [18, 12, 30, 18, 15, 14, 12, 12, 12, 12, 14] },
+      { name: 'Sales register', rows: sales, widths: [18, 12, 30, 44, 18, 15, 14, 12, 12, 12, 12, 14] },
       { name: 'Purchase register', rows: pur, widths: [12, 28, 18, 16, 40, 18, 14, 12, 14, 10, 44] },
       { name: 'GST summary', rows: gs, widths: [44, 16, 14, 14, 14, 14] },
       { name: 'Payments received', rows: rec, widths: [12, 30, 14, 14, 20, 22, 14] },

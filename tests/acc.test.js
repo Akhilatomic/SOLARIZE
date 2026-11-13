@@ -479,7 +479,7 @@ test('export for the accountant: the sheets of the workbook', () => {
   assert.deepEqual(by['Profit & loss'][1], ['Income']);
   assert.deepEqual(by['Cash & bank'].map(r => r[7]), ['Balance', 1000, 1500, 1300, 1300]);
   assert.deepEqual(by['Cash & bank'][2], ['Test Bank', '2034-06-02', 'Received from A', 'UPI', 'R1', 500, '', 1500]);
-  assert.deepEqual(by['Sales register'][1], ['B-1', '2034-06-05', 'A', '', 'Kerala', 100000, 8900, 4450, 4450, 0, 108900]);
+  assert.deepEqual(by['Sales register'][1], ['B-1', '2034-06-05', 'A', '', '', 'Kerala', 100000, 8900, 4450, 4450, 0, 108900]);
   assert.deepEqual(by['Purchase register'][1].slice(5), ['Project cost sheet', 60000, 3000, 63000, 'Claim', '']);
   assert.ok(by['GST summary'].some(r => r[0] === 'As on the bill' && r[2] === 1800));
   assert.deepEqual(by['Payments received'][1], ['2034-06-02', 'A', 500, 'UPI', 'R1', 'RC1', 'Bank (loan)']);

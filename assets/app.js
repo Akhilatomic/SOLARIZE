@@ -130,7 +130,12 @@ async function route() {
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
   const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, subsidy: () => pgOverview('subsidy'), kseb: pgKseb, bank: pgBank, comm: pgComm, accounts: pgAccounts, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
-  if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
+  if (t && t[0] !== 'admin' && !canR(t[3])) {
+    /* a role without the Dashboard (the Accountant: Accounts only) opens on its first page instead */
+    const first = mod === 'dashboard' ? MODS.find(m => m[0] !== 'admin' && canR(m[3])) : null;
+    if (first) { location.replace('#/' + first[0]); return; }
+    main.innerHTML = '<p>Not allowed.</p>'; return;
+  }
   try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { if (nav === ROUTE_N) main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
 }
 
