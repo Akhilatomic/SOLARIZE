@@ -161,6 +161,33 @@ const ACC = {
   /* true when a material (not a service) is already purchased: only then the PDF asks All items / Only items still to buy */
   hasBoughtMaterial: lines => (lines || []).some(l => l.grp !== ACC.SVC && ACC.isBought(l)),
   custPrice(dealer, pct) { return ACC.r2((Number(dealer) || 0) * (1 + (Number(pct) || 0) / 100)); },
+  /* ---- suppliers and their prices for a price list item (mat.offers, mat.offer_id = the one in use) ---- */
+  /* the short name shown beside a price: the supplier's tag, else the first word of its name */
+  supTag(s) { const t = String((s && s.tag) || '').trim(); return (t || String((s && s.name) || '').trim().split(/\s+/)[0] || '').slice(0, 14); },
+  /* an item's supplier prices side by side, cheapest first (then supplier name): each with sup (name), tag, low (the lowest price, when
+     there are two or more) and diff (its price − the dealer price; null while the item has none). used = the one in use (or null),
+     others = the rest, lowest = the lowest price, save = what the lowest saves against the dealer price (0 when nothing). Prices of a
+     supplier not in sups are left out. */
+  offerView(mat, sups) {
+    const by = {}; (sups || []).forEach(s => { by[s.id] = s; });
+    const rate = Number(mat && mat.rate) || 0;
+    const all = ((mat && mat.offers) || []).filter(o => by[o.supplier_id]).map(o => Object.assign({}, o, { rate: Number(o.rate) || 0, sup: by[o.supplier_id].name, tag: ACC.supTag(by[o.supplier_id]) }))
+      .sort((a, b) => a.rate - b.rate || String(a.sup).localeCompare(String(b.sup)) || a.id - b.id);
+    const lowest = all.length ? all[0].rate : 0;
+    all.forEach(o => { o.low = all.length > 1 && Math.abs(o.rate - lowest) < 0.005; o.diff = rate > 0 ? ACC.r2(o.rate - rate) : null; });
+    const used = all.find(o => o.id === (mat && mat.offer_id)) || null;
+    return { all, used, others: all.filter(o => o !== used), lowest, n: all.length, save: rate > 0 && all.length && rate - lowest > 0.005 ? ACC.r2(rate - lowest) : 0 };
+  },
+  /* the price list's supplier filter: '' = every item, 'cheaper' = a supplier is cheaper than the dealer price, 'pick' = has supplier
+     prices but none in use, 'none' = no supplier price, else a supplier id */
+  offerFilter(mat, f, sups) {
+    if (!f) return true;
+    const v = ACC.offerView(mat, sups);
+    if (f === 'cheaper') return v.save > 0;
+    if (f === 'pick') return v.n > 0 && !v.used;
+    if (f === 'none') return v.n === 0;
+    return v.all.some(o => String(o.supplier_id) === String(f));
+  },
   lineExpense(l) { return ACC.lineAmount(l); },
   lineCust(l, def) { return ACC.r2((Number(l && l.qty) || 0) * (Number(l && l.rate) || 0) * (1 + ACC.pctOf(l && l.profit, def) / 100)); },
   /* the sheet's money: purchases (every group but services), services, commission / incentive, expense (all three), customer total from the list */

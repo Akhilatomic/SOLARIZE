@@ -42,7 +42,7 @@ const acDef = () => ACC.pctOf(ACS.d && ACS.d.profit_default, ACS.mdef);
    KSEB / stamp paper fee, else today's default, copied) */
 const acFromMat = (m, qty) => acIn({ material_id: m.id, grp: m.grp, name: m.name, qty, unit: m.unit, rate: m.rate, gst: m.gst, profit: ACC.addPct(m, acDef()) });
 const acMats = async fresh => {
-  if (fresh || !ACS.mats) { const r = await api('acc', 'ac_materials'); ACS.mats = r.rows || []; ACS.grps = r.groups || []; ACS.mdef = ACC.pctOf(r.profit_default, null); }
+  if (fresh || !ACS.mats) { const r = await api('acc', 'ac_materials'); ACS.mats = r.rows || []; ACS.grps = r.groups || []; ACS.sups = r.suppliers || []; ACS.mdef = ACC.pctOf(r.profit_default, null); acSupList(); }
   return ACS.mats;
 };
 /* every category in order: the built-in groups, the ones added in the app (ACS.grps, as acMats loaded them) and any other group a product has */
@@ -50,6 +50,8 @@ const acGroups = mats => ACC.grpAll(ACS.grps, (mats || []).map(m => m.grp));
 const ACX_NEWCAT = '__new__'; /* the Category box's last choice: + New category */
 const acCatOpts = (groups, sel) => groups.map(g => `<option value="${esc(g)}" ${g === sel ? 'selected' : ''}>${esc(g)}</option>`).join('') + `<option value="${ACX_NEWCAT}">+ New category…</option>`;
 const acUnits = () => { if (!document.getElementById('acx_units')) document.body.insertAdjacentHTML('beforeend', `<datalist id="acx_units">${ACX_UNITS.map(u => `<option value="${u}">`).join('')}</datalist>`); };
+/* the supplier names offered in the supplier boxes (Expense sheet lines, Mark purchased) */
+const acSupList = () => { let d = document.getElementById('acx_sups'); if (!d) { d = document.createElement('datalist'); d.id = 'acx_sups'; document.body.appendChild(d); } d.innerHTML = (ACS.sups || []).map(s => `<option value="${esc(s.name)}">`).join(''); };
 const acPl = (n, one, many) => `${n} ${n === 1 ? one : many || one + 's'}`;
 const ACX_CST = { 'Not set': '', Pending: 'y', 'Part 1 paid': 'b', Paid: 'g' };
 
@@ -184,7 +186,7 @@ function acCsTable() {
       <td class="num"><input data-f="profit" inputmode="decimal" value="${acPv(l.profit)}" placeholder="${dp}" aria-label="Profit % (blank = the default ${dp}%)"></td>
       <td class="num acx-cpr">${cp}</td>
       <td class="num"><select data-f="gst" aria-label="GST %">${ACX_GSTS.map(v => `<option value="${v}" ${l.gst === v ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
-      <td><input data-f="supplier" value="${esc(l.supplier)}" maxlength="120" aria-label="Supplier"></td>
+      <td><input data-f="supplier" value="${esc(l.supplier)}" maxlength="120" list="acx_sups" aria-label="Supplier"></td>
       <td><input data-f="bill_no" value="${esc(l.bill_no)}" maxlength="60" aria-label="Bill no."></td>
       <td><input data-f="bill_date" type="date" value="${esc(l.bill_date)}" aria-label="Bill date"></td>
       <td><input data-f="note" value="${esc(l.note)}" maxlength="300" aria-label="Note" ${SPELL}></td>
@@ -323,6 +325,8 @@ async function acCsAdd(ctx) {
       <div class="two"><div><label for="acx_ng">Category</label><select id="acx_ng">${acCatOpts(groups, ACC.GROUPS[0])}</select></div>
       <div class="acx-two"><div><label for="acx_nu">Unit</label><input id="acx_nu" list="acx_units" value="Nos" maxlength="20"></div><div><label for="acx_nt">GST %</label><select id="acx_nt">${ACX_GSTS.map(v => `<option value="${v}" ${v === 18 ? 'selected' : ''}>${v}%</option>`).join('')}</select></div></div>
       <div class="full"><label for="acx_nn">Name, make and size</label><input id="acx_nn" maxlength="200" autocomplete="off" ${SPELL}></div>
+      <div><label for="acx_ns">Supplier</label><select id="acx_ns">${acSupOpts('')}</select></div>
+      <div><label for="acx_nb">Brand</label><input id="acx_nb" maxlength="80" autocomplete="off" placeholder="Make, as on the bill"></div>
       <div><label for="acx_nr">Dealer price, before GST (₹)</label><input id="acx_nr" inputmode="decimal" autocomplete="off" placeholder="Not known yet"></div>
       <div><label for="acx_np">Profit %</label><input id="acx_np" inputmode="decimal" autocomplete="off" placeholder="${esc(String(def))} (default)"></div></div>
       <p class="acx-note" id="acx_ncp" aria-live="polite"></p></div>
@@ -449,6 +453,7 @@ async function acCsAdd(ctx) {
   [qIn, nn, nr, np, $('#acx_nu', m)].forEach(x => { x.oninput = upd; });
   ng.onchange = () => { if (ng.value === ACX_NEWCAT) { ng.value = ngv; newCat(); return; } ngv = ng.value; gPicked = true; upd(); };
   $('#acx_pl', m).onclick = e => { if (e.target.closest('[data-acx-first]')) { ng.value = cat; ngv = cat; gPicked = true; setMode('new'); } };
+  acSupPick($('#acx_ns', m));
   [qIn, nn, nr, np].forEach(x => { x.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); if (!go.disabled) go.click(); else { const s = state(); if (s.why) toast(s.why, true); } } }; });
   go.onclick = async () => {
     const s = state(); if (!s.ok || busy) { if (s.why) toast(s.why, true); return; }
@@ -458,7 +463,9 @@ async function acCsAdd(ctx) {
     if (ex) { addLine(acFromMat(ex, qty)); toast(`“${ex.name}” is already on the price list, so that one was added with its own price`); qIn.value = ''; nn.value = ''; upd(); return; }
     busy = true; upd();
     let r;
-    try { r = await api('acc', 'material_save', { grp, name, unit, gst, rate: acNum(nr.value) || 0, profit: acPctIn(np.value) ?? '', hidden: 0 }); }
+    const nsup = +$('#acx_ns', m).value || 0;
+    if (nsup && !acNum(nr.value)) { busy = false; upd(); toast('Type the dealer price from this supplier', true); nr.focus(); return; }
+    try { r = await api('acc', 'material_save', { grp, name, unit, gst, rate: acNum(nr.value) || 0, profit: acPctIn(np.value) ?? '', hidden: 0, supplier_id: nsup, brand: nsup ? $('#acx_nb', m).value.trim() : '' }); }
     catch (er) {
       busy = false;
       /* 409: someone put the same group + name on the list meanwhile: use that item (its own price), as for one found above */
@@ -497,7 +504,7 @@ function acCsBuy(chosen) {
     <p class="mut acx-small acx-top0">${esc(acPl(all.length, 'line'))}. The date, supplier and bill are put on every line chosen. Check the price actually paid for each. Press Save on the sheet afterwards to keep it.</p>
     <div class="two"><div><label for="acx_bwd">${svcOnly ? 'Paid on' : 'Purchase date'}</label><input id="acx_bwd" type="date" value="${esc(today())}"></div>
     <div><label for="acx_bwb">Bill date</label><input id="acx_bwb" type="date" value="${esc(today())}"></div>
-    <div><label for="acx_bws">Supplier</label><input id="acx_bws" maxlength="120" autocomplete="off" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'supplier'))}" ${SPELL}></div>
+    <div><label for="acx_bws">Supplier</label><input id="acx_bws" maxlength="120" autocomplete="off" list="acx_sups" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'supplier'))}" ${SPELL}></div>
     <div><label for="acx_bwn">Bill no.</label><input id="acx_bwn" maxlength="60" autocomplete="off" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'bill_no'))}"></div></div>
     <div class="card tw acx-bwl"><table class="acx-mt" id="acx_bwt" data-min="420"><colgroup><col><col style="width:90px"><col style="width:150px"></colgroup>
       <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Price paid, each (₹, before GST)</th></tr></thead>
@@ -746,7 +753,7 @@ async function acTemplates(box) {
 }
 
 /* ---- the price list (Accounts › Price list, Settings › Price list) ---- */
-const ACM = { q: '', f: 'all' };
+const ACM = { q: '', f: 'all', s: '' };
 async function acMaterials(box) {
   const w = canW('accounts');
   let mats = await acMats(true);
@@ -756,30 +763,40 @@ async function acMaterials(box) {
       ${w ? '<button type="button" class="btn sec sm" id="acx_pds">Save</button>' : ''}<span class="mut acx-small" id="acx_pdh">For every item whose profit % is blank. Customer price = dealer price + profit %.</span></div>
     <div class="bar acx-mbar"><input id="acx_mq" type="search" placeholder="Search the price list…" value="${esc(ACM.q)}" autocomplete="off" aria-label="Search the price list">
       <div class="tabs acx-mf">${[['all', 'All'], ['shown', 'In use'], ['hidden', 'Hidden']].map(([k, l]) => `<button type="button" data-acx-mf="${k}" class="${ACM.f === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-      <span class="mut" id="acx_mn"></span><span class="sp"></span>${w ? '<button type="button" class="btn sec" id="acx_mcat"><i class="i i-folder"></i> Categories</button><button type="button" class="btn" id="acx_madd"><i class="i i-plus"></i> Add item</button>' : ''}</div>
+      <select id="acx_ms" class="acs-fs" aria-label="Supplier"></select>
+      <span class="mut" id="acx_mn"></span><span class="sp"></span><button type="button" class="btn sec" id="acx_msup"><i class="i i-users"></i> Suppliers</button>${w ? '<button type="button" class="btn sec" id="acx_mcat"><i class="i i-folder"></i> Categories</button><button type="button" class="btn" id="acx_madd"><i class="i i-plus"></i> Add item</button>' : ''}</div>
     <div class="card tw"><table class="acx-mt" id="acx_mt" data-min="780"></table></div>
-    <p class="acx-note">Materials and services with the dealer price (what we pay, before GST) and the profit % added for the customer. Expense sheets pick from this list; a new dealer price typed on a sheet updates the item's when the sheet is saved (re-saving a sheet never undoes a price set here). KSEB fees and stamp paper start at 0 % profit. Hidden items stay here but are not offered on Expense sheets. A deleted item goes to the Recycle bin; sheets that use it keep their lines.</p>`;
+    <p class="acx-note">Materials and services with the dealer price (what we pay, before GST) and the profit % added for the customer. The small line under an item is the brand and supplier of that price; the rows under it are the same item from other suppliers, to compare. The dealer price changes only when you press Use on one of them or type a price yourself. Expense sheets pick from this list; a new dealer price typed on a sheet updates the item's when the sheet is saved (re-saving a sheet never undoes a price set here). KSEB fees and stamp paper start at 0 % profit. Hidden items stay here but are not offered on Expense sheets. A deleted item goes to the Recycle bin; sheets that use it keep their lines.</p>`;
   const tb = $('#acx_mt', box), nc = w ? 7 : 6;
+  acSupList();
   const draw = () => {
     const q = ACM.q.trim().toLowerCase().split(/\s+/).filter(Boolean), def = ACS.mdef;
-    const L = mats.filter(x => (ACM.f === 'all' || (ACM.f === 'hidden' ? x.hidden : !x.hidden)) && q.every(t => (x.name + ' ' + x.grp).toLowerCase().includes(t)));
+    const sups = acSups(), sn = {}; sups.forEach(s2 => { sn[s2.id] = s2.name; });
+    const hay = x => (x.name + ' ' + x.grp + ' ' + (x.offers || []).map(o => (sn[o.supplier_id] || '') + ' ' + o.brand).join(' ')).toLowerCase();
+    const L = mats.filter(x => (ACM.f === 'all' || (ACM.f === 'hidden' ? x.hidden : !x.hidden)) && ACC.offerFilter(x, ACM.s, sups) && q.every(t => hay(x).includes(t)));
     $('#acx_mn', box).textContent = acPl(L.length, 'item');
+    const fs = $('#acx_ms', box);
+    if (ACM.s && !['cheaper', 'pick', 'none'].includes(ACM.s) && !sn[ACM.s]) ACM.s = '';
+    fs.innerHTML = `<option value="">All suppliers</option>${sups.map(s2 => `<option value="${s2.id}">${esc(s2.name)}</option>`).join('')}<option value="cheaper">Cheaper elsewhere</option><option value="pick">Supplier not picked</option><option value="none">No supplier price</option>`;
+    fs.value = ACM.s;
     let body = '', cur = null;
     L.forEach(x => {
       if (x.grp !== cur) { cur = x.grp; body += `<tr class="acx-grp"><td colspan="${nc}"><b>${esc(cur || 'Other')}</b><span class="acx-gsum">${acPl(L.filter(y => y.grp === cur).length, 'item')}</span></td></tr>`; }
-      const own = ACC.pctSet(x.profit), pc = ACC.pctOf(x.profit, def);
-      body += `<tr class="${x.hidden ? 'acx-hid' : ''}" data-id="${x.id}"><td class="acx-nm">${esc(x.name)}${x.hidden ? ' <span class="pill acx-tag">Hidden</span>' : ''}</td><td>${esc(x.unit)}</td>
-        <td class="num">${+x.rate ? inr2(x.rate) : '<span class="mut">—</span>'}</td><td class="num">${own ? esc(acPctTxt(pc)) : `<span class="mut" title="Blank: the default">${esc(acPctTxt(pc))}</span>`}</td>
+      const own = ACC.pctSet(x.profit), pc = ACC.pctOf(x.profit, def), v = ACC.offerView(x, sups), best = v.save ? v.all[0] : null;
+      body += `<tr class="${x.hidden ? 'acx-hid' : ''}${v.others.length ? ' acs-has' : ''}" data-id="${x.id}"><td class="acx-nm">${esc(x.name)}${x.hidden ? ' <span class="pill acx-tag">Hidden</span>' : ''}${acOfferBy(v)}</td><td>${esc(x.unit)}</td>
+        <td class="num">${+x.rate ? inr2(x.rate) : '<span class="mut">—</span>'}${v.used && v.used.low ? ' <span class="pill acs-lowp">Lowest</span>' : ''}${best ? `<small class="acs-save">${inr2(v.save)} less at ${esc(best.tag)}</small>` : ''}</td><td class="num">${own ? esc(acPctTxt(pc)) : `<span class="mut" title="Blank: the default">${esc(acPctTxt(pc))}</span>`}</td>
         <td class="num">${+x.rate ? `<b>${inr2(ACC.custPrice(x.rate, pc))}</b>` : '<span class="mut">—</span>'}</td><td class="num">${+x.gst}</td>
-        ${w ? `<td class="acx-act"><button type="button" class="ib" data-acx-m="edit" title="Edit" aria-label="Edit ${esc(x.name)}"><i class="i i-pencil"></i></button><button type="button" class="ib" data-acx-m="hide" title="${x.hidden ? 'Offer on Expense sheets again' : 'Hide from Expense sheets'}" aria-label="${x.hidden ? 'Show' : 'Hide'} ${esc(x.name)}"><i class="i i-eye"></i></button><button type="button" class="ib" data-acx-m="del" title="Delete" aria-label="Delete ${esc(x.name)}"><i class="i i-trash"></i></button></td>` : ''}</tr>`;
+        ${w ? `<td class="acx-act"><button type="button" class="ib" data-acx-m="offer" title="Add a supplier's price" aria-label="Add a supplier's price for ${esc(x.name)}"><i class="i i-plus"></i></button><button type="button" class="ib" data-acx-m="edit" title="Edit" aria-label="Edit ${esc(x.name)}"><i class="i i-pencil"></i></button><button type="button" class="ib" data-acx-m="hide" title="${x.hidden ? 'Offer on Expense sheets again' : 'Hide from Expense sheets'}" aria-label="${x.hidden ? 'Show' : 'Hide'} ${esc(x.name)}"><i class="i i-eye"></i></button><button type="button" class="ib" data-acx-m="del" title="Delete" aria-label="Delete ${esc(x.name)}"><i class="i i-trash"></i></button></td>` : ''}</tr>` + acOfferRows(x, v, w, def);
     });
-    tb.innerHTML = `<colgroup><col><col style="width:70px"><col style="width:120px"><col style="width:90px"><col style="width:130px"><col style="width:70px">${w ? '<col style="width:120px">' : ''}</colgroup>
+    tb.innerHTML = `<colgroup><col><col style="width:64px"><col style="width:150px"><col style="width:110px"><col style="width:120px"><col style="width:64px">${w ? '<col style="width:150px">' : ''}</colgroup>
       <thead><tr><th>Item</th><th>Unit</th><th class="num">Dealer price</th><th class="num">Profit %</th><th class="num">Customer price</th><th class="num">GST %</th>${w ? '<th><span class="acx-sr">Actions</span></th>' : ''}</tr></thead>
       <tbody>${body || `<tr><td colspan="${nc}" class="mut">${mats.length ? 'Nothing matches.' : 'The list is empty.'}</td></tr>`}</tbody>`;
     if (typeof fitSoon === 'function') fitSoon();
   };
   const reload = async () => { mats = await acMats(true); if (box.isConnected) { $('#acx_pd', box).value = String(ACS.mdef); draw(); } };
   $('#acx_mq', box).oninput = e => { ACM.q = e.target.value; draw(); };
+  $('#acx_ms', box).onchange = e => { ACM.s = e.target.value; draw(); };
+  $('#acx_msup', box).onclick = () => acSupManage(reload);
   $$('[data-acx-mf]', box).forEach(b => b.onclick = () => { ACM.f = b.dataset.acxMf; $$('[data-acx-mf]', box).forEach(x => x.classList.toggle('on', x === b)); draw(); });
   if (w) {
     const pd = $('#acx_pd', box), pds = $('#acx_pds', box);
@@ -795,10 +812,13 @@ async function acMaterials(box) {
     $('#acx_mcat', box).onclick = () => acCatManage(() => mats, reload);
     $('#acx_madd', box).onclick = () => acMatForm({ grp: ACC.GROUPS[0], unit: 'Nos', gst: 18, profit: null }, mats, reload);
     tb.onclick = async e => {
+      const ob = e.target.closest('[data-acs-o]'), otr = ob && ob.closest('tr[data-oid]'), ox = otr && mats.find(y => y.id === +otr.dataset.id);
+      if (ox) { ob.disabled = true; try { await acOfferAct(ob.dataset.acsO, ox, +otr.dataset.oid, reload); } catch (er) { } if (ob.isConnected) ob.disabled = false; return; }
       const b = e.target.closest('[data-acx-m]'), tr = b && b.closest('tr[data-id]'), x = tr && mats.find(y => y.id === +tr.dataset.id);
       if (!x) return;
       const a = b.dataset.acxM;
       if (a === 'edit') return acMatForm(x, mats, reload);
+      if (a === 'offer') return acOfferForm(x, {}, reload);
       b.disabled = true;
       try {
         if (a === 'hide') { await api('acc', 'material_save', { id: x.id, grp: x.grp, name: x.name, unit: x.unit, gst: x.gst, rate: x.rate, profit: acPv(x.profit), hidden: x.hidden ? 0 : 1 }); toast(x.hidden ? `“${x.name}” is offered on Expense sheets again` : `“${x.name}” hidden from Expense sheets`); }
@@ -906,15 +926,18 @@ function acCatManage(getMats, reload) {
 
 /* add / edit a price list item: group, name, unit, GST %, dealer price, profit % (blank = the default), with the customer price worked out as you type */
 function acMatForm(x, mats, done) {
-  const def = ACS.mdef;
+  const def = ACS.mdef, cur = (x.offers || []).find(o => o.id === x.offer_id) || {};
   const m = modal(`<div class="mh"><h3>${x.id ? 'Edit item' : 'Add item'}</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
     <div class="two"><div class="full"><label for="acx_fg">Category</label><select id="acx_fg">${acCatOpts(acGroups(mats), x.grp)}</select></div>
     <div class="full"><label for="acx_fn">Name, make and size</label><input id="acx_fn" maxlength="200" value="${esc(x.name || '')}" autocomplete="off" ${SPELL}></div>
     <div><label for="acx_fu">Unit</label><input id="acx_fu" list="acx_units" maxlength="20" value="${esc(x.unit || 'Nos')}"></div>
     <div><label for="acx_ft">GST %</label><select id="acx_ft">${ACX_GSTS.map(v => `<option value="${v}" ${+(x.gst ?? 18) === v ? 'selected' : ''}>${v}%</option>`).join('')}</select></div>
+    <div><label for="acx_fs2">Supplier</label><select id="acx_fs2">${acSupOpts(cur.supplier_id)}</select></div>
+    <div><label for="acx_fb">Brand</label><input id="acx_fb" maxlength="80" autocomplete="off" value="${esc(cur.brand || '')}" placeholder="Make, as on the bill"></div>
     <div><label for="acx_fr">Dealer price, before GST (₹)</label><input id="acx_fr" inputmode="decimal" value="${acV(x.rate)}" placeholder="Not known yet"></div>
     <div><label for="acx_fp">Profit %</label><input id="acx_fp" inputmode="decimal" value="${esc(acPv(x.profit))}" placeholder="${esc(String(def))} (default)"></div>
     <div class="full acx-fcp" id="acx_fcp" aria-live="polite"></div>
+    <p class="full mut acx-small acs-fh" id="acx_fsh"></p>
     <div class="acx-fh"><label class="acx-chk"><input type="checkbox" id="acx_fh" ${x.hidden ? 'checked' : ''}> Hidden (not offered on Expense sheets)</label></div></div>
     <div class="bar acx-mft"><button type="button" class="btn" id="acx_fs">Save</button><button type="button" class="btn sec" data-x>Cancel</button></div>`);
   const fr = $('#acx_fr', m), fp = $('#acx_fp', m);
@@ -925,6 +948,9 @@ function acMatForm(x, mats, done) {
       : `<span class="mut">${r === null ? 'The dealer price is not a number.' : Number.isNaN(p) ? 'Profit % is 0 to 500, or blank for the default.' : 'Type the dealer price to see the customer price.'}</span>`;
   };
   fr.oninput = calc; fp.oninput = calc; calc();
+  const fsup = $('#acx_fs2', m), fb = $('#acx_fb', m);
+  const supHint = () => { $('#acx_fsh', m).textContent = +fsup.value ? 'The dealer price is saved as this supplier\u2019s price for the item. Prices from other suppliers are added on the price list, to compare.' : (x.offers || []).length ? 'No supplier: the dealer price is one typed by hand.' : 'Choose the supplier this price is from, so other suppliers can be compared with it later.'; };
+  acSupPick(fsup, supHint); supHint();
   const fg = $('#acx_fg', m); let fgv = fg.value;
   fg.onchange = () => {
     if (fg.value !== ACX_NEWCAT) { fgv = fg.value; return; }
@@ -937,9 +963,11 @@ function acMatForm(x, mats, done) {
     if (!name) { toast('Type the item name', true); $('#acx_fn', m).focus(); return; }
     if (rate === null) { toast('The dealer price is not a number', true); fr.focus(); return; }
     if (Number.isNaN(pct)) { toast('Profit % is 0 to 500, or blank for the default', true); fp.focus(); return; }
+    if (+fsup.value && !rate) { toast('Type the dealer price from this supplier', true); fr.focus(); return; }
+    if (!+fsup.value && fb.value.trim()) { toast('Choose the supplier for this brand', true); fsup.focus(); return; }
     const b = e.currentTarget; b.disabled = true;
     try {
-      await api('acc', 'material_save', { id: x.id || 0, grp: $('#acx_fg', m).value, name, unit: $('#acx_fu', m).value.trim() || 'Nos', gst: +$('#acx_ft', m).value, rate, profit: pct ?? '', hidden: $('#acx_fh', m).checked ? 1 : 0 });
+      await api('acc', 'material_save', { id: x.id || 0, grp: $('#acx_fg', m).value, name, unit: $('#acx_fu', m).value.trim() || 'Nos', gst: +$('#acx_ft', m).value, rate, profit: pct ?? '', hidden: $('#acx_fh', m).checked ? 1 : 0, supplier_id: +fsup.value || 0, brand: fb.value.trim() });
     } catch (er) { b.disabled = false; if (er && er.quiet && er.error) toast(er.error, true); return; } /* already on the list (409, quiet: said here); anything else api() has shown */
     m.remove(); toast(x.id ? 'Item saved' : `“${name}” added to the price list`);
     ACS.mats = null; done();

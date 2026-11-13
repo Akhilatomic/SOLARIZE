@@ -408,3 +408,22 @@ test('categories: where a group sorts, the full list, and checking a new name', 
   assert.equal(ACC.grpCheck('BATTERIES', all, 'Batteries').same, '', 'renaming: its own name in another case is free');
   assert.equal(ACC.grpCheck('Solar panels', all, 'Batteries').same, 'Solar panels');
 });
+
+test('supplier prices side by side', () => {
+  const sups = [{ id: 1, name: 'Alpha Traders', tag: '' }, { id: 2, name: 'Beta Electricals', tag: ' BE ' }];
+  assert.equal(ACC.supTag(sups[0]), 'Alpha'); assert.equal(ACC.supTag(sups[1]), 'BE'); assert.equal(ACC.supTag(null), '');
+  const mat = { rate: 1593, offer_id: 11, offers: [{ id: 11, supplier_id: 1, brand: '', rate: 1593 }, { id: 12, supplier_id: 2, brand: 'X', rate: 1530 }, { id: 13, supplier_id: 9, brand: '', rate: 1 }] };
+  const v = ACC.offerView(mat, sups);
+  assert.deepEqual(v.all.map(o => [o.id, o.tag, o.low, o.diff]), [[12, 'BE', true, -63], [11, 'Alpha', false, 0]]);
+  assert.equal(v.used.id, 11); assert.deepEqual(v.others.map(o => o.id), [12]);
+  assert.equal(v.lowest, 1530); assert.equal(v.save, 63); assert.equal(v.n, 2);
+  const none = ACC.offerView({ rate: 50, offers: [] }, sups);
+  assert.deepEqual([none.all, none.used, none.others, none.lowest, none.n, none.save], [[], null, [], 0, 0, 0]);
+  const unpicked = ACC.offerView({ rate: 0, offer_id: null, offers: [{ id: 1, supplier_id: 2, rate: 10 }, { id: 2, supplier_id: 1, rate: 10 }] }, sups);
+  assert.deepEqual(unpicked.all.map(o => [o.sup, o.low, o.diff]), [['Alpha Traders', true, null], ['Beta Electricals', true, null]]);
+  assert.equal(unpicked.save, 0); assert.equal(unpicked.used, null);
+  assert.equal(ACC.offerView({ rate: 10, offer_id: 5, offers: [{ id: 5, supplier_id: 1, rate: 10 }] }, sups).all[0].low, false);
+  assert.ok(ACC.offerFilter(mat, '', sups) && ACC.offerFilter(mat, 'cheaper', sups) && ACC.offerFilter(mat, 2, sups) && ACC.offerFilter(mat, '1', sups));
+  assert.ok(!ACC.offerFilter(mat, 9, sups) && !ACC.offerFilter(mat, 'none', sups) && !ACC.offerFilter(mat, 'pick', sups));
+  assert.ok(ACC.offerFilter({ rate: 0, offers: [] }, 'none', sups) && ACC.offerFilter({ rate: 0, offers: [{ id: 1, supplier_id: 1, rate: 5 }] }, 'pick', sups));
+});
