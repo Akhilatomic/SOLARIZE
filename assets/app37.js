@@ -9,6 +9,8 @@
 const ACB = { book: 0, sum: null };
 const acbOpts = (books, sel, none) => (none ? `<option value="">${esc(none)}</option>` : '') + books.filter(b => !b.hidden || b.id === +sel).map(b => `<option value="${b.id}" ${+sel === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('');
 
+/* a cash credit / overdraft account: its limit and what can still be drawn (limit + balance; the balance is minus while money is owed) */
+const acbLimit = b => { if (!(+b.credit_limit > 0)) return ''; const left = ACC.r2(+b.credit_limit + (+b.balance || 0)); return ` · limit ${inr2(b.credit_limit)} · ${left >= 0 ? inr2(left) + ' available' : 'over the limit by ' + inr2(-left)}`; };
 function acBookForm(b, done) {
   const m = modal(`<div class="mh"><h3>${b.id ? 'Edit account' : 'New account'}</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
     <div class="two"><div class="full"><label for="acb_n">Account name</label><input id="acb_n" maxlength="60" autocomplete="off" value="${esc(b.name || '')}" placeholder="For example: SBI current account"></div>
@@ -16,20 +18,21 @@ function acBookForm(b, done) {
     <div><label for="acb_t">Note</label><input id="acb_t" maxlength="200" autocomplete="off" value="${esc(b.note || '')}" placeholder="Branch, last 4 digits"></div>
     <div><label for="acb_o">Opening balance (₹)</label><input id="acb_o" inputmode="decimal" autocomplete="off" value="${b.opening ? esc(String(b.opening)) : ''}" placeholder="0"></div>
     <div><label for="acb_d">Opening balance as on</label><input id="acb_d" type="date" value="${esc(b.opening_on || '')}"></div>
+    <div class="full"><label for="acb_l">Credit limit (₹), for a cash credit or overdraft account</label><input id="acb_l" inputmode="decimal" autocomplete="off" value="${b.credit_limit ? esc(String(b.credit_limit)) : ''}" placeholder="Leave blank for a normal account"></div>
     <div class="full acb-chks"><label class="acx-chk"><input type="checkbox" id="acb_f" ${b.is_default ? 'checked' : ''}> Default bank account (UPI, bank transfer, cheque, loan and card payments land here)</label>
       ${b.id ? `<label class="acx-chk"><input type="checkbox" id="acb_h" ${b.hidden ? 'checked' : ''}> Hidden (no longer in use)</label>` : ''}</div></div>
-    <p class="mut acx-small">The opening balance is what was in the account on that day, before the entries in this book. Entries dated before it still count, so pick the day you start keeping the book here.</p>
+    <p class="mut acx-small">The opening balance is what was in the account on that day, before the entries in this book. For a cash credit or overdraft account it is a minus figure (what you owe the bank), for example -328182. Entries dated before it still count, so pick the day you start keeping the book here.</p>
     <div class="bar acx-mft"><button type="button" class="btn" id="acb_s">Save</button><button type="button" class="btn sec" data-x>Cancel</button><span class="sp"></span>${b.id && canW('accounts') ? '<button type="button" class="btn sec" id="acb_x"><i class="i i-trash"></i> Delete</button>' : ''}</div>`);
   $$('[data-x]', m).forEach(x => x.onclick = () => m.remove());
   const kind = $('#acb_k', m), df = $('#acb_f', m);
-  const kd = () => { df.disabled = kind.value !== 'bank'; if (df.disabled) df.checked = false; };
+  const kd = () => { df.disabled = kind.value !== 'bank'; if (df.disabled) df.checked = false; $('#acb_l', m).disabled = kind.value !== 'bank'; };
   kind.onchange = kd; kd();
   $('#acb_s', m).onclick = async e => {
     const name = $('#acb_n', m).value.trim();
     if (!name) { toast('Type the account name', true); $('#acb_n', m).focus(); return; }
     const bt = e.currentTarget; bt.disabled = true;
     try {
-      const r = await api('acc', 'book_save', { id: b.id || 0, name, kind: kind.value, note: $('#acb_t', m).value.trim(), opening: $('#acb_o', m).value.trim(), opening_on: $('#acb_d', m).value,
+      const r = await api('acc', 'book_save', { id: b.id || 0, name, kind: kind.value, note: $('#acb_t', m).value.trim(), opening: $('#acb_o', m).value.trim(), opening_on: $('#acb_d', m).value, credit_limit: kind.value === 'bank' ? $('#acb_l', m).value.trim() : '',
         is_default: df.checked ? 1 : 0, hidden: $('#acb_h', m) && $('#acb_h', m).checked ? 1 : 0 });
       ACB.sum = r; m.remove(); toast(b.id ? 'Account saved' : `“${name}” added`); if (done) done();
     } catch (er) { bt.disabled = false; if (er && er.quiet && er.error) toast(er.error, true); }
@@ -52,7 +55,7 @@ function acBookManage(reload) {
   const list = $('#acb_l', m);
   let changed = false;
   const draw = () => { list.innerHTML = ((ACB.sum && ACB.sum.books) || []).map(b => `<div class="acs-sr" data-id="${b.id}"><span class="acs-sn"><span><b>${esc(b.name)}</b>${b.is_default ? ' <span class="pill acx-tag">Default</span>' : ''}${b.hidden ? ' <span class="pill acx-tag">Hidden</span>' : ''}</span>
-      <small>${b.kind === 'cash' ? 'Cash' : 'Bank account'}${b.note ? ' · ' + esc(b.note) : ''}${b.opening ? ` · opening ${acSigned(b.opening)}${b.opening_on ? ' on ' + acDt(b.opening_on) : ''}` : ''}</small></span>
+      <small>${b.kind === 'cash' ? 'Cash' : 'Bank account'}${b.note ? ' · ' + esc(b.note) : ''}${b.opening ? ` · opening ${acSigned(b.opening)}${b.opening_on ? ' on ' + acDt(b.opening_on) : ''}` : ''}${esc(acbLimit(b))}</small></span>
       <span class="acs-sc">${acSigned(b.balance)}</span>${w ? `<button type="button" class="ib" data-e title="Edit" aria-label="Edit ${esc(b.name)}"><i class="i i-pencil"></i></button>` : ''}<span></span></div>`).join(''); };
   const after = () => { changed = true; if (m.isConnected) draw(); };
   $$('[data-x]', m).forEach(x => x.onclick = () => { m.remove(); if (changed && reload) reload(); });
@@ -126,7 +129,7 @@ ACCT_TABS.books = async (box, P) => {
     if (d.due.n) notes.push(`<b>${inr2(d.due.total)}</b> owed to ${acPl(d.due.n, 'supplier')}. <a href="#/accounts/dues">Supplier dues</a>`);
     if (d.unrec.n) notes.push(`${acPl(d.unrec.n, 'purchased item')} (${inr2(d.unrec.total)}) ${d.unrec.n === 1 ? 'has' : 'have'} no payment recorded, so ${d.unrec.n === 1 ? 'it is' : 'they are'} not in this book. Open the Project cost sheet and choose “Paid from” or “Not paid yet”.`);
     box.innerHTML = `<div class="acx-view">
-      <div class="acb-cs">${card(0, 'All accounts', `${acPl(shown.length, 'account')} · today`, d.total)}${shown.map(b => card(b.id, b.name, (b.kind === 'cash' ? 'Cash' : 'Bank') + (b.is_default ? ' · default' : '') + (b.hidden ? ' · hidden' : ''), b.balance)).join('')}</div>
+      <div class="acb-cs">${card(0, 'All accounts', `${acPl(shown.length, 'account')} · today`, d.total)}${shown.map(b => card(b.id, b.name, (b.kind === 'cash' ? 'Cash' : 'Bank') + (b.is_default ? ' · default' : '') + (b.hidden ? ' · hidden' : '') + acbLimit(b), b.balance)).join('')}</div>
       ${notes.length ? `<div class="acb-note">${notes.map(n => `<p>${n}</p>`).join('')}</div>` : ''}
       <div class="bar acx-mbar"><h3 class="acb-h">${esc(cur ? cur.name : 'All accounts')} <span class="mut">· ${esc(P.label)}</span></h3><span class="sp"></span>
         ${w ? '<button type="button" class="btn sec" data-acb-n="in"><i class="i i-plus"></i> Money in</button><button type="button" class="btn sec" data-acb-n="out"><i class="i i-plus"></i> Money out</button><button type="button" class="btn sec" data-acb-n="transfer"><i class="i i-refresh"></i> Transfer</button>' : ''}

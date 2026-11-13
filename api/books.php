@@ -6,7 +6,7 @@
 const BOOK_KINDS = ['cash', 'bank'];
 /* manual entries: key => [label, direction] */
 const BOOK_CATS = ['owner_in' => ['Owner put money in', 'in'], 'loan_in' => ['Loan received', 'in'], 'interest' => ['Interest received', 'in'], 'other_in' => ['Other income', 'in'],
-  'owner_out' => ['Owner took money out', 'out'], 'loan_out' => ['Loan repaid', 'out'], 'charges' => ['Bank charges', 'out'], 'other_out' => ['Other payment', 'out'], 'transfer' => ['Transfer', 'out']];
+  'owner_out' => ['Owner took money out', 'out'], 'loan_out' => ['Loan repaid', 'out'], 'charges' => ['Bank charges', 'out'], 'loan_int' => ['Loan / cash credit interest', 'out'], 'other_out' => ['Other payment', 'out'], 'transfer' => ['Transfer', 'out']];
 const BOOK_MOVE_KINDS = ['pay', 'exp', 'comm1', 'comm2'];
 
 function book_date($v, $label) {
@@ -16,7 +16,7 @@ function book_date($v, $label) {
 }
 function books_all() {
   $rs = rows('SELECT * FROM acc_books ORDER BY hidden, sort, id');
-  foreach ($rs as &$r) { foreach (['id', 'is_default', 'hidden', 'sort'] as $k) $r[$k] = (int)$r[$k]; $r['opening'] = (float)$r['opening']; unset($r['created'], $r['updated']); } unset($r);
+  foreach ($rs as &$r) { foreach (['id', 'is_default', 'hidden', 'sort'] as $k) $r[$k] = (int)$r[$k]; $r['opening'] = (float)$r['opening']; $r['credit_limit'] = (float)($r['credit_limit'] ?? 0); unset($r['created'], $r['updated']); } unset($r);
   return $rs;
 }
 /* the account an entry lands in when nothing says otherwise: [cash account id, default bank account id] */
@@ -132,12 +132,13 @@ function books_handle($a, $in) {
       $on = trim((string)($in['opening_on'] ?? '')); if ($on !== '' || abs($open) > 0.004) $on = book_date($on, 'Opening balance as on');
       if (row('SELECT 1 FROM acc_books WHERE lower(name)=lower(?) AND id<>?', [$name, $id])) out(['error' => "$name is already an account", 'quiet' => 1], 409);
       $defl = !empty($in['is_default']) && $kind === 'bank' ? 1 : 0; $hid = !empty($in['hidden']) ? 1 : 0;
+      $lim = $kind === 'bank' ? acc_money($in['credit_limit'] ?? 0, 'Credit limit') : 0.0; /* cash credit / overdraft: how far below zero the bank lets it go */
       if ($id) {
         if (!row('SELECT 1 FROM acc_books WHERE id=?', [$id])) fail('Account not found', 404);
         if ($hid && (int)row('SELECT COUNT(*) c FROM acc_books WHERE hidden=0 AND id<>?', [$id])['c'] === 0) fail('Keep at least one account in use');
-        q('UPDATE acc_books SET name=?, kind=?, note=?, opening=?, opening_on=?, is_default=?, hidden=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$name, $kind, acc_txt($in['note'] ?? '', 200), $open, $on, $defl, $hid, $id]);
+        q('UPDATE acc_books SET name=?, kind=?, note=?, opening=?, opening_on=?, is_default=?, hidden=?, credit_limit=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$name, $kind, acc_txt($in['note'] ?? '', 200), $open, $on, $defl, $hid, $lim, $id]);
       } else {
-        q('INSERT INTO acc_books(name,kind,note,opening,opening_on,is_default,hidden,sort) VALUES(?,?,?,?,?,?,?,(SELECT COALESCE(MAX(sort),0)+1 FROM acc_books))', [$name, $kind, acc_txt($in['note'] ?? '', 200), $open, $on, $defl, $hid]);
+        q('INSERT INTO acc_books(name,kind,note,opening,opening_on,is_default,hidden,credit_limit,sort) VALUES(?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(sort),0)+1 FROM acc_books))', [$name, $kind, acc_txt($in['note'] ?? '', 200), $open, $on, $defl, $hid, $lim]);
         $id = (int)db()->lastInsertId();
       }
       if ($defl) q('UPDATE acc_books SET is_default=0 WHERE id<>?', [$id]);

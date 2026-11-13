@@ -37,7 +37,7 @@ $book = fn($id) => call($acct, 'acc', 'ac_book', null, "&book=$id" . $GLOBALS['P
 $s = $sum();
 $cash = array_values(array_filter($s['books'], fn($b) => $b['kind'] === 'cash'))[0]['id'] ?? 0;
 $bank = array_values(array_filter($s['books'], fn($b) => $b['kind'] === 'bank' && $b['is_default']))[0]['id'] ?? 0;
-chk($s['_code'] === 200 && $cash > 0 && $bank > 0 && count($s['cats']) === 9, 'a cash account and a default bank account are there from the start');
+chk($s['_code'] === 200 && $cash > 0 && $bank > 0 && count($s['cats']) === 10, 'a cash account and a default bank account are there from the start');
 chk(call($sales, 'acc', 'ac_books')['_code'] === 403 && call($sales, 'acc', 'book_save', ['name' => 'Bk Nope'])['_code'] === 403, 'no accounts access: no book');
 
 /* accounts */
@@ -119,6 +119,17 @@ chk($dl['_code'] === 200 && !in_array($e3['id'], array_column($dl['books'], 'id'
 $df = call($acct, 'acc', 'book_save', ['id' => $b2, 'name' => 'Bk Second Bank', 'kind' => 'bank', 'opening' => 10000, 'opening_on' => $D . '01', 'is_default' => 1]);
 chk((int)$one('SELECT COUNT(*) FROM acc_books WHERE is_default=1') === 1 && (int)$one('SELECT is_default FROM acc_books WHERE id=?', [$b2]) === 1, 'only one account is the default');
 call($acct, 'acc', 'book_save', ['id' => $bank, 'name' => 'Bank account', 'kind' => 'bank', 'is_default' => 1]); /* back, for the other suites */
+
+/* a cash credit account: a minus opening balance and a limit; loan interest is its own kind of entry */
+$cc = call($acct, 'acc', 'book_save', ['name' => 'Bk Cash Credit', 'kind' => 'bank', 'opening' => '-328182', 'opening_on' => $D . '01', 'credit_limit' => '4,00,000']);
+$row = array_values(array_filter($cc['books'] ?? [], fn($b) => $b['id'] === ($cc['id'] ?? 0)))[0] ?? [];
+chk($cc['_code'] === 200 && ($row['balance'] ?? 0) == -328182 && ($row['credit_limit'] ?? 0) == 400000, 'a cash credit account holds a minus balance and its limit');
+$li = call($acct, 'acc', 'txn_save', ['date' => $D . '20', 'cat' => 'loan_int', 'amount' => 3100, 'book_id' => $cc['id']]);
+chk($li['_code'] === 200 && $bal($cc['id']) == -331282, 'interest debited by the bank takes the balance further below zero');
+$plx = call($acct, 'acc', 'ac_pl', null, $PER); $ln = array_column($plx['lines'] ?? [], null, 'key');
+chk(($ln['loan_int']['total'] ?? 0) == 3100, 'loan and cash credit interest is its own line in the profit and loss');
+chk(call($acct, 'acc', 'book_save', ['name' => 'Bk Bad Limit', 'kind' => 'bank', 'credit_limit' => '-5'])['_code'] === 400 && (call($acct, 'acc', 'book_save', ['name' => 'Bk Cash 2', 'kind' => 'cash', 'credit_limit' => 5000])['books'] ?? [[]])[0] !== null && (int)$one("SELECT credit_limit FROM acc_books WHERE name='Bk Cash 2'") === 0, 'a minus limit is refused; a cash account has no limit');
+call($acct, 'acc', 'book_save', ['id' => $cc['id'], 'name' => 'Bk Cash Credit', 'kind' => 'bank', 'opening' => '-328182', 'opening_on' => $D . '01', 'credit_limit' => '400000', 'hidden' => 1]); /* out of the other suites' way */
 
 echo "\n$pass passed, $fail failed\n";
 exit($fail ? 1 : 0);

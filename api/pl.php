@@ -26,9 +26,9 @@ function pl_calc($from, $to) {
   $sal = (float)(row('SELECT COALESCE(SUM(amount),0) s FROM acc_salary WHERE date >= ? AND date <= ?', [$from, $to])['s'] ?? 0);
   $tx = []; foreach (rows('SELECT cat, SUM(amount) s FROM acc_txn WHERE date >= ? AND date <= ? GROUP BY cat', [$from, $to]) as $t) $tx[$t['cat']] = (float)$t['s'];
   $oi = ($tx['interest'] ?? 0) + ($tx['other_in'] ?? 0);
-  $over = $sal + $ads + array_sum($exp) + ($tx['charges'] ?? 0) + ($tx['other_out'] ?? 0);
+  $over = $sal + $ads + array_sum($exp) + ($tx['charges'] ?? 0) + ($tx['loan_int'] ?? 0) + ($tx['other_out'] ?? 0);
   return ['sales' => $r2($c['before']), 'cost' => $r2($c['cost']), 'comm' => $r2($c['comm']), 'gross' => $r2($c['profit']), 'other_in' => $r2($oi),
-    'salary' => $r2($sal), 'ads' => $r2($ads), 'exp' => array_map($r2, $exp), 'charges' => $r2($tx['charges'] ?? 0), 'other_out' => $r2($tx['other_out'] ?? 0),
+    'salary' => $r2($sal), 'ads' => $r2($ads), 'exp' => array_map($r2, $exp), 'charges' => $r2($tx['charges'] ?? 0), 'loan_int' => $r2($tx['loan_int'] ?? 0), 'other_out' => $r2($tx['other_out'] ?? 0),
     'over' => $r2($over), 'net' => $r2($c['profit'] + $oi - $over), 'bills' => count($pf['rows']), 'no_cost' => $pf['no_cost']];
 }
 /* the statement: columns (one month, or the twelve months of a financial year and their total) and lines */
@@ -53,10 +53,11 @@ function pl_get($from, $to) {
   ];
   foreach (array_keys($cats) as $k) $L[] = $line('exp:' . $k, $k, 'less', fn($x) => $x['exp'][$k] ?? 0);
   $L[] = $line('charges', 'Bank charges', 'less', fn($x) => $x['charges']);
+  $L[] = $line('loan_int', 'Loan and cash credit interest', 'less', fn($x) => $x['loan_int']);
   $L[] = $line('other_out', 'Other payments', 'less', fn($x) => $x['other_out']);
   $L[] = $line('over', 'Total overheads', 'total', fn($x) => $x['over']);
   $L[] = $line('net', 'Net profit, before income tax', 'net', fn($x) => $x['net']);
-  $L = array_values(array_filter($L, fn($l) => !in_array($l['key'], ['other_in', 'charges', 'other_out'], true) || abs($l['total']) > 0.004 || array_filter($l['vals'])));
+  $L = array_values(array_filter($L, fn($l) => !in_array($l['key'], ['other_in', 'charges', 'loan_int', 'other_out'], true) || abs($l['total']) > 0.004 || array_filter($l['vals'])));
   $no = []; foreach ($C as $x) foreach ($x['no_cost'] as $n) $no[] = $n;
   return ['from' => $from, 'to' => $to, 'cols' => array_map(fn($c) => ['key' => $c['key'], 'label' => $c['label']], $cols), 'lines' => $L, 'bills' => array_sum(array_column($C, 'bills')), 'no_cost' => $no,
     'net' => round(array_sum(array_column($C, 'net')), 2), 'ads' => ads_cfg(), 'books' => books_all()];
