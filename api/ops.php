@@ -99,10 +99,14 @@ function handle_whatsapp($a) {
   fail('Unknown action', 404);
 }
 
+/* what settings/get answers (also sent with auth/status?boot=1) */
+function settings_out() {
+  if (!can('settings')) { $s = settings(); unset($s['catalog'], $s['role_perms']); return $s + ['modules' => MODULES, 'role_names' => ROLE_NAMES]; }
+  return settings() + ['rule_limits' => RULE_LIMITS, 'rule_names' => RULE_NAMES, 'kseb_defaults' => kseb_defaults(), 'incentive' => ['own_rate' => INC_OWN_RATE, 'tiers' => array_map(fn($t) => [$t[0] === PHP_INT_MAX ? null : $t[0], $t[1]], INC_TIERS), 'start' => INC_START], 'modules' => MODULES, 'role_names' => ROLE_NAMES, 'role_defaults' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], ROLE_DEFAULTS), 'roles_now' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], roles()), 'role_never' => ROLE_NEVER];
+}
 function handle_settings($a) {
-  if ($a === 'get' && !can('settings')) { $s = settings(); unset($s['catalog'], $s['role_perms']); out($s + ['modules' => MODULES, 'role_names' => ROLE_NAMES]); }
+  if ($a === 'get') out(settings_out());
   need('settings', in_array($a, ['save', 'upload_bg', 'remove_bg']));
-  if ($a === 'get') out(settings() + ['rule_limits' => RULE_LIMITS, 'rule_names' => RULE_NAMES, 'kseb_defaults' => kseb_defaults(), 'incentive' => ['own_rate' => INC_OWN_RATE, 'tiers' => array_map(fn($t) => [$t[0] === PHP_INT_MAX ? null : $t[0], $t[1]], INC_TIERS), 'start' => INC_START], 'modules' => MODULES, 'role_names' => ROLE_NAMES, 'role_defaults' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], ROLE_DEFAULTS), 'roles_now' => array_map(fn($r) => ['read' => $r[0], 'write' => $r[1]], roles()), 'role_never' => ROLE_NEVER]);
   if ($a === 'upload_bg' || $a === 'remove_bg') {
     if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
     $dir = dirname(__DIR__) . '/uploads';
@@ -153,7 +157,7 @@ function handle_admin($a) {
   if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
   $in = body();
   switch ($a) {
-    case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,u.avatar,u.seen_at,u.active_at,(SELECT COUNT(*) FROM customers WHERE owner_id=u.id) customers,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads,(SELECT COUNT(*) FROM mail_accounts WHERE user_id=u.id) mails FROM users u ORDER BY u.id'));
+    case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,u.avatar,u.seen_at,u.active_at,(length(u.totp)>0) tfa,(SELECT COUNT(*) FROM customers WHERE owner_id=u.id) customers,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads,(SELECT COUNT(*) FROM mail_accounts WHERE user_id=u.id) mails FROM users u ORDER BY u.id'));
     case 'user_save':
       $role = $in['role'] ?? 'sales'; if (!isset(ROLE_DEFAULTS[$role])) fail('Bad role');
       $name = trim($in['name'] ?? ''); $u = trim($in['username'] ?? ''); if ($u === '' || $name === '') fail('Name and username required');
@@ -163,12 +167,12 @@ function handle_admin($a) {
         if (!empty($in['password'])) sec_password_ok((string)$in['password'], $u);
         $was = row('SELECT role, active, username FROM users WHERE id=?', [$id]); $was_name = $was['username'] ?? '';
         q('UPDATE users SET name=?,username=?,role=?,active=?,can_claim=? WHERE id=?', [$name, $u, $role, empty($in['active']) ? 0 : 1, empty($in['can_claim']) ? 0 : 1, $id]);
-        if (!empty($in['password'])) q('UPDATE users SET hash=?, sess_ver=sess_ver+1 WHERE id=?', [password_hash($in['password'], PASSWORD_DEFAULT), $id]); // new password signs them out everywhere
+        if (!empty($in['password'])) q('UPDATE users SET hash=?, sess_ver=sess_ver+1 WHERE id=?', [pw_hash($in['password']), $id]); // new password signs them out everywhere
         elseif ($was && ($was['role'] !== $role || ((int)$was['active'] && empty($in['active'])))) q('UPDATE users SET sess_ver=sess_ver+1 WHERE id=?', [$id]);
       } else {
         sec_password_ok((string)($in['password'] ?? ''), $u);
         if (row('SELECT 1 FROM users WHERE username=?', [$u])) fail('Username already exists');
-        q('INSERT INTO users(name,username,hash,role,can_claim) VALUES(?,?,?,?,?)', [$name, $u, password_hash($in['password'], PASSWORD_DEFAULT), $role, empty($in['can_claim']) ? 0 : 1]); $id = db()->lastInsertId();
+        q('INSERT INTO users(name,username,hash,role,can_claim) VALUES(?,?,?,?,?)', [$name, $u, pw_hash($in['password']), $role, empty($in['can_claim']) ? 0 : 1]); $id = db()->lastInsertId();
       }
       /* "Too many wrong attempts … ask the admin": saving the user (e.g. with a new password) clears their sign-in lock */
       foreach (array_unique([strtolower($u), strtolower((string)($was_name ?? ''))]) as $k) if ($k !== '') q('DELETE FROM login_guard WHERE k=?', ['u:' . $k]);
@@ -178,6 +182,10 @@ function handle_admin($a) {
       $id = (int)($in['id'] ?? 0); $u = row('SELECT id, username FROM users WHERE id=?', [$id]); if (!$u) fail('User not found', 404);
       if ($id === (int)$_SESSION['uid']) fail('To sign out your own other devices, change your password in My account');
       q('UPDATE users SET sess_ver=sess_ver+1 WHERE id=?', [$id]); audit('user_signout', 'users', $id, $u['username']); out(['ok' => true]);
+    case 'user_tfa_off': /* the person lost their phone: two-step sign-in is switched off so they can sign in with the password and set it up again */
+      $id = (int)($in['id'] ?? 0); $u = row('SELECT id, username FROM users WHERE id=?', [$id]); if (!$u) fail('User not found', 404);
+      if ($id === (int)$_SESSION['uid']) fail('Turn your own two-step sign-in off in My account');
+      tfa_clear($id); q('UPDATE users SET sess_ver=sess_ver+1 WHERE id=?', [$id]); audit('tfa_off_admin', 'users', $id, $u['username']); out(['ok' => true]);
     case 'user_active': /* switch a login on or off without opening the user form */
       $id = (int)($in['id'] ?? 0); $on = empty($in['active']) ? 0 : 1; $u = row('SELECT id, username FROM users WHERE id=?', [$id]); if (!$u) fail('User not found', 404);
       if ($id === (int)$_SESSION['uid'] && !$on) fail('You cannot demote or disable yourself');

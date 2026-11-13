@@ -111,6 +111,9 @@ function sec_session_check($soft = false) {
 // ---------- cross-site request protection ----------
 // state-changing requests must come from this app: custom header (cannot be sent cross-site without CORS) + same-origin check
 function sec_csrf() {
+  // Fetch metadata (sent by every current browser): a request started by another website is refused outright, reading or writing.
+  // Only a plain link opened from elsewhere is let through - it arrives without the session cookie (SameSite=Strict) and lands on the sign-in page.
+  if (($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site' && !($_SERVER['REQUEST_METHOD'] === 'GET' && ($_SERVER['HTTP_SEC_FETCH_MODE'] ?? '') === 'navigate')) fail('Request blocked', 403);
   if ($_SERVER['REQUEST_METHOD'] !== 'POST') return;
   if (($_SERVER['HTTP_X_SOLARIZE'] ?? '') !== '1') fail('Request blocked', 403);
   $o = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -123,6 +126,7 @@ function sec_headers() {
   header('X-Frame-Options: SAMEORIGIN');
   header('Referrer-Policy: same-origin');
   header('Cache-Control: no-store');
+  header('Cross-Origin-Opener-Policy: same-origin-allow-popups');
   header("Content-Security-Policy: default-src 'none'; frame-ancestors 'self'");
 }
 function sec_fail_server($e) {
@@ -130,6 +134,12 @@ function sec_fail_server($e) {
   $dir = dirname(__DIR__) . '/data'; if (is_dir($dir)) @file_put_contents("$dir/error.log", date('c') . " [$ref] " . ($_GET['m'] ?? '') . '/' . ($_GET['a'] ?? '') . ' user=' . ($_SESSION['username'] ?? '-') . ' ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine() . "\n", FILE_APPEND | LOCK_EX);
   fail(($_SESSION['role'] ?? '') === 'admin' ? 'Server error (ref ' . $ref . '): ' . $e->getMessage() : 'Something went wrong (ref ' . $ref . '). Please try again or tell the admin.', 500);
 }
+
+// ---------- password storage: Argon2id where the server has it (memory-hard, the current recommendation), bcrypt otherwise ----------
+function pw_algo() { return defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT; }
+function pw_hash($pw) { return password_hash((string)$pw, pw_algo()); }
+function pw_stale($hash) { return password_needs_rehash((string)$hash, pw_algo()); } /* older hashes are upgraded at the next sign-in */
+const PW_DUMMY = '$2y$10$abcdefghijklmnopqrstuuJ2zU5gkKqfVZ4sM1nO7e7N4bK1XyQ3a'; /* checked when the username does not exist */
 
 // ---------- password rules ----------
 function sec_password_ok($pw, $username = '') {

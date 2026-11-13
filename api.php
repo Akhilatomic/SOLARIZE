@@ -34,13 +34,15 @@ require __DIR__ . '/api/accounts.php';
 require __DIR__ . '/api/import.php';
 require __DIR__ . '/api/onboard.php';
 require __DIR__ . '/api/backup.php';
+require __DIR__ . '/api/twofa.php';
 
 try {
   $m = $_GET['m'] ?? ''; $a = $_GET['a'] ?? '';
   if ($m === 'meta' && $a === 'cron') handle_meta_cron();
   if ($m === 'share') handle_share();                    // public datasheet link (token-protected)
   if ($m === 'wa' && $a === 'hook') handle_wa_hook();   // WhatsApp webhook (public, signature-checked)
-  sec_csrf();                                           // every other POST must come from this app
+  header('Cross-Origin-Resource-Policy: same-origin');   // signed-in answers can never be loaded into another website's page
+  sec_csrf();                                        // every other POST must come from this app
   if (!empty($_SESSION['uid'])) sec_session_check($m === 'auth'); // still active, same password, not idle
   if ($m === 'auth') handle_auth($a);
   if (empty($_SESSION['uid'])) fail('Unauthorized', 401);

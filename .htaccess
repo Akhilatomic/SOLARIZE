@@ -49,7 +49,20 @@ RedirectMatch 404 /\.git
 # the app shell is always re-checked (a quick 304), so a new ?v= on the scripts reaches staff at once while the scripts themselves stay cached
 <FilesMatch "\.html$">
   Header set Cache-Control "no-cache"
+  # the page may only load its own scripts, styles and pictures, cannot be framed by another site, and a window it opens cannot reach back into it
+  Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; frame-src 'self' https://www.openstreetmap.org; object-src 'self'; base-uri 'self'; form-action 'self'; manifest-src 'self'; worker-src 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
+  Header set Cross-Origin-Opener-Policy "same-origin-allow-popups"
 </FilesMatch>
+
+# Speed: scripts and styles are loaded as file?v=<stamp>, and the stamp changes with every update - so a stamped file never changes
+# and the browser may keep it for a year without asking the server again
+<IfModule mod_rewrite.c>
+  RewriteCond %{QUERY_STRING} (^|&)v=[0-9]+
+  RewriteRule \.(js|css)$ - [E=LONGCACHE:1]
+</IfModule>
+<IfModule mod_headers.c>
+  Header set Cache-Control "public, max-age=31536000, immutable" env=LONGCACHE
+</IfModule>
 
 # Home-screen app manifest (iPhone / iPad / Android)
 AddType application/manifest+json .webmanifest
