@@ -108,14 +108,15 @@ function acc_fee_sync($cid, $kind) {
     return;
   }
   $rate = round((float)$f['amount'] / (1 + $gst / 100), 2); $on = (string)$f['paid_on']; $ref = trim((string)$f['ref']);
-  if ($l) q("UPDATE acc_costs SET rate=?, gst=?, qty=CASE WHEN qty>0 THEN qty ELSE 1 END, bought=1, bought_on=?, bill_date=?,
+  $bank = (int)(row("SELECT id FROM acc_books WHERE kind='bank' ORDER BY is_default DESC, id LIMIT 1")['id'] ?? 0) ?: null; /* a fee paid in Finance left the bank */
+  if ($l) q("UPDATE acc_costs SET rate=?, gst=?, qty=CASE WHEN qty>0 THEN qty ELSE 1 END, bought=1, bought_on=?, bill_date=?, pay_book=COALESCE(pay_book, ?),
       bill_no=CASE WHEN ?<>'' THEN ? ELSE bill_no END, supplier=CASE WHEN COALESCE(supplier,'')='' THEN ? ELSE supplier END, updated=CURRENT_TIMESTAMP WHERE id=?",
-    [$rate, $gst, $on, $on, $ref, $ref, $who, $l['id']]);
+    [$rate, $gst, $on, $on, $bank, $ref, $ref, $who, $l['id']]);
   else {
     $mid = (int)(row("SELECT id FROM acc_materials WHERE grp='Services and charges' AND lower(name)=lower(?)", [$name])['id'] ?? 0);
     $sort = (int)(row('SELECT COALESCE(MAX(sort),0)+1 s FROM acc_costs WHERE project_id=?', [$pid])['s'] ?? 1);
-    q("INSERT INTO acc_costs(project_id, material_id, grp, name, qty, unit, rate, gst, supplier, bill_no, bill_date, note, profit, bought, bought_on, sort)
-      VALUES(?,?,'Services and charges',?,1,'Job',?,?,?,?,?,'From Finance › Fees',0,1,?,?)", [$pid, $mid, $name, $rate, $gst, $who, $ref, $on, $on, $sort]);
+    q("INSERT INTO acc_costs(project_id, material_id, grp, name, qty, unit, rate, gst, supplier, bill_no, bill_date, note, profit, bought, bought_on, sort, pay_book)
+      VALUES(?,?,'Services and charges',?,1,'Job',?,?,?,?,?,'From Finance › Fees',0,1,?,?,?)", [$pid, $mid, $name, $rate, $gst, $who, $ref, $on, $on, $sort, $bank]);
   }
   acc_ver_bump($pid);
 }
@@ -124,7 +125,7 @@ function acc_cost_get($pid) {
   $p = acc_project($pid); $cid = (int)$p['customer_id'];
   [$plant] = plant_get($cid);
   $lines = rows('SELECT * FROM acc_costs WHERE project_id=? ORDER BY sort, id', [(int)$pid]);
-  foreach ($lines as &$l) { foreach (['id', 'project_id', 'material_id', 'sort', 'bought'] as $k) $l[$k] = (int)($l[$k] ?? 0); $l['bought_on'] = (string)($l['bought_on'] ?? ''); foreach (['qty', 'rate', 'gst'] as $k) $l[$k] = (float)$l[$k]; $l['profit'] = acc_pct_out($l['profit'] ?? null); } unset($l);
+  foreach ($lines as &$l) { foreach (['id', 'project_id', 'material_id', 'sort', 'bought'] as $k) $l[$k] = (int)($l[$k] ?? 0); $l['bought_on'] = (string)($l['bought_on'] ?? ''); $l['pay_book'] = ($l['pay_book'] ?? null) === null || $l['pay_book'] === '' ? null : (int)$l['pay_book']; $l['pay_on'] = (string)($l['pay_on'] ?? ''); foreach (['qty', 'rate', 'gst'] as $k) $l[$k] = (float)$l[$k]; $l['profit'] = acc_pct_out($l['profit'] ?? null); } unset($l);
   $cmx = acc_comm($cid, $p['c_owner_id'] ?? 0); $comm = $cmx['amount'];
   $fees = [];
   foreach (rows("SELECT kind, amount FROM fees WHERE customer_id=? AND amount>0 AND kind IN ('feasibility','registration','stamp') ORDER BY id", [$cid]) as $f)
@@ -165,7 +166,13 @@ function acc_line($l, $i) {
   $bought = !empty($l['bought']) ? 1 : 0; $on = trim((string)($l['bought_on'] ?? ''));
   if ($on !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $on) || date('Y-m-d', strtotime($on)) !== $on)) fail("The purchase date for $name is not a valid date");
   if ($bought && $on === '') fail("Enter the purchase date for $name");
-  return ['bought' => $bought, 'bought_on' => $bought ? $on : '', 'material_id' => (int)($l['material_id'] ?? 0), 'grp' => $t('grp', 100), 'name' => $name, 'qty' => $qty,
+  /* Paid from (Cash & bank): an account, 0 = not paid yet, null = not recorded; only a purchased line has one. pay_on blank = the purchase day */
+  $pb = $l['pay_book'] ?? null; $pb = $pb === null || $pb === '' ? null : (int)$pb;
+  if ($pb !== null && $pb > 0 && !row('SELECT 1 FROM acc_books WHERE id=?', [$pb])) fail("The account $name was paid from no longer exists");
+  if ($pb !== null && $pb < 0) $pb = null;
+  $po = trim((string)($l['pay_on'] ?? ''));
+  if ($po !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $po) || date('Y-m-d', strtotime($po)) !== $po)) fail("The payment date for $name is not a valid date");
+  return ['pay_book' => $bought ? $pb : null, 'pay_on' => $bought && $pb ? $po : '', 'bought' => $bought, 'bought_on' => $bought ? $on : '', 'material_id' => (int)($l['material_id'] ?? 0), 'grp' => $t('grp', 100), 'name' => $name, 'qty' => $qty,
     'unit' => $t('unit', 20), 'rate' => acc_money($l['rate'] ?? 0, "Line " . ($i + 1) . " rate"), 'gst' => $gst,
     'profit' => acc_pct($l['profit'] ?? null, 'Line ' . ($i + 1) . " ($name)"),
     'supplier' => $t('supplier', 120), 'bill_no' => $t('bill_no', 60), 'bill_date' => $t('bill_date', 10), 'note' => $t('note', 300),
@@ -446,6 +453,7 @@ function handle_acc($a) {
   elseif ($a === 'receipt_no' || $a === 'log') { if (!can('accounts', true) && !can('payments', true)) fail('Not allowed for your role', 403); }
   else need('accounts');
   $in = body();
+  books_handle($a, $in); /* Cash & bank (api/books.php); comes back when $a is not one of its actions */
   switch ($a) {
     case 'ac_tpl':
       out(kv_get('acc_tpl', ACC_TPL_DEFAULT) + ['company' => acc_company(), 'defaults' => ACC_TPL_DEFAULT]);
@@ -610,8 +618,8 @@ function handle_acc($a) {
             /* a dealer price typed on this sheet (and new to it) becomes the item's dealer price; picked, copied, fee and unchanged lines
                leave it alone. A line's profit % is this project's own and never changes the price list. */
             if ($l['price_typed'] && $l['rate'] > 0 && $onList && $isNew($mid, round($l['rate'], 2))) q('UPDATE acc_materials SET rate=?, offer_id=NULL, updated=CURRENT_TIMESTAMP WHERE id=?', [$l['rate'], $mid]); /* typed by hand: no longer a supplier's price */
-            q('INSERT INTO acc_costs(project_id,material_id,grp,name,qty,unit,rate,gst,profit,supplier,bill_no,bill_date,note,sort,bought,bought_on) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-              [$pid, $mid, $l['grp'], $l['name'], $l['qty'], $l['unit'], $l['rate'], $l['gst'], $l['profit'], $l['supplier'], $l['bill_no'], $l['bill_date'], $l['note'], $i + 1, $l['bought'], $l['bought_on']]);
+            q('INSERT INTO acc_costs(project_id,material_id,grp,name,qty,unit,rate,gst,profit,supplier,bill_no,bill_date,note,sort,bought,bought_on,pay_book,pay_on) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+              [$pid, $mid, $l['grp'], $l['name'], $l['qty'], $l['unit'], $l['rate'], $l['gst'], $l['profit'], $l['supplier'], $l['bill_no'], $l['bill_date'], $l['note'], $i + 1, $l['bought'], $l['bought_on'], $l['pay_book'], $l['pay_on']]);
           }
           q('UPDATE projects SET cost_ver=COALESCE(cost_ver,0)+1 WHERE id=?', [$pid]);
         }

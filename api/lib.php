@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 52; // bump when tables/columns change
+const SCHEMA_VERSION = 53; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -340,6 +340,20 @@ function migrate($db) {
   $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS acco_one ON acc_offers(material_id, supplier_id, lower(brand))');
   $db->exec('CREATE INDEX IF NOT EXISTS acco_sup ON acc_offers(supplier_id)');
   if (!in_array('offer_id', array_column($db->query('PRAGMA table_info(acc_materials)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE acc_materials ADD COLUMN offer_id INTEGER'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  /* v53: Accounts › Cash & bank (api/books.php). acc_books = the cash and bank accounts with their opening balance; acc_txn = manual
+     entries and transfers; acc_book_map = a payment / expense / commission entry moved to another account; acc_costs.pay_book = the
+     account a purchased line was paid from (NULL = not recorded, 0 = not paid yet) and pay_on its payment day (blank = the purchase day). */
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_books(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, kind TEXT DEFAULT 'bank', note TEXT DEFAULT '', opening REAL DEFAULT 0, opening_on TEXT DEFAULT '', is_default INTEGER DEFAULT 0, hidden INTEGER DEFAULT 0, sort INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_txn(id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, book_id INTEGER, dir TEXT DEFAULT 'out', amount REAL DEFAULT 0, cat TEXT DEFAULT '', to_book_id INTEGER DEFAULT 0, party TEXT DEFAULT '', ref TEXT DEFAULT '', note TEXT DEFAULT '', created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE INDEX IF NOT EXISTS acct_date ON acc_txn(date)');
+  $db->exec('CREATE TABLE IF NOT EXISTS acc_book_map(kind TEXT, ref_id INTEGER, book_id INTEGER, PRIMARY KEY(kind, ref_id))');
+  foreach (['pay_book INTEGER', "pay_on TEXT DEFAULT ''"] as $def) { $cn = strtok($def, ' '); if (!in_array($cn, array_column($db->query('PRAGMA table_info(acc_costs)')->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE acc_costs ADD COLUMN $def"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } } }
+  if (!(int)$db->query('SELECT COUNT(*) FROM acc_books')->fetchColumn()) $db->exec("INSERT INTO acc_books(name,kind,is_default,sort) VALUES('Cash in hand','cash',0,1),('Bank account','bank',1,2)");
+  /* once (flag acc_fee_book_v1): KSEB fee lines put on the sheets by the fee sync were paid; they count as paid from the default bank account */
+  if (!$db->query("SELECT 1 FROM settings WHERE k='acc_fee_book_v1'")->fetch()) {
+    $db->exec("UPDATE acc_costs SET pay_book=(SELECT id FROM acc_books WHERE kind='bank' ORDER BY is_default DESC, id LIMIT 1) WHERE bought=1 AND pay_book IS NULL AND note='From Finance › Fees'");
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_fee_book_v1','1')");
+  }
   require_once __DIR__ . '/acc_seed.php';
   acc_seed($db); // only fills an empty materials list
   acc_prices_v1($db); /* v51: dealer prices from the supplier's quotation and invoice of Nov 2026, once */

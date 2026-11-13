@@ -40,4 +40,5 @@ RC=0
 "$PHP" "$TMP/tests/acc_prices_test.php" || RC=1
 "$PHP" "$TMP/tests/acc_sup_load_test.php" || RC=1
 "$PHP" "$TMP/tests/acc_sup_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
+"$PHP" "$TMP/tests/books_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
 exit $RC
