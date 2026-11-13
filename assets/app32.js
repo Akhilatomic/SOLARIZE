@@ -148,88 +148,19 @@ const ACC = {
     const f = form || {}, pick = new Set((idxs || []).map(Number));
     return (lines || []).map((l, i) => {
       if (!pick.has(i)) return l;
-      const n = Object.assign({}, l, { bought: 1, bought_on: String(f.date || ''), pay_book: f.pay_book === undefined ? (l.pay_book === undefined ? null : l.pay_book) : f.pay_book, pay_on: '', supplier: String(f.supplier || '').trim() || l.supplier, bill_no: String(f.bill_no || '').trim() || l.bill_no, bill_date: String(f.bill_date || '') || String(f.date || '') });
+      const n = Object.assign({}, l, { bought: 1, bought_on: String(f.date || ''), supplier: String(f.supplier || '').trim() || l.supplier, bill_no: String(f.bill_no || '').trim() || l.bill_no, bill_date: String(f.bill_date || '') || String(f.date || '') });
       const r = (f.rates || {})[i];
       if (r !== undefined && r !== null && isFinite(Number(r))) { if (Math.abs(Number(r) - (Number(l.rate) || 0)) > 0.0001) n.typed = true; n.rate = Number(r); }
       return n;
     });
   },
   /* Undo: back to To buy; supplier and bill text stay */
-  undoBought: l => Object.assign({}, l, { bought: 0, bought_on: '', pay_book: null, pay_on: '' }),
+  undoBought: l => Object.assign({}, l, { bought: 0, bought_on: '' }),
   /* the material list's lines: materials only (no services, no blank names); onlyToBuy also drops the purchased ones */
   mlLines(lines, onlyToBuy) { return (lines || []).filter(l => l.grp !== ACC.SVC && String(l.name || '').trim() && !(onlyToBuy && ACC.isBought(l))); },
   /* true when a material (not a service) is already purchased: only then the PDF asks All items / Only items still to buy */
   hasBoughtMaterial: lines => (lines || []).some(l => l.grp !== ACC.SVC && ACC.isBought(l)),
   custPrice(dealer, pct) { return ACC.r2((Number(dealer) || 0) * (1 + (Number(pct) || 0) / 100)); },
-  /* Cash & bank: the rows of a book with the running balance after each (bal), starting from the opening balance */
-  bookRun(open, rows) {
-    let b = Number(open) || 0;
-    return (rows || []).map(e => { b = ACC.r2(b + (e.dir === 'in' ? 1 : -1) * (Number(e.amount) || 0)); return Object.assign({}, e, { bal: b }); });
-  },
-  /* a purchased line's Paid from, in words: the account's name, Not paid yet, or '' when nothing is recorded */
-  paidFrom(l, books) {
-    if (!l || !l.bought || l.pay_book === null || l.pay_book === undefined || l.pay_book === '') return '';
-    if (+l.pay_book === 0) return 'Not paid yet';
-    const b = (books || []).find(x => x.id === +l.pay_book);
-    return b ? 'Paid from ' + b.name : '';
-  },
-  /* Export for the accountant: the sheets of the workbook, as plain rows. d = {company, label, from, to, made, pl (ac_pl), books
-     ([{name, book: ac_book answer}]), gst (ac_gst), received (rows), expenses (rows), salary (ac_salary), dues (ac_dues), sum (ac_books)}.
-     Returns [{name, rows (array of arrays; amounts as numbers), widths}] in the order of the workbook. */
-  exportSheets(d) {
-    const n = v => ACC.r2(Number(v) || 0), pl = d.pl || { cols: [], lines: [] }, g = d.gst || { out: { by: [] }, itc: { by: [] }, sales: [], purchases: [] };
-    const L = {}; (pl.lines || []).forEach(l => { L[l.key] = l; });
-    const tot = k => L[k] ? n(L[k].total) : 0;
-    const MARK = { yes: 'Claim', check: 'Check', no: 'No credit' }, SRC = { sheet: 'Project cost sheet', bill: 'Supplier bill', expense: 'Office expense' };
-    const many = (pl.cols || []).length > 1;
-    const sum = [['Books of ' + (d.company || 'the company')], ['Period', d.label || '', d.from || '', d.to || ''], ['Made on', d.made || ''], [],
-      ['Profit & loss'], ['Sales, before GST', tot('sales')], ['Gross profit', tot('gross')], ['Overheads', tot('over')], ['Net profit, before income tax', tot('net')], [],
-      ['GST'], ['GST collected', n(g.out.tax)], ['Input credit to claim', n(g.itc.yes)], ['Input credit to check', n(g.itc.check)], ['No credit', n(g.itc.no)], ['Net GST payable', n(g.net)], [],
-      ['Cash & bank', 'Opening', 'Money in', 'Money out', 'Closing']];
-    (d.books || []).forEach(b => sum.push([b.name, n(b.book.open), n(b.book.in), n(b.book.out), n(b.book.close)]));
-    sum.push([], ['Owed to suppliers (today)', n(d.dues && d.dues.due && d.dues.due.total)]);
-    const plRows = [['Profit & loss', ...(pl.cols || []).map(c => c.label), ...(many ? ['Total'] : [])]];
-    (pl.lines || []).forEach(l => plRows.push(l.kind === 'head' ? [l.label] : [l.label, ...l.vals.map(n), ...(many ? [n(l.total)] : [])]));
-    const cb = [['Account', 'Date', 'Particulars', 'Details', 'Reference', 'Money in', 'Money out', 'Balance']];
-    (d.books || []).forEach(b => {
-      cb.push([b.name, b.book.from || d.from || '', 'Opening balance', '', '', '', '', n(b.book.open)]);
-      ACC.bookRun(b.book.open, b.book.rows).forEach(e => cb.push([b.name, e.date, e.title, e.sub || '', e.ref || '', e.dir === 'in' ? n(e.amount) : '', e.dir === 'out' ? n(e.amount) : '', n(e.bal)]));
-      cb.push([b.name, b.book.to || d.to || '', 'Closing balance', '', '', n(b.book.in), n(b.book.out), n(b.book.close)]);
-    });
-    const sales = [['Bill no.', 'Date', 'Customer', 'Address', 'Customer GSTIN', 'Place of supply', 'Taxable value', 'GST', 'CGST', 'SGST', 'IGST', 'Bill total']];
-    (g.sales || []).forEach(s => sales.push([s.no, s.date, s.customer, s.address || '', s.gstin || '', s.inter ? 'Outside Kerala' : 'Kerala', n(s.taxable), n(s.tax), s.inter ? 0 : n(s.tax / 2), s.inter ? 0 : n(s.tax / 2), s.inter ? n(s.tax) : 0, n(s.total)]));
-    const pur = [['Date', 'Supplier', 'Supplier GSTIN', 'Bill no.', 'What', 'From', 'Taxable value', 'GST', 'Bill total', 'Credit', 'Why']];
-    (g.purchases || []).forEach(p => pur.push([p.date, p.supplier, p.gstin || '', p.bill_no || '', p.what || '', SRC[p.src] || '', n(p.taxable), n(p.tax), n(p.total), MARK[p.mark] || '', p.why || '']));
-    const rate = r => +r < 0 ? 'As on the bill' : +r + '%';
-    const gs = [['GST collected, by rate', 'Taxable value', 'CGST', 'SGST', 'IGST', 'Tax']];
-    (g.out.by || []).forEach(x => gs.push([rate(x.rate), n(x.taxable), n(x.cgst), n(x.sgst), n(x.igst), n(x.tax)]));
-    gs.push(['Total', n(g.out.taxable), n(g.out.cgst), n(g.out.sgst), n(g.out.igst), n(g.out.tax)], [], ['Input credit, by rate (Claim + Check)', 'Taxable value', 'Tax']);
-    (g.itc.by || []).forEach(x => gs.push([rate(x.rate), n(x.taxable), n(x.tax)]));
-    gs.push([], ['Input credit to claim', n(g.itc.yes)], ['Input credit to check', n(g.itc.check)], ['No credit', n(g.itc.no)], ['Net GST payable (collected − credit to claim)', n(g.net)], ['If the rows to check are valid', n(g.net_if_all)]);
-    const rec = [['Date', 'Customer', 'Amount', 'Mode', 'Reference no.', 'Receipt no.', 'Paid by']];
-    (d.received || []).forEach(r => rec.push([r.date, r.customer, n(r.amount), r.mode || '', r.ref_no || '', r.receipt_no || '', r.src === 'bank' ? 'Bank (loan)' : 'Customer']));
-    const ex = [['Date', 'Category', 'Paid to', 'Mode', 'Amount with GST', 'GST %', 'Before GST', 'GST', 'Note']];
-    (d.expenses || []).forEach(e => { const b = ACC.exBefore(e); ex.push([e.date, e.cat, e.paid_to || '', e.mode || '', n(e.amount), n(e.gst), n(b), n(e.amount - b), e.note || '']); });
-    const bn = {}; ((d.sum && d.sum.books) || []).forEach(b => { bn[b.id] = b.name; });
-    const sal = [['Paid on', 'Person', 'What', 'For', 'Paid from', 'Reference no.', 'Amount', 'Note']];
-    ((d.salary && d.salary.rows) || []).forEach(r => sal.push([r.date, r.name, r.kind, r.for_what || '', bn[r.book_id] || '', r.ref || '', n(r.amount), r.note || '']));
-    const du = [['Supplier', 'Bills on credit', 'Number of bills', 'Paid', 'Balance owed', 'Last payment']];
-    ((d.dues && d.dues.rows) || []).forEach(r => du.push([r.name, n(r.bills), r.bills_n, n(r.paid), n(r.balance), r.last_paid || '']));
-    /* hideProfit (the outside accountant's file): no Profit & loss sheet and no profit figures on the Summary */
-    if (d.hideProfit) { const a = sum.findIndex(r => r[0] === 'Profit & loss'), b = sum.findIndex(r => r[0] === 'GST'); if (a >= 0 && b > a) sum.splice(a, b - a); }
-    return [
-      { name: 'Summary', rows: sum, widths: [34, 16, 14, 14, 14] },
-      { name: 'Profit & loss', rows: plRows, widths: [44, ...(pl.cols || []).map(() => 13), 14], profit: 1 },
-      { name: 'Cash & bank', rows: cb, widths: [20, 12, 36, 40, 18, 14, 14, 14] },
-      { name: 'Sales register', rows: sales, widths: [18, 12, 30, 44, 18, 15, 14, 12, 12, 12, 12, 14] },
-      { name: 'Purchase register', rows: pur, widths: [12, 28, 18, 16, 40, 18, 14, 12, 14, 10, 44] },
-      { name: 'GST summary', rows: gs, widths: [44, 16, 14, 14, 14, 14] },
-      { name: 'Payments received', rows: rec, widths: [12, 30, 14, 14, 20, 22, 14] },
-      { name: 'Expenses', rows: ex, widths: [12, 18, 26, 12, 16, 8, 14, 12, 40] },
-      { name: 'Salaries', rows: sal, widths: [12, 26, 10, 24, 20, 18, 14, 40] },
-      { name: 'Supplier dues', rows: du, widths: [30, 16, 14, 14, 14, 14] },
-    ].filter(s => !(d.hideProfit && s.profit));
-  },
   /* ---- suppliers and their prices for a price list item (mat.offers, mat.offer_id = the one in use) ---- */
   /* the short name shown beside a price: the supplier's tag, else the first word of its name */
   supTag(s) { const t = String((s && s.tag) || '').trim(); return (t || String((s && s.name) || '').trim().split(/\s+/)[0] || '').slice(0, 14); },

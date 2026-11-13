@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 57; // bump when tables/columns change
+const SCHEMA_VERSION = 58; // bump when tables/columns change (53-57 were the company books, removed 2026-11-13: accounting is done in Tally; their tables are left in the database untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -19,7 +19,7 @@ $E = [
 // Permission modules. 'finance' = every money figure (project values, payments, balances, ad spend, dashboard money cards).
 const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','loans','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email','incentive','accounts'];
 // 'incentive': View = Finance › Incentive received (my customers the admin shared); Edit = manage every staff member's incentive (api/comm.php)
-const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts', 'accountant' => 'Accountant (Accounts page only)', 'ba' => 'Business Associate (BA)'];
+const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts', 'ba' => 'Business Associate (BA)'];
 // role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
 const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
@@ -29,9 +29,6 @@ const ROLE_DEFAULTS = [
   'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','ads','whatsapp','settings','finance','fees','email','incentive','accounts'], ['quotes','payments','loans','ads','calendar','fees','email','accounts']],
   // Business Associate: their own leads and customers, their customers' projects (view only), no money. Rows are limited in claims.php (ba_gate, cust_scope).
   'ba' => [['dashboard','leads','customers','projects'], ['leads','customers']],
-  // Accountant: the company's outside accountant. Only the Accounts page, to read and export (for Tally); nothing else, ever (ROLE_NEVER).
-  // The admin may give Edit on Accounts in Settings › User access.
-  'accountant' => [['accounts'], []],
 ];
 // Lead type: who brought the lead. Meta form leads are always Meta; Own = the staff member's own contact (₹3,000/kW incentive);
 // Meta and Office are company leads (milestone incentive, api/comm.php). The admin confirms it when approving the incentive.
@@ -54,8 +51,7 @@ function lead_type_save($t, $in, $id) {
 function cust_from_lead($cid) { return (int)$cid > 0 && (bool)row('SELECT 1 FROM leads WHERE customer_id=? LIMIT 1', [(int)$cid]); }
 // Areas a role never gets, whatever is ticked in Settings → User access or granted by "Can see & claim leads".
 // Business Associates are outside partners: no WhatsApp (inbox, business number, message history), and commission instead of incentive.
-const ROLE_NEVER = ['ba' => ['whatsapp', 'incentive', 'accounts'],
-  'accountant' => ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','loans','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email','incentive']];
+const ROLE_NEVER = ['ba' => ['whatsapp', 'incentive', 'accounts']];
 function claim_grants($role) { return array_values(array_diff(CLAIM_GRANTS, ROLE_NEVER[$role] ?? [])); }
 function roles() {
   static $r = null; if ($r !== null) return $r;
@@ -344,35 +340,6 @@ function migrate($db) {
   $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS acco_one ON acc_offers(material_id, supplier_id, lower(brand))');
   $db->exec('CREATE INDEX IF NOT EXISTS acco_sup ON acc_offers(supplier_id)');
   if (!in_array('offer_id', array_column($db->query('PRAGMA table_info(acc_materials)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE acc_materials ADD COLUMN offer_id INTEGER'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
-  /* v53: Accounts › Cash & bank (api/books.php). acc_books = the cash and bank accounts with their opening balance; acc_txn = manual
-     entries and transfers; acc_book_map = a payment / expense / commission entry moved to another account; acc_costs.pay_book = the
-     account a purchased line was paid from (NULL = not recorded, 0 = not paid yet) and pay_on its payment day (blank = the purchase day). */
-  $db->exec("CREATE TABLE IF NOT EXISTS acc_books(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, kind TEXT DEFAULT 'bank', note TEXT DEFAULT '', opening REAL DEFAULT 0, opening_on TEXT DEFAULT '', is_default INTEGER DEFAULT 0, hidden INTEGER DEFAULT 0, sort INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
-  $db->exec("CREATE TABLE IF NOT EXISTS acc_txn(id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, book_id INTEGER, dir TEXT DEFAULT 'out', amount REAL DEFAULT 0, cat TEXT DEFAULT '', to_book_id INTEGER DEFAULT 0, party TEXT DEFAULT '', ref TEXT DEFAULT '', note TEXT DEFAULT '', created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
-  $db->exec('CREATE INDEX IF NOT EXISTS acct_date ON acc_txn(date)');
-  $db->exec('CREATE TABLE IF NOT EXISTS acc_book_map(kind TEXT, ref_id INTEGER, book_id INTEGER, PRIMARY KEY(kind, ref_id))');
-  foreach (['pay_book INTEGER', "pay_on TEXT DEFAULT ''"] as $def) { $cn = strtok($def, ' '); if (!in_array($cn, array_column($db->query('PRAGMA table_info(acc_costs)')->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE acc_costs ADD COLUMN $def"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } } }
-  if (!(int)$db->query('SELECT COUNT(*) FROM acc_books')->fetchColumn()) $db->exec("INSERT INTO acc_books(name,kind,is_default,sort) VALUES('Cash in hand','cash',0,1),('Bank account','bank',1,2)");
-  /* once (flag acc_fee_book_v1): KSEB fee lines put on the sheets by the fee sync were paid; they count as paid from the default bank account */
-  if (!$db->query("SELECT 1 FROM settings WHERE k='acc_fee_book_v1'")->fetch()) {
-    $db->exec("UPDATE acc_costs SET pay_book=(SELECT id FROM acc_books WHERE kind='bank' ORDER BY is_default DESC, id LIMIT 1) WHERE bought=1 AND pay_book IS NULL AND note='From Finance › Fees'");
-    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_fee_book_v1','1')");
-  }
-  /* v54: Accounts › Supplier dues (api/dues.php). acc_bills = supplier bills added directly (amount with GST; pay_book 0 = on credit,
-     else the account it was paid from); acc_sup_pay = payments to suppliers, on account. */
-  $db->exec("CREATE TABLE IF NOT EXISTS acc_bills(id INTEGER PRIMARY KEY AUTOINCREMENT, supplier TEXT, bill_no TEXT DEFAULT '', date TEXT, amount REAL DEFAULT 0, gst_amt REAL DEFAULT 0, note TEXT DEFAULT '', pay_book INTEGER DEFAULT 0, created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
-  $db->exec("CREATE TABLE IF NOT EXISTS acc_sup_pay(id INTEGER PRIMARY KEY AUTOINCREMENT, supplier TEXT, date TEXT, amount REAL DEFAULT 0, book_id INTEGER, ref TEXT DEFAULT '', bill_no TEXT DEFAULT '', note TEXT DEFAULT '', created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
-  /* v55: Accounts › Salaries (api/pl.php): payments to people (salary, advance, bonus), each out of a cash or bank account */
-  $db->exec("CREATE TABLE IF NOT EXISTS acc_salary(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER DEFAULT 0, name TEXT, kind TEXT DEFAULT 'Salary', date TEXT, amount REAL DEFAULT 0, for_what TEXT DEFAULT '', book_id INTEGER, ref TEXT DEFAULT '', note TEXT DEFAULT '', created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
-  $db->exec('CREATE INDEX IF NOT EXISTS accsal_date ON acc_salary(date)');
-  /* v56: a cash credit / overdraft account has a limit (acc_books.credit_limit, 0 = none): the page shows what can still be drawn */
-  if (!in_array('credit_limit', array_column($db->query('PRAGMA table_info(acc_books)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE acc_books ADD COLUMN credit_limit REAL DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
-  /* v57: owner's rule: a purchase is paid from the bank account unless someone says otherwise. Once (flag acc_paybank_v1): purchased
-     lines with no payment recorded count as paid from the default bank account. */
-  if (!$db->query("SELECT 1 FROM settings WHERE k='acc_paybank_v1'")->fetch()) {
-    $db->exec("UPDATE acc_costs SET pay_book=(SELECT id FROM acc_books WHERE kind='bank' AND hidden=0 ORDER BY is_default DESC, id LIMIT 1) WHERE bought=1 AND pay_book IS NULL");
-    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_paybank_v1','1')");
-  }
   require_once __DIR__ . '/acc_seed.php';
   acc_seed($db); // only fills an empty materials list
   acc_prices_v1($db); /* v51: dealer prices from the supplier's quotation and invoice of Nov 2026, once */

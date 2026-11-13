@@ -11,13 +11,9 @@
    acRemind(row, done)       WhatsApp payment reminder for a pending project (template ac_tpl.remind), logged as acc/log kind 'remind'
    acAddPayment(row, done)   + Payment on a pending project (payments/save), then its receipt (acReceipt) when it can be made
    Uses acTpl / acLog / acReceipt / acKw / acWhen / acIsCash (app35.js), acPl / acNum / acV / ACX_GSTS (app34.js), inr2 / fdt (app18.js). */
-const ACCT_TAB_NAMES = [['cadash', 'Dashboard'], ['overview', 'Overview'], ['books', 'Cash & bank'], ['dues', 'Supplier dues'], ['gst', 'GST'], ['salary', 'Salaries'], ['pl', 'Profit & loss'], ['progress', 'In progress'], ['done', 'Completed'], ['pending', 'Pending payments'], ['received', 'Payments received'], ['profit', 'Project profit'], ['expenses', 'Expenses'], ['materials', 'Price list']];
+const ACCT_TAB_NAMES = [['overview', 'Overview'], ['progress', 'In progress'], ['done', 'Completed'], ['pending', 'Pending payments'], ['received', 'Payments received'], ['profit', 'Project profit'], ['expenses', 'Expenses'], ['materials', 'Price list']];
 const ACCT_TABS = {};
-/* the outside accountant sees the bookkeeping tabs only (the server refuses the rest): no Overview, profit, tracking or price list */
-const ACCT_CA_TABS = ['cadash', 'books', 'dues', 'gst', 'salary', 'pending', 'received', 'expenses'];
-const acIsCa = () => ME.role === 'accountant';
-const acTabs = () => acIsCa() ? ACCT_TAB_NAMES.filter(t => ACCT_CA_TABS.includes(t[0])) : ACCT_TAB_NAMES.filter(t => t[0] !== 'cadash'); /* Dashboard = the accountant's own first page (app42.js) */
-const ACCT_NOPER = ['pending', 'materials', 'progress', 'done', 'dues']; /* lists as they stand today: no month to choose */
+const ACCT_NOPER = ['pending', 'materials', 'progress', 'done']; /* lists as they stand today: no month to choose */
 
 const acP2 = n => String(n).padStart(2, '0');
 /* the financial year of a date, as used in document numbers: '2026-11-12' -> '26-27' */
@@ -35,18 +31,15 @@ function acPerStep(s, n) {
 
 async function pgAccounts() {
   const part = location.hash.replace(/^#\/?/, '').split('/');
-  const TN = acTabs();
-  if (part[1] === 'cost') { if (!acIsCa()) return acCostSheet(parseInt(part[2], 10) || 0); toast('Project cost sheets are not shown to the accountant'); }
-  const tab = TN.some(t => t[0] === part[1]) ? part[1] : TN[0][0], label = TN.find(t => t[0] === tab)[1];
+  if (part[1] === 'cost') return acCostSheet(parseInt(part[2], 10) || 0);
+  const tab = ACCT_TAB_NAMES.some(t => t[0] === part[1]) ? part[1] : 'overview', label = ACCT_TAB_NAMES.find(t => t[0] === tab)[1];
   $('#title').innerHTML = `<span class="ft t-accounts"><i class="i i-coin"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› ${esc(label)}</span>`;
   const main = $('#main');
-  $$('aside a[data-atab]').forEach(a => a.classList.toggle('on', a.dataset.atab === tab)); /* the accountant's sidebar is the accounting menu */
-  main.innerHTML = `<div class="acx-pg${acIsCa() ? ' acx-ca' : ''}"><div class="acx-hd"><div class="tabs acx-tabs" role="tablist">${TN.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-acx-tab="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</button>`).join('')}</div><span class="acx-hdb"><button type="button" class="btn sec sm" data-acx-exp title="Download the books of the chosen period as an Excel file for your accountant"><i class="i i-download"></i> Export</button>${ME.role === 'admin' ? '<button type="button" class="btn sec sm" data-acx-tpl title="Edit the email and WhatsApp wording"><i class="i i-gear"></i> Templates</button>' : ''}</span></div>
+  main.innerHTML = `<div class="acx-pg"><div class="acx-hd"><div class="tabs acx-tabs" role="tablist">${ACCT_TAB_NAMES.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-acx-tab="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>${ME.role === 'admin' ? '<button type="button" class="btn sec sm" data-acx-tpl title="Edit the email and WhatsApp wording"><i class="i i-gear"></i> Templates</button>' : ''}</div>
     <div class="acx-per" id="acx_per"></div><div id="acx_box"><p class="mut">Loading…</p></div></div>`;
   $$('[data-acx-tab]', main).forEach(b => b.onclick = () => { location.hash = '#/accounts/' + b.dataset.acxTab; });
   const box = $('#acx_box', main), per = $('#acx_per', main);
   const gear = $('[data-acx-tpl]', main); if (gear) gear.onclick = () => acTplEditor();
-  $('[data-acx-exp]', main).onclick = e => acExport(e.currentTarget); /* app41.js: the chosen period's books as an Excel workbook */
   const run = async () => {
     const key = acPerKey(), P = Object.assign({ key }, ACC.period(key)), now = today(), month = now.slice(0, 7), fy = 'fy-' + acFy(now);
     per.hidden = ACCT_NOPER.includes(tab);
@@ -230,18 +223,17 @@ function acPayForm(j, p, o = {}) {
 
 /* ---------- Overview ---------- */
 ACCT_TABS.overview = async (box, P) => {
-  const [d, bk] = await Promise.all([api('acc', 'ac_overview', undefined, acPer(P)), api('acc', 'ac_books').catch(() => null)]);
+  const d = await api('acc', 'ac_overview', undefined, acPer(P));
   if (!box.isConnected) return;
   const x = d.expenses || {}, top = d.top || [], n = +d.pending_n || 0, nc = +d.no_cost_n || 0;
   /* billed projects with no cost lines are left out of the profit: said on the tile, so a missing cost sheet never reads as a loss or a gain */
   const pSub = `before GST · ${acPl(+d.profit_n || 0, 'project')} counted${nc ? ` · <span class="acx-late">${acPl(nc, 'billed project')} without cost — left out</span>` : ''}`;
-  box.innerHTML = `<div class="acx-view"><div class="acx-tiles ${bk ? 'acx-t6' : 'acx-t5'}">
-      ${bk ? acTile('Cash & bank', acSigned(bk.total), bk.books.filter(b => !b.hidden).map(b => `${esc(b.name)} ${acSigned(b.balance)}`).join(' · ') + (bk.due.n ? ` · owed to suppliers ${inr2(bk.due.total)}` : ''), acTone(bk.total), '#/accounts/books', 'What is in cash and in the bank accounts today, whatever the period') : ''}
+  box.innerHTML = `<div class="acx-view"><div class="acx-tiles acx-t5">
       ${acTile('Customers in progress', +d.track_open_n || 0, `${+d.track_done_n || 0} completed`, '', '#/accounts/progress', 'Every customer shown in Accounts, until they are moved to Completed')}
       ${acTile('Received', inr2(d.received), `${acPl(+d.received_n || 0, 'payment')} in ${esc(P.label)}`, '', '#/accounts/received')}
       ${acTile('Pending', inr2(d.pending), `${acPl(n, 'project')} · ${+d.pending_loan_n || 0} loan`, +d.pending > 0 ? 'acx-neg' : '', '#/accounts/pending', 'Still due today, whatever the period')}
       ${acTile('Expenses', inr2(x.total), `Ads ${inr2(x.ads)} · AI ${inr2(x.ai)} · Other ${inr2(x.other)}`, '', '#/accounts/expenses', 'Before GST. Ads include the campaign spend from Meta Ads.')}
-      ${acTile('Net profit', acSigned(d.profit), pSub, acTone(d.profit), '#/accounts/pl', 'Profit of the projects whose tax bill was issued in the period, less the company expenses' + (nc ? '. Projects billed without a Project cost sheet are left out until their cost is entered (see Project profit).' : ''))}</div>
+      ${acTile('Profit (projects billed − expenses)', acSigned(d.profit), pSub, acTone(d.profit), '#/accounts/profit', 'Profit of the projects whose tax bill was issued in the period, less the company expenses' + (nc ? '. Projects billed without a Project cost sheet are left out until their cost is entered (see Project profit).' : ''))}</div>
     <div class="acx-ch"><h3>Pending payments</h3><span class="mut acx-small">${n ? 'biggest first' : ''}</span><span class="sp"></span>${n > top.length ? `<a class="btn sec sm" href="#/accounts/pending">See all ${n}</a>` : ''}</div>
     <div class="card tw"><table class="acx-pt" data-min="990">${acPendHead(false)}</table></div></div>`;
   const tb = $('table', box);
