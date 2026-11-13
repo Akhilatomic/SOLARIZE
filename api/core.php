@@ -53,7 +53,7 @@ function handle_crud($t, $a) {
   if ($t === 'customers') cust_guard($a, $in);
   switch ($a) {
     case 'list':
-      if ($t === 'customers') out(array_map(fn($r) => mask_customer(strip_fin($r)), rows("SELECT c.*, lp.id project_id, lp.stage, lp.kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects, ou.name owner_name
+      if ($t === 'customers') out(array_map(fn($r) => mask_customer(strip_fin($r)), rows("SELECT c.*, lp.id project_id, lp.stage, COALESCE(NULLIF(c.plant_kw,0), lp.kw) kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects, ou.name owner_name
         FROM customers c LEFT JOIN projects lp ON lp.id=(SELECT id FROM projects WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) LEFT JOIN users ou ON ou.id=c.owner_id WHERE " . cust_scope('c') . " ORDER BY c.created DESC, c.id DESC")));
       if ($t === 'projects') out(array_map('strip_fin', rows('SELECT p.*, c.name customer, c.phone, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE ' . cust_scope('c') . ' ORDER BY p.updated DESC')));
       $w = []; $args = [];
@@ -79,7 +79,8 @@ function handle_crud($t, $a) {
       if ($t === 'quotes') { $v = prep_quote($v, $in); }
       if ($t === 'projects') $v['stage'] = 'Customer';
       if ($t === 'leads' && $v['status'] === '') $v['status'] = 'New';
-      if ($t === 'leads') { $v['site'] = lead_json_clean($in['site'] ?? '', LEAD_SITE_KEYS); $v['plant'] = lead_json_clean($in['plant'] ?? '', LEAD_PLANT_KEYS); }
+      if ($t === 'leads') { $v['site'] = lead_json_clean($in['site'] ?? '', LEAD_SITE_KEYS); $v['plant'] = lead_json_clean($in['plant'] ?? '', LEAD_PLANT_KEYS);
+        [$v['kw'], $v['plant']] = cap_lead_sync($v['kw'], $v['plant'], !empty($in['id']) ? row('SELECT kw FROM leads WHERE id=?', [(int)$in['id']]) : null); } /* Interested kW and Proposed capacity are one figure */
       if (!empty($in['id'])) {
         $id = (int)$in['id'];
         if ($t === 'projects') { $prot = ['stage', 'amc_start', 'amc_end', 'amc_interval']; if (!can('finance')) array_push($prot, 'cost', 'subsidy_amount'); foreach ($prot as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $prot)); }
@@ -114,6 +115,7 @@ function handle_crud($t, $a) {
         $an = mb_substr(trim((string)$v['application_no']), 0, 120); [$pd] = plant_get((int)$v['customer_id']);
         if ($an !== (string)($pd['application_no'] ?? '')) plant_patch((int)$v['customer_id'], ['application_no' => $an]);
       }
+      if ($t === 'projects') cap_from_project($id); /* the system size is the customer's plant capacity, shown everywhere */
       out(['id' => $id]);
     case 'delete':
       $id = (int)($in['id'] ?? 0);
@@ -180,7 +182,8 @@ function handle_crud($t, $a) {
       q('INSERT INTO customers(name,phone,email,address,district,notes,added_by,owner_id) VALUES(?,?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '', (int)$l['assigned_to'] ?: uid()]); // the lead's owner keeps the customer
       $cid = (int)db()->lastInsertId(); q('UPDATE customers SET lead_type=? WHERE id=?', [lead_type_of($l), $cid]); // the incentive follows the lead type
       q("UPDATE leads SET customer_id=?, status='Won', updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
-      lead_to_customer_plant($l, $cid); // site condition + proposed plant → customer's Plant details
+      lead_to_customer_plant($l, $cid); cap_reconcile($cid); /* the capacity asked for on the lead is the customer's plant capacity until changed */
+      // site condition + proposed plant → customer's Plant details
       onboard_store($cid, $onb);
       q('UPDATE quotes SET customer_id=? WHERE lead_id=? AND customer_id IS NULL', [$cid, $l['id']]);
       q('UPDATE discussions SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]); q('UPDATE notifs SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]);

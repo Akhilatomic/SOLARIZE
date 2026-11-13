@@ -102,6 +102,8 @@ async function startModal({ customer_id }) {
    <div><label>Loan taken?</label><select id="sloan"><option value="">Not decided</option><option>Yes</option><option>No</option></select></div><div><label>Site engineer</label><input id="seng"></div>
    <div class="full"><label>Project title</label><input id="stitle" placeholder="e.g. 3 kW rooftop solar (blank = automatic)"></div></div>
    <div class="bar" style="margin-top:14px"><button class="btn" id="ssv">Start project</button><button class="btn sec" id="scx">Cancel</button><span class="sp"></span><a class="btn sec" href="#/customers" id="sgoc">Go to Customers</a></div>`);
+  /* the capacity already held for the customer is filled in - type it only when it is not known yet */
+  const skwFill = () => { const c = cs.find(x => x.id == $('#sfrom', m).value), k = $('#skw', m); if (c && +c.kw > 0 && (!k.value || k.dataset.auto)) { k.value = c.kw; k.dataset.auto = '1'; } }; $('#sfrom', m).onchange = skwFill; $('#skw', m).oninput = e => { delete e.target.dataset.auto; }; skwFill();
   $('#scx', m).onclick = () => m.remove(); $('#sgoc', m).onclick = () => m.remove();
   $('#ssv', m).onclick = async () => { const v = $('#sfrom', m).value; if (!v) return toast('Choose a customer', true);
     const r = await api('pipeline', 'start', { customer_id: +v, kw: $('#skw', m).value, cost: $('#scost', m)?.value || 0, loan: $('#sloan', m).value, engineer: $('#seng', m).value, title: $('#stitle', m).value });

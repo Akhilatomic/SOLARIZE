@@ -123,6 +123,7 @@ function imp_one(array $rec, bool $write, array &$seen) {
         [$cid, json_encode($d, JSON_UNESCAPED_UNICODE), $who]);
     }
   }
+  if ($write && !empty($cid)) cap_reconcile($cid); /* the imported capacity (project or plant details) becomes the customer's one capacity */
   return $res;
 }
 

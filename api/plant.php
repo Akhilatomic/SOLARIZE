@@ -42,7 +42,9 @@ function lead_to_customer_plant($lead, $cid) {
   $d['panels'] = $d['panels'] ?? []; $d['inverters'] = $d['inverters'] ?? [];
   q('INSERT INTO plant(customer_id,data,updated,updated_by) VALUES(?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(customer_id) DO UPDATE SET data=excluded.data, updated=excluded.updated, updated_by=excluded.updated_by', [$cid, json_encode($d, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']);
 }
-function plant_get($cid) { $r = row('SELECT data, updated, updated_by FROM plant WHERE customer_id=?', [$cid]); $d = $r ? (json_decode($r['data'], true) ?: []) : []; return [$d, $r]; }
+function plant_get($cid) { $r = row('SELECT data, updated, updated_by FROM plant WHERE customer_id=?', [$cid]); $d = $r ? (json_decode($r['data'], true) ?: []) : [];
+  $kw = cap_get($cid); if ($kw > 0) $d['capacity'] = cap_txt($kw); /* the one capacity held for the customer (api/capacity.php) */
+  return [$d, $r]; }
 
 /* merge a few keys into the stored plant JSON (panels / inverters untouched); returns the new plant data */
 function plant_patch(int $cid, array $kv): array {
@@ -52,6 +54,7 @@ function plant_patch(int $cid, array $kv): array {
   foreach (PLANT_KEYS as $k) if (array_key_exists($k, $kv)) $d[$k] = mb_substr(trim((string)$kv[$k]), 0, 120);
   $d['panels'] = $d['panels'] ?? []; $d['inverters'] = $d['inverters'] ?? [];
   q('INSERT INTO plant(customer_id,data,updated,updated_by) VALUES(?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(customer_id) DO UPDATE SET data=excluded.data, updated=excluded.updated, updated_by=excluded.updated_by', [$cid, json_encode($d, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']);
+  cap_from_plant($cid, $kv);
   return $d;
 }
 
@@ -63,7 +66,7 @@ function handle_plant($a) {
       $cid = (int)($_GET['customer_id'] ?? 0); if (!row('SELECT 1 FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
       [$d, $r] = plant_get($cid);
       $p = row('SELECT * FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid]);
-      if (!$d && $p) $d = ['capacity' => $p['kw'] ?? '', 'panel_make' => $p['panel'] ?? '', 'inverter_make' => $p['inverter'] ?? '']; // first time: start from the project
+      if (!$r && $p) foreach (['capacity' => 'kw', 'panel_make' => 'panel', 'inverter_make' => 'inverter'] as $k => $col) if (empty($d[$k])) $d[$k] = $p[$col] ?? ''; // first time: start from the project
       $pay = null;
       if ($p && can('finance')) { $paid = (float)row('SELECT COALESCE(SUM(amount),0) s FROM payments WHERE project_id=?', [$p['id']])['s']; $n = (int)row('SELECT COUNT(*) c FROM payments WHERE project_id=?', [$p['id']])['c'];
         $cost = (float)($p['cost'] ?? 0); $pay = ['cost' => $cost, 'paid' => $paid, 'count' => $n, 'pending' => max(0, $cost - $paid), 'status' => $cost <= 0 ? 'Not set' : ($paid >= $cost ? 'Fully paid' : ($paid > 0 ? 'Partly paid' : 'Unpaid'))]; }
@@ -82,6 +85,7 @@ function handle_plant($a) {
       $dup = array_keys(array_filter(array_count_values($serials), fn($c) => $c > 1));
       if ($dup) fail('Duplicate serial number: ' . implode(', ', array_slice($dup, 0, 3)));
       q('INSERT INTO plant(customer_id,data,updated,updated_by) VALUES(?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(customer_id) DO UPDATE SET data=excluded.data, updated=excluded.updated, updated_by=excluded.updated_by', [$cid, json_encode($d, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']);
+      cap_from_plant($cid, $v);
       audit('plant', 'customers', $cid, count($d['panels']) . ' panels, ' . count($d['inverters']) . ' inverters');
       out(['ok' => true]);
 

@@ -15,7 +15,7 @@ const INC_TIERS = [[2, 1000], [5, 2000], [PHP_INT_MAX, 3000]];
 const INC_OWN_RATE = 3000;
 const INC_START = '2026-11'; // first month of the scheme
 const INC_MONTH = "strftime('%Y-%m', c.created, '+330 minutes')"; // the month the customer was won (India time)
-const INC_KW = 'COALESCE(NULLIF(pj.kw,0), lk.kw, 0)';          // the customer's projects, else the kW on the lead
+const INC_KW = 'COALESCE(NULLIF(pj.kw,0), NULLIF(c.plant_kw,0), lk.kw, 0)'; // the customer's projects, else their plant capacity, else the kW on the lead
 const INC_JOINS = " LEFT JOIN (SELECT customer_id, SUM(cost) cost, SUM(kw) kw FROM projects GROUP BY customer_id) pj ON pj.customer_id=c.id
     LEFT JOIN (SELECT customer_id, MAX(kw) kw FROM leads WHERE customer_id>0 GROUP BY customer_id) lk ON lk.customer_id=c.id";
 

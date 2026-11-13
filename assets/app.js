@@ -852,6 +852,7 @@ async function projectModal(id, p = {}) {
   const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} project</h2><div class="two">${F.map(f => fld(f, p)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(p.notes || '')}</textarea>
    <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
   $('#cx', m).onclick = () => m.remove();
+  if (!id) { /* a new project: the capacity already held for the customer is filled in */ const cu = $('[data-k="customer_id"]', m), kw = $('[data-k="kw"]', m), fillKw = () => { const c = cs.find(x => x.id == cu.value); if (c && +c.kw > 0 && (!kw.value || kw.dataset.auto)) { kw.value = c.kw; kw.dataset.auto = '1'; } }; if (cu && kw) { cu.addEventListener('change', fillKw); kw.addEventListener('input', () => { delete kw.dataset.auto; }); fillKw(); } }
   $('#sv', m).onclick = async () => { const o = { ...p, ...collect(m) }; if (id) o.id = id; if (!o.customer_id) return alert('Select a customer'); const r = await api('projects', 'save', o); m.remove(); location.hash = '#/projects/' + r.id; route(); };
 }
 function subsidyCalc(kw) { const r = S.subsidy_rates; kw = Math.max(0, +kw || 0); return Math.min(r.cap, Math.min(kw, 2) * r.per_kw_first2 + Math.max(0, Math.min(kw, 3) - 2) * r.third_kw); }

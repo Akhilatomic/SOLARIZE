@@ -66,6 +66,7 @@ function handle_pipeline($a) {
       q("INSERT INTO projects(customer_id,title,kw,stage,cost,loan,engineer) VALUES(?,?,?,?,?,?,?)", [$cid, $title, $kw, 'Customer', can('finance') ? (float)($in['cost'] ?? 0) : 0, $loan, trim((string)($in['engineer'] ?? ''))]);
       $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Project started'); audit('create', 'projects', $pid, $title);
       cust_cost_to_project($cid, $pid); /* no value typed: the plant cost agreed with the customer */
+      cap_from_project($pid); cap_reconcile($cid); /* size typed: it is the customer's plant capacity; not typed: the capacity already known */
       out(['id' => $pid, 'customer_id' => $cid]);
     case 'receipt': // KSEB payment receipt: JPG/PDF only, max 2 MB
       need('projects', true);
