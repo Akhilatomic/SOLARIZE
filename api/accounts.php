@@ -177,8 +177,60 @@ function acc_materials_list() {
   /* group order: the built-in purchase groups, the added categories (by name), Services, then items with no group */
   $key = fn($r) => [acc_group_idx((string)$r['grp']), mb_strtolower((string)$r['grp']), (string)$r['grp'], (int)$r['sort'], strtolower((string)$r['name'])];
   usort($rs, fn($a, $b) => $key($a) <=> $key($b));
-  foreach ($rs as &$r) { foreach (['id', 'hidden', 'sort'] as $k) $r[$k] = (int)$r[$k]; foreach (['gst', 'rate'] as $k) $r[$k] = (float)$r[$k]; $r['profit'] = acc_pct_out($r['profit'] ?? null); } unset($r);
+  $of = [];
+  foreach (rows('SELECT * FROM acc_offers ORDER BY rate, id') as $o) $of[(int)$o['material_id']][] = acc_offer_out($o);
+  foreach ($rs as &$r) { $r = acc_item_out($r, $of[(int)$r['id']] ?? []); } unset($r);
   return $rs;
+}
+/* ---- suppliers and their prices (acc_suppliers, acc_offers). The item's dealer price only follows the supplier price it is linked to
+   (acc_materials.offer_id), set by "Use this price"; a cheaper price elsewhere never changes it. ---- */
+function acc_offer_out($o) {
+  return ['id' => (int)$o['id'], 'supplier_id' => (int)$o['supplier_id'], 'brand' => (string)$o['brand'], 'rate' => (float)$o['rate'],
+    'ref' => (string)$o['ref'], 'on_date' => (string)$o['on_date'], 'note' => (string)$o['note']];
+}
+/* a price list row as the screens get it; $offers = its supplier prices, cheapest first */
+function acc_item_out($r, $offers) {
+  foreach (['id', 'hidden', 'sort'] as $k) $r[$k] = (int)$r[$k];
+  foreach (['gst', 'rate'] as $k) $r[$k] = (float)$r[$k];
+  $r['profit'] = acc_pct_out($r['profit'] ?? null);
+  $r['offer_id'] = empty($r['offer_id']) ? null : (int)$r['offer_id'];
+  $r['offers'] = $offers;
+  return $r;
+}
+function acc_item($id) {
+  $r = row('SELECT * FROM acc_materials WHERE id=?', [(int)$id]);
+  return $r ? acc_item_out($r, array_map('acc_offer_out', rows('SELECT * FROM acc_offers WHERE material_id=? ORDER BY rate, id', [(int)$id]))) : null;
+}
+function acc_suppliers_list() {
+  $rs = rows('SELECT s.*, (SELECT COUNT(*) FROM acc_offers o WHERE o.supplier_id=s.id) n FROM acc_suppliers s ORDER BY lower(s.name), s.id');
+  foreach ($rs as &$r) { $r['id'] = (int)$r['id']; $r['n'] = (int)$r['n']; unset($r['created']); } unset($r);
+  return $rs;
+}
+/* one line of text as typed: trimmed, single spaces, cut to $max */
+function acc_txt($v, $max) { return mb_substr(trim((string)preg_replace('/[\s\x00-\x1F\x7F]+/u', ' ', is_scalar($v) ? (string)$v : '')), 0, $max); }
+/* a supplier price for an item: one per item + supplier + brand (any case), so saving it again replaces the price. Returns its id.
+   $f = [brand, rate, ref, on_date, note]; $id = the row being edited (0 = by item + supplier + brand). */
+function acc_offer_put($mid, $sid, array $f, $id = 0) {
+  $same = row('SELECT id FROM acc_offers WHERE material_id=? AND supplier_id=? AND lower(brand)=lower(?)', [$mid, $sid, $f['brand']]);
+  if ($id && $same && (int)$same['id'] !== $id) fail('That supplier already has a price for this item under that brand. Edit that one instead.');
+  if (!$id && $same) $id = (int)$same['id'];
+  if ($id) q('UPDATE acc_offers SET supplier_id=?, brand=?, rate=?, ref=?, on_date=?, note=?, updated=CURRENT_TIMESTAMP WHERE id=? AND material_id=?', [$sid, $f['brand'], $f['rate'], $f['ref'], $f['on_date'], $f['note'], $id, $mid]);
+  else { q('INSERT INTO acc_offers(material_id,supplier_id,brand,rate,ref,on_date,note) VALUES(?,?,?,?,?,?,?)', [$mid, $sid, $f['brand'], $f['rate'], $f['ref'], $f['on_date'], $f['note']]); $id = (int)db()->lastInsertId(); }
+  return $id;
+}
+/* the price fields of a supplier price as posted */
+function acc_offer_in($in) {
+  $rate = acc_money($in['rate'] ?? 0, 'Price');
+  if ($rate <= 0) fail('Type the price from this supplier (before GST)');
+  $d = trim((string)($in['on_date'] ?? ''));
+  if ($d !== '' && !preg_match('/^\d{4}-\d\d-\d\d$/', $d)) fail('The date is not valid');
+  return ['brand' => acc_txt($in['brand'] ?? '', 80), 'rate' => $rate, 'ref' => acc_txt($in['ref'] ?? '', 60), 'on_date' => $d, 'note' => acc_txt($in['note'] ?? '', 300)];
+}
+/* the item's dealer price follows this supplier price from now on */
+function acc_offer_use($mid, $oid) {
+  $o = row('SELECT rate FROM acc_offers WHERE id=? AND material_id=?', [$oid, $mid]);
+  if (!$o) fail('Supplier price not found', 404);
+  q('UPDATE acc_materials SET rate=?, offer_id=?, updated=CURRENT_TIMESTAMP WHERE id=?', [(float)$o['rate'], $oid, $mid]);
 }
 
 /* ---- money lists (pending, received, profit, expenses, overview) ---- */
@@ -449,7 +501,74 @@ function handle_acc($a) {
       out(acc_cost_get((int)($_GET['project_id'] ?? 0)));
 
     case 'ac_materials': /* the price list: items (dealer price = rate, profit % or null = the default), the default profit % and every category in order */
-      out(['rows' => acc_materials_list(), 'profit_default' => acc_profit_default(), 'groups' => acc_groups_all()]);
+      out(['rows' => acc_materials_list(), 'profit_default' => acc_profit_default(), 'groups' => acc_groups_all(), 'suppliers' => acc_suppliers_list()]);
+
+    case 'supplier_save': { /* POST {id?, name, tag, contact, phone, email, gstin, address, note} */
+      need('accounts', true);
+      $id = (int)($in['id'] ?? 0);
+      $name = acc_txt($in['name'] ?? '', 200);
+      if ($name === '') fail('Type the supplier name');
+      if (mb_strlen($name) > 120) fail('The supplier name is too long (120 characters at most)');
+      $gstin = strtoupper(preg_replace('/\s+/', '', (string)($in['gstin'] ?? '')));
+      if ($gstin !== '' && !preg_match('/^[0-9A-Z]{15}$/', $gstin)) fail('GSTIN has 15 letters and numbers');
+      $email = acc_txt($in['email'] ?? '', 120);
+      if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('The email address is not valid');
+      $dup = row('SELECT id, name FROM acc_suppliers WHERE lower(name)=lower(?) AND id<>?', [$name, $id]);
+      if ($dup) out(['error' => "{$dup['name']} is already a supplier", 'dup_id' => (int)$dup['id'], 'quiet' => 1], 409);
+      $v = [$name, acc_txt($in['tag'] ?? '', 14), acc_txt($in['contact'] ?? '', 80), acc_txt($in['phone'] ?? '', 40), $email, $gstin, acc_txt($in['address'] ?? '', 300), acc_txt($in['note'] ?? '', 300)];
+      if ($id) {
+        if (!row('SELECT 1 FROM acc_suppliers WHERE id=?', [$id])) fail('Supplier not found', 404);
+        q('UPDATE acc_suppliers SET name=?, tag=?, contact=?, phone=?, email=?, gstin=?, address=?, note=?, updated=CURRENT_TIMESTAMP WHERE id=?', array_merge($v, [$id]));
+      } else { q('INSERT INTO acc_suppliers(name,tag,contact,phone,email,gstin,address,note) VALUES(?,?,?,?,?,?,?,?)', $v); $id = (int)db()->lastInsertId(); }
+      audit('acc_supplier_save', 'acc_suppliers', $id, $name);
+      out(['ok' => true, 'id' => $id, 'suppliers' => acc_suppliers_list()]);
+    }
+
+    case 'supplier_delete': { /* POST {id}: the supplier and its prices go to the Recycle bin; items that used one keep their dealer price */
+      need('accounts', true);
+      $id = (int)($in['id'] ?? 0); $s = row('SELECT * FROM acc_suppliers WHERE id=?', [$id]); if (!$s) fail('Supplier not found', 404);
+      trash_put('Supplier', $s['name'], [['acc_suppliers', 'id=?', [$id]], ['acc_offers', 'supplier_id=?', [$id]]]);
+      q('UPDATE acc_materials SET offer_id=NULL WHERE offer_id IN (SELECT id FROM acc_offers WHERE supplier_id=?)', [$id]);
+      q('DELETE FROM acc_offers WHERE supplier_id=?', [$id]);
+      q('DELETE FROM acc_suppliers WHERE id=?', [$id]);
+      audit('acc_supplier_delete', 'acc_suppliers', $id, $s['name']);
+      out(['ok' => true, 'suppliers' => acc_suppliers_list()]);
+    }
+
+    case 'offer_save': { /* POST {id?, material_id, supplier_id, brand, rate, ref, on_date, note, pick?}: a supplier's price for an item.
+        pick, or a price already in use: the item's dealer price follows it. */
+      need('accounts', true);
+      $mid = (int)($in['material_id'] ?? 0); $sid = (int)($in['supplier_id'] ?? 0); $id = (int)($in['id'] ?? 0);
+      $m = row('SELECT id, name, offer_id FROM acc_materials WHERE id=?', [$mid]); if (!$m) fail('Item not found', 404);
+      $s = row('SELECT name FROM acc_suppliers WHERE id=?', [$sid]); if (!$s) fail('Choose the supplier');
+      if ($id && !row('SELECT 1 FROM acc_offers WHERE id=? AND material_id=?', [$id, $mid])) fail('Supplier price not found', 404);
+      $f = acc_offer_in($in);
+      $id = acc_offer_put($mid, $sid, $f, $id);
+      if (!empty($in['pick']) || (int)$m['offer_id'] === $id) acc_offer_use($mid, $id);
+      audit('acc_offer_save', 'acc_materials', $mid, "{$s['name']} · {$m['name']} · {$f['rate']}");
+      out(['ok' => true, 'id' => $id, 'item' => acc_item($mid)]);
+    }
+
+    case 'offer_delete': { /* POST {id}: to the Recycle bin; an item that used it keeps its dealer price */
+      need('accounts', true);
+      $id = (int)($in['id'] ?? 0);
+      $o = row('SELECT o.*, m.name m_name, s.name s_name FROM acc_offers o LEFT JOIN acc_materials m ON m.id=o.material_id LEFT JOIN acc_suppliers s ON s.id=o.supplier_id WHERE o.id=?', [$id]);
+      if (!$o) fail('Supplier price not found', 404);
+      trash_put('Supplier price', $o['s_name'] . ' · ' . $o['m_name'], [['acc_offers', 'id=?', [$id]]]);
+      q('UPDATE acc_materials SET offer_id=NULL WHERE offer_id=?', [$id]);
+      q('DELETE FROM acc_offers WHERE id=?', [$id]);
+      audit('acc_offer_delete', 'acc_materials', (int)$o['material_id'], $o['s_name'] . ' · ' . $o['m_name']);
+      out(['ok' => true, 'item' => acc_item((int)$o['material_id'])]);
+    }
+
+    case 'offer_pick': { /* POST {material_id, offer_id}: use that supplier's price as the dealer price; offer_id 0 = stop following (price kept) */
+      need('accounts', true);
+      $mid = (int)($in['material_id'] ?? 0); $oid = (int)($in['offer_id'] ?? 0);
+      $m = row('SELECT name FROM acc_materials WHERE id=?', [$mid]); if (!$m) fail('Item not found', 404);
+      if ($oid) acc_offer_use($mid, $oid); else q('UPDATE acc_materials SET offer_id=NULL WHERE id=?', [$mid]);
+      audit('acc_offer_pick', 'acc_materials', $mid, $m['name'] . ($oid ? '' : ' · no supplier'));
+      out(['ok' => true, 'item' => acc_item($mid)]);
+    }
 
     case 'profit_default_save': { /* POST {pct}: the price list's default profit % (0-500) */
       need('accounts', true);
@@ -490,7 +609,7 @@ function handle_acc($a) {
             } else $onList = (bool)row('SELECT 1 FROM acc_materials WHERE id=?', [$mid]); /* a deleted material: the line keeps its name and id, the material is not made again */
             /* a dealer price typed on this sheet (and new to it) becomes the item's dealer price; picked, copied, fee and unchanged lines
                leave it alone. A line's profit % is this project's own and never changes the price list. */
-            if ($l['price_typed'] && $l['rate'] > 0 && $onList && $isNew($mid, round($l['rate'], 2))) q('UPDATE acc_materials SET rate=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$l['rate'], $mid]);
+            if ($l['price_typed'] && $l['rate'] > 0 && $onList && $isNew($mid, round($l['rate'], 2))) q('UPDATE acc_materials SET rate=?, offer_id=NULL, updated=CURRENT_TIMESTAMP WHERE id=?', [$l['rate'], $mid]); /* typed by hand: no longer a supplier's price */
             q('INSERT INTO acc_costs(project_id,material_id,grp,name,qty,unit,rate,gst,profit,supplier,bill_no,bill_date,note,sort,bought,bought_on) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
               [$pid, $mid, $l['grp'], $l['name'], $l['qty'], $l['unit'], $l['rate'], $l['gst'], $l['profit'], $l['supplier'], $l['bill_no'], $l['bill_date'], $l['note'], $i + 1, $l['bought'], $l['bought_on']]);
           }
@@ -571,25 +690,44 @@ function handle_acc($a) {
       $dup = row('SELECT id FROM acc_materials WHERE grp=? AND lower(name)=lower(?) AND id<>?', [$grp, $name, $id]);
       /* dup_id: the item already there (the Add item window uses it); quiet: the page says so itself (no browser pop-up) */
       if ($dup) out(['error' => "$name is already in $grp", 'dup_id' => (int)$dup['id'], 'quiet' => 1], 409);
+      /* supplier_id (with brand): the dealer price typed here is that supplier's price, saved as a supplier price and used. Not sent,
+         or 0: a dealer price different from the supplier price in use is one typed by hand, so the item stops following it. */
+      $sid = (int)($in['supplier_id'] ?? 0);
+      if ($sid) {
+        if (!row('SELECT 1 FROM acc_suppliers WHERE id=?', [$sid])) fail('Supplier not found', 404);
+        if ($rate <= 0) fail('Type the dealer price from this supplier');
+      }
       if ($id) {
-        $old = row('SELECT profit FROM acc_materials WHERE id=?', [$id]);
+        $old = row('SELECT profit, offer_id FROM acc_materials WHERE id=?', [$id]);
         if (!$old) fail('Material not found', 404);
         if (!$hasPct) $pct = $old['profit'] === null ? null : (float)$old['profit'];
         q('UPDATE acc_materials SET grp=?, name=?, unit=?, gst=?, rate=?, profit=?, hidden=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$grp, $name, $unit, $gst, $rate, $pct, $hidden, $id]);
+        if (!$sid && $old['offer_id']) {
+          $o = row('SELECT rate FROM acc_offers WHERE id=?', [(int)$old['offer_id']]);
+          if (!$o || abs((float)$o['rate'] - $rate) > 0.005) q('UPDATE acc_materials SET offer_id=NULL WHERE id=?', [$id]);
+        }
       } else {
         q('INSERT INTO acc_materials(grp,name,unit,gst,rate,profit,hidden,sort) VALUES(?,?,?,?,?,?,?,(SELECT COALESCE(MAX(sort),0)+1 FROM acc_materials))', [$grp, $name, $unit, $gst, $rate, $pct, $hidden]);
         $id = (int)db()->lastInsertId();
       }
+      if ($sid) {
+        $brand = acc_txt($in['brand'] ?? '', 80);
+        /* the price in use, when it is this supplier's, is the one edited (its brand may be corrected here); else by supplier + brand */
+        $cur = row('SELECT o.id FROM acc_materials m JOIN acc_offers o ON o.id=m.offer_id WHERE m.id=? AND o.supplier_id=?', [$id, $sid]);
+        $had = $cur ? row('SELECT ref, on_date, note FROM acc_offers WHERE id=?', [(int)$cur['id']]) : row('SELECT ref, on_date, note FROM acc_offers WHERE material_id=? AND supplier_id=? AND lower(brand)=lower(?)', [$id, $sid, $brand]);
+        $clash = $cur ? row('SELECT id FROM acc_offers WHERE material_id=? AND supplier_id=? AND lower(brand)=lower(?) AND id<>?', [$id, $sid, $brand, (int)$cur['id']]) : null;
+        $oid = acc_offer_put($id, $sid, ['brand' => $brand, 'rate' => $rate, 'ref' => (string)($had['ref'] ?? ''), 'on_date' => (string)($had['on_date'] ?? date('Y-m-d')), 'note' => (string)($had['note'] ?? '')], $cur && !$clash ? (int)$cur['id'] : 0);
+        acc_offer_use($id, $oid);
+      }
       audit('acc_material_save', 'acc_materials', $id, "$grp · $name");
-      $item = row('SELECT * FROM acc_materials WHERE id=?', [$id]);
-      foreach (['id', 'hidden', 'sort'] as $k) $item[$k] = (int)$item[$k]; foreach (['gst', 'rate'] as $k) $item[$k] = (float)$item[$k]; $item['profit'] = acc_pct_out($item['profit']);
-      out(['ok' => true, 'id' => $id, 'item' => $item]); /* item: as on the price list, so a new product goes straight onto an Expense sheet */
+      out(['ok' => true, 'id' => $id, 'item' => acc_item($id)]); /* item: as on the price list, so a new product goes straight onto an Expense sheet */
     }
 
     case 'material_delete': {
       need('accounts', true);
       $id = (int)($in['id'] ?? 0); $m = row('SELECT * FROM acc_materials WHERE id=?', [$id]); if (!$m) fail('Material not found', 404);
-      trash_put('Material', $m['grp'] . ' · ' . $m['name'], [['acc_materials', 'id=?', [$id]]]);
+      trash_put('Material', $m['grp'] . ' · ' . $m['name'], [['acc_materials', 'id=?', [$id]], ['acc_offers', 'material_id=?', [$id]]]);
+      q('DELETE FROM acc_offers WHERE material_id=?', [$id]);
       q('DELETE FROM acc_materials WHERE id=?', [$id]);
       audit('acc_material_delete', 'acc_materials', $id, $m['name']);
       out(['ok' => true]);

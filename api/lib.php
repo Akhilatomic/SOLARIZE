@@ -1,6 +1,6 @@
 <?php
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 51; // bump when tables/columns change
+const SCHEMA_VERSION = 52; // bump when tables/columns change
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -332,9 +332,18 @@ function migrate($db) {
   $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS acct_name ON acc_tpls(lower(name))');
   /* payments.src is new: a Loan-mode payment on a loan project recorded before it was the bank's disbursement (only rows with no source, so a rerun changes nothing) */
   $db->exec("UPDATE payments SET src='bank' WHERE (src IS NULL OR src='') AND mode='Loan' AND project_id IN (SELECT id FROM projects WHERE loan='Yes')");
+  /* v52: suppliers and their prices per price list item (acc_offers: one per item + supplier + brand). acc_materials.offer_id = the
+     supplier price in use (NULL = a dealer price typed by hand); the dealer price itself stays in acc_materials.rate. */
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_suppliers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, tag TEXT DEFAULT '', contact TEXT DEFAULT '', phone TEXT DEFAULT '', email TEXT DEFAULT '', gstin TEXT DEFAULT '', address TEXT DEFAULT '', note TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS accs_name ON acc_suppliers(lower(name))');
+  $db->exec("CREATE TABLE IF NOT EXISTS acc_offers(id INTEGER PRIMARY KEY AUTOINCREMENT, material_id INTEGER, supplier_id INTEGER, brand TEXT DEFAULT '', rate REAL DEFAULT 0, ref TEXT DEFAULT '', on_date TEXT DEFAULT '', note TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS acco_one ON acc_offers(material_id, supplier_id, lower(brand))');
+  $db->exec('CREATE INDEX IF NOT EXISTS acco_sup ON acc_offers(supplier_id)');
+  if (!in_array('offer_id', array_column($db->query('PRAGMA table_info(acc_materials)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE acc_materials ADD COLUMN offer_id INTEGER'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   require_once __DIR__ . '/acc_seed.php';
   acc_seed($db); // only fills an empty materials list
   acc_prices_v1($db); /* v51: dealer prices from the supplier's quotation and invoice of Nov 2026, once */
+  acc_sup_v1($db); /* v52: the two suppliers, their prices and the new items from the papers of Oct-Nov 2026, once */
   /* v43: KSEB fees and stamp paper are passed on at cost, so their price list items get 0 % profit where the % is blank. Once
      (flag acc_fee_pct0), after the seed so a new database gets it too; a % the owner clears later stays blank. Same names as ACC.FEE_NAMES. */
   if (!$db->query("SELECT 1 FROM settings WHERE k='acc_fee_pct0'")->fetch()) {
