@@ -63,7 +63,7 @@ $s2 = call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'version' => $v1, '
 $v2 = (string)($s2['version'] ?? '');
 chk($s2['_code'] === 200 && $v2 !== '' && $v2 !== $v1, 'a save with the fresh version is accepted and gives a new version (same second)');
 $st = call($acct, 'acc', 'cost_save', ['project_id' => $pid, 'version' => $v1, 'lines' => [['grp' => 'Solar panels', 'name' => 'Stale Only Panel', 'qty' => 9, 'rate' => 1, 'gst' => 5], ['grp' => 'Solar panels', 'name' => 'Test Panel 550', 'qty' => 7, 'rate' => 1, 'gst' => 5]]]);
-chk($st['_code'] === 409 && ($st['error'] ?? '') === 'This Expense sheet was changed since you opened it — reload to see the latest', 'a save with a stale version is 409 with the reload message');
+chk($st['_code'] === 409 && ($st['error'] ?? '') === 'This Project cost sheet was changed since you opened it — reload to see the latest', 'a save with a stale version is 409 with the reload message');
 $g = call($acct, 'acc', 'ac_cost', null, "&project_id=$pid");
 chk($g['_code'] === 200 && count($g['lines']) === 1 && (float)$g['lines'][0]['qty'] == 4 && (string)$g['version'] === $v2, 'the stale save wrote nothing: the fresh save replaced all lines (1 line) and stays');
 chk(find_by($mats(), 'name', 'Stale Only Panel') === null, 'the stale save added no material');

@@ -323,11 +323,11 @@ function migrate($db) {
   /* projects.cost_ver: the cost sheet's version, +1 on every acc/cost_save (two people saving the same sheet: the older page gets 409).
      Not in the projects column list, so a project save never touches it. */
   if (!in_array('cost_ver', array_column($db->query('PRAGMA table_info(projects)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE projects ADD COLUMN cost_ver INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
-  /* v43: the price list's profit % per item and the Expense sheet's profit % per line (NULL = the default, settings acc_profit_default) */
+  /* v43: the price list's profit % per item and the Project cost sheet's profit % per line (NULL = the default, settings acc_profit_default) */
   foreach (['acc_materials', 'acc_costs'] as $tb) if (!in_array('profit', array_column($db->query("PRAGMA table_info($tb)")->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE $tb ADD COLUMN profit REAL"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   /* v45: an Expense line marked Purchased / Paid (bought 0/1) and the day it was bought (Y-m-d, blank while To buy). Idempotent like v43. */
   foreach (['bought INTEGER DEFAULT 0', "bought_on TEXT DEFAULT ''"] as $def) { $cn = strtok($def, ' '); if (!in_array($cn, array_column($db->query('PRAGMA table_info(acc_costs)')->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE acc_costs ADD COLUMN $def"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } } }
-  /* v44: material templates for the Expense sheet (Settings › Material templates): items = JSON [{material_id, grp, name, unit, qty}], names unique in any case */
+  /* v44: material templates for the Project cost sheet (Settings › Material templates): items = JSON [{material_id, grp, name, unit, qty}], names unique in any case */
   $db->exec("CREATE TABLE IF NOT EXISTS acc_tpls(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, items TEXT DEFAULT '[]', updated_by TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS acct_name ON acc_tpls(lower(name))');
   /* payments.src is new: a Loan-mode payment on a loan project recorded before it was the bank's disbursement (only rows with no source, so a rerun changes nothing) */
@@ -350,7 +350,7 @@ function migrate($db) {
     $db->exec("UPDATE acc_materials SET profit=0 WHERE profit IS NULL AND lower(trim(name)) IN ('kseb feasibility','kseb registration','stamp paper')");
     $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_fee_pct0','1')");
   }
-  /* v46: fees already paid in Finance before the fee → Expense sync go onto their customers' Expense sheets once (flag acc_fee_sync_v1) */
+  /* v46: fees already paid in Finance before the fee → Project cost sync go onto their customers' Project cost sheets once (flag acc_fee_sync_v1) */
   if (!$db->query("SELECT 1 FROM settings WHERE k='acc_fee_sync_v1'")->fetch() && function_exists('acc_fee_sync')) {
     foreach ($db->query("SELECT customer_id, kind FROM fees WHERE paid=1 AND amount>0 AND kind IN ('feasibility','registration','stamp')")->fetchAll() as $f) acc_fee_sync((int)$f['customer_id'], $f['kind']);
     $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_fee_sync_v1','1')");

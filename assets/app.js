@@ -887,7 +887,7 @@ async function pgProject(id) {
   };
   $('#main').innerHTML = `<p><a href="#/projects">← Pipeline</a> · <a href="#/customers/${p.customer_id}">${esc(p.customer?.name || '')}</a></p>
    <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(p.title)} <span class="mut" style="font-size:14px">${p.kw} kW</span></h2>
-   ${canR('accounts') ? `<a class="btn sec" href="#/accounts/cost/${id}"><i class="i i-coin"></i> Expense</a>` : ''}${w ? `<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>` : pill(p.stage)}</div></div><div id="pstp" style="margin-top:12px"></div><div id="pb" style="margin-top:12px"></div>`;
+   ${canR('accounts') ? `<a class="btn sec" href="#/accounts/cost/${id}"><i class="i i-coin"></i> Project cost</a>` : ''}${w ? `<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>` : pill(p.stage)}</div></div><div id="pstp" style="margin-top:12px"></div><div id="pb" style="margin-top:12px"></div>`;
   renderStepper(p, $('#pstp'));
   if ($('#ed')) $('#ed').onclick = () => projectModal(id, p);
   if ($('#dl')) $('#dl').onclick = async () => { if (confirm('Delete this project with its payments, checklists and files?')) { await api('projects', 'delete', { id }); location.hash = '#/projects'; } };

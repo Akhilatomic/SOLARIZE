@@ -65,7 +65,7 @@ async function pgCustomer(id) {
   $('#main').innerHTML = `<p style="margin:0 0 8px"><a href="#/customers">← Customers</a></p>
    <div class="card pfhead"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="mut">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') + ' ' : ''}${c.phone ? `<button class="pfv inl" data-cp="${esc(c.phone)}" data-l="phone">${esc(c.phone)}<i class="i i-copy"></i></button>` : ''}${c.consumer_no ? ` · Consumer no. <button class="pfv inl" data-cp="${esc(c.consumer_no)}" data-l="consumer no.">${esc(c.consumer_no)}<i class="i i-copy"></i></button>` : ''}${ownHtml}</div></div>
     <div class="pfact"><button class="btn sec" id="dsc">${discBtnLabel(id)}</button>${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn ok" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}
-     ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}${canR('accounts') ? '<button class="btn sec" id="pfexp" title="Expense sheet: purchases, services, commission / incentive and profit of the latest project"><i class="i i-coin"></i> Expense</button>' : ''}<button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
+     ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}${canR('accounts') ? '<button class="btn sec" id="pfexp" title="Project cost sheet: purchases, services, commission / incentive and profit of the latest project"><i class="i i-coin"></i> Project cost</button>' : ''}<button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
    <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, `${i + 1} · ${pg.tab}`, pg.icon]), ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(ME.role === 'admin' ? [['pay', 'Payments', 'card']] : []), ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : []), ...(ME.role === 'admin' ? [['ps', 'Purchases and services', 'coin'], ['comm', 'Commission / Incentive', 'users']] : [])].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${esc(l)}${pgKeys.includes(k) ? ` <span class="ppn" data-ppn="${k}"${cnt0[k] > 0 ? '' : ' hidden'}>${cnt0[k] || 0}</span>` : ''}</button>`).join('')}</div>
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
@@ -91,7 +91,7 @@ async function pgCustomer(id) {
   $('#dsc').onclick = () => discOpen(id);
   if ($('#wa')) $('#wa').onclick = () => waOpen({ name: c.name, phone: c.phone, customer_id: id });
   if ($('#ed')) $('#ed').onclick = () => showTab(pgKeys.includes(PFT) ? PFT : 'kseb', true);
-  /* Expense: the latest project's Expense sheet (c.projects is newest first) */
+  /* Expense: the latest project's Project cost sheet (c.projects is newest first) */
   if ($('#pfexp')) $('#pfexp').onclick = () => { const j = (c.projects || [])[0]; if (j && +j.id) location.hash = '#/accounts/cost/' + +j.id; else toast('Start a project for this customer first', true); };
   if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
   if ($('#nq')) $('#nq').onclick = () => { sessionStorage.lead2quote = JSON.stringify({ customer_id: id, name: c.name }); location.hash = '#/quotes/new'; };
@@ -102,7 +102,7 @@ async function pgCustomer(id) {
   /* a page save: refresh the red counts on the tabs and the Overview card, without reloading the profile */
   const bindGoto = () => $$('[data-goto]').forEach(b => b.onclick = () => { showTab(b.dataset.goto); scrollTo({ top: 0, behavior: 'smooth' }); });
   const refresh = () => route();
-  /* Purchases and services (admin only): a read-only view of the project's purchases and services, no money (app34.js acProfileTab); editing is in Accounts › Expense */
+  /* Purchases and services (admin only): a read-only view of the project's purchases and services, no money (app34.js acProfileTab); editing is in Accounts › Project cost */
   const showTab = (k, edit) => { if (k === 'ps' && PFT === 'ps' && $('#acx_psb')) return; if (!acLeaveOk()) return; acLeft(); if ((k === 'ps' || k === 'comm' || k === 'pay') && ME.role !== 'admin') k = 'overview'; PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
     if (k === 'plant') renderPlant(box, st.c, id, !!edit, st, refresh);
     else if (pgKeys.includes(k)) renderPfPage(box, st, k, !!edit, refresh);

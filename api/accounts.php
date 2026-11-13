@@ -1,5 +1,5 @@
 <?php
-// Accounts: the price list (materials and services: dealer price + profit %) and the per-project Expense sheet (what the plant cost us,
+// Accounts: the price list (materials and services: dealer price + profit %) and the per-project Project cost sheet (what the plant cost us,
 // acc_costs; the browser still routes it as #/accounts/cost/<project>). Needs the "accounts" permission.
 // Same order as ACC.GROUPS in assets/app32.js.
 const ACC_GROUPS = ['Inverter & optimizers', 'Solar panels', 'Structure & supports', 'Distribution boards', 'Metering & isolation', 'DC cables & connectors',
@@ -90,11 +90,11 @@ function acc_comm($cid, $ownerId) {
     'p1' => round((float)($cm['p1_amount'] ?? 0), 2), 'p2' => round((float)($cm['p2_amount'] ?? 0), 2)];
 }
 
-/* Finance › Fees kinds as Expense sheet lines (group "Services and charges"): line name, GST % (the fee amount includes it), who is paid */
+/* Finance › Fees kinds as Project cost sheet lines (group "Services and charges"): line name, GST % (the fee amount includes it), who is paid */
 const ACC_FEE_LINES = ['feasibility' => ['KSEB feasibility', 18, 'KSEB'], 'registration' => ['KSEB registration', 18, 'KSEB'], 'stamp' => ['Stamp paper', 0, '']];
 function acc_ver_bump($pid) { q('UPDATE projects SET cost_ver=COALESCE(cost_ver,0)+1 WHERE id=?', [(int)$pid]); }
 /* Owner's rule (2026-11-12): a fee marked paid / purchased in Finance (feasibility, registration, stamp paper) is added to — or updated on — the
-   Expense sheet of the customer's latest project as a Paid line (amount before GST, paid on, reference as the bill no.); marked unpaid → the line
+   Project cost sheet of the customer's latest project as a Paid line (amount before GST, paid on, reference as the bill no.); marked unpaid → the line
    goes back to To pay. Nothing without a project or a positive amount. The sheet version moves on, so a copy of the sheet open elsewhere is refused
    (409) instead of overwriting it. Called from fees/set, fee_from_receipt (pipeline receipts) and once for fees paid before this rule. */
 function acc_fee_sync($cid, $kind) {
@@ -143,7 +143,7 @@ function acc_cost_get($pid) {
     'lines' => $lines,
     'version' => (string)(int)($p['cost_ver'] ?? 0), /* send it back with cost_save: a save from an older copy of the sheet is refused (409) */
     'auto' => ['comm' => $comm, 'fees' => $fees],
-    'comm' => $cmx, /* the automatic commission / incentive line of the Expense sheet */
+    'comm' => $cmx, /* the automatic commission / incentive line of the Project cost sheet */
     'paid' => round((float)row('SELECT COALESCE(SUM(amount),0) s FROM payments WHERE project_id=?', [(int)$pid])['s'], 2), /* income: payments received for this project */
     'profit_default' => acc_profit_default(),
     'taxable' => $taxable,
@@ -617,7 +617,7 @@ function handle_acc($a) {
         }
         db()->exec($stale ? 'ROLLBACK' : 'COMMIT');
       } catch (Throwable $e) { try { db()->exec('ROLLBACK'); } catch (Throwable $e2) { } throw $e; }
-      if ($stale) out(['error' => 'This Expense sheet was changed since you opened it — reload to see the latest', 'stale' => 1, 'quiet' => 1], 409);
+      if ($stale) out(['error' => 'This Project cost sheet was changed since you opened it — reload to see the latest', 'stale' => 1, 'quiet' => 1], 409);
       audit('acc_cost_save', 'projects', $pid, count($clean) . ' line(s)');
       out(acc_cost_get($pid));
     }
@@ -634,7 +634,7 @@ function handle_acc($a) {
       out(['ok' => true, 'name' => $n, 'existed' => 0, 'groups' => acc_groups_all()]);
     }
 
-    case 'group_rename': { /* {from, to}: an added category only. Its products, Expense sheet lines and template items take the new name */
+    case 'group_rename': { /* {from, to}: an added category only. Its products, Project cost sheet lines and template items take the new name */
       need('accounts', true);
       $from = trim((string)($in['from'] ?? '')); $to = acc_group_name($in['to'] ?? '');
       if (in_array($from, ACC_GROUPS, true)) fail('The built-in categories keep their names');
@@ -720,7 +720,7 @@ function handle_acc($a) {
         acc_offer_use($id, $oid);
       }
       audit('acc_material_save', 'acc_materials', $id, "$grp · $name");
-      out(['ok' => true, 'id' => $id, 'item' => acc_item($id)]); /* item: as on the price list, so a new product goes straight onto an Expense sheet */
+      out(['ok' => true, 'id' => $id, 'item' => acc_item($id)]); /* item: as on the price list, so a new product goes straight onto a Project cost sheet */
     }
 
     case 'material_delete': {

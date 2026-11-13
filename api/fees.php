@@ -19,7 +19,7 @@ function fee_from_receipt($customer_id, $stageKey, $amount, $date, $ref) {
   else q('INSERT INTO fees(customer_id,kind,amount,paid,paid_on,ref,demanded,demanded_on) VALUES(?,?,?,1,?,?,1,?)', [$customer_id, $kind, $amount > 0 ? $amount : fee_default_amount($kind), fee_date($date), (string)$ref, fee_date($date)]);
   fee_sync_expense($customer_id, $kind);
 }
-// a paid / unpaid fee goes onto the customer's Expense sheet (api/accounts.php acc_fee_sync); the fee itself is saved either way
+// a paid / unpaid fee goes onto the customer's Project cost sheet (api/accounts.php acc_fee_sync); the fee itself is saved either way
 function fee_sync_expense($customer_id, $kind) {
   try { if (function_exists('acc_fee_sync')) acc_fee_sync((int)$customer_id, $kind); } catch (Throwable $e) { error_log('fee → expense sync: ' . $e->getMessage()); }
 }
@@ -82,7 +82,7 @@ function handle_fees($a) {
       if (!$u) fail('Nothing to change');
       $set = implode(',', array_map(fn($k) => "$k=?", array_keys($u)));
       q("UPDATE fees SET $set, updated=CURRENT_TIMESTAMP WHERE id=?", [...array_values($u), $f['id']]);
-      if (isset($u['paid']) || ((int)$f['paid'] && (isset($u['amount']) || isset($u['ref'])))) fee_sync_expense($f['customer_id'], $f['kind']); /* paid / purchased → Expense sheet */
+      if (isset($u['paid']) || ((int)$f['paid'] && (isset($u['amount']) || isset($u['ref'])))) fee_sync_expense($f['customer_id'], $f['kind']); /* paid / purchased → Project cost sheet */
       audit('fees_' . (isset($u['paid']) ? ($u['paid'] ? 'paid' : 'unpaid') : (isset($u['demanded']) ? 'demanded' : 'edit')), 'customers', $f['customer_id'], FEE_KINDS[$f['kind']] . (isset($u['paid_on']) && $u['paid_on'] ? ' · ' . $u['paid_on'] : '') . (isset($u['amount']) ? ' · ₹' . $u['amount'] : ''));
       out(['ok' => true]);
 

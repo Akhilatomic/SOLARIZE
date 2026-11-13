@@ -145,7 +145,7 @@ async function acOfferAct(a, x, oid, reload) {
   const who = s ? s.name : 'this supplier';
   if (a === 'edit') return acOfferForm(x, o, reload);
   if (a === 'use') {
-    if (+x.rate && Math.abs(+x.rate - o.rate) > 0.005 && !confirm(`Use the price from ${who} for “${x.name}”?\n\nThe dealer price changes from ${inr2(x.rate)} to ${inr2(o.rate)}. Expense sheets already made keep their prices.`)) return;
+    if (+x.rate && Math.abs(+x.rate - o.rate) > 0.005 && !confirm(`Use the price from ${who} for “${x.name}”?\n\nThe dealer price changes from ${inr2(x.rate)} to ${inr2(o.rate)}. Project cost sheets already made keep their prices.`)) return;
     await api('acc', 'offer_pick', { material_id: x.id, offer_id: o.id });
     toast(`“${x.name}” now uses the price from ${who}`);
   }

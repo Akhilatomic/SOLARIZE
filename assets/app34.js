@@ -1,5 +1,5 @@
-/* Accounts: a project's Expense sheet, the price list (Accounts › Price list and Settings › Price list) and the material list PDF (assets/app34.js).
-   acCostSheet(pid)  #/accounts/cost/<pid>: the Expense sheet, what the plant cost us line by line (dealer prices before GST), grouped like the
+/* Accounts: a project's Project cost sheet, the price list (Accounts › Price list and Settings › Price list) and the material list PDF (assets/app34.js).
+   acCostSheet(pid)  #/accounts/cost/<pid>: the Project cost sheet, what the plant cost us line by line (dealer prices before GST), grouped like the
                      quotation (ACC.GROUPS): qty × dealer price = expense, + the line's profit % = customer price. The commission (Business
                      Associate) or incentive (staff) of the customer is an automatic line. Tiles: income, expense, profit, customer price from
                      the list. Saving replaces every line (acc/cost_save); every line needs its quantity; a typed dealer price becomes the item's.
@@ -16,7 +16,7 @@ const ACX_SVC = 'Services and charges';
 const ACX_GSTS = [0, 5, 12, 18, 28];
 const ACX_UNITS = ['Nos', 'm', 'kg', 'kW', 'Job', 'Set', 'Lot', 'Pair', 'Roll', 'Box', 'Bag'];
 const ACX_COLS = 14;
-/* the open Expense sheet: d = the ac_cost answer, lines = the lines being edited (in group order);
+/* the open Project cost sheet: d = the ac_cost answer, lines = the lines being edited (in group order);
    mats / mdef = the price list and its default profit % as last loaded (acMats) */
 const ACS = { pid: 0, d: null, lines: [], dirty: false, hash: '', w: false, busy: false, mats: null, grps: [], mdef: ACC.PROFIT_DEF, emb: null, seq: 0, sel: new Set() };
 
@@ -50,7 +50,7 @@ const acGroups = mats => ACC.grpAll(ACS.grps, (mats || []).map(m => m.grp));
 const ACX_NEWCAT = '__new__'; /* the Category box's last choice: + New category */
 const acCatOpts = (groups, sel) => groups.map(g => `<option value="${esc(g)}" ${g === sel ? 'selected' : ''}>${esc(g)}</option>`).join('') + `<option value="${ACX_NEWCAT}">+ New category…</option>`;
 const acUnits = () => { if (!document.getElementById('acx_units')) document.body.insertAdjacentHTML('beforeend', `<datalist id="acx_units">${ACX_UNITS.map(u => `<option value="${u}">`).join('')}</datalist>`); };
-/* the supplier names offered in the supplier boxes (Expense sheet lines, Mark purchased) */
+/* the supplier names offered in the supplier boxes (Project cost sheet lines, Mark purchased) */
 const acSupList = () => { let d = document.getElementById('acx_sups'); if (!d) { d = document.createElement('datalist'); d.id = 'acx_sups'; document.body.appendChild(d); } d.innerHTML = (ACS.sups || []).map(s => `<option value="${esc(s.name)}">`).join(''); };
 const acPl = (n, one, many) => `${n} ${n === 1 ? one : many || one + 's'}`;
 const ACX_CST = { 'Not set': '', Pending: 'y', 'Part 1 paid': 'b', Paid: 'g' };
@@ -69,21 +69,21 @@ function acChanged() { ACS.lines = acSort(ACS.lines); acCsTable(); acCsTiles(); 
 const acBSum = l => [l.bought_on ? fdt(l.bought_on) : '', l.supplier, l.bill_no && 'Bill ' + l.bill_no].filter(Boolean).join(' · ');
 
 /* emb: a box element = the sheet inside the customer profile's Purchases and services tab (no page title, no back link to Accounts, an
-   "Open as full page" link); omitted = the Expense page in #main */
+   "Open as full page" link); omitted = the Project cost page in #main */
 async function acCostSheet(pid, emb) {
-  if (!emb) $('#title').innerHTML = '<span class="ft t-accounts"><i class="i i-coin"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› Expense</span>';
+  if (!emb) $('#title').innerHTML = '<span class="ft t-accounts"><i class="i i-coin"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› Project cost</span>';
   const main = emb || $('#main'), nav = ROUTE_N, seq = ++ACS.seq; /* seq: a later sheet load (project picker) wins over a slower earlier one */
-  if (!pid) { main.innerHTML = '<p class="over">No project chosen. Open a customer or a project and press Expense.</p>'; return; }
+  if (!pid) { main.innerHTML = '<p class="over">No project chosen. Open a customer or a project and press Project cost.</p>'; return; }
   let d;
   try { d = await api('acc', 'ac_cost', undefined, `&project_id=${pid}`); }
-  catch (e) { if (nav === ROUTE_N && seq === ACS.seq && main.isConnected) main.innerHTML = `<p class="over">${esc((e && e.error) || 'Could not open the Expense sheet')}</p>`; return; }
+  catch (e) { if (nav === ROUTE_N && seq === ACS.seq && main.isConnected) main.innerHTML = `<p class="over">${esc((e && e.error) || 'Could not open the Project cost sheet')}</p>`; return; }
   if (nav !== ROUTE_N || seq !== ACS.seq || !main.isConnected) return; /* the user moved on while it loaded */
   Object.assign(ACS, { emb: emb || null, pid, d, lines: acSort((d.lines || []).map(acIn)), hash: location.hash, w: canW('accounts'), busy: false, dirty: false, sel: new Set() });
   const p = d.project || {}, cu = d.customer || {}, kw = acKw(p.kw), w = ACS.w;
   acUnits();
   main.innerHTML = `<div class="acx-pg${emb ? ' acx-emb' : ''}" id="acx_cs">
     ${emb ? `<div class="acx-crumb"><a href="#/accounts/cost/${+p.id}">Open as full page</a> · <a href="#/projects/${+p.id}">Open project</a></div>` : `<div class="acx-crumb"><a href="#/accounts/profit">← Project profit</a>${cu.id ? ` · <a href="#/customers/${+cu.id}">${esc(cu.name)}</a>` : ''} · <a href="#/projects/${+p.id}">Open project</a></div>`}
-    <div class="acx-hd"><div><h2>Expense · ${esc(cu.name || p.title || '')}${kw ? ` <span class="mut">${esc(kw)} kW</span>` : ''}</h2>
+    <div class="acx-hd"><div><h2>Project cost · ${esc(cu.name || p.title || '')}${kw ? ` <span class="mut">${esc(kw)} kW</span>` : ''}</h2>
       <div class="acx-sub">${p.loan === 'Yes' ? '<span class="pill acx-tag">Loan</span>' : ''}<span>${esc([p.title, p.stage].filter(Boolean).join(' · '))}</span></div></div>
       <span class="sp"></span><span class="acx-st" id="acx_st" aria-live="polite"></span>
       <button type="button" class="btn sec" id="acx_pdf"><i class="i i-download"></i> Download material list</button>${w ? '<button type="button" class="btn" id="acx_save"><i class="i i-check"></i> Save</button>' : ''}</div>
@@ -137,7 +137,7 @@ async function acCostSheet(pid, emb) {
     }
     const b = e.target.closest('[data-acx-del]'); if (!b) return;
     const i = +b.closest('tr').dataset.i, l = ACS.lines[i]; if (!l) return;
-    if ((l.rate || l.supplier || l.bill_no || l.note || l.bought) && !confirm(`Remove “${l.name}” from this Expense sheet?`)) return;
+    if ((l.rate || l.supplier || l.bill_no || l.note || l.bought) && !confirm(`Remove “${l.name}” from this Project cost sheet?`)) return;
     ACS.sel.delete(l); ACS.lines.splice(i, 1); acChanged();
   });
   $('#acx_bsel').addEventListener('click', e => {
@@ -198,7 +198,7 @@ function acCsTable() {
   if (!ACS.lines.length) body += `<tr><td colspan="${n}" class="mut">No lines yet.${w ? ' Use <b>Add item</b> or <b>Copy from another project</b>.' : ''}</td></tr>`;
   body += acCommRow(n);
   tb.innerHTML = `<colgroup>${cols.map(([wd]) => `<col${wd ? ` style="width:${wd}px"` : ''}>`).join('')}</colgroup>
-    <thead><tr><th>Item</th><th>Status</th><th class="num">Qty</th><th>Unit</th><th class="num">Dealer price</th><th class="num">Expense</th><th class="num">Profit %</th><th class="num">Customer price</th><th class="num">GST %</th><th>Supplier</th><th>Bill no.</th><th>Bill date</th><th>Note</th>${w ? '<th><span class="acx-sr">Remove</span></th>' : ''}</tr></thead><tbody>${body}</tbody>`;
+    <thead><tr><th>Item</th><th>Status</th><th class="num">Qty</th><th>Unit</th><th class="num">Dealer price</th><th class="num">Cost</th><th class="num">Profit %</th><th class="num">Customer price</th><th class="num">GST %</th><th>Supplier</th><th>Bill no.</th><th>Bill date</th><th>Note</th>${w ? '<th><span class="acx-sr">Remove</span></th>' : ''}</tr></thead><tbody>${body}</tbody>`;
   acGsum(); acFeeBar(); acSelBar();
 }
 /* the Status cell: To buy / Purchased badge (services: To pay / Paid); w = can edit: Mark purchased button, the purchase date box and Undo */
@@ -223,7 +223,7 @@ function acCommRow(n) {
     : `<span class="mut">${+c.amount ? 'From Finance' : 'No Business Associate or staff owner, so no commission or incentive'}</span>`;
   /* data-label set here: the stacked (narrow) layout labels cells by position, which the colspans would throw off */
   return `<tr class="acx-auto"><td class="acx-nm" data-label="">${esc(ACC.commLabel(c))} <span class="pill acx-tag">auto</span></td><td colspan="4">${why}${adm ? ` <a class="acx-link acx-small" href="#/comm/${c.kind}">Open in Finance</a>` : ''}</td>
-    <td class="num acx-amt" data-label="Expense">${inr2(c.amount)}</td><td colspan="${n - 6}"></td></tr>`;
+    <td class="num acx-amt" data-label="Cost">${inr2(c.amount)}</td><td colspan="${n - 6}"></td></tr>`;
 }
 /* the commission / incentive of the open sheet: ac_cost's comm, or auto.comm from an older answer */
 const acComm = () => { const d = ACS.d || {}; return d.comm || { amount: +(d.auto || {}).comm || 0, kind: '', person: '', p1: 0, p2: 0 }; };
@@ -244,7 +244,7 @@ function acCsTiles() {
   const paid = +d.paid || 0, priced = +p.cost > 0 || +d.taxable > 0;
   const t = (k, label, val, sub, cls, tip) => `<div class="card acx-t ${cls || ''}" data-acx-t="${k}"${tip ? ` title="${esc(tip)}"` : ''}><small>${label}</small><b>${val}</b><em>${sub}</em></div>`;
   box.innerHTML = t('income', 'Income', inr2(paid), +p.cost ? `of ${inr2(p.cost)} price${paid >= +p.cost - 1 ? ' · fully paid' : ''}` : 'project price not set', '', 'Payments received for this project (Tax bill tab and Accounts)')
-    + t('expense', 'Expense', inr2(T.expense), `purchases ${inr2(T.purchases)} · services ${inr2(T.services)} · ${ck} ${inr2(T.comm)}${T.n ? `<br><span class="acx-bpt">Purchased ${inr2(T.bought)} · To buy ${inr2(T.tobuy)}</span>` : ''}${T.missing ? ` · <span class="acx-late">${acPl(T.missing, 'line')} without a dealer price</span>` : ''}`, T.missing ? 'acx-warn' : '', 'Before GST: quantity × dealer price of every line, plus the commission / incentive')
+    + t('expense', 'Project cost', inr2(T.expense), `purchases ${inr2(T.purchases)} · services ${inr2(T.services)} · ${ck} ${inr2(T.comm)}${T.n ? `<br><span class="acx-bpt">Purchased ${inr2(T.bought)} · To buy ${inr2(T.tobuy)}</span>` : ''}${T.missing ? ` · <span class="acx-late">${acPl(T.missing, 'line')} without a dealer price</span>` : ''}`, T.missing ? 'acx-warn' : '', 'Before GST: quantity × dealer price of every line, plus the commission / incentive')
     + t('profit', 'Profit', P.profit < 0 ? '−' + inr2(-P.profit) : inr2(P.profit), priced ? `${P.margin.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% margin · before GST` : 'project price not set', P.profit < 0 ? 'acx-neg' : P.profit > 0 ? 'acx-pos' : '',
       `Project price before GST ${inr2(P.before)}${+d.taxable > 0 ? ' (from the tax bill)' : +p.cost ? ` (${inr2(p.cost)} ÷ ${ACC.GST_DIV})` : ''} − expense ${inr2(T.expense)}`)
     + t('list', 'Customer price from the list', inr2(T.cust), (!priced ? 'project price not set' : G.word === 'matches' ? `matches the agreed ${inr2(P.before)} before GST` : `agreed price (${inr2(P.before)} before GST) is ${inr2(Math.abs(G.diff))} ${G.word}`) + ' (before commission / incentive)',
@@ -299,11 +299,11 @@ async function acCsSave() {
   ACS.busy = false;
   if (btn && btn.isConnected) btn.disabled = false;
   if ($('#acx_cs')) { acCsTable(); acCsTiles(); }
-  if (ok) { acDirty(false); toast('Expense sheet saved'); }
+  if (ok) { acDirty(false); toast('Project cost sheet saved'); }
   else if ($('#acx_cs')) acDirty(ACS.dirty);
   if (stale && $('#acx_cs')) {
-    if (confirm(`${stale.error || 'This Expense sheet was changed since you opened it — reload to see the latest'}.\n\nReload it now? Your changes here are not saved and will be lost. Press Cancel to keep them on screen (note them down, then reload).`)) { ACS.dirty = false; acCostSheet(ACS.pid, ACS.emb && ACS.emb.isConnected ? ACS.emb : undefined); }
-    else toast('Not saved: someone else saved this Expense sheet. Reload the page to see their lines.', true);
+    if (confirm(`${stale.error || 'This Project cost sheet was changed since you opened it — reload to see the latest'}.\n\nReload it now? Your changes here are not saved and will be lost. Press Cancel to keep them on screen (note them down, then reload).`)) { ACS.dirty = false; acCostSheet(ACS.pid, ACS.emb && ACS.emb.isConnected ? ACS.emb : undefined); }
+    else toast('Not saved: someone else saved this Project cost sheet. Reload the page to see their lines.', true);
   }
   return ok;
 }
@@ -311,7 +311,7 @@ async function acCsSave() {
 /* + Add item: a product from the price list or a new product (saved to the price list at once), always with its quantity.
    Add stays off until both are there; the window stays open to add several. */
 async function acCsAdd(ctx) {
-  /* ctx (the Settings template editor): {lines: () => the lines already there, add(line), keep: what to save} ; none = this Expense sheet */
+  /* ctx (the Settings template editor): {lines: () => the lines already there, add(line), keep: what to save} ; none = this Project cost sheet */
   ctx = ctx || { lines: () => ACS.lines, add: l => { ACS.lines.push(l); acChanged(); }, keep: 'the sheet', sheet: true };
   let mats; try { mats = await acMats(); } catch (e) { return; }
   let groups = acGroups(mats); const def = acDef();
@@ -593,7 +593,7 @@ async function acCsCopy() {
   draw(); $('#acx_cq', m).focus();
 }
 
-/* ---- material templates (Expense sheet: Save as template / Load from template; Settings › Material templates) ----
+/* ---- material templates (Project cost sheet: Save as template / Load from template; Settings › Material templates) ----
    A template is a name + items (product and quantity only). Loading takes today's price list (ACC.tplToLines). */
 const acTplWhen = t => t.updated ? `${fdt(String(t.updated).slice(0, 10))}${t.updated_by ? ' · ' + t.updated_by : ''}` : '';
 
@@ -664,14 +664,14 @@ async function acCsTplLoad() {
   $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
 }
 
-/* New / edit / view a template (Settings): name and items; the same product + quantity window as the Expense sheet's Add item */
+/* New / edit / view a template (Settings): name and items; the same product + quantity window as the Project cost sheet's Add item */
 function acTplEdit(t, done, ro) {
   const items = acSort((t.items || []).map(i => ({ material_id: +i.material_id || 0, grp: String(i.grp || ''), name: String(i.name || ''), unit: String(i.unit || ''), qty: +i.qty || 0 })));
   const m = modal(`<div class="mh"><h3>${t.id ? (ro ? 'Template' : 'Edit template') : 'New template'}</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
     <label for="acx_tpn">Template name</label><input id="acx_tpn" maxlength="80" autocomplete="off" placeholder="e.g. 10 kW SolarEdge · sheet roof" value="${esc(t.name || '')}" ${ro ? 'disabled' : SPELL}>
     <div class="acx-ch"><h3>Items</h3><span class="mut acx-small" id="acx_tpc"></span><span class="sp"></span>${ro ? '' : '<button type="button" class="btn sec" id="acx_tpa"><i class="i i-plus"></i> Add item</button>'}</div>
     <div class="card tw"><table class="acx-mt" id="acx_tpt" data-min="460"></table></div>
-    <p class="acx-note">A template has the product and the quantity only. When it is loaded on an Expense sheet the dealer price, profit % and GST come from the price list of that day.</p>
+    <p class="acx-note">A template has the product and the quantity only. When it is loaded on a Project cost sheet the dealer price, profit % and GST come from the price list of that day.</p>
     <div class="bar acx-mft"><span class="sp"></span><button type="button" class="btn sec" data-x>${ro ? 'Close' : 'Cancel'}</button>${ro ? '' : '<button type="button" class="btn" id="acx_tps"><i class="i i-check"></i> Save template</button>'}</div>`, true);
   const tb = $('#acx_tpt', m);
   const draw = () => {
@@ -732,7 +732,7 @@ async function acTemplates(box) {
         <tbody>${rows.map(t => `<tr data-id="${+t.id}"><td class="acx-nm">${esc(t.name)}</td><td class="num">${+t.n}</td><td>${esc(acTplWhen(t))}</td><td class="acx-act">${w
           ? `<button type="button" class="ib" data-acx-t="edit" title="Edit" aria-label="Edit ${esc(t.name)}"><i class="i i-pencil"></i></button><button type="button" class="ib" data-acx-t="copy" title="Duplicate" aria-label="Duplicate ${esc(t.name)}"><i class="i i-copy"></i></button><button type="button" class="ib" data-acx-t="del" title="Delete" aria-label="Delete ${esc(t.name)}"><i class="i i-trash"></i></button>`
           : `<button type="button" class="ib" data-acx-t="view" title="View" aria-label="View ${esc(t.name)}"><i class="i i-eye"></i></button>`}</td></tr>`).join('') || '<tr><td colspan="4" class="mut">No templates yet.</td></tr>'}</tbody></table></div>
-      <p class="acx-note">A template is a list of products with quantities for one kind of plant. On an Expense sheet, <b>Load from template</b> puts it there with the dealer prices, profit % and GST of the price list that day. <b>Save as template</b> on an Expense sheet makes one from a finished sheet. A deleted template goes to the Recycle bin.</p>`;
+      <p class="acx-note">A template is a list of products with quantities for one kind of plant. On a Project cost sheet, <b>Load from template</b> puts it there with the dealer prices, profit % and GST of the price list that day. <b>Save as template</b> on a Project cost sheet makes one from a finished sheet. A deleted template goes to the Recycle bin.</p>`;
     if (typeof fitSoon === 'function') fitSoon();
     if (w) $('#acx_tpnew', box).onclick = () => acTplEdit({ items: [] }, draw);
     $('#acx_tpl', box).onclick = async e => {
@@ -766,7 +766,7 @@ async function acMaterials(box) {
       <select id="acx_ms" class="acs-fs" aria-label="Supplier"></select>
       <span class="mut" id="acx_mn"></span><span class="sp"></span><button type="button" class="btn sec" id="acx_msup"><i class="i i-users"></i> Suppliers</button>${w ? '<button type="button" class="btn sec" id="acx_mcat"><i class="i i-folder"></i> Categories</button><button type="button" class="btn" id="acx_madd"><i class="i i-plus"></i> Add item</button>' : ''}</div>
     <div class="card tw"><table class="acx-mt" id="acx_mt" data-min="780"></table></div>
-    <p class="acx-note">Materials and services with the dealer price (what we pay, before GST) and the profit % added for the customer. The small line under an item is the brand and supplier of that price; the rows under it are the same item from other suppliers, to compare. The dealer price changes only when you press Use on one of them or type a price yourself. Expense sheets pick from this list; a new dealer price typed on a sheet updates the item's when the sheet is saved (re-saving a sheet never undoes a price set here). KSEB fees and stamp paper start at 0 % profit. Hidden items stay here but are not offered on Expense sheets. A deleted item goes to the Recycle bin; sheets that use it keep their lines.</p>`;
+    <p class="acx-note">Materials and services with the dealer price (what we pay, before GST) and the profit % added for the customer. The small line under an item is the brand and supplier of that price; the rows under it are the same item from other suppliers, to compare. The dealer price changes only when you press Use on one of them or type a price yourself. Project cost sheets pick from this list; a new dealer price typed on a sheet updates the item's when the sheet is saved (re-saving a sheet never undoes a price set here). KSEB fees and stamp paper start at 0 % profit. Hidden items stay here but are not offered on Project cost sheets. A deleted item goes to the Recycle bin; sheets that use it keep their lines.</p>`;
   const tb = $('#acx_mt', box), nc = w ? 7 : 6;
   acSupList();
   const draw = () => {
@@ -786,7 +786,7 @@ async function acMaterials(box) {
       body += `<tr class="${x.hidden ? 'acx-hid' : ''}${v.others.length ? ' acs-has' : ''}" data-id="${x.id}"><td class="acx-nm">${esc(x.name)}${x.hidden ? ' <span class="pill acx-tag">Hidden</span>' : ''}${acOfferBy(v)}</td><td>${esc(x.unit)}</td>
         <td class="num">${+x.rate ? inr2(x.rate) : '<span class="mut">—</span>'}${v.used && v.used.low ? ' <span class="pill acs-lowp">Lowest</span>' : ''}${best ? `<small class="acs-save">${inr2(v.save)} less at ${esc(best.tag)}</small>` : ''}</td><td class="num">${own ? esc(acPctTxt(pc)) : `<span class="mut" title="Blank: the default">${esc(acPctTxt(pc))}</span>`}</td>
         <td class="num">${+x.rate ? `<b>${inr2(ACC.custPrice(x.rate, pc))}</b>` : '<span class="mut">—</span>'}</td><td class="num">${+x.gst}</td>
-        ${w ? `<td class="acx-act"><button type="button" class="ib" data-acx-m="offer" title="Add a supplier's price" aria-label="Add a supplier's price for ${esc(x.name)}"><i class="i i-plus"></i></button><button type="button" class="ib" data-acx-m="edit" title="Edit" aria-label="Edit ${esc(x.name)}"><i class="i i-pencil"></i></button><button type="button" class="ib" data-acx-m="hide" title="${x.hidden ? 'Offer on Expense sheets again' : 'Hide from Expense sheets'}" aria-label="${x.hidden ? 'Show' : 'Hide'} ${esc(x.name)}"><i class="i i-eye"></i></button><button type="button" class="ib" data-acx-m="del" title="Delete" aria-label="Delete ${esc(x.name)}"><i class="i i-trash"></i></button></td>` : ''}</tr>` + acOfferRows(x, v, w, def);
+        ${w ? `<td class="acx-act"><button type="button" class="ib" data-acx-m="offer" title="Add a supplier's price" aria-label="Add a supplier's price for ${esc(x.name)}"><i class="i i-plus"></i></button><button type="button" class="ib" data-acx-m="edit" title="Edit" aria-label="Edit ${esc(x.name)}"><i class="i i-pencil"></i></button><button type="button" class="ib" data-acx-m="hide" title="${x.hidden ? 'Offer on Project cost sheets again' : 'Hide from Project cost sheets'}" aria-label="${x.hidden ? 'Show' : 'Hide'} ${esc(x.name)}"><i class="i i-eye"></i></button><button type="button" class="ib" data-acx-m="del" title="Delete" aria-label="Delete ${esc(x.name)}"><i class="i i-trash"></i></button></td>` : ''}</tr>` + acOfferRows(x, v, w, def);
     });
     tb.innerHTML = `<colgroup><col><col style="width:64px"><col style="width:150px"><col style="width:110px"><col style="width:120px"><col style="width:64px">${w ? '<col style="width:150px">' : ''}</colgroup>
       <thead><tr><th>Item</th><th>Unit</th><th class="num">Dealer price</th><th class="num">Profit %</th><th class="num">Customer price</th><th class="num">GST %</th>${w ? '<th><span class="acx-sr">Actions</span></th>' : ''}</tr></thead>
@@ -821,9 +821,9 @@ async function acMaterials(box) {
       if (a === 'offer') return acOfferForm(x, {}, reload);
       b.disabled = true;
       try {
-        if (a === 'hide') { await api('acc', 'material_save', { id: x.id, grp: x.grp, name: x.name, unit: x.unit, gst: x.gst, rate: x.rate, profit: acPv(x.profit), hidden: x.hidden ? 0 : 1 }); toast(x.hidden ? `“${x.name}” is offered on Expense sheets again` : `“${x.name}” hidden from Expense sheets`); }
+        if (a === 'hide') { await api('acc', 'material_save', { id: x.id, grp: x.grp, name: x.name, unit: x.unit, gst: x.gst, rate: x.rate, profit: acPv(x.profit), hidden: x.hidden ? 0 : 1 }); toast(x.hidden ? `“${x.name}” is offered on Project cost sheets again` : `“${x.name}” hidden from Project cost sheets`); }
         if (a === 'del') {
-          if (!confirm(`Delete “${x.name}” from the price list?\n\nIt goes to the Recycle bin. Expense sheets that use it keep their lines.`)) { b.disabled = false; return; }
+          if (!confirm(`Delete “${x.name}” from the price list?\n\nIt goes to the Recycle bin. Project cost sheets that use it keep their lines.`)) { b.disabled = false; return; }
           await api('acc', 'material_delete', { id: x.id }); toast('Item deleted. It is in the Recycle bin.');
         }
         await reload();
@@ -843,7 +843,7 @@ function acCatName(o, done) {
     <p class="acx-small acx-cnh" id="acx_cnh" aria-live="polite"></p>
     <div class="bar acx-mft"><button type="button" class="btn" id="acx_cns">${from ? 'Save name' : 'Add category'}</button><button type="button" class="btn sec" data-x>Cancel</button></div>`);
   const inp = $('#acx_cn', m), hint = $('#acx_cnh', m), btn = $('#acx_cns', m);
-  const tip = from ? 'Its products, Expense sheet lines and template items take the new name.'
+  const tip = from ? 'Its products, Project cost sheet lines and template items take the new name.'
     : 'For materials you buy. It gets its own tab in the Add item window and its own group on the price list and the material list.';
   const say = (t, bad) => { hint.textContent = t; hint.classList.toggle('acx-cbad', !!bad); inp.classList.toggle('acx-bad', !!bad); };
   say(tip);
@@ -938,7 +938,7 @@ function acMatForm(x, mats, done) {
     <div><label for="acx_fp">Profit %</label><input id="acx_fp" inputmode="decimal" value="${esc(acPv(x.profit))}" placeholder="${esc(String(def))} (default)"></div>
     <div class="full acx-fcp" id="acx_fcp" aria-live="polite"></div>
     <p class="full mut acx-small acs-fh" id="acx_fsh"></p>
-    <div class="acx-fh"><label class="acx-chk"><input type="checkbox" id="acx_fh" ${x.hidden ? 'checked' : ''}> Hidden (not offered on Expense sheets)</label></div></div>
+    <div class="acx-fh"><label class="acx-chk"><input type="checkbox" id="acx_fh" ${x.hidden ? 'checked' : ''}> Hidden (not offered on Project cost sheets)</label></div></div>
     <div class="bar acx-mft"><button type="button" class="btn" id="acx_fs">Save</button><button type="button" class="btn sec" data-x>Cancel</button></div>`);
   const fr = $('#acx_fr', m), fp = $('#acx_fp', m);
   const calc = () => {
@@ -984,7 +984,7 @@ const acPdfTxt = s => String(s ?? '').replace(/[\s\S]/g, ch => { const c = ch.ch
   return (c >= 32 && c < 127) || (c >= 160 && c < 256) || ACX_1252.includes(ch) ? ch : c === 10 || c === 9 ? ' ' : '?'; });
 const acPdfDate = s => /^\d{4}-\d\d-\d\d$/.test(String(s || '')) ? fdt(s) : String(s || '');
 
-/* d = an ac_cost answer with the lines to print (the Expense sheet as it is on screen) */
+/* d = an ac_cost answer with the lines to print (the Project cost sheet as it is on screen) */
 async function acMaterialPdf(d) {
   const lines = ACC.mlLines(d.lines, !!d.onlyToBuy);
   if (!lines.length) { toast(d.onlyToBuy ? 'Every material on this sheet is already purchased, so there is nothing left to buy' : 'No materials on this sheet yet (services are not on the material list)', true); return; }
@@ -1027,15 +1027,15 @@ async function acMaterialPdf(d) {
   return L.pages.length;
 }
 
-/* true when it is fine to replace the Expense sheet on screen: nothing unsaved, or the user agreed to lose it (profile tab switch, project picker) */
+/* true when it is fine to replace the Project cost sheet on screen: nothing unsaved, or the user agreed to lose it (profile tab switch, project picker) */
 function acLeaveOk() {
   if (!(ACS.dirty && document.getElementById('acx_cs'))) return true;
-  return confirm('This Expense sheet has changes that are not saved.\n\nLeave without saving?'); /* asks only: call acLeft() once the leaving really happens */
+  return confirm('This Project cost sheet has changes that are not saved.\n\nLeave without saving?'); /* asks only: call acLeft() once the leaving really happens */
 }
 /* the unsaved sheet is being dropped (its box replaced or the page reloaded): the guards stop asking about it */
 function acLeft() { ACS.dirty = false; }
 /* customer profile › Purchases and services (admin only, app11.js): what the project needs, what is bought and what is still to buy — read only and
-   without money, laid out like the other profile tabs. The owner keeps the figures in Accounts: "Edit in Accounts" opens the Expense sheet
+   without money, laid out like the other profile tabs. The owner keeps the figures in Accounts: "Edit in Accounts" opens the Project cost sheet
    (#/accounts/cost/<project>), which holds the same lines. A project picker when there are several (kept while the same customer stays open). */
 const ACX_PICK = { cid: 0, pid: 0 };
 let ACX_PUSEQ = 0; /* the latest load wins when the picker changes quickly */
@@ -1066,7 +1066,7 @@ async function acPuView(pid, el) {
   el.innerHTML = `<div class="card pfc acx-puh"><div class="pfch"><i class="i i-coin"></i><h3>Purchases and services</h3><span class="sp"></span>
       ${lines.some(l => l.grp !== ACX_SVC) ? '<button type="button" class="btn sec sm" id="acx_pudl"><i class="i i-download"></i> Download material list</button>' : ''}
       <a class="btn sm" href="${edit}"><i class="i i-pencil"></i> Edit in Accounts</a></div>
-      <p class="mut acx-small" style="margin:0">${esc(sum)}. Prices, expense and profit are kept in Accounts › Expense.</p></div>
+      <p class="mut acx-small" style="margin:0">${esc(sum)}. Prices, expense and profit are kept in Accounts › Project cost.</p></div>
     ${cards || `<div class="card pfc"><p class="mut" style="margin:0">No purchases or services listed for this project yet. Use <b>Edit in Accounts</b> to add them.</p></div>`}`;
   const dl = $('#acx_pudl', el);
   if (dl) dl.onclick = async () => {
@@ -1079,13 +1079,13 @@ async function acPuView(pid, el) {
   };
 }
 
-/* leaving an Expense sheet with unsaved changes (another page, the browser's back, closing the tab); Ctrl+S saves */
+/* leaving a Project cost sheet with unsaved changes (another page, the browser's back, closing the tab); Ctrl+S saves */
 (() => {
   const prev = window.onhashchange;
   const on = () => ACS.dirty && !!document.getElementById('acx_cs');
   window.onhashchange = e => {
     if (on() && location.hash !== ACS.hash) {
-      if (!confirm('This Expense sheet has changes that are not saved.\n\nLeave without saving?')) { history.replaceState(null, '', ACS.hash); return; }
+      if (!confirm('This Project cost sheet has changes that are not saved.\n\nLeave without saving?')) { history.replaceState(null, '', ACS.hash); return; }
       ACS.dirty = false;
     }
     return prev ? prev.call(window, e) : undefined;

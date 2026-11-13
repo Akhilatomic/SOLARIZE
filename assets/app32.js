@@ -75,7 +75,7 @@ const ACC = {
     });
     return out;
   },
-  /* ---- Expense sheet and price list: dealer price (before GST) + profit % = customer price ---- */
+  /* ---- Project cost sheet and price list: dealer price (before GST) + profit % = customer price ---- */
   SVC: 'Services and charges', /* the services group; every other group is a purchase */
   /* short names for the category tabs of the Add item window; any other group keeps its own name */
   GRP_SHORT: { 'Inverter & optimizers': 'Inverter', 'Solar panels': 'Panels', 'Structure & supports': 'Structure', 'Distribution boards': 'DB boxes',

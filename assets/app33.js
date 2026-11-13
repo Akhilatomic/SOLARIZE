@@ -1,6 +1,6 @@
 /* Accounts page (assets/app33.js): the sidebar's Accounts entry.
    #/accounts/<tab>          tab bar + period bar + the tab's content; tab = overview | pending | received | profit | expenses | materials
-   #/accounts/cost/<project> the project's Expense sheet (acCostSheet, app34.js); Pending, Received and Profit rows have an Expense button to it
+   #/accounts/cost/<project> the project's Project cost sheet (acCostSheet, app34.js); Pending, Received and Profit rows have a Project cost button to it
    route() turns the word after #/accounts/ into NaN, so pgAccounts reads location.hash itself.
    ACCT_TABS: tab key -> async (box, period) => void, period = {key, from, to, label, kind} (ACC.period; key goes to the API as &period=).
    Each run paints into a fresh box inside #acx_box, so a slow answer for a period the user already left lands in a box that is no longer
@@ -95,8 +95,8 @@ const acBankLine = co => { const b = (co && co.bank) || {}, t = v => String(v ||
   return [t(b.name) && 'A/c name ' + t(b.name), t(b.account) && 'A/c no. ' + t(b.account), t(b.bank), t(b.ifsc) && 'IFSC ' + t(b.ifsc)].filter(Boolean).join(', '); };
 const acTile = (label, val, sub, cls, href, title) => `<${href ? `a href="${href}"` : 'div'} class="card acx-t ${href ? 'acx-go' : ''} ${cls || ''}"${title ? ` title="${esc(title)}"` : ''}><small>${label}</small><b>${val}</b><em>${sub}</em></${href ? 'a' : 'div'}>`;
 const acTone = n => +n < 0 ? 'acx-neg' : +n > 0 ? 'acx-pos' : '';
-/* a row's Expense button: the project's Expense sheet (purchases, services, commission / incentive, profit) */
-const acExpBtn = pid => +pid ? `<a class="btn sec sm" href="#/accounts/cost/${+pid}" title="Expense sheet of this project"><i class="i i-coin"></i> Expense</a>` : '';
+/* a row's Project cost button: the project's Project cost sheet (purchases, services, commission / incentive, profit) */
+const acExpBtn = pid => +pid ? `<a class="btn sec sm" href="#/accounts/cost/${+pid}" title="Project cost sheet of this project"><i class="i i-coin"></i> Project cost</a>` : '';
 /* run fn() once the modal m is closed (any way: its buttons, the backdrop, or a share that leaves the page) */
 function acOnClose(m, fn) {
   if (!(m instanceof Element)) return;
@@ -233,7 +233,7 @@ ACCT_TABS.overview = async (box, P) => {
       ${acTile('Received', inr2(d.received), `${acPl(+d.received_n || 0, 'payment')} in ${esc(P.label)}`, '', '#/accounts/received')}
       ${acTile('Pending', inr2(d.pending), `${acPl(n, 'project')} · ${+d.pending_loan_n || 0} loan`, +d.pending > 0 ? 'acx-neg' : '', '#/accounts/pending', 'Still due today, whatever the period')}
       ${acTile('Expenses', inr2(x.total), `Ads ${inr2(x.ads)} · AI ${inr2(x.ai)} · Other ${inr2(x.other)}`, '', '#/accounts/expenses', 'Before GST. Ads include the campaign spend from Meta Ads.')}
-      ${acTile('Profit (projects billed − expenses)', acSigned(d.profit), pSub, acTone(d.profit), '#/accounts/profit', 'Profit of the projects whose tax bill was issued in the period, less the company expenses' + (nc ? '. Projects billed without an Expense sheet are left out until their cost is entered (see Project profit).' : ''))}</div>
+      ${acTile('Profit (projects billed − expenses)', acSigned(d.profit), pSub, acTone(d.profit), '#/accounts/profit', 'Profit of the projects whose tax bill was issued in the period, less the company expenses' + (nc ? '. Projects billed without a Project cost sheet are left out until their cost is entered (see Project profit).' : ''))}</div>
     <div class="acx-ch"><h3>Pending payments</h3><span class="mut acx-small">${n ? 'biggest first' : ''}</span><span class="sp"></span>${n > top.length ? `<a class="btn sec sm" href="#/accounts/pending">See all ${n}</a>` : ''}</div>
     <div class="card tw"><table class="acx-pt" data-min="990">${acPendHead(false)}</table></div></div>`;
   const tb = $('table', box);
@@ -426,9 +426,9 @@ ACCT_TABS.profit = async (box, P) => {
       ${acTile('Profit', acSigned(c.profit), `${acPct(+c.before ? c.profit / c.before * 100 : 0)} margin${inc ? ` · ${inc} incomplete` : ''}`, acTone(c.profit))}
       ${acTile('Cost not entered', nc.length ? acPl(nc.length, 'project') : 'None', nc.length ? 'left out of the profit' : 'every billed project has costs', nc.length ? 'acx-warn' : '')}</div>
     <div class="card tw"><table class="acx-pf" data-min="1040"><thead><tr><th>Customer</th><th class="num">Plant</th><th>Tax bill</th><th class="num">Price before GST</th><th class="num">Cost before GST</th><th class="num">Incentive</th><th class="num">Profit</th><th class="num">Margin</th><th>Cost lines</th><th><span class="acx-sr">Actions</span></th></tr></thead><tbody></tbody></table></div>
-    ${nc.length ? `<div class="card acx-nc"><h3>Cost not entered (${nc.length})</h3><p class="mut acx-small">Billed in ${esc(P.label)} with no Expense lines yet, so they are left out of the profit until their Expense sheet is filled in.</p>
-      <ul>${nc.map(x => `<li><a href="#/accounts/cost/${+x.project_id}">${esc(x.customer)}</a><span class="mut">${x.bill_no ? ' · tax bill ' + esc(x.bill_no) : ''}</span><a class="btn sec sm" href="#/accounts/cost/${+x.project_id}"><i class="i i-coin"></i> Expense</a></li>`).join('')}</ul></div>` : ''}
-    <p class="acx-note">A project counts in the month its tax bill was issued. Price before GST is the bill's taxable value (or the price ÷ ${ACC.GST_DIV}). Profit = price before GST − cost before GST (quantity × dealer price) − incentive / commission; the Overview also takes off the company expenses. Incomplete: some lines have no dealer price yet. Click a project to open its Expense sheet.</p></div>`;
+    ${nc.length ? `<div class="card acx-nc"><h3>Cost not entered (${nc.length})</h3><p class="mut acx-small">Billed in ${esc(P.label)} with no Project cost lines yet, so they are left out of the profit until their Project cost sheet is filled in.</p>
+      <ul>${nc.map(x => `<li><a href="#/accounts/cost/${+x.project_id}">${esc(x.customer)}</a><span class="mut">${x.bill_no ? ' · tax bill ' + esc(x.bill_no) : ''}</span><a class="btn sec sm" href="#/accounts/cost/${+x.project_id}"><i class="i i-coin"></i> Project cost</a></li>`).join('')}</ul></div>` : ''}
+    <p class="acx-note">A project counts in the month its tax bill was issued. Price before GST is the bill's taxable value (or the price ÷ ${ACC.GST_DIV}). Profit = price before GST − cost before GST (quantity × dealer price) − incentive / commission; the Overview also takes off the company expenses. Incomplete: some lines have no dealer price yet. Click a project to open its Project cost sheet.</p></div>`;
   const tb = $('table', box);
   acFill(tb, rows, acProfRow, nc.length ? `No billed project in ${esc(P.label)} has its cost entered yet.` : `No tax bill was issued in ${esc(P.label)}.`);
   tb.onclick = e => { if (e.target.closest('a,button')) return; const tr = e.target.closest('tr[data-id]'); if (tr) location.hash = '#/accounts/cost/' + tr.dataset.id; };
