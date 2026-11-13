@@ -275,3 +275,6 @@ select.acb-pf{display:block;margin:4px 0 0;padding:3px 6px;font-size:12px;border
 /* Accounts > Supplier dues (app38.js) */
 .acx-mt.acd-t .acx-act .btn.sm{margin-left:4px}
 .acd-t b.acx-neg,.acs-for b.acx-neg{color:#d70015}
+/* Accounts > GST (app39.js) */
+.acg-two{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:12px;margin:12px 0}
+@media(max-width:1500px){.acg-two{grid-template-columns:minmax(0,1fr)}}
