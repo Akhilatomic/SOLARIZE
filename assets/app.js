@@ -438,9 +438,42 @@ const isAdm = () => ME.role === 'admin';
 /* Claim clock: a claimed lead unlocks for everyone when it is not a customer by l.unlock_at (unix seconds, from the server) */
 const claimLeft = l => { const at = +l.unlock_at || 0; if (!at) return null; const m = Math.floor((at * 1000 - Date.now()) / 60000);
   return { m, soon: m < 360, text: m <= 0 ? 'Unlocking' : m < 60 ? m + 'm left' : m < 2880 ? Math.floor(m / 60) + 'h left' : Math.floor(m / 1440) + 'd left', when: dfmt(DF.dmy, new Date(at * 1000)) + ', ' + new Date(at * 1000).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) }; };
-const claimChip = l => { const c = claimLeft(l); if (!c) return ''; const tip = esc(`Unlocks for everyone on ${c.when} unless the lead becomes a customer`);
-  return `<span class="clmt${c.soon ? ' soon' : ''}" title="${tip}" aria-label="${tip}"><i class="i i-clock"></i>${c.text}</span>`; };
-const claimRule = () => `You have ${RULE('claim_hours')} hours to convert a claimed lead to a customer. After that the claim unlocks and anyone can claim the lead.`;
+/* Grace period: whoever holds the lead (or the admin) can add 12 hours to the claim, 3 times per claim (leads/extend). Hovering or
+   tapping the time-left chip shows "Add more time" (claimGraceTip below); the chip carries what it needs in data- attributes. */
+const claimChip = l => { const c = claimLeft(l); if (!c) return ''; const used = +l.grace_used || 0, max = +l.grace_max || 3, mine = l.assigned_to == ME.id || isAdm();
+  const tip = esc(`Unlocks for everyone on ${c.when} unless the lead becomes a customer` + (used ? ` · grace period ${used} of ${max} used` : ''));
+  return `<span class="clmt${c.soon ? ' soon' : ''}${mine ? ' can' : ''}" ${mine ? `data-grace="${l.id}" data-left="${max - used}" data-max="${max}" data-name="${esc(l.name || '')}" tabindex="0"` : `title="${tip}"`} aria-label="${tip}"><i class="i i-clock"></i>${c.text}${used ? `<b class="clmg" title="Grace periods used">+${used}</b>` : ''}</span>`; };
+let CLM_T = 0;
+function claimGraceHide() { const p = $('#clmpop'); if (p) p.remove(); }
+function claimGraceTip(chip) {
+  clearTimeout(CLM_T); const old = $('#clmpop'); if (old && old._chip === chip) return; claimGraceHide();
+  const left = +chip.dataset.left || 0, max = +chip.dataset.max || 3, p = document.createElement('div'); p.id = 'clmpop'; p.className = 'card clmpop'; p._chip = chip;
+  p.innerHTML = `<small>${esc(chip.getAttribute('aria-label') || '')}</small>` + (left > 0
+    ? `<button type="button" class="btn sm" id="clmadd"><i class="i i-plus"></i> Add more time · 12 hours</button><small class="mut">${left} of ${max} grace period${max === 1 ? '' : 's'} left for this claim</small>`
+    : `<small class="over">All ${max} grace periods are used for this claim.</small>`);
+  document.body.appendChild(p);
+  const r = chip.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight;
+  p.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px'; p.style.top = (r.bottom + h + 10 > innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6) + 'px';
+  p.onmouseenter = () => clearTimeout(CLM_T); p.onmouseleave = () => { CLM_T = setTimeout(claimGraceHide, 250); };
+  const b = $('#clmadd', p); if (b) b.onclick = async e => { e.stopPropagation(); b.disabled = true;
+    try { const x = await api('leads', 'extend', { id: +chip.dataset.grace }); claimGraceHide(); claimGraceDone(chip.dataset.name, x); } catch (er) { b.disabled = false; } };
+}
+/* the pop-up after a grace period is added */
+function claimGraceDone(name, x) {
+  const when = new Date(x.unlock_at * 1000), wtxt = dfmt(DF.dmy, when) + ', ' + when.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  const m = modal(`<div class="clmok"><span class="clmok-i"><i class="i i-clock"></i></span><h2>Grace period activated</h2>
+    <p><b>${x.hours} more hours</b> are added to your claim${name ? ' on <b>' + esc(name) + '</b>' : ''}.</p>
+    <p class="mut">The lead now unlocks on <b>${wtxt}</b> unless it becomes a customer.</p>
+    <div class="clmok-n">${Array.from({ length: x.max }, (_, i) => `<span class="${i < x.used ? 'on' : ''}"></span>`).join('')}<small>${x.used} of ${x.max} used · ${x.left ? x.left + ' left' : 'this was the last one'}</small></div>
+    <div class="bar" style="justify-content:center;margin-top:16px"><button class="btn" id="clmokb">OK</button></div></div>`);
+  const done = () => { m.remove(); if (location.hash.startsWith('#/leads') || location.hash === '' || location.hash.startsWith('#/dashboard')) route(); };
+  $('#clmokb', m).onclick = done; $('#clmokb', m).focus();
+}
+document.addEventListener('mouseover', e => { const c = e.target.closest && e.target.closest('.clmt[data-grace]'); if (c) claimGraceTip(c); });
+document.addEventListener('mouseout', e => { const c = e.target.closest && e.target.closest('.clmt[data-grace]'); if (c) { clearTimeout(CLM_T); CLM_T = setTimeout(claimGraceHide, 300); } });
+document.addEventListener('click', e => { const c = e.target.closest && e.target.closest('.clmt[data-grace]'); if (c) { e.stopPropagation(); e.preventDefault(); claimGraceTip(c); } else if (!(e.target.closest && e.target.closest('#clmpop'))) claimGraceHide(); }, true);
+document.addEventListener('focusin', e => { const c = e.target.closest && e.target.closest('.clmt[data-grace]'); if (c) claimGraceTip(c); });
+const claimRule = () => `You have ${RULE('claim_hours')} hours to convert a claimed lead to a customer. After that the claim unlocks and anyone can claim the lead. If you need longer, point at the time left and press Add more time: 12 more hours, up to 3 times.`;
 const ownerDp = l => { const me = l.assigned_to == ME.id, who = me ? 'You' + (ME.name ? ' (' + ME.name + ')' : '') : (l.owner_name || 'another user'), tip = esc('Claimed by ' + who + (l.claimed_at ? ' · ' + agoStr(l.claimed_at) : ''));
   return `<span class="owndp${me ? ' me' : ''}" title="${tip}" data-tip="${tip}" aria-label="${tip}"><span class="dp" data-pres="${l.assigned_to}">${avImg(l.assigned_to, me ? ME.avatar || l.owner_av : l.owner_av, me ? ME.name : l.owner_name)}</span><span class="lk"><i class="i i-lock"></i></span></span>`; };
 const ownerCellRow = l => (l.assigned_to ? ownerDp(l) : ownerCell(l)) + (l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ' <button class="ib unc" data-a="unlock" title="Unclaim — release this lead"><i class="i i-x"></i></button>' : '') + (l.assigned_to ? claimChip(l) : '');

@@ -140,6 +140,12 @@ function lead_autolost() {
 // is unlocked, so anyone who can claim may take it. The clock starts when the lead is claimed or handed to someone
 // (claimed_at); claims made before this rule went live count from the moment it went live, so nothing unlocks at once.
 // A lead its holder added themself is not on the clock (it was never taken from the shared list).
+// Grace period (owner's rule, 2026-11-14): whoever holds the lead can add CLAIM_GRACE_HOURS to a running claim, up to
+// CLAIM_GRACE_MAX times per claim. leads.claim_ext counts them for the claim that began at leads.claim_ext_for (that claim's
+// claimed_at) — a new claim, a reassignment or an unlock changes claimed_at, so the count starts again without touching it.
+const CLAIM_GRACE_HOURS = 12;
+const CLAIM_GRACE_MAX = 3;
+function claim_ext_used($l) { return (string)($l['claim_ext_for'] ?? '') === (string)($l['claimed_at'] ?? '') ? max(0, min(CLAIM_GRACE_MAX, (int)($l['claim_ext'] ?? 0))) : 0; }
 function claim_from() {
   static $f = null;
   if ($f === null) { $r = row("SELECT v FROM settings WHERE k='claim_unlock_from'"); $f = $r ? (int)json_decode((string)$r['v'], true) : 0; if ($f < 1) { $f = time(); kv_set('claim_unlock_from', $f); } }
@@ -150,12 +156,12 @@ function claim_unlock_at($l) {
   if (empty($l['assigned_to']) || !empty($l['customer_id'])) return 0;
   $by = mb_strtolower(trim((string)($l['added_by'] ?? ''))); if ($by !== '' && $by === mb_strtolower(trim((string)($l['owner_name'] ?? '')))) return 0;
   $t = ($l['claimed_at'] ?? '') !== '' ? (int)strtotime($l['claimed_at'] . ' UTC') : 0;
-  return max($t, claim_from()) + rule('claim_hours') * 3600;
+  return max($t, claim_from()) + rule('claim_hours') * 3600 + claim_ext_used($l) * CLAIM_GRACE_HOURS * 3600;
 }
 /* Runs when the Leads list is read and from the hourly housekeeping: one indexed lookup, writes only when a claim has run out. */
 function claim_release() {
   $now = time(); $h = rule('claim_hours'); $n = 0;
-  $rs = rows("SELECT l.id,l.name,l.assigned_to,l.customer_id,l.claimed_at,l.added_by,u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to
+  $rs = rows("SELECT l.id,l.name,l.assigned_to,l.customer_id,l.claimed_at,l.added_by,l.claim_ext,l.claim_ext_for,u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to
     WHERE l.assigned_to>0 AND (l.customer_id IS NULL OR l.customer_id=0) AND COALESCE(l.claimed_at,'')<=?", [gmdate('Y-m-d H:i:s', $now - $h * 3600)]);
   foreach ($rs as $l) {
     $at = claim_unlock_at($l); if (!$at || $at > $now) continue;
@@ -175,13 +181,13 @@ function lead_guard($a, $in) {
     case 'list':
       need('leads');
       try { claim_release(); } catch (Throwable $e) { } /* claims that ran out are open again before the list is read */
-      out(array_map(fn($x) => strip_fin(lead_mask($x + ['unlock_at' => claim_unlock_at($x)])), rows('SELECT l.*, u.name owner_name, u.avatar owner_av FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC')));
+      out(array_map(fn($x) => strip_fin(lead_mask($x + ['unlock_at' => claim_unlock_at($x), 'grace_used' => claim_ext_used($x), 'grace_max' => CLAIM_GRACE_MAX])), rows('SELECT l.*, u.name owner_name, u.avatar owner_av FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC')));
     case 'get':
       need('leads');
       $l = lead_or_404($_GET['id'] ?? 0);
       if ((int)$l['notify'] && lead_can_write($l)) { q('UPDATE leads SET notify=0 WHERE id=?', [$l['id']]); $l['notify'] = 0; audit('ack', 'leads', $l['id'], 'viewed'); } // opened by its owner / admin → off the dashboard's "new leads"
       $r = strip_fin(lead_mask(detail('leads', $l))); $r['owner_name'] = owner_name($l['assigned_to']);
-      $r['unlock_at'] = claim_unlock_at(['owner_name' => $r['owner_name']] + $l);
+      $r['unlock_at'] = claim_unlock_at(['owner_name' => $r['owner_name']] + $l); $r['grace_used'] = claim_ext_used($l); $r['grace_max'] = CLAIM_GRACE_MAX;
       if (!empty($r['masked'])) $r['messages'] = [];
       out($r);
     case 'claim':
@@ -193,6 +199,19 @@ function lead_guard($a, $in) {
       audit('claim', 'leads', $id, $_SESSION['name'] ?? '');
       $l = row('SELECT assigned_to,customer_id,claimed_at,added_by FROM leads WHERE id=?', [$id]);
       out(['ok' => true, 'unlock_at' => claim_unlock_at($l + ['owner_name' => $_SESSION['name'] ?? '']), 'hours' => rule('claim_hours')]);
+    case 'extend': // grace period: whoever holds the lead adds CLAIM_GRACE_HOURS to its running claim (CLAIM_GRACE_MAX times per claim)
+      need('leads');
+      $l = lead_or_404($in['id'] ?? 0);
+      if (!is_admin() && (int)$l['assigned_to'] !== uid()) fail('Only the person holding this lead can add time', 403);
+      $l['owner_name'] = owner_name($l['assigned_to']);
+      if (!claim_unlock_at($l)) fail('This lead has no claim clock running');
+      $used = claim_ext_used($l);
+      if ($used >= CLAIM_GRACE_MAX) fail('All ' . CLAIM_GRACE_MAX . ' grace periods are used for this claim', 409);
+      q('UPDATE leads SET claim_ext=?, claim_ext_for=? WHERE id=?', [$used + 1, (string)$l['claimed_at'], $l['id']]); /* not "updated": the lead keeps its place in the list */
+      $l['claim_ext'] = $used + 1; $l['claim_ext_for'] = (string)$l['claimed_at'];
+      q("INSERT INTO notes(entity,entity_id,text,user) VALUES('leads',?,?,?)", [$l['id'], 'Grace period ' . ($used + 1) . ' of ' . CLAIM_GRACE_MAX . ' activated: ' . CLAIM_GRACE_HOURS . ' more hours on the claim', $_SESSION['name'] ?? '']);
+      audit('claim_grace', 'leads', $l['id'], ($used + 1) . ' of ' . CLAIM_GRACE_MAX . ' · +' . CLAIM_GRACE_HOURS . ' h');
+      out(['ok' => true, 'unlock_at' => claim_unlock_at($l), 'used' => $used + 1, 'left' => CLAIM_GRACE_MAX - $used - 1, 'max' => CLAIM_GRACE_MAX, 'hours' => CLAIM_GRACE_HOURS]);
     case 'unlock': case 'unclaim':
       // the owner can release their own lead; the admin can release any lead
       $l = lead_or_404($in['id'] ?? 0); $id = (int)$l['id'];

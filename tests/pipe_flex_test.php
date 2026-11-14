@@ -121,6 +121,29 @@ chk(call($admin, 'pipeline', 'ensure', ['customer_id' => 999999])['_code'] === 4
 $z = call($admin, 'files', 'zip', null, "&customer_id=$c3&set=kseb&project_id=$p3");
 chk($z['_code'] === 200 && substr((string)($z['_text'] ?? ''), 0, 2) === 'PK' && strpos($z['_text'], 'Cover Page - Flex.pdf') !== false && strpos($z['_text'], 'receipt') === false, 'the ZIP holds the kept KSEB paper under its own file name, not the fee receipts');
 chk(call($admin, 'files', 'zip', null, "&customer_id=$c5&set=kseb&project_id=" . (int)$e1['id'])['_code'] === 404, 'nothing saved yet → 404');
+
+/* saving a paper made in the CRM marks its line on the project's KSEB submission checklist as Ready */
+$p6 = $mk('Flex Six Test'); $c6 = (int)$db->query("SELECT customer_id FROM projects WHERE id=$p6")->fetchColumn();
+$keep = fn($gen, $name) => call($admin, 'files', 'keep', ['file' => new CURLFile($pdf, 'application/pdf', $name), 'title' => 'KSEB · ' . $name], "&customer_id=$c6&gen=$gen", true);
+$chkOf = function ($item) use ($db, $p6) { $r = $db->query("SELECT status, date, notes FROM checklist WHERE project_id=$p6 AND kind='kseb' AND item=" . $db->quote($item))->fetch(); return $r ?: ['status' => 'Pending', 'date' => '', 'notes' => '']; };
+$k1 = $keep('kseb:wcr', 'Work Completion Report.pdf');
+$w = $chkOf('Work completion report');
+chk($w['status'] === 'Ready' && $w['date'] === date('Y-m-d') && $w['notes'] === 'Made in the CRM', 'a saved Work completion report marks its checklist line Ready, dated today');
+$keep('kseb:an2', 'Annexure 2.pdf'); $keep('kseb:almm', 'ALMM Declaration.pdf'); $keep('kseb:cov', 'Cover Page.pdf');
+chk($chkOf('Annexure II')['status'] === 'Ready' && $chkOf('Vendor declaration associated with the implementation of ALMM order')['status'] === 'Ready', 'Annexure II and the ALMM declaration lines too');
+chk((int)$db->query("SELECT COUNT(*) FROM checklist WHERE project_id=$p6 AND kind='kseb'")->fetchColumn() === 3, 'a paper with no line on the checklist (cover page) marks nothing');
+$pg6 = call($admin, 'projects', 'get', null, '&id=' . $p6);
+chk((array_values(array_filter($pg6['checklist_kseb'], fn($i) => $i['item'] === 'Work completion report'))[0]['status'] ?? '') === 'Ready', 'the project page shows it');
+/* the office's own answers are never overwritten */
+call($admin, 'checklist', 'save', ['project_id' => $p6, 'kind' => 'kseb', 'item' => 'Annexure II', 'status' => 'Submitted', 'date' => '2026-11-01', 'notes' => 'handed in']);
+$keep('kseb:an2', 'Annexure 2.pdf');
+$a2 = $chkOf('Annexure II'); chk($a2['status'] === 'Submitted' && $a2['date'] === '2026-11-01' && $a2['notes'] === 'handed in', 'saving the paper again leaves a Submitted line as it is');
+chk(call($admin, 'checklist', 'save', ['project_id' => $p6, 'kind' => 'kseb', 'item' => 'Solar agreement', 'status' => 'Ready', 'date' => '', 'notes' => ''])['_code'] === 200 && $chkOf('Solar agreement')['status'] === 'Ready', 'Ready can also be chosen by hand');
+/* deleting the saved copy: a line that is still Ready goes back to Pending; a Submitted one stays */
+call($admin, 'files', 'delete', ['id' => $k1['id']]);
+$w = $chkOf('Work completion report'); chk($w['status'] === 'Pending' && $w['notes'] === '', 'deleting the saved copy puts a Ready line back to Pending');
+$an2id = (int)$db->query("SELECT id FROM files WHERE customer_id=$c6 AND gen='kseb:an2'")->fetchColumn(); call($admin, 'files', 'delete', ['id' => $an2id]);
+chk($chkOf('Annexure II')['status'] === 'Submitted', 'but a Submitted line stays Submitted');
 @unlink($pdf);
 
 echo "  $pass ok, $fail FAIL\n";

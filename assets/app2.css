@@ -917,3 +917,12 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .dvn{box-shadow:0 2px 10px rgba(0,0,0,.25)}.dvn:hover{background:#fff}
 @media(max-width:700px){.dvh .btn span{display:none}.dvmod .dvw{height:100dvh}}
 .ksd-a .ksd-del:hover{color:var(--bad);background:#ffecea}
+.ksd-r.st-y .ksd-d{border-color:#e0a100;background:#fff8e1}.ksd-r.st-y select{color:#9a6b00;font-weight:600}
+/* Leads: grace period on a claim — the bubble under the time-left chip and the "activated" pop-up */
+.clmt.can{cursor:pointer}.clmt.can:hover,.clmt.can:focus-visible{box-shadow:0 0 0 2px rgba(0,113,227,.25);outline:0}
+.clmt .clmg{margin-left:4px;font-weight:700;color:var(--pri)}
+.clmpop{position:fixed;z-index:120;width:250px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;box-shadow:0 12px 34px rgba(0,0,0,.18);font-size:12px;line-height:1.4}
+.clmpop small{font-size:12px}.clmpop .btn{justify-content:center;display:inline-flex;align-items:center;gap:5px}.clmpop .btn .i{width:12px;height:12px}
+.clmok{text-align:center;padding:6px 4px 2px}.clmok h2{margin:10px 0 8px;font-size:20px}.clmok p{margin:0 0 6px;font-size:14px;line-height:1.5}
+.clmok-i{width:52px;height:52px;border-radius:50%;background:#e6f1fd;color:var(--pri);display:inline-grid;place-items:center}.clmok-i .i{width:24px;height:24px}
+.clmok-n{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px}.clmok-n span{width:26px;height:6px;border-radius:6px;background:var(--fill)}.clmok-n span.on{background:var(--pri)}.clmok-n small{margin-left:6px;color:var(--mut);font-size:12px}

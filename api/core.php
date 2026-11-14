@@ -246,6 +246,30 @@ function detail($t, $r) {
   return $r;
 }
 
+/* Owner's rule (2026-11-14): saving a paper made in the CRM marks its line on the project's KSEB submission checklist as Ready
+   (made, not handed in yet). paper key (files.gen) => checklist item, as named in the default list (KSEB_ITEMS); an item the
+   office renamed or removed in Settings is simply not marked. Only a Pending line is changed, and deleting the saved copy puts a
+   line that is still Ready back to Pending — Submitted / Approved / Not needed are the office's own answers and are left alone. */
+const KSEB_PAPER_ITEMS = ['kseb:an2' => 'Annexure II', 'kseb:an3' => 'Annexure III', 'kseb:doi' => 'Details of installation and checklist',
+  'kseb:wcr' => 'Work completion report', 'kseb:almm' => 'Vendor declaration associated with the implementation of ALMM order',
+  'kseb:dcr' => 'DCR certificate', 'kseb:agr' => 'Solar agreement', 'warranty' => 'Warranty certificate'];
+const CHK_AUTO_NOTE = 'Made in the CRM';
+function kseb_paper_mark($cid, $gen, $made) {
+  $want = KSEB_PAPER_ITEMS[(string)$gen] ?? null; if (!$want || !$cid) return;
+  $item = null; foreach ((array)(settings()['kseb_items'] ?? []) as $it) if (mb_strtolower(trim((string)$it)) === mb_strtolower($want)) { $item = (string)$it; break; }
+  $p = $item === null ? null : row('SELECT id FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [(int)$cid]); if (!$p) return;
+  $cur = row("SELECT status, notes FROM checklist WHERE project_id=? AND kind='kseb' AND item=?", [$p['id'], $item]);
+  $st = $cur ? (string)$cur['status'] : 'Pending';
+  if ($made && $st === 'Pending') {
+    q("INSERT INTO checklist(project_id,kind,item,status,date,notes) VALUES(?,'kseb',?,'Ready',?,?) ON CONFLICT(project_id,kind,item) DO UPDATE SET status='Ready', date=excluded.date, notes=CASE WHEN COALESCE(notes,'')='' THEN excluded.notes ELSE notes END",
+      [$p['id'], $item, date('Y-m-d'), CHK_AUTO_NOTE]);
+    audit('checklist', 'projects', (int)$p['id'], "kseb: $item → Ready (paper saved)");
+  } elseif (!$made && $st === 'Ready') {
+    q("UPDATE checklist SET status='Pending', date='', notes=CASE WHEN notes=? THEN '' ELSE notes END WHERE project_id=? AND kind='kseb' AND item=?", [CHK_AUTO_NOTE, $p['id'], $item]);
+    audit('checklist', 'projects', (int)$p['id'], "kseb: $item → Pending (saved paper deleted)");
+  }
+}
+
 function handle_checklist($a) {
   $in = body();
   if ($a === 'list') { // overview for subsidy / kseb pages
@@ -265,7 +289,7 @@ function handle_checklist($a) {
   need('checklist', true);
   if ($a === 'save') {
     $kind = $in['kind'] === 'kseb' ? 'kseb' : 'subsidy';
-    $status = in_array($in['status'] ?? '', ['Pending', 'Submitted', 'Approved', 'NA']) ? $in['status'] : 'Pending';
+    $status = in_array($in['status'] ?? '', ['Pending', 'Ready', 'Submitted', 'Approved', 'NA']) ? $in['status'] : 'Pending';
     q('INSERT INTO checklist(project_id,kind,item,status,date,notes) VALUES(?,?,?,?,?,?) ON CONFLICT(project_id,kind,item) DO UPDATE SET status=excluded.status,date=excluded.date,notes=excluded.notes',
       [(int)$in['project_id'], $kind, (string)$in['item'], $status, (string)($in['date'] ?? ''), (string)($in['notes'] ?? '')]);
     q('UPDATE projects SET updated=CURRENT_TIMESTAMP WHERE id=?', [(int)$in['project_id']]);
@@ -305,7 +329,9 @@ function handle_files($a) {
     if (!move_uploaded_file($fl['tmp_name'], "$dir/$name")) fail('Could not save file', 500);
     foreach (rows('SELECT id, path FROM files WHERE customer_id=? AND gen=?', [$cid, $key]) as $old) { @unlink("$dir/" . basename($old['path'])); q('DELETE FROM files WHERE id=?', [$old['id']]); }
     q('INSERT INTO files(customer_id,kind,item,name,path,size,user,life,gen) VALUES(?,?,?,?,?,?,?,?,?)', [$cid, 'gen', $title, $fname, $name, $fl['size'], $_SESSION['username'], $life, $key]);
-    $id = (int)db()->lastInsertId(); audit('doc_autosave', 'files', $id, $title . ' · customer ' . $cid); out(['id' => $id, 'life' => $life]);
+    $id = (int)db()->lastInsertId(); audit('doc_autosave', 'files', $id, $title . ' · customer ' . $cid);
+    try { kseb_paper_mark($cid, $key, true); } catch (Throwable $e) { } /* its line on the submission checklist → Ready */
+    out(['id' => $id, 'life' => $life]);
   }
   need('files', true);
   if ($a === 'upload') {
@@ -324,7 +350,9 @@ function handle_files($a) {
     $f = row('SELECT * FROM files WHERE id=?', [(int)(body()['id'] ?? 0)]); if (!$f) fail('Not found', 404);
     if ($f['kind'] === 'warranty' && !is_admin()) fail('Only an admin can delete a warranty card', 403);
     if ($f['kind'] === 'approved' && !is_admin()) fail('Only an admin can delete the approved quotation', 403);
-    trash_file_row($f); @unlink("$dir/" . basename($f['path'])); q('UPDATE stage_data SET file_id=NULL WHERE file_id=?', [$f['id']]); q('DELETE FROM files WHERE id=?', [$f['id']]); audit('delete', 'files', $f['id'], $f['name']); out(['ok' => true]);
+    trash_file_row($f); @unlink("$dir/" . basename($f['path'])); q('UPDATE stage_data SET file_id=NULL WHERE file_id=?', [$f['id']]); q('DELETE FROM files WHERE id=?', [$f['id']]); audit('delete', 'files', $f['id'], $f['name']);
+    try { if ((string)($f['gen'] ?? '') !== '') kseb_paper_mark((int)$f['customer_id'], $f['gen'], false); } catch (Throwable $e) { } /* a Ready line goes back to Pending */
+    out(['ok' => true]);
   }
   fail('Unknown action', 404);
 }

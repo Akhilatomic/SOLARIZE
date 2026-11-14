@@ -87,6 +87,29 @@ $hk = $mk('Hourly Claim Test', 50, $u1);
 $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('hk_last','0')");
 call($admin, 'meta', 'feed');
 chk(empty($get($hk)['assigned_to']), 'the hourly check unlocks an overdue claim');
+/* grace period: the holder adds 12 hours to a running claim, up to 3 times per claim */
+$from(time() - 200 * 3600);
+$g = $mk('Grace Claim Test', 35, $u1);
+$u0 = (int)$rowOf($s1, $g)['unlock_at'];
+chk(abs($u0 - (time() + 3600)) < 120 && (int)$rowOf($s1, $g)['grace_used'] === 0 && (int)$rowOf($s1, $g)['grace_max'] === 3, 'a running claim shows no grace period used, 3 allowed');
+chk(call($s2, 'leads', 'extend', ['id' => $g])['_code'] !== 200, 'someone else cannot add time to it');
+$x1 = call($s1, 'leads', 'extend', ['id' => $g]);
+chk($x1['_code'] === 200 && (int)$x1['used'] === 1 && (int)$x1['left'] === 2 && (int)$x1['hours'] === 12 && (int)$x1['unlock_at'] === $u0 + 12 * 3600, 'the holder adds 12 hours (1 of 3)');
+$r1 = $rowOf($s1, $g); chk((int)$r1['unlock_at'] === $u0 + 12 * 3600 && (int)$r1['grace_used'] === 1, 'the list shows the new time and the count');
+$n = $db->query("SELECT text FROM notes WHERE entity='leads' AND entity_id=$g ORDER BY id DESC")->fetchColumn();
+chk(strpos((string)$n, 'Grace period 1 of 3 activated') !== false, 'a note on the lead records it');
+$x2 = call($s1, 'leads', 'extend', ['id' => $g]); $x3 = call($admin, 'leads', 'extend', ['id' => $g]);
+chk((int)$x2['used'] === 2 && (int)$x3['used'] === 3 && (int)$x3['left'] === 0 && (int)$x3['unlock_at'] === $u0 + 36 * 3600, 'three times in all (the admin may add one too): 36 more hours');
+chk(call($s1, 'leads', 'extend', ['id' => $g])['_code'] === 409, 'a fourth is refused');
+/* the extension holds: a claim 60 hours old with 3 grace periods (36 + 36 = 72 h) is not unlocked; without them it would be */
+$db->exec("UPDATE leads SET claimed_at='" . $ago(60) . "', claim_ext_for='" . $ago(60) . "' WHERE id=$g");
+call($admin, 'leads', 'list'); chk((int)$get($g)['assigned_to'] === $u1, 'a claim inside its grace time is not unlocked');
+$db->exec("UPDATE leads SET claimed_at='" . $ago(73) . "', claim_ext_for='" . $ago(73) . "' WHERE id=$g");
+call($admin, 'leads', 'list'); chk(empty($get($g)['assigned_to']), 'once the grace time runs out too, it unlocks');
+/* a new claim starts with all three again */
+call($s2, 'leads', 'claim', ['id' => $g]);
+$r2 = $rowOf($s2, $g); chk((int)$r2['grace_used'] === 0 && abs((int)$r2['unlock_at'] - (time() + 36 * 3600)) < 120, 'a new claim starts with no grace period used');
+chk(call($s2, 'leads', 'extend', ['id' => $own])['_code'] !== 200 && call($s1, 'leads', 'extend', ['id' => $own])['_code'] === 400, 'a lead with no clock (added by its holder) has nothing to extend');
 /* leave the shared test database as other tests expect it: the rule starts now, so nothing else unlocks */
 $db->exec("UPDATE leads SET claimed_at='" . gmdate('Y-m-d H:i:s') . "' WHERE id IN ($pre,$fresh)");
 $from(time());

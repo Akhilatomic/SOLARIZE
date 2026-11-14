@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 62; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 63; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -231,7 +231,8 @@ function migrate($db) {
   /* v27: call-back reminders on leads. Changed only through leads/callback (not the lead save), so saving a lead
      from an older copy can't wipe one. callback_at is local time 'Y-m-d H:i'; callback_sent = bell notification sent. */
   $lc = array_column($db->query('PRAGMA table_info(leads)')->fetchAll(), 'name');
-  foreach (['callback_at' => "TEXT DEFAULT ''", 'callback_note' => "TEXT DEFAULT ''", 'callback_by' => 'INTEGER', 'callback_sent' => 'INTEGER DEFAULT 0'] as $c => $ty)
+  /* v63: grace periods on a claim — how many were used (claim_ext) on the claim that started at claim_ext_for (= that claim's claimed_at) */
+  foreach (['callback_at' => "TEXT DEFAULT ''", 'callback_note' => "TEXT DEFAULT ''", 'callback_by' => 'INTEGER', 'callback_sent' => 'INTEGER DEFAULT 0', 'claim_ext' => 'INTEGER DEFAULT 0', 'claim_ext_for' => "TEXT DEFAULT ''"] as $c => $ty)
     if (!in_array($c, $lc)) { try { $db->exec("ALTER TABLE leads ADD COLUMN $c $ty"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   $db->exec('CREATE INDEX IF NOT EXISTS lead_callback ON leads(callback_sent, callback_at)');
   /* v30: payment receipts — a payment gets its receipt number (PREFIX/RCPT/FY/NNN) the first time its receipt is made, and keeps it.
@@ -331,6 +332,18 @@ function migrate($db) {
   /* projects.cost_ver: the cost sheet's version, +1 on every acc/cost_save (two people saving the same sheet: the older page gets 409).
      Not in the projects column list, so a project save never touches it. */
   if (!in_array('pending', array_column($db->query('PRAGMA table_info(projects)')->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE projects ADD COLUMN pending TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } } /* v61: steps left for later */
+  /* v63, once: papers that were saved before saving a paper marked its checklist line — their Pending lines become Ready too
+     (the same pairs as KSEB_PAPER_ITEMS in api/core.php) */
+  if (!$db->query("SELECT 1 FROM settings WHERE k='chk_ready_v63'")->fetch()) {
+    foreach (['kseb:an2' => 'Annexure II', 'kseb:an3' => 'Annexure III', 'kseb:doi' => 'Details of installation and checklist', 'kseb:wcr' => 'Work completion report',
+      'kseb:almm' => 'Vendor declaration associated with the implementation of ALMM order', 'kseb:dcr' => 'DCR certificate', 'kseb:agr' => 'Solar agreement', 'warranty' => 'Warranty certificate'] as $gen => $item) {
+      try { $db->prepare("INSERT INTO checklist(project_id,kind,item,status,date,notes)
+        SELECT (SELECT p.id FROM projects p WHERE p.customer_id=f.customer_id ORDER BY p.id DESC LIMIT 1), 'kseb', ?, 'Ready', date(f.created), 'Made in the CRM'
+        FROM files f WHERE f.gen=? AND EXISTS(SELECT 1 FROM projects p WHERE p.customer_id=f.customer_id) GROUP BY f.customer_id
+        ON CONFLICT(project_id,kind,item) DO UPDATE SET status='Ready', date=excluded.date, notes=CASE WHEN COALESCE(notes,'')='' THEN excluded.notes ELSE notes END WHERE checklist.status='Pending'")->execute([$item, $gen]); } catch (PDOException $e) { }
+    }
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('chk_ready_v63','1')");
+  }
   /* v62: KSEB papers already kept get the 200 days too (they were saved with the general keeping time) */
   try { $db->exec("UPDATE files SET life=200 WHERE gen LIKE 'kseb:%' AND COALESCE(life,0)>0 AND life<200"); } catch (PDOException $e) { }
   /* v61: the registration fee payment now comes right after the feasibility payment. A project already at PMSG portal registration
