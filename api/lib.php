@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 61; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 62; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -331,6 +331,8 @@ function migrate($db) {
   /* projects.cost_ver: the cost sheet's version, +1 on every acc/cost_save (two people saving the same sheet: the older page gets 409).
      Not in the projects column list, so a project save never touches it. */
   if (!in_array('pending', array_column($db->query('PRAGMA table_info(projects)')->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE projects ADD COLUMN pending TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } } /* v61: steps left for later */
+  /* v62: KSEB papers already kept get the 200 days too (they were saved with the general keeping time) */
+  try { $db->exec("UPDATE files SET life=200 WHERE gen LIKE 'kseb:%' AND COALESCE(life,0)>0 AND life<200"); } catch (PDOException $e) { }
   /* v61: the registration fee payment now comes right after the feasibility payment. A project already at PMSG portal registration
      has not paid it yet (it used to come next): keep it as left for later. A saved stage list gets the new order. */
   if (!$db->query("SELECT 1 FROM settings WHERE k='pipe_order_v61'")->fetch()) {

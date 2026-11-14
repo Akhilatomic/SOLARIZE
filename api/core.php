@@ -233,6 +233,9 @@ function detail($t, $r) {
     $r['stage_data'] = rows('SELECT d.*, f.name file_name FROM stage_data d LEFT JOIN files f ON f.id=d.file_id WHERE d.project_id=?', [$id]);
     $r['services'] = rows('SELECT * FROM services WHERE project_id=? ORDER BY date DESC, id DESC', [$id]);
     $r['files'] = rows('SELECT id,name,kind,item,size,created,life,gen FROM files WHERE project_id=? ORDER BY id DESC', [$id]);
+    /* the KSEB papers made in the CRM for this customer (kept copies, files.gen = kseb:<paper>) — the project's KSEB documents tab */
+    $r['kseb_papers'] = can('files') || can('checklist') ? rows("SELECT id,name,item,size,created,life,gen,user FROM files WHERE customer_id=? AND gen LIKE 'kseb:%' ORDER BY id DESC", [$r['customer_id']]) : [];
+    $r['kseb_days'] = KSEB_GEN_DAYS;
     $saved = [];
     foreach (rows('SELECT * FROM checklist WHERE project_id=?', [$id]) as $c) $saved[$c['kind'] . '|' . $c['item']] = $c;
     foreach (['subsidy' => $S['subsidy_steps'], 'kseb' => $S['kseb_items']] as $kind => $items) {
@@ -293,7 +296,7 @@ function handle_files($a) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
     $cid = (int)($_GET['customer_id'] ?? 0); $key = (string)($_GET['gen'] ?? '');
     if (!preg_match('/^([a-z]+)(?::[a-z0-9_-]{1,40})?$/', $key, $mm) || !isset(GEN_KEEP[$mm[1]])) fail('Unknown paper');
-    [$mod, $life] = GEN_KEEP[$mm[1]]; if ($life) $life = rule('gen_days'); need('customers'); need($mod);
+    [$mod, $life] = GEN_KEEP[$mm[1]]; if ($life) $life = $mm[1] === 'kseb' ? KSEB_GEN_DAYS : rule('gen_days'); need('customers'); need($mod);
     if (!$cid || !row('SELECT id FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
     $fl = $_FILES['file'] ?? null; sec_upload($fl, ['pdf'], 25);
     $title = mb_substr(trim((string)($_POST['title'] ?? '')), 0, 120); if ($title === '') $title = 'Document';

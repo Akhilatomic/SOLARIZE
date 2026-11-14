@@ -887,7 +887,7 @@ async function pgProject(id) {
       <div><label>Subsidy amount (₹) — estimate for ${p.kw} kW: ${inr(subsidyCalc(p.kw))}</label><input id="sm" type="number" value="${p.subsidy_amount || ''}" ${w ? '' : 'disabled'}></div>${w ? '<div style="align-self:end"><button class="btn" id="ssv">Save subsidy details</button></div>' : ''}</div></div>
       <div class="card" style="margin-top:12px"><h3>Subsidy steps</h3>${checklistHtml('subsidy', p.checklist_subsidy, p.files, wc)}</div>`;
     if (t === 'amc') body = '<div id="amcbox"></div>';
-    if (t === 'kseb') body = `<div class="card"><h3>KSEB documentation</h3>${checklistHtml('kseb', p.checklist_kseb, p.files, wc)}</div>`;
+    if (t === 'kseb') body = typeof ksebDocsTab === 'function' ? ksebDocsTab(p, wc) : `<div class="card"><h3>KSEB documentation</h3>${checklistHtml('kseb', p.checklist_kseb, p.files, wc)}</div>`;
     if (t === 'files') body = `<div class="card"><h3>All files ${canW('files') ? '<button class="btn sm" id="up" style="float:right">Upload</button>' : ''}</h3>${p.files.map(f => `<div class="act">${fileLink(f)}${f.item ? '<br><small>' + esc(f.kind) + ': ' + esc(f.item) + '</small>' : ''} ${canW('files') ? `<a href="#" data-df="${f.id}"><i class="i i-x"></i></a>` : ''}</div>`).join('') || '<p class="mut">No files</p>'}</div>`;
     $('#pb').innerHTML = tabsBar('proj', tabs, 'overview') + body; bindTabs('proj', draw); bindPB(); if ($('#amcbox')) amcTab(p, $('#amcbox'));
   };
@@ -898,7 +898,7 @@ async function pgProject(id) {
     $$('[data-df]').forEach(a => a.onclick = async e => { e.preventDefault(); if (confirm('Delete this file?')) { await api('files', 'delete', { id: +a.dataset.df }); route(); } });
     if ($('#up')) $('#up').onclick = async () => { if (await upload({ project_id: id, kind: 'general' })) route(); };
     if ($('#ssv')) $('#ssv').onclick = async () => { await api('projects', 'save', { ...p, application_no: $('#sa').value, subsidy_status: $('#ss').value, subsidy_amount: $('#sm').value }); route(); };
-    bindChecklist(id, p); bindNote('projects', id, route);
+    bindChecklist(id, p); if (typeof ksebDocsBind === 'function') ksebDocsBind(p); bindNote('projects', id, route);
   };
   $('#main').innerHTML = `<p><a href="#/projects">← Pipeline</a> · <a href="#/customers/${p.customer_id}">${esc(p.customer?.name || '')}</a></p>
    <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(p.title)} <span class="mut" style="font-size:14px">${p.kw} kW</span></h2>

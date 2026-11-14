@@ -7,6 +7,7 @@
 const TRASH_HOURS = 72; /* the built-in values; the ones in force come from rule('trash_hours' | 'doc_days' | 'gen_days') — Settings › Rules */
 const DOC_LIFE_DAYS = 365;
 const GEN_LIFE_DAYS = 120; /* papers the CRM makes for a customer (they can be made again any time) */
+const KSEB_GEN_DAYS = 200; /* owner's rule (2026-11-14): the KSEB papers made in the CRM are kept 200 days (shown on the project's KSEB documents tab) */
 /* paper => [area its maker must be able to open, days the copy is kept (0 = until someone deletes it)] — used by files/keep */
 const GEN_KEEP = ['kseb' => ['checklist', GEN_LIFE_DAYS], 'bank' => ['loans', GEN_LIFE_DAYS], 'quote' => ['quotes', GEN_LIFE_DAYS], 'receipt' => ['payments', GEN_LIFE_DAYS],
   'tax' => ['finance', 0], 'warranty' => ['customers', 0]];

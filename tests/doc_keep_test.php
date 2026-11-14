@@ -44,8 +44,8 @@ $byGen = function ($c, $gen) use ($files) { return array_values(array_filter($fi
 /* 1. kept with the right keeping time */
 $r = keep($admin, $cid, 'kseb:wcr', 'Work Completion Report', 'Work Completion Report - Keep Test One.pdf');
 $f = $byGen($cid, 'kseb:wcr');
-chk($r['_code'] === 200 && ($r['life'] ?? null) === 120 && count($f) === 1, 'a KSEB paper is kept on the customer');
-chk(($f[0]['item'] ?? '') === 'Work Completion Report' && ($f[0]['name'] ?? '') === 'Work Completion Report - Keep Test One.pdf' && ($f[0]['kind'] ?? '') === 'gen' && (int)$f[0]['life'] === 120, 'title, file name, kind and 120 days are stored');
+chk($r['_code'] === 200 && ($r['life'] ?? null) === 200 && count($f) === 1, 'a KSEB paper is kept on the customer (200 days)');
+chk(($f[0]['item'] ?? '') === 'Work Completion Report' && ($f[0]['name'] ?? '') === 'Work Completion Report - Keep Test One.pdf' && ($f[0]['kind'] ?? '') === 'gen' && (int)$f[0]['life'] === 200, 'title, file name, kind and 200 days are stored');
 $g = call($admin, 'files', 'get', null, '&id=' . $f[0]['id']);
 chk($g['_code'] === 200 && strpos($g['_text'] ?? '', '%PDF-') === 0, 'the kept copy opens as a PDF');
 foreach ([['bank:bfr', 120], ['quote:17', 120], ['receipt:5', 120], ['tax', 0], ['warranty', 0]] as [$gen, $life]) {
@@ -98,12 +98,13 @@ chk($dId && $life($dId) === null, 'another upload keeps the usual 365 days');
 $age = function ($id, $days) use ($db) { $db->prepare("UPDATE files SET created=datetime('now', ?) WHERE id=?")->execute(['-' . $days . ' days', $id]); };
 $id = fn($gen) => (int)$byGen($cid, $gen)[0]['id'];
 $kOld = $id('kseb:wcr'); $bFresh = $id('bank:bfr'); $tax = $id('tax'); $war = $id('warranty'); $q17 = $id('quote:17');
-$age($kOld, 121); $age($bFresh, 119); $age($tax, 900); $age($war, 900); $age($q17, 400); $age($wId, 900); $age($dId, 300);
+$age($kOld, 201); $age($bFresh, 119); $kYoung = $id('kseb:an1'); $age($kYoung, 199); $age($tax, 900); $age($war, 900); $age($q17, 400); $age($wId, 900); $age($dId, 300);
 $d2 = $up('doc'); $age($d2, 366);
 $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('hk_last','0')"); call($admin, 'customers', 'get', null, '&id=' . $cid); /* any signed-in request runs the hourly upkeep */
 $has = fn($x) => (bool)$db->query('SELECT 1 FROM files WHERE id=' . (int)$x)->fetchColumn();
-chk(!$has($kOld) && !$has($q17), 'made papers older than 120 days leave the Documents page');
+chk(!$has($kOld) && !$has($q17), 'a KSEB paper older than 200 days and other made papers older than 120 days leave the Documents page');
 chk($has($bFresh), 'a made paper of 119 days stays');
+chk($has($kYoung), 'a KSEB paper of 199 days stays (kept 200 days)');
 chk($has($tax) && $has($war), 'the tax bill and the warranty certificate stay however old');
 chk($has($wId), 'the uploaded warranty card stays however old');
 chk($has($dId) && !$has($d2), 'uploads still go by 365 days');

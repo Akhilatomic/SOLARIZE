@@ -305,7 +305,10 @@ const kdFilledNote = (doc, r) => r && r.filled && r.filled.length
 async function kdSave() {
   const doc = kdDoc(), b = $('#kdsave'); if (!doc || !KDS.g || !b || KDS.busy) return;
   KDS.busy = true; b.disabled = true; b.textContent = 'Saving…';
-  try { const r = await kdSaveDoc(kdSnap(doc)); toast(KD.DOCS[doc].file + ' saved' + kdFilledNote(doc, r)); } catch (e) { kdErr(e); }
+  try { const s = kdSnap(doc), r = await kdSaveDoc(s); let kept = false;
+    /* KSEB papers: a PDF copy is kept on every save too (project › KSEB documents), not only on a download */
+    if (KDS.book === 'kseb') { try { kept = !!(await docKeep(s.id, 'kseb:' + doc, 'KSEB · ' + KD.DOCS[doc].file, kdFileName(doc, s.g), await kdBuild(doc, s.vals))); } catch (e) { } }
+    toast(KD.DOCS[doc].file + ' saved' + (kept ? ' · PDF copy kept' : '') + kdFilledNote(doc, r)); } catch (e) { kdErr(e); }
   finally { KDS.busy = false; b.disabled = false; b.textContent = 'Save'; }
 }
 /* PDF bytes for one document from the given values (no saving, no download) */
@@ -364,3 +367,30 @@ const kdDirty = () => canW(KB().perm) && !!KDS.g && Object.keys(KDS.vals).some(d
   };
   addEventListener('beforeunload', e => { if (kdOn() && kdDirty()) { e.preventDefault(); e.returnValue = ''; } });
 })();
+
+/* ---- Project page › KSEB documents: the papers made in the CRM (kept copies) + the submission checklist ---- */
+const KSD_ST = { Pending: ['', 'Pending'], Submitted: ['b', 'Submitted'], Approved: ['g', 'Approved'], NA: ['n', 'Not needed'] };
+function ksebDocsTab(p, wc) {
+  const cid = p.customer_id, days = +p.kseb_days || 200, papers = {}, list = KD_TABS.filter(t => KD.DOCS[t[0]]);
+  (p.kseb_papers || []).forEach(f => { const k = String(f.gen || '').split(':')[1]; if (k && !papers[k]) papers[k] = f; }); /* newest first */
+  const nSaved = list.filter(t => papers[t[0]]).length, canMake = canR('checklist');
+  const card = ([k, name]) => { const f = papers[k], left = f ? docLeft(f) : 0;
+    return `<div class="ksd-p ${f ? 'on' : ''}"><span class="ksd-ic"><i class="i i-${f ? 'file' : 'clock'}"></i></span><div class="ksd-t"><b>${esc(name)}</b>
+      ${f ? `<small>Saved ${dmy(f.created)}${f.user ? ' · ' + esc(f.user) : ''}</small><small class="${left <= 30 ? 'dexp' : 'mut'}" title="Kept ${days} days from the day it was saved, then moved to the Recycle bin. Making the paper again starts a new ${days} days.">${left > 0 ? left + ' days left' : 'Due for deletion'}</small>` : '<small class="mut">Not made yet</small>'}</div>
+      <div class="ksd-a">${f ? `<a class="ib" href="api.php?m=files&a=get&id=${f.id}&v=1" target="_blank" rel="noopener" title="View the saved PDF" aria-label="View ${esc(name)}"><i class="i i-eye"></i></a><a class="ib" href="api.php?m=files&a=get&id=${f.id}&dl=1" title="Download the saved PDF" aria-label="Download ${esc(name)}"><i class="i i-download"></i></a>` : ''}
+        ${canMake ? (f ? `<button type="button" class="ib" data-kdgo="${k}" title="Open the paper to change it or make it again" aria-label="Open ${esc(name)}"><i class="i i-pencil"></i></button>` : `<button type="button" class="btn sm sec" data-kdgo="${k}">Make</button>`) : ''}</div></div>`; };
+  const items = p.checklist_kseb || [], files = p.files || [], cnt = s => items.filter(i => i.status === s).length, done = cnt('Approved') + cnt('NA');
+  const row = (i, n) => { const fs = files.filter(f => f.kind === 'kseb' && f.item === i.item), st = KSD_ST[i.status] ? i.status : 'Pending';
+    return `<div class="chk ksd-r st-${KSD_ST[st][0] || 'p'}" data-kind="kseb" data-n="${n}"><span class="ksd-d">${st === 'Approved' ? '<i class="i i-check"></i>' : ''}</span>
+      <div class="ksd-n"><b>${esc(i.item)}</b>${fs.map(f => `<small>${fileLink(f)}</small>`).join('')}</div>
+      <select data-f="status" ${wc ? '' : 'disabled'} aria-label="Status of ${esc(i.item)}">${Object.keys(KSD_ST).map(s => `<option value="${s}" ${st === s ? 'selected' : ''}>${KSD_ST[s][1]}</option>`).join('')}</select>
+      <input type="date" data-f="date" value="${esc(i.date)}" ${wc ? '' : 'disabled'} aria-label="Date"><input data-f="notes" placeholder="Notes" value="${esc(i.notes)}" ${wc ? '' : 'disabled'}>
+      ${canW('files') ? `<button class="ib ksd-u" data-up="kseb|${n}" title="Upload a file for this item" aria-label="Upload a file for ${esc(i.item)}"><i class="i i-upload"></i></button>` : '<span></span>'}</div>`; };
+  return `<div class="card ksd"><div class="ch"><h3>KSEB papers made in the CRM</h3><span class="pill ${nSaved === list.length ? 'g' : ''}">${nSaved} of ${list.length} saved</span><span class="sp"></span>${canMake ? `<a class="btn sm" href="#/kseb/${cid}"><i class="i i-clipboard"></i> Open KSEB documentation</a>` : ''}</div>
+    <p class="ksd-h">A PDF copy of each paper is saved here automatically whenever it is saved or downloaded on the KSEB documentation page. A copy is kept for ${days} days, then moved to the Recycle bin; making the paper again replaces the copy and starts a new ${days} days.</p>
+    <div class="ksd-g">${list.map(card).join('')}</div></div>
+   <div class="card ksd" style="margin-top:12px"><div class="ch"><h3>Submission checklist</h3><span class="sp"></span>${[['Pending', ''], ['Submitted', 'b'], ['Approved', 'g'], ['NA', '']].map(([s, c]) => cnt(s) ? `<span class="pill ${c}">${cnt(s)} ${KSD_ST[s][1].toLowerCase()}</span>` : '').join('')}<b class="ksd-c">${done}/${items.length}</b></div>
+    <div class="prog" style="margin:2px 0 6px"><i style="width:${items.length ? done / items.length * 100 : 0}%"></i></div>
+    ${items.map(row).join('')}${otherChkFiles('kseb', items, files)}</div>`;
+}
+function ksebDocsBind(p) { $$('[data-kdgo]').forEach(b => b.onclick = () => { TAB.kseb = b.dataset.kdgo; location.hash = '#/kseb/' + p.customer_id; }); }

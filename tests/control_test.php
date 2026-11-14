@@ -53,7 +53,7 @@ chk((call($sales, 'settings', 'get')['rules']['gen_days'] ?? 0) === 60, 'everyon
 
 /* 2. the rules take effect */
 $cid = (int)(call($admin, 'customers', 'save', ['name' => 'Ctl Customer', 'phone' => '9000000501'])['id'] ?? 0);
-$r = call($admin, 'files', 'keep', ['title' => 'Work Completion Report', 'file' => pdfFile()], '&customer_id=' . $cid . '&gen=kseb:wcr', true);
+$r = call($admin, 'files', 'keep', ['title' => 'Feasibility Report', 'file' => pdfFile()], '&customer_id=' . $cid . '&gen=bank:bfr', true);
 chk($r['_code'] === 200 && ($r['life'] ?? 0) === 60, 'a paper made in the CRM is now kept 60 days');
 $r = call($admin, 'files', 'keep', ['title' => 'Tax invoice', 'file' => pdfFile()], '&customer_id=' . $cid . '&gen=tax', true);
 chk(($r['life'] ?? 1) === 0, 'a tax bill is still kept until deleted');

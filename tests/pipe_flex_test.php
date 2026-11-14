@@ -91,6 +91,12 @@ $receipt($p3, 'reg_pay');
 $fl = call($admin, 'fees', 'feas_left')[$c3] ?? null;
 chk($fl && (int)($fl['rf'] ?? 0) === 1 && $fl['rf_on'] === date('Y-m-d') && !isset($fl['days_left']), 'once the registration fee is paid it says RF paid instead of the days left');
 chk(call(actor('nobody'), 'fees', 'feas_left')['_code'] === 401, 'feasibility days left needs sign-in');
+
+/* the project page lists the KSEB papers kept for the customer */
+$kp = call($admin, 'files', 'keep', ['file' => new CURLFile($pdf, 'application/pdf', 'Cover Page - Flex.pdf'), 'title' => 'KSEB · Cover Page'], "&customer_id=$c3&gen=kseb:cov", true);
+$pg = call($admin, 'projects', 'get', null, '&id=' . $p3);
+chk(($kp['life'] ?? 0) === 200 && (int)($pg['kseb_days'] ?? 0) === 200 && count($pg['kseb_papers'] ?? []) === 1 && $pg['kseb_papers'][0]['gen'] === 'kseb:cov' && (int)$pg['kseb_papers'][0]['life'] === 200, 'the project carries the KSEB papers made for its customer, kept 200 days');
+chk(count(call($admin, 'projects', 'get', null, '&id=' . $p2)['kseb_papers'] ?? [1]) === 0, 'another customer\'s project does not list them');
 @unlink($pdf);
 
 echo "  $pass ok, $fail FAIL\n";
