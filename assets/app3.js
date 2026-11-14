@@ -91,9 +91,11 @@ function renderNewLeads() {
   const box = $('#newleads'); if (box) {
     /* dashboard: only leads from the last 24 hours (older ones stay in Leads and the bell) */
     const R = FEED.leads.filter(l => Date.now() - new Date(String(l.created || '').replace(' ', 'T') + 'Z') <= 864e5), n = FEED.day ?? R.length, L = R.slice(0, 8);
-    box.innerHTML = `<div class="card nlc ${n ? 'hot' : ''}"><div class="bar" style="margin:0 0 6px"><h3 style="margin:0"><i class="i i-bell"></i> New leads to contact <span class="pill ${n ? 'r' : ''}">${n}</span> <small class="mut" style="font-weight:400;font-size:12px">last 24 hours</small></h3><span class="sp"></span>
-     ${FEED.state.connected ? `<small class="mut">Synced ${clock(FEED.state.last_ok)}</small> <button class="btn sec sm" id="nlr"><i class="i i-refresh"></i> Refresh</button>` : ''}${n > 8 ? '<a class="btn sec sm" href="#/leads">All</a>' : ''}</div>
-     ${L.map(nlRow).join('') || `<p class="mut" style="margin:6px 0 0">${FEED.state.connected ? 'No new leads in the last 24 hours. New Meta leads appear here as soon as they arrive.' : 'No new leads in the last 24 hours. Connect Meta Lead Ads on the Meta Ads page to get new leads here automatically.'}</p>`}</div>`;
+    /* the dashboard card is the dark "radar" card (styles: #newleads in app2.css); the same rows in the bell panel keep the light look */
+    box.innerHTML = `<div class="card nlc ${n ? 'hot' : ''}"><div class="nlx-bg" aria-hidden="true"></div><div class="bar nlx-h" style="margin:0 0 6px"><h3 style="margin:0"><span class="nlx-bell"><i class="i i-bell"></i></span> New leads to contact <span class="pill ${n ? 'r' : ''}">${n}</span> <small class="mut" style="font-weight:400;font-size:12px">last 24 hours</small></h3><span class="sp"></span>
+     ${FEED.state.connected ? `<small class="mut nlx-sync"><span class="nlx-live" aria-hidden="true"></span>Synced ${clock(FEED.state.last_ok)}</small> <button class="btn sec sm" id="nlr"><i class="i i-refresh"></i> Refresh</button>` : ''}${n > 8 ? '<a class="btn sec sm" href="#/leads">All</a>' : ''}</div>
+     ${L.length ? `<div class="nlx-list">${L.map(nlRow).join('')}</div>` : `<div class="nlx-empty"><div class="nlx-radar" aria-hidden="true"><span></span><span></span><span></span><i></i><b></b></div>
+       <div class="nlx-et"><b>All clear</b><p>${FEED.state.connected ? 'No new leads in the last 24 hours. New Meta leads appear here as soon as they arrive.' : 'No new leads in the last 24 hours. Connect Meta Lead Ads on the Meta Ads page to get new leads here automatically.'}</p></div></div>`}</div>`;
     bindNl(box); if ($('#nlr')) $('#nlr').onclick = e => manualSync(e.currentTarget);
   }
   const p = $('#bellp'); if (p && !p.classList.contains('hide')) drawBellPanel();
