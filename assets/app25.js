@@ -403,7 +403,8 @@ function ksebDocsTab(p, wc) {
     return `<div class="ksd-p ${f ? 'on' : ''}"><span class="ksd-ic"><i class="i i-${f ? 'file' : 'clock'}"></i></span><div class="ksd-t"><b>${esc(name)}${book === 'bank' ? ' <span class="ksd-bk">Bank</span>' : ''}</b>
       ${f ? `<small>Saved ${dmy(f.created)}${f.user ? ' · ' + esc(f.user) : ''}</small><small class="${left <= 30 ? 'dexp' : 'mut'}" title="Kept ${keep} days from the day it was saved, then moved to the Recycle bin. Making the paper again starts a new ${keep} days.">${left > 0 ? left + ' days left' : 'Due for deletion'}</small>` : '<small class="mut">Not made yet</small>'}</div>
       <div class="ksd-a">${f ? `<a class="ib" href="api.php?m=files&a=get&id=${f.id}&v=1" target="_blank" rel="noopener" title="View the saved PDF" aria-label="View ${esc(name)}"><i class="i i-eye"></i></a><a class="ib" href="api.php?m=files&a=get&id=${f.id}&dl=1" title="Download the saved PDF" aria-label="Download ${esc(name)}"><i class="i i-download"></i></a>` : ''}
-        ${canMake ? (f ? `<button type="button" class="ib" data-kdgo="${k}" data-kdbook="${book}" title="Open the paper to change it or make it again" aria-label="Open ${esc(name)}"><i class="i i-pencil"></i></button>` : `<button type="button" class="btn sm sec" data-kdgo="${k}" data-kdbook="${book}">Make</button>`) : ''}</div></div>`; };
+        ${canMake ? (f ? `<button type="button" class="ib" data-kdgo="${k}" data-kdbook="${book}" title="Modify — open the paper, change it and save it again" aria-label="Modify ${esc(name)}"><i class="i i-pencil"></i></button>` : `<button type="button" class="btn sm sec" data-kdgo="${k}" data-kdbook="${book}">Make</button>`) : ''}
+        ${f && canW('files') ? `<button type="button" class="ib ksd-del" data-kddel="${f.id}" data-kdname="${esc(name)}" title="Delete the saved copy (it goes to the Recycle bin; the paper can be made again)" aria-label="Delete the saved ${esc(name)}"><i class="i i-trash"></i></button>` : ''}</div></div>`; };
   const items = p.checklist_kseb || [], cnt = s => items.filter(i => i.status === s).length, done = cnt('Approved') + cnt('NA');
   const row = (i, n) => { const fs = files.filter(f => f.kind === 'kseb' && f.item === i.item), st = KSD_ST[i.status] ? i.status : 'Pending';
     return `<div class="chk ksd-r st-${KSD_ST[st][0] || 'p'}" data-kind="kseb" data-n="${n}"><span class="ksd-d">${st === 'Approved' ? '<i class="i i-check"></i>' : ''}</span>
@@ -420,4 +421,9 @@ function ksebDocsTab(p, wc) {
     <div class="prog" style="margin:2px 0 6px"><i style="width:${items.length ? done / items.length * 100 : 0}%"></i></div>
     ${items.map(row).join('')}${otherChkFiles('kseb', items, files)}</div>`;
 }
-function ksebDocsBind(p) { $$('[data-kdgo]').forEach(b => b.onclick = () => { const book = b.dataset.kdbook === 'bank' ? 'bank' : 'kseb'; TAB[book] = b.dataset.kdgo; location.hash = KD_BOOKS[book].hash + p.customer_id; }); }
+function ksebDocsBind(p) {
+  /* delete a saved copy: Recycle bin first, as every delete; what was typed into the paper stays, so it can be made again */
+  $$('[data-kddel]').forEach(b => b.onclick = async () => {
+    if (!confirm(`Delete the saved copy of “${b.dataset.kdname}”?\n\nIt goes to the Recycle bin. The paper itself is not lost: it can be made again from KSEB documentation.`)) return;
+    b.disabled = true; try { await api('files', 'delete', { id: +b.dataset.kddel }); toast(b.dataset.kdname + ' — saved copy deleted'); route(); } catch (e) { b.disabled = false; } });
+  $$('[data-kdgo]').forEach(b => b.onclick = () => { const book = b.dataset.kdbook === 'bank' ? 'bank' : 'kseb'; TAB[book] = b.dataset.kdgo; location.hash = KD_BOOKS[book].hash + p.customer_id; }); }
