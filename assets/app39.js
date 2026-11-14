@@ -14,9 +14,9 @@ const FEASX = { map: null, at: 0, busy: null, on: false,
   /* pure: the pill for one customer's entry f (from fees/feas_left); short = inside the AF/RF column */
   label(f, warn, short) {
     if (!f) return null;
-    if (f.rf) return { t: 'RF paid', c: 'g', i: 'check' };
+    if (f.rf) return { t: short ? 'RF' : 'RF paid', c: 'g', i: 'check' };
     const x = FEASX.text(f.days_left, warn); x.i = 'clock';
-    if (short) x.t = x.t.replace(/^Feasibility · /, 'AF · ').replace(/^Feasibility /, 'AF ');
+    if (short) x.t = String(Math.trunc(+f.days_left)).replace('-', '\u2212'); /* the column: clock + days left (minus = days since it expired); the details are in the hover text */
     return x;
   } };
 if (typeof module !== 'undefined') module.exports = FEASX;
@@ -31,8 +31,8 @@ function feasPaint() {
     if (el.dataset.fx === key) return; el.dataset.fx = key;
     if (!f) { el.innerHTML = col ? '<span class="mut" title="Feasibility fee (AF) not paid yet">—</span>' : ''; return; }
     const x = FEASX.label(f, typeof RULE === 'function' ? RULE('feas_alert_days') : 3, col);
-    const tip = f.rf ? 'KSEB registration fee paid' + (f.rf_on ? ' on ' + fd(f.rf_on) : '')
-      : `Feasibility fee (AF) paid ${fd(f.paid_on)} · ${f.days_left < 0 ? 'expired' : 'expires'} ${fd(f.expires)}. ${f.days_left < 0 ? 'Renew the feasibility payment.' : 'Pay the KSEB registration fee (RF) before then.'}`;
+    const tip = f.rf ? 'Registration fee (RF) paid' + (f.rf_on ? ' on ' + fd(f.rf_on) : '')
+      : `${FEASX.text(f.days_left).t}. Feasibility fee (AF) paid ${fd(f.paid_on)} · ${f.days_left < 0 ? 'expired' : 'expires'} ${fd(f.expires)}. ${f.days_left < 0 ? 'Renew the feasibility payment.' : 'Pay the KSEB registration fee (RF) before then.'}`;
     el.innerHTML = `<span class="pill ${x.c} fxp" title="${esc(tip)}"><i class="i i-${x.i}"></i>${esc(x.t)}</span>`;
   });
 }

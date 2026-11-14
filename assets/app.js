@@ -704,7 +704,7 @@ async function pgCustomers() {
     const nLive = rows.filter(c => DISC.sum[c.id]).length; $('#ccount').innerHTML = rows.length + ' records' + (nLive ? ` · <span class="xdlive"><span class="xddot"></span>${nLive} live discussion${nLive === 1 ? '' : 's'}</span>` : '');
     const W = ($('#ctb').parentElement || {}).clientWidth || 1200;
     // fit to the window: drop the least important columns first, then fold the action icons into ⋯, then consumer no. / phone
-    let COLS = [['name', 'Name', 0], ['status', 'Status', 140], ['afrf', 'AF/RF', 148], ['cno', 'Consumer no.', 128], ['dist', 'District', 130], ['phone', 'Phone', 138], ['kw', 'Capacity', 78], ['by', 'Owner', 120], ['date', 'Date', 92]], full = true;
+    let COLS = [['name', 'Name', 0], ['status', 'Status', 140], ['afrf', 'AF/RF', 78], ['cno', 'Consumer no.', 128], ['dist', 'District', 130], ['phone', 'Phone', 138], ['kw', 'Capacity', 78], ['by', 'Owner', 120], ['date', 'Date', 92]], full = true;
     const need = () => COLS.reduce((s, c) => s + c[2], 0) + (full ? 330 : 172) + 170;
     if (W < 680) { COLS = COLS.filter(c => c[0] !== 'date'); full = false; } // phones: card view has room for the key details (owner included)
     else for (const k of ['date', 'by', 'dist', 'kw', '#compact', 'cno', 'phone']) { /* Owner outlasts Date: Me / All needs it */ if (need() <= W) break; if (k === '#compact') full = false; else COLS = COLS.filter(c => c[0] !== k); }

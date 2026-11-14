@@ -877,3 +877,4 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .cnm .fxl{display:block;margin:3px 0 0}.cnm .fxl:empty{display:none}.pkm .fxl{margin-left:0}
 .pkm{flex-wrap:wrap}.pkm .fxp{white-space:normal}
 .fxl.fxc{margin-left:0}.fxc:empty{display:inline-block}td.fxtd{white-space:nowrap}
+.fxc .fxp{padding:2px 8px;font-variant-numeric:tabular-nums;cursor:help}.fxc .fxp .i{margin-right:4px}
