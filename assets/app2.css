@@ -926,3 +926,6 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .clmok{text-align:center;padding:6px 4px 2px}.clmok h2{margin:10px 0 8px;font-size:20px}.clmok p{margin:0 0 6px;font-size:14px;line-height:1.5}
 .clmok-i{width:52px;height:52px;border-radius:50%;background:#e6f1fd;color:var(--pri);display:inline-grid;place-items:center}.clmok-i .i{width:24px;height:24px}
 .clmok-n{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px}.clmok-n span{width:26px;height:6px;border-radius:6px;background:var(--fill)}.clmok-n span.on{background:var(--pri)}.clmok-n small{margin-left:6px;color:var(--mut);font-size:12px}
+.clmt.fresh{animation:clmfresh 2.2s ease-out}@keyframes clmfresh{0%,40%{background:#e6f1fd;color:var(--pri);box-shadow:0 0 0 3px rgba(0,113,227,.25)}100%{box-shadow:0 0 0 0 rgba(0,113,227,0)}}
+.clmok-t{display:inline-flex;align-items:center;gap:6px;margin:4px 0 8px!important;padding:6px 14px;border-radius:999px;background:#e6f1fd;color:var(--pri);font-size:15px!important}.clmok-t .i{width:14px;height:14px}
+@media(prefers-reduced-motion:reduce){.clmt.fresh{animation:none}}

@@ -456,18 +456,24 @@ function claimGraceTip(chip) {
   p.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px'; p.style.top = (r.bottom + h + 10 > innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6) + 'px';
   p.onmouseenter = () => clearTimeout(CLM_T); p.onmouseleave = () => { CLM_T = setTimeout(claimGraceHide, 250); };
   const b = $('#clmadd', p); if (b) b.onclick = async e => { e.stopPropagation(); b.disabled = true;
-    try { const x = await api('leads', 'extend', { id: +chip.dataset.grace }); claimGraceHide(); claimGraceDone(chip.dataset.name, x); } catch (er) { b.disabled = false; } };
+    try { const id = +chip.dataset.grace, name = chip.dataset.name, x = await api('leads', 'extend', { id }); claimGraceHide();
+      /* the new time shows at once, on every chip of this lead (the list and the lead window), before the pop-up is answered */
+      $$('.clmt[data-grace="' + id + '"]').forEach(el => { el.outerHTML = claimChip({ id, name, assigned_to: ME.id, unlock_at: x.unlock_at, grace_used: x.used, grace_max: x.max }); });
+      $$('.clmt[data-grace="' + id + '"]').forEach(el => { el.classList.add('fresh'); setTimeout(() => el.classList.remove('fresh'), 2200); });
+      claimGraceDone(name, x, id); } catch (er) { b.disabled = false; } };
 }
 /* the pop-up after a grace period is added */
-function claimGraceDone(name, x) {
+function claimGraceDone(name, x, id) {
   const when = new Date(x.unlock_at * 1000), wtxt = dfmt(DF.dmy, when) + ', ' + when.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
   const m = modal(`<div class="clmok"><span class="clmok-i"><i class="i i-clock"></i></span><h2>Grace period activated</h2>
     <p><b>${x.hours} more hours</b> are added to your claim${name ? ' on <b>' + esc(name) + '</b>' : ''}.</p>
+    <p class="clmok-t"><i class="i i-clock"></i> New time left: <b>${(claimLeft({ unlock_at: x.unlock_at }) || {}).text || ''}</b></p>
     <p class="mut">The lead now unlocks on <b>${wtxt}</b> unless it becomes a customer.</p>
     <div class="clmok-n">${Array.from({ length: x.max }, (_, i) => `<span class="${i < x.used ? 'on' : ''}"></span>`).join('')}<small>${x.used} of ${x.max} used · ${x.left ? x.left + ' left' : 'this was the last one'}</small></div>
     <div class="bar" style="justify-content:center;margin-top:16px"><button class="btn" id="clmokb">OK</button></div></div>`);
-  const done = () => { m.remove(); if (location.hash.startsWith('#/leads') || location.hash === '' || location.hash.startsWith('#/dashboard')) route(); };
-  $('#clmokb', m).onclick = done; $('#clmokb', m).focus();
+  /* the list reads the lead again right away (so sorting, filtering or a redraw keeps the new time), however the pop-up is closed */
+  if (location.hash.startsWith('#/leads') || location.hash === '' || location.hash.startsWith('#/dashboard')) route();
+  $('#clmokb', m).onclick = () => m.remove(); $('#clmokb', m).focus();
 }
 document.addEventListener('mouseover', e => { const c = e.target.closest && e.target.closest('.clmt[data-grace]'); if (c) claimGraceTip(c); });
 document.addEventListener('mouseout', e => { const c = e.target.closest && e.target.closest('.clmt[data-grace]'); if (c) { clearTimeout(CLM_T); CLM_T = setTimeout(claimGraceHide, 300); } });
