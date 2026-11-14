@@ -730,3 +730,38 @@ test('documents fill empty profile fields, in the form the profile keeps them', 
   assert.deepEqual(KD.fill('wcr', { capacity: '3 KW' }, { customer: {}, plant: { capacity: '5' } }), [], 'a field already in the profile is never changed');
   assert.deepEqual(pick('an1', { phone: '9800000001', load: '3', capacity: '3 kWp' }).map(x => x[1]), ['c.phone', 'c.sanctioned_load', 'p.capacity'], 'annexures too');
 });
+
+/* ---- MNRE: ALMM order declaration (vendor's declaration; module make, capacity, quantity and serial numbers) ---- */
+test('ALMM declaration: defaults from the plant details, one page on the letterhead, table and wording', async () => {
+  const ctx = { customer: { name: 'SUMA DEVI R', address: 'Sreekovil, Pandarakonam, Anad P O', district: 'Thiruvananthapuram', pincode: '695541' },
+    plant: { capacity: '3', panel_make: 'TESTSUN', panel_wattage: '550', panels: [{ serial: 'TS550A0001' }, { serial: 'TS550A0002' }, { serial: 'TS550A0003' }, { serial: '' }] },
+    project: null, defaults: { vendor_name: 'M/S JASPER SOLAR SOLUTIONS', sign_name: 'TEST SIGNATORY', sign_designation: 'CEO' }, today: '2026-11-14' };
+  const v = KD.values('almm', ctx, {});
+  assert.deepEqual([v.capacity, v.name, v.module_make, v.module_wp, v.module_count, v.panel_serials, v.sign_name, v.sign_designation, v.organization],
+    ['3 kW', 'SUMA DEVI R', 'TESTSUN', '550 Wp', '3 Nos', 'TS550A0001\nTS550A0002\nTS550A0003', 'TEST SIGNATORY', 'CEO', 'JASPER SOLAR SOLUTIONS']);
+  for (const g of KD.DOCS.almm.groups) for (const f of g.fields) assert.ok(f.k in v, 'almm.' + f.k);
+  assert.deepEqual(KD.empty('almm', v), []);
+  assert.equal(KD.DOCS.almm.page, 'letterhead');
+  const measure = await KD.measurer(PDFLib);
+  const r = KD.layout('almm', v, measure), text = r.ops.filter(o => o.t), lines = r.ops.filter(o => o.ln), all = text.map(o => o.t).join(' ');
+  assert.equal(r.overflow, false); assert.equal(r.size, 12);
+  const head = text.shift(); /* the date on the letterhead's own Date line */
+  assert.deepEqual([head.t, head.x, head.y, head.f], ['14-11-2026', 432, 185, 'H']);
+  for (const o of text) assert.ok(o.x >= 72 && o.x + measure(o.t, o.f, o.s) + (o.t.split(' ').length - 1) * (o.ws || 0) <= 523.05 && o.y >= 200 && o.y <= 742, o.t);
+  assert.ok(text[0].u && text[0].f === 'TB' && text[0].t.startsWith('Vendor/ Bidders'), 'underlined bold title first');
+  assert.ok(all.includes('of 3 kW capacity at the residence of SUMA DEVI R having project site at Sreekovil, Pandarakonam, Anad P O'));
+  assert.ok(/List . I \(Solar PV Modules\) of ALMM Order/.test(all) && all.includes('liable for penal action'));
+  for (const t of ['MAKE', 'CAPACITY', 'QUANTITY', 'SERIAL NUMBER', 'TESTSUN', '550 Wp', '3 Nos', 'TS550A0001, TS550A0002, TS550A0003', 'Name: TEST SIGNATORY', 'Designation: CEO', 'Organization: JASPER SOLAR SOLUTIONS', 'Date: 14.11.2026', '(Signature and Stamp)'])
+    assert.ok(text.some(o => o.t === t), t);
+  assert.equal(lines.length, 8, '5 rules across and 3 down');
+  assert.ok(lines.every(o => o.ln[0] >= 72 && o.ln[2] <= 523 && o.w <= 0.5));
+  assert.ok(text.find(o => o.t === 'TESTSUN').x > 72 + 102.75, 'values sit in the second column');
+  /* a 10 kW plant with 19 long serial numbers still fits on the one page */
+  const many = Object.assign({}, v, { panel_serials: Array.from({ length: 19 }, (_, i) => 'TS550A2026110' + String(1000 + i)).join('\n'), module_count: '19 Nos' });
+  const m = KD.layout('almm', many, measure);
+  assert.equal(m.overflow, false); assert.ok(m.size >= 9 && m.size <= 12);
+  /* nothing known yet: blanks to fill by hand, still one page */
+  const bare = KD.layout('almm', KD.values('almm', { customer: {}, plant: {}, defaults: {}, today: '2026-11-14' }, {}), measure);
+  assert.equal(bare.overflow, false);
+  assert.ok(bare.ops.some(o => o.t && o.t.includes('__________ kW capacity')) && bare.ops.some(o => o.t === 'Name: __________'));
+});

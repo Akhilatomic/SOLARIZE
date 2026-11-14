@@ -77,6 +77,31 @@ var KD = (function () {
         ] }
       ]
     },
+    /* ALMM declaration: the vendor's declaration under the MNRE simplified procedure that the modules are from List-I of the
+       ALMM order (ALMM_order_declaration.docx). On the letterhead, Times 12; signed and stamped by the vendor and handed to
+       the consumer in original. The wording is fixed (K.ALMM); only these fields are filled in. */
+    almm: {
+      key: 'almm', tab: 'ALMM declaration', file: 'ALMM Declaration', page: 'letterhead',
+      groups: [
+        { g: 'Declaration', fields: [
+          { k: 'date', l: 'Date', t: 'date' },
+          { k: 'capacity', l: 'Capacity of project (kW)' },
+          { k: 'name', l: 'Name of consumer' },
+          { k: 'address', l: 'Address of installation', t: 'area' }
+        ] },
+        { g: 'SPV modules installed', fields: [
+          { k: 'module_make', l: 'Make' },
+          { k: 'module_wp', l: 'Capacity (each module)' },
+          { k: 'module_count', l: 'Quantity' },
+          { k: 'panel_serials', l: 'Serial numbers (one per line, or separated by commas)', t: 'area', rows: 5 }
+        ] },
+        { g: 'Signed by', fields: [
+          { k: 'sign_name', l: 'Name' },
+          { k: 'sign_designation', l: 'Designation' },
+          { k: 'organization', l: 'Organization' }
+        ] }
+      ]
+    },
     /* Request letter: the consumer's covering letter to the Assistant Engineer asking to register the solar plant
        (req letter.docx), with the consumer number and the consumer's and vendor's phone numbers. Plain A4, Times 12. */
     req: {
@@ -517,6 +542,18 @@ var KD = (function () {
           cost: amt ? 'Rs.' + inrS(amt) + ' + KSEB Charges.' : '', pay1: '60', pay2: '30', pay3: '10'
         };
       }
+    } else if (docKey === 'almm') {
+      var apan = Array.isArray(p.panels) ? p.panels : [];
+      var aser = apan.map(function (x) { return trim(x && x.serial); }).filter(Boolean);
+      var acnt = trim(p.panel_count) && !zero(p.panel_count) ? trim(p.panel_count) : String(aser.length || '');
+      var amake = trim(p.panel_make) || apan.map(function (x) { return trim(x && x.make); }).filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(', ');
+      v = {
+        date: today, capacity: cap('kW'), name: trim(c.name), address: K.joinAddr(c),
+        module_make: amake, module_wp: bare(p.panel_wattage, 'Wp'), module_count: isNum(acnt) ? acnt + ' Nos' : acnt,
+        panel_serials: aser.join('\n'),
+        sign_name: str(sd.sign_name), sign_designation: str(sd.sign_designation),
+        organization: trim(sd.vendor_name).replace(/^M\/S\.?\s*/i, '') || 'JASPER SOLAR SOLUTIONS'
+      };
     } else if (docKey === 'req') {
       var raddr = trim(c.address), rdist = trim(c.district);
       if (rdist && raddr.toLowerCase().indexOf(rdist.toLowerCase()) < 0) raddr = [raddr, rdist].filter(Boolean).join(', ');
@@ -1694,8 +1731,78 @@ var KD = (function () {
     return r;
   };
 
+  /* ---- MNRE: ALMM order declaration (ALMM_order_declaration.docx) on the letterhead: Times, 1 inch side margins. Underlined
+     bold title, "Declaration", the reference, three paragraphs (justified), the module table (label column 102.75 pt as in
+     the original: Make, Capacity, Quantity, Serial number), who signs, and the note. One size from 12 down to 9 pt so it
+     stays on the page however many serial numbers there are. The wording is the official one; only the blanks are filled. ---- */
+  K.ALMM = {
+    title: 'Vendor/ Bidders\u2019 Declaration Format associated with Implementation of ALMM Order (for every project commissioned under simplified procedure of MNRE)',
+    ref: 'Reference: Simplified procedure of MNRE for installation of rooftop solar project',
+    p1: function (cap, name, addr) { return 'We hereby declare that we are fully aware of the binding provisions of the ALMM order and the Lists thereunder, while installing the rooftop solar system of ' + cap + ' capacity at the residence of ' + name + ' having project site at ' + addr + '.'; },
+    p2: 'We understand that the List \u2013 I (Solar PV Modules) of ALMM Order, Annexure \u2013 I of the O M, issued by MNRE on 10th March 2021 will be updated by MNRE from time to time. We also understand that the Modules to be procured for this project, shall be from the List \u2013 I of the ALMM order applicable on the date of invoicing of such modules.',
+    p3: 'We further understand and accept that we shall be liable for penal action, including but not limited to blacklisting, if we are found not complying with the provisions of ALMM Order, including those mentioned above.',
+    tbl: 'The details of SPV modules installed at the site are as follows:',
+    rows: [['MAKE', 'module_make'], ['CAPACITY', 'module_wp'], ['QUANTITY', 'module_count'], ['SERIAL NUMBER', 'panel_serials']],
+    note: 'Note: This document has to be handed over to the consumer in original'
+  };
+  var ALMM = { x0: 72, x1: 523, top: 206, bottom: 742, max: 12, min: 9, c1: 102.75, pad: 5, rowMin: 21.6 };
+  var layoutAlmm = function (v, measure) {
+    var D = ALMM, A = K.ALMM, r;
+    var blank = function (t) { return clean(t).replace(/\s*\n\s*/g, ', ') || '__________'; };
+    var capText = function () { var c = clean(v.capacity); return !c ? '__________ kW' : isNum(c) ? c + ' kW' : c; };
+    for (var s = D.max; s >= D.min; s -= 0.5) {
+      var ops = [], lh = 1.2 * s, y = D.top, W = D.x1 - D.x0;
+      var centre = function (t, f, u) { K.wrap(t, W, f, s, measure).forEach(function (ln) { ops.push(op(ln, D.x0 + (W - measure(ln, f, s)) / 2, y, f, s, u)); y += lh; }); };
+      var para = function (t, f, just) {
+        f = f || 'T';
+        var ls = K.wrap(t, W, f, s, measure);
+        ls.forEach(function (ln, i) { var o = op(ln, D.x0, y, f, s), ws = just && i < ls.length - 1 ? K.justify(ln, W, f, s, measure) : 0; if (ws) o.ws = ws; if (ln) ops.push(o); y += lh; });
+      };
+      var gap = function (n) { y += (n === undefined ? 1 : n) * lh; };
+      var L = function (x1, y1, x2, y2) { ops.push({ ln: [r2(x1), r2(y1), r2(x2), r2(y2)], w: 0.5 }); };
+      var hd = K.dmy(v.date) || clean(v.date); if (hd) ops.push(op(hd, WCR.dateX, WCR.headY, 'H', WCR.headS)); /* the letterhead's own Date line */
+      centre(clean(A.title), 'TB', true);
+      gap(0.7);
+      centre('Declaration', 'T');
+      centre('To whomsoever this may concern', 'TB');
+      gap(0.5);
+      para(A.ref, 'T', true);
+      gap(0.7);
+      para(clean(A.p1(capText(), blank(v.name), blank(v.address))), 'T', true);
+      gap(0.5);
+      para(clean(A.p2), 'T', true);
+      gap(0.5);
+      para(clean(A.p3), 'T', true);
+      gap(0.5);
+      para(A.tbl, 'T', true);
+      /* the table: y is the next baseline; the grid starts just above it */
+      var ty = y - s * 0.55, cx = D.x0 + D.c1, vw = D.x1 - cx - 2 * D.pad, top = ty;
+      L(D.x0, ty, D.x1, ty);
+      A.rows.forEach(function (rw) {
+        var val = rw[1] === 'panel_serials' ? clean(v.panel_serials).split(/[\n,]+/).map(trim).filter(Boolean).join(', ') : clean(v[rw[1]]).replace(/\s*\n\s*/g, ', ');
+        var ls = val ? K.wrap(val, vw, 'T', s, measure) : [''];
+        var h = Math.max(D.rowMin, ls.length * lh + 2 * D.pad - (lh - s)), by = ty + D.pad + s * 0.82;
+        ops.push(op(rw[0], D.x0 + D.pad, by, 'T', s));
+        ls.forEach(function (ln, i) { if (ln) ops.push(op(ln, cx + D.pad, by + i * lh, 'T', s)); });
+        ty += h; L(D.x0, ty, D.x1, ty);
+      });
+      L(D.x0, top, D.x0, ty); L(cx, top, cx, ty); L(D.x1, top, D.x1, ty);
+      y = ty + lh * 1.6;
+      ['Name: ' + blank(v.sign_name), 'Designation: ' + blank(v.sign_designation), 'Organization: ' + blank(v.organization),
+        'Date: ' + (K.dmy(v.date).replace(/-/g, '.') || clean(v.date))].forEach(function (t) { para(t); });
+      gap(1.8);
+      ops.push(op('(Signature and Stamp)', D.x0 + 54, y, 'T', s)); y += lh;
+      gap(0.8);
+      para(A.note, 'T', true);
+      r = { ops: ops, size: s, overflow: y - lh > D.bottom };
+      if (!r.overflow) break;
+    }
+    return r;
+  };
+
   K.layout = function (docKey, values, measure) {
     if (docKey === 'req') return layoutReq(values || {}, measure);
+    if (docKey === 'almm') return layoutAlmm(values || {}, measure);
     values = values || {};
     if (docKey === 'bfr') return layoutBfr(values, measure);
     if (docKey === 'bag') return layoutBag(values, measure);

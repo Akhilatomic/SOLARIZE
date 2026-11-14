@@ -3,7 +3,7 @@
 // Edits live in gen_docs (kind 'kseb_wcr', 'kseb_an1' … 'kseb_an3', 'kseb_agr', 'kseb_chk'); the PDF itself is built in the browser.
 // Any KSEB or bank document may also fill EMPTY customer profile / plant fields with what was typed in it (kseb_fill).
 
-const KSEB_DOCS = ['cov', 'req', 'wcr', 'an1', 'an2', 'an3', 'doi', 'agr', 'chk'];
+const KSEB_DOCS = ['cov', 'req', 'wcr', 'an1', 'an2', 'an3', 'doi', 'almm', 'agr', 'chk'];
 /* profile fields a document may fill when they are still empty (the fields with src in assets/app24.js; KD.fill picks them) */
 const KSEB_FILL = ['c' => ['consumer_no', 'kseb_section', 'premises', 'transformer', 'local_body', 'village_survey', 'sanctioned_load', 'gps',
     'phone', 'alt_phone', 'email', 'address', 'district', 'pincode', 'phase', 'bank_name', 'bank_ifsc', 'jansamarth_id'],
