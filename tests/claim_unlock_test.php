@@ -110,6 +110,27 @@ call($admin, 'leads', 'list'); chk(empty($get($g)['assigned_to']), 'once the gra
 call($s2, 'leads', 'claim', ['id' => $g]);
 $r2 = $rowOf($s2, $g); chk((int)$r2['grace_used'] === 0 && abs((int)$r2['unlock_at'] - (time() + 36 * 3600)) < 120, 'a new claim starts with no grace period used');
 chk(call($s2, 'leads', 'extend', ['id' => $own])['_code'] !== 200 && call($s1, 'leads', 'extend', ['id' => $own])['_code'] === 400, 'a lead with no clock (added by its holder) has nothing to extend');
+/* Admin › Users › Edit › Delete: the login goes, the history stays, the work is handed on */
+$u3 = (int)(call($admin, 'admin', 'user_save', ['name' => 'Delete Me', 'username' => 'deleteme', 'role' => 'sales', 'active' => 1, 'can_claim' => 1, 'password' => $pw])['id'] ?? 0);
+$s3 = actor('s3'); call($s3, 'auth', 'login', ['username' => 'deleteme', 'password' => $pw]);
+$dl = $mk('Deleted User Lead Test', 1, $u3);
+$dcid = (int)(call($admin, 'customers', 'save', ['name' => 'Deleted User Customer', 'phone' => '9000000771'])['id'] ?? 0);
+call($admin, 'customers', 'reassign', ['id' => $dcid, 'user_id' => $u3]);
+$db->exec("INSERT INTO notes(entity,entity_id,text,user) VALUES('leads',$dl,'a note by them','Delete Me')");
+chk(call($s3, 'admin', 'user_delete', ['id' => $u2])['_code'] === 403, 'only an admin can delete a user');
+$me = (int)$db->query("SELECT id FROM users WHERE username='boss'")->fetchColumn();
+chk(call($admin, 'admin', 'user_delete', ['id' => $me])['_code'] === 400, 'you cannot delete yourself');
+chk(call($admin, 'admin', 'user_delete', ['id' => $u3, 'to' => $u3])['_code'] === 400 && call($admin, 'admin', 'user_delete', ['id' => $u3, 'to' => 999999])['_code'] === 400, 'their customers need an active user (or nobody) to go to');
+$del = call($admin, 'admin', 'user_delete', ['id' => $u3, 'to' => $u1]);
+chk($del['_code'] === 200 && (int)$del['leads'] === 1 && (int)$del['customers'] === 1, 'deleting reports what was handed on');
+chk(empty($get($dl)['assigned_to']) && (int)$db->query("SELECT owner_id FROM customers WHERE id=$dcid")->fetchColumn() === $u1, 'their lead is back in the shared list and their customer has the new owner');
+chk(!in_array($u3, array_map(fn($x) => (int)$x['id'], array_filter(call($admin, 'admin', 'users'), 'is_array')), true), 'they are gone from the users list');
+chk(call($s3, 'leads', 'list')['_code'] === 401 && call(actor('s3b'), 'auth', 'login', ['username' => 'deleteme', 'password' => $pw])['_code'] !== 200, 'they are signed out and cannot sign in again');
+$ur = $db->query("SELECT name, deleted, active FROM users WHERE id=$u3")->fetch();
+chk($ur && $ur['name'] === 'Delete Me' && (int)$ur['deleted'] === 1 && (int)$ur['active'] === 0 && (int)$db->query("SELECT COUNT(*) FROM notes WHERE user='Delete Me'")->fetchColumn() === 1, 'their name and what they wrote are kept');
+$again = call($admin, 'admin', 'user_save', ['name' => 'New Person', 'username' => 'deleteme', 'role' => 'sales', 'active' => 1, 'can_claim' => 0, 'password' => $pw]);
+chk($again['_code'] === 200 && (int)$again['id'] !== $u3, 'the username is free for a new user');
+chk(call($admin, 'admin', 'user_delete', ['id' => $u3])['_code'] === 404, 'a deleted user cannot be deleted twice');
 /* leave the shared test database as other tests expect it: the rule starts now, so nothing else unlocks */
 $db->exec("UPDATE leads SET claimed_at='" . gmdate('Y-m-d H:i:s') . "' WHERE id IN ($pre,$fresh)");
 $from(time());

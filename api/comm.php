@@ -101,7 +101,7 @@ function inc_previews(&$rs) {
 }
 function comm_people() {
   return array_map(fn($u) => ['id' => (int)$u['id'], 'name' => $u['name'], 'role' => $u['role'], 'role_name' => ROLE_NAMES[$u['role']] ?? $u['role'], 'active' => (int)$u['active'], 'kind' => comm_kind_of($u['role'])],
-    rows("SELECT id, name, role, active FROM users WHERE role<>'admin' ORDER BY active DESC, name COLLATE NOCASE"));
+    rows("SELECT id, name, role, active FROM users WHERE role<>'admin' AND COALESCE(deleted,0)=0 ORDER BY active DESC, name COLLATE NOCASE"));
 }
 // who manages a list: the admin both; a user with Incentive "Edit" the staff incentives
 function comm_can_manage($kind) { return is_admin() || ($kind === 'incentive' && can('incentive', true)); }

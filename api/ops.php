@@ -157,7 +157,7 @@ function handle_admin($a) {
   if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
   $in = body();
   switch ($a) {
-    case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,u.avatar,u.seen_at,u.active_at,(SELECT COUNT(*) FROM customers WHERE owner_id=u.id) customers,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads,(SELECT COUNT(*) FROM mail_accounts WHERE user_id=u.id) mails FROM users u ORDER BY u.id'));
+    case 'users': out(rows('SELECT u.id,u.name,u.username,u.role,u.active,u.can_claim,u.created,u.avatar,u.seen_at,u.active_at,(SELECT COUNT(*) FROM customers WHERE owner_id=u.id) customers,(SELECT COUNT(*) FROM leads WHERE assigned_to=u.id) leads,(SELECT COUNT(*) FROM mail_accounts WHERE user_id=u.id) mails FROM users u WHERE COALESCE(u.deleted,0)=0 ORDER BY u.id'));
     case 'user_save':
       $role = $in['role'] ?? 'sales'; if (!isset(ROLE_DEFAULTS[$role])) fail('Bad role');
       $name = trim($in['name'] ?? ''); $u = trim($in['username'] ?? ''); if ($u === '' || $name === '') fail('Name and username required');
@@ -178,6 +178,27 @@ function handle_admin($a) {
       foreach (array_unique([strtolower($u), strtolower((string)($was_name ?? ''))]) as $k) if ($k !== '') q('DELETE FROM login_guard WHERE k=?', ['u:' . $k]);
       if ($role === 'ba') q('UPDATE wa_chats SET assigned_to=NULL WHERE assigned_to=?', [(int)$id]); // BAs never have WhatsApp
       audit('user_save', 'users', (int)$id, "$u ($role)"); out(['id' => $id]);
+    case 'user_delete': /* Admin › Users › Edit › Delete. The person can no longer sign in and leaves every list; what they did stays
+      under their name (attendance, incentives, notes, audit log), so the row is kept, hidden (users.deleted). Their work is handed on:
+      the leads they hold go back to the shared list, their customers go to {to} (or have no owner), their WhatsApp chats are released
+      and the email addresses they connected are disconnected. The username becomes free for a new user. */
+      $id = (int)($in['id'] ?? 0); $u = row('SELECT * FROM users WHERE id=? AND COALESCE(deleted,0)=0', [$id]); if (!$u) fail('User not found', 404);
+      if ($id === (int)$_SESSION['uid']) fail('You cannot delete yourself');
+      $to = (int)($in['to'] ?? 0);
+      if ($to && ($to === $id || !row('SELECT 1 FROM users WHERE id=? AND active=1 AND COALESCE(deleted,0)=0', [$to]))) fail('Choose an active user to take over their customers');
+      $db = db(); $db->exec('BEGIN IMMEDIATE'); $tx = true;
+      try {
+        $nl = q("UPDATE leads SET assigned_to=NULL, claimed_at='', updated=CURRENT_TIMESTAMP WHERE assigned_to=?", [$id])->rowCount();
+        $nc = q('UPDATE customers SET owner_id=? WHERE owner_id=?', [$to ?: null, $id])->rowCount();
+        q('UPDATE wa_chats SET assigned_to=NULL WHERE assigned_to=?', [$id]);
+        $nm = q('DELETE FROM mail_accounts WHERE user_id=?', [$id])->rowCount(); /* the saved mail passwords go; the mail stays with the provider */
+        q('DELETE FROM notifs WHERE user_id=?', [$id]);
+        q('DELETE FROM login_guard WHERE k=?', ['u:' . strtolower((string)$u['username'])]);
+        q('UPDATE users SET deleted=1, active=0, can_claim=0, sess_ver=sess_ver+1, username=? WHERE id=?', [mb_substr((string)$u['username'], 0, 60) . '~deleted' . $id, $id]);
+        $db->exec('COMMIT'); $tx = false;
+      } catch (Throwable $e) { if ($tx) { try { $db->exec('ROLLBACK'); } catch (Throwable $_) { } } throw $e; }
+      audit('user_delete', 'users', $id, $u['name'] . ' (' . $u['username'] . ', ' . $u['role'] . ") · $nl lead(s) released · $nc customer(s) " . ($to ? 'handed to ' . owner_name($to) : 'left without an owner') . ($nm ? " · $nm email address(es) disconnected" : ''));
+      out(['ok' => true, 'leads' => $nl, 'customers' => $nc, 'mails' => $nm]);
     case 'user_signout': /* signs the person out on every device; their password stays as it is */
       $id = (int)($in['id'] ?? 0); $u = row('SELECT id, username FROM users WHERE id=?', [$id]); if (!$u) fail('User not found', 404);
       if ($id === (int)$_SESSION['uid']) fail('To sign out your own other devices, change your password in My account');

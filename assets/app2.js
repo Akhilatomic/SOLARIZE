@@ -519,8 +519,9 @@ function userModal(u) {
   const m = modal(`<h3 style="margin-top:0">${id ? 'Edit' : 'New'} user</h3><div class="two">${[{ k: 'name', l: 'Full name' }, { k: 'username', l: 'Username' }, { k: 'role', l: 'Role', opts: Object.entries(S.role_names || {}).map(([k, v]) => [k, v]) }, { k: 'active', l: 'Active', opts: [['1', 'Yes'], ['0', 'Disabled']], d: '1' }, { k: 'can_claim', l: 'Leads access', opts: [['1', 'Can see & claim unclaimed leads'], ['0', 'Only leads assigned to them']] }, { k: 'password', l: id ? 'New password (leave blank to keep)' : 'Password (min 8)', t: 'password', full: 1 }].map(f => fld(f, { ...u, active: u.active === 0 ? '0' : '1', can_claim: u.can_claim === 0 ? '0' : (u.can_claim ? '1' : '0') })).join('')}</div>
    ${id ? `<div class="udp"><span class="uav big" id="udpi">${avImg(id, u.avatar, u.name)}</span><div><b>Profile photo</b><div class="bar" style="margin:6px 0 0"><button class="btn sec sm" id="udpu" type="button">Upload photo</button><button class="btn sec sm" id="udpr" type="button" ${u.avatar ? '' : 'hidden'}>Remove</button></div></div></div>
      <div class="mbxadm"><b>Email addresses</b><small class="mut">Addresses ${id == ME.id ? 'you' : 'this person'} connected in the CRM. You never see their mail here.</small><div id="umbx"><p class="mut" style="font-size:13px;margin:6px 0 0">Loading…</p></div></div>` : ''}
-   <div class="bar" style="margin-top:12px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button></div>`);
+   <div class="bar" style="margin-top:12px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button><span class="sp"></span>${id && id != ME.id ? '<button class="btn bad" id="udel" type="button"><i class="i i-trash"></i> Delete user</button>' : ''}</div>`);
   $('#cx', m).onclick = () => m.remove();
+  if ($('#udel', m)) $('#udel', m).onclick = () => userDelete(u, () => { m.remove(); route(); });
   const dpDone = av => { u.avatar = av; $('#udpi', m).innerHTML = avImg(id, av, u.name); $('#udpr', m).hidden = !av; if (id == ME.id) setMyAvatar(av); };
   if ($('#udpu', m)) { $('#udpu', m).onclick = () => pickAvatar(id, u.name, dpDone); $('#udpr', m).onclick = () => removeAvatar(id, dpDone); }
   // their email addresses: take one over (e.g. they left — you have the password anyway) or disconnect it
@@ -531,6 +532,30 @@ function userModal(u) {
     $$('[data-rmx]', box).forEach(b => b.onclick = async () => { const x = L.find(y => y.id == b.dataset.rmx); if (!confirm(`Disconnect ${x.email} from ${id == ME.id ? 'your' : u.name + '’s'} CRM login?\n\nThe CRM forgets its saved password. The mail stays with the email provider.`)) return; await api('mail', 'admin_remove', { id: x.id }); toast(x.email + ' disconnected'); if (id == ME.id) EM.cfg = null; mbx(); }); };
   if (id) mbx();
   $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; o.active = o.active === '1' ? 1 : 0; o.can_claim = o.can_claim === '1' ? 1 : 0; await api('admin', 'user_save', o); m.remove(); route(); };
+}
+
+/* Delete a user (Admin › Users › Edit): says what happens to their work, lets the admin pick who takes their customers, and
+   asks for the username to be typed — it cannot be undone from the CRM. */
+async function userDelete(u, done) {
+  let cand = []; try { cand = (await api('customers', 'owners')).filter(x => x.id != u.id); } catch (e) { }
+  const nC = +u.customers || 0, nL = +u.leads || 0, nM = +u.mails || 0;
+  const m = modal(`<h3 style="margin-top:0">Delete ${esc(u.name)}?</h3>
+    <p style="margin:0 0 10px">They will no longer be able to sign in and will leave every list. This cannot be undone here.</p>
+    <ul class="udl-l"><li>What they did stays under their name: attendance, incentives, notes and the audit log.</li>
+      <li>${nL ? `<b>${nL}</b> lead${nL === 1 ? '' : 's'} they hold go${nL === 1 ? 'es' : ''} back to the shared list for others to claim.` : 'They hold no leads.'}</li>
+      <li>${nC ? `<b>${nC}</b> customer${nC === 1 ? '' : 's'} they own go${nC === 1 ? 'es' : ''} to the person you choose below.` : 'They own no customers.'}</li>
+      ${nM ? `<li><b>${nM}</b> email address${nM === 1 ? '' : 'es'} they connected ${nM === 1 ? 'is' : 'are'} disconnected (use “Move to my email” first to keep one).</li>` : ''}
+      <li>The username <b>${esc(u.username)}</b> becomes free for a new user.</li></ul>
+    ${nC ? `<label>Give their customers to</label><select id="udlto">${cand.map(x => `<option value="${x.id}" ${x.id == ME.id ? 'selected' : ''}>${esc(x.name)}${x.id == ME.id ? ' (you)' : ''} · ${esc(x.role_name || x.role)}</option>`).join('')}<option value="0">Nobody (no owner)</option></select>` : ''}
+    <label>Type the username <b>${esc(u.username)}</b> to confirm</label><input id="udlu" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="bar" style="margin-top:14px"><button class="btn bad" id="udlgo" disabled><i class="i i-trash"></i> Delete user</button><button class="btn sec" id="udlcx">Cancel</button></div>`);
+  const inp = $('#udlu', m), go = $('#udlgo', m);
+  inp.oninput = () => { go.disabled = inp.value.trim().toLowerCase() !== String(u.username).toLowerCase(); };
+  $('#udlcx', m).onclick = () => m.remove(); inp.focus();
+  go.onclick = async () => { go.disabled = true;
+    try { const r = await api('admin', 'user_delete', { id: u.id, to: $('#udlto', m) ? +$('#udlto', m).value : 0 }); m.remove();
+      toast(`${u.name} deleted` + (r.leads ? ` · ${r.leads} lead${r.leads === 1 ? '' : 's'} released` : '') + (r.customers ? ` · ${r.customers} customer${r.customers === 1 ? '' : 's'} handed over` : '')); done && done(); }
+    catch (e) { go.disabled = false; } };
 }
 
 // ---------- Settings → User access (role × module matrix) ----------

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 64; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 65; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -153,6 +153,9 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS login_guard(k TEXT PRIMARY KEY, fails INTEGER DEFAULT 0, first INTEGER DEFAULT 0, until INTEGER DEFAULT 0)");
   $ucols = array_column($db->query('PRAGMA table_info(users)')->fetchAll(), 'name');
   if (!in_array('avatar', $ucols)) { try { $db->exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  /* v65: a deleted user (Admin › Users › Edit › Delete) is kept as a hidden, switched-off row so attendance, incentives, notes and the
+     audit log keep the name; users.deleted = 1 hides the row from every list */
+  if (!in_array('deleted', $ucols)) { try { $db->exec('ALTER TABLE users ADD COLUMN deleted INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   if (!in_array('sess_ver', $ucols)) { try { $db->exec('ALTER TABLE users ADD COLUMN sess_ver INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   $db->exec("CREATE TABLE IF NOT EXISTS plant(customer_id INTEGER PRIMARY KEY, data TEXT, updated TEXT DEFAULT CURRENT_TIMESTAMP, updated_by TEXT DEFAULT '')");
   $db->exec("CREATE TABLE IF NOT EXISTS trash(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, label TEXT, data TEXT, deleted_by TEXT, deleted_at TEXT DEFAULT CURRENT_TIMESTAMP)");
