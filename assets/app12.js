@@ -149,20 +149,59 @@ async function docShare(f, c) {
     toast('This browser can’t share files directly — downloaded it so you can attach it');
   } catch (e) { if (e && e.name !== 'AbortError') toast('Could not share this file', true); }
 }
+/* The document window: every saved file opens here, inside the CRM, instead of in a new browser tab.
+   F = the files to page through ({id, name, item} — a file known only by its id is looked up when shown), i = the one to open.
+   PDFs show in the browser's own reader, pictures fit the window (click = full size and back). ← → page through, Esc closes. */
+const DOC_META = {};
+async function docMeta(f) {
+  if (f.name) return f;
+  if (!DOC_META[f.id]) DOC_META[f.id] = (async () => {
+    try { const r = await fetch('api.php?m=files&a=get&id=' + f.id); /* headers only: the file itself is loaded by the viewer */
+      const cd = r.headers.get('content-disposition') || '', m = /filename="([^"]*)"/.exec(cd), type = r.headers.get('content-type') || '';
+      try { r.body && r.body.cancel(); } catch (e) { }
+      if (!r.ok) return { name: '', bad: true };
+      return { name: (m && m[1]) || (/pdf/.test(type) ? 'document.pdf' : /^image\//.test(type) ? 'picture.' + type.split('/')[1].replace('jpeg', 'jpg') : 'file') };
+    } catch (e) { return { name: '', bad: true }; } })();
+  const x = await DOC_META[f.id]; f.name = x.name; f.bad = x.bad; return f;
+}
 function docViewer(F, i) {
   const m = modal('<div class="dvw"></div>', 1); m.classList.add('dvmod');
-  const show = () => { const f = F[i];
-    $('.dvw', m).innerHTML = `<div class="dvh"><b>${esc(f.item || f.name)}</b><span class="mut">${i + 1} / ${F.length} · ${esc(f.name)}</span><span class="sp"></span><a class="btn sec sm" href="${fileUrl(f, 1)}" download="${esc(f.name)}"><i class="i i-download"></i></a><button class="btn sec sm" id="dvs"><i class="i i-link"></i></button><button class="lvx" id="dvx"><i class="i i-x"></i></button></div>
-      <div class="dvb">${isImg(f) ? `<img src="${fileUrl(f, 'v')}" alt="">` : isPdf(f) ? `<iframe src="${fileUrl(f, 'v')}" title="PDF"></iframe>` : `<p class="mut">No preview for this file type. <a href="${fileUrl(f, 1)}">Download</a></p>`}
-       ${F.length > 1 ? '<button class="dvn p" id="dvp">‹</button><button class="dvn n" id="dvn">›</button>' : ''}</div>`;
-    $('#dvx', m).onclick = () => { m.remove(); document.removeEventListener('keydown', key); };
-    $('#dvs', m).onclick = () => docShare(f, { name: '' });
-    if ($('#dvp', m)) { $('#dvp', m).onclick = () => { i = (i - 1 + F.length) % F.length; show(); }; $('#dvn', m).onclick = () => { i = (i + 1) % F.length; show(); }; } };
-  const key = e => { if (!document.body.contains(m)) return document.removeEventListener('keydown', key); if (e.key === 'ArrowRight' && F.length > 1) { i = (i + 1) % F.length; show(); } if (e.key === 'ArrowLeft' && F.length > 1) { i = (i - 1 + F.length) % F.length; show(); } if (e.key === 'Escape') { m.remove(); } };
+  const close = () => { m.remove(); document.removeEventListener('keydown', key); };
+  const go = d => { i = (i + d + F.length) % F.length; show(); };
+  let seq = 0;
+  const show = async () => { const f = F[i], n = ++seq, w = $('.dvw', m);
+    w.innerHTML = `<div class="dvh"><b>${esc(f.item || f.name || 'Document')}</b><span class="sp"></span><button class="lvx" id="dvx" title="Close (Esc)"><i class="i i-x"></i></button></div><div class="dvb"><p class="dvl">Opening…</p></div>`;
+    $('#dvx', m).onclick = close;
+    await docMeta(f); if (n !== seq || !document.body.contains(m)) return;
+    w.innerHTML = `<div class="dvh"><span class="dvt"><b>${esc(f.item || f.name || 'Document')}</b><small class="mut">${F.length > 1 ? `${i + 1} of ${F.length} · ` : ''}${esc(f.name || '')}</small></span><span class="sp"></span>
+        ${f.bad ? '' : `<a class="btn sec sm" href="${fileUrl(f, 1)}" download="${esc(f.name)}" title="Download"><i class="i i-download"></i><span>Download</span></a><a class="btn sec sm" href="${fileUrl(f, 'v')}" target="_blank" rel="noopener" data-newtab="1" title="Open in a new browser tab"><i class="i i-file"></i><span>New tab</span></a>${f.size != null ? '<button class="btn sec sm" id="dvs" title="Share"><i class="i i-link"></i><span>Share</span></button>' : ''}`}
+        <button class="lvx" id="dvx" title="Close (Esc)"><i class="i i-x"></i></button></div>
+      <div class="dvb">${f.bad ? '<p class="dvl">This file could not be opened. It may have been deleted.</p>' : isImg(f) ? `<img src="${fileUrl(f, 'v')}" alt="${esc(f.name)}" title="Click for full size">` : isPdf(f) ? `<iframe src="${fileUrl(f, 'v')}#view=FitH&navpanes=0" title="${esc(f.name)}"></iframe>` : `<p class="dvl">No preview for this kind of file.<br><a class="btn sm" href="${fileUrl(f, 1)}" download="${esc(f.name)}">Download it</a></p>`}
+       ${F.length > 1 ? '<button class="dvn p" id="dvp" title="Previous (←)" aria-label="Previous">‹</button><button class="dvn n" id="dvn" title="Next (→)" aria-label="Next">›</button>' : ''}</div>`;
+    $('#dvx', m).onclick = close;
+    if ($('#dvs', m)) $('#dvs', m).onclick = () => docShare(f, { name: '' });
+    const im = $('.dvb img', m); if (im) im.onclick = () => $('.dvb', m).classList.toggle('full');
+    if ($('#dvp', m)) { $('#dvp', m).onclick = () => go(-1); $('#dvn', m).onclick = () => go(1); } };
+  const key = e => { if (!document.body.contains(m)) return document.removeEventListener('keydown', key); if (e.key === 'ArrowRight' && F.length > 1) go(1); if (e.key === 'ArrowLeft' && F.length > 1) go(-1); if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', key);
-  let sx = 0; m.addEventListener('touchstart', e => sx = e.touches[0].clientX, { passive: true }); m.addEventListener('touchend', e => { const dx = e.changedTouches[0].clientX - sx; if (Math.abs(dx) > 60 && F.length > 1) { i = (i + (dx < 0 ? 1 : -1) + F.length) % F.length; show(); } });
+  let sx = 0; m.addEventListener('touchstart', e => sx = e.touches[0].clientX, { passive: true }); m.addEventListener('touchend', e => { const dx = e.changedTouches[0].clientX - sx; if (Math.abs(dx) > 60 && F.length > 1) go(dx < 0 ? 1 : -1); });
   show();
 }
+/* Any link to a saved file (api.php?m=files&a=get&id=…) anywhere in the CRM opens in the document window. Left alone: download
+   links, the window's own "New tab" button, and Ctrl / Shift / middle clicks (those still open a browser tab). The other file
+   links in the same card can be paged through with the arrows. */
+const docLinkId = a => { const m = /[?&]m=files&a=get&id=(\d+)/.exec(a.getAttribute('href') || ''); return m && !/[?&]dl=1/.test(a.getAttribute('href')) && !a.hasAttribute('download') && !a.dataset.newtab ? +m[1] : 0; };
+document.addEventListener('click', e => {
+  if (e.defaultPrevented || e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  const a = e.target.closest && e.target.closest('a[href*="m=files&a=get"]'); if (!a) return;
+  const id = docLinkId(a); if (!id) return;
+  e.preventDefault();
+  const box = a.closest('.card, .modal') || document.body, F = [], seen = {};
+  $$('a[href*="m=files&a=get"]', box).forEach(x => { const xi = docLinkId(x); if (!xi || seen[xi]) return; seen[xi] = 1;
+    const t = (x.getAttribute('aria-label') || '').replace(/^View\s+/, '') || (x.textContent || '').trim();
+    F.push({ id: xi, name: /\.(pdf|jpe?g|png|webp|gif)$/i.test(t) ? t : '', item: /\.(pdf|jpe?g|png|webp|gif)$/i.test(t) ? '' : t }); });
+  docViewer(F, Math.max(0, F.findIndex(f => f.id === id)));
+});
 // big phone photos are shrunk before upload (faster, smaller) — max 2200 px, JPEG
 async function shrinkImage(f) {
   if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size < 1.2e6) return f;
