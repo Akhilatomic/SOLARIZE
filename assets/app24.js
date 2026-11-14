@@ -102,6 +102,39 @@ var KD = (function () {
         ] }
       ]
     },
+    /* DCR declaration: the vendor's undertaking / self-declaration that the PV modules are domestically manufactured with
+       domestic cells (declaration_for_DCR.docx), asked for by MNRE. On the letterhead, Times 12; signed with the official seal.
+       The wording is fixed (K.DCR); only these fields are filled in. */
+    dcr: {
+      key: 'dcr', tab: 'DCR declaration', file: 'DCR Declaration', page: 'letterhead',
+      groups: [
+        { g: 'Declaration', fields: [
+          { k: 'date', l: 'Date', t: 'date' },
+          { k: 'vendor_name', l: 'Vendor (company) name' },
+          { k: 'capacity', l: 'Plant capacity (DC)' },
+          { k: 'name', l: 'Name of consumer' },
+          { k: 'address', l: 'Address of the site', t: 'area' },
+          { k: 'sanction_no', l: 'Sanction number', opt: true },
+          { k: 'sanction_date', l: 'Sanction date', t: 'date' }
+        ] },
+        { g: 'PV modules installed', fields: [
+          { k: 'module_wp', l: 'PV module capacity' },
+          { k: 'module_count', l: 'Number of PV modules' },
+          { k: 'panel_serials', l: 'Serial numbers (one per line, or separated by commas)', t: 'area', rows: 5 },
+          { k: 'module_make', l: 'PV module make' },
+          { k: 'po_no', l: 'Purchase order number' },
+          { k: 'po_date', l: 'Purchase order date', t: 'date' },
+          { k: 'cell_maker', l: 'Cell manufacturer\u2019s name' },
+          { k: 'cell_invoice', l: 'Cell GST invoice no.' }
+        ] },
+        { g: 'Signed by', fields: [
+          { k: 'sign_name', l: 'Name' },
+          { k: 'sign_designation', l: 'Designation' },
+          { k: 'sign_phone', l: 'Phone' },
+          { k: 'sign_email', l: 'Email' }
+        ] }
+      ]
+    },
     /* Request letter: the consumer's covering letter to the Assistant Engineer asking to register the solar plant
        (req letter.docx), with the consumer number and the consumer's and vendor's phone numbers. Plain A4, Times 12. */
     req: {
@@ -553,6 +586,24 @@ var KD = (function () {
         panel_serials: aser.join('\n'),
         sign_name: str(sd.sign_name), sign_designation: str(sd.sign_designation),
         organization: trim(sd.vendor_name).replace(/^M\/S\.?\s*/i, '') || 'JASPER SOLAR SOLUTIONS'
+      };
+    } else if (docKey === 'dcr') {
+      var dpan = Array.isArray(p.panels) ? p.panels : [];
+      var dser = dpan.map(function (x) { return trim(x && x.serial); }).filter(Boolean);
+      var dcnt = trim(p.panel_count) && !zero(p.panel_count) ? trim(p.panel_count) : String(dser.length || '');
+      var dwp = zero(p.panel_wattage) ? '' : trim(p.panel_wattage);
+      var dmake = trim(p.panel_make) || dpan.map(function (x) { return trim(x && x.make); }).filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(', ');
+      v = {
+        date: today, vendor_name: trim(sd.vendor_name) || 'M/S JASPER SOLAR SOLUTIONS',
+        /* DC capacity = modules x Wp when both are known, else the plant capacity */
+        capacity: isNum(dcnt) && isNum(dwp) && +dwp > 0 ? Math.round(+dcnt * +dwp) / 1000 + ' KW' : cap('KW'),
+        name: trim(c.name), address: K.joinAddr(c),
+        sanction_no: '', sanction_date: trim(p.approved_on),
+        module_wp: bare(p.panel_wattage, 'Wp'), module_count: isNum(dcnt) ? dcnt + ' Nos' : dcnt,
+        panel_serials: dser.join('\n'), module_make: dmake,
+        po_no: trim(p.dcr_po_no), po_date: trim(p.dcr_po_date),
+        cell_maker: trim(p.cell_maker), cell_invoice: trim(p.cell_invoice_no),
+        sign_name: str(sd.sign_name), sign_designation: str(sd.sign_designation), sign_phone: str(sd.sign_phone) || str(sd.vendor_phone), sign_email: str(sd.vendor_email)
       };
     } else if (docKey === 'req') {
       var raddr = trim(c.address), rdist = trim(c.district);
@@ -1800,9 +1851,79 @@ var KD = (function () {
     return r;
   };
 
+  /* ---- MNRE: undertaking / self-declaration for the domestic content requirement (declaration_for_DCR.docx) on the letterhead:
+     Times, 1 inch side margins, the date on the letterhead's own Date line. Centred bold title over a fine rule, four numbered
+     paragraphs (justified, hanging numbers), the module details as a ruled two-column table under paragraph 2 (hairlines
+     only; long serial lists wrap inside the cell), then the signature block at the right: room to sign and seal, the seal
+     line, "For <vendor>" in bold and who signs. One size from 12 down to 9 pt so it stays on the page. The wording is the
+     official one; only the blanks are filled. ---- */
+  K.DCR = {
+    title: 'Undertaking/Self- Declaration for domestic content requirement fulfillment',
+    p1: function (vendor, cap, name, addr, no, date) { return 'This is to certify that ' + vendor + ' has installed ' + cap + ' DC Grid Connected Rooftop Solar PV Power Plant for ' + name + ' at ' + addr + ' under sanction number ' + (no ? no + ' ' : '') + 'dated ' + date + ' issued by Kerala State Electricity Board.'; },
+    p2: 'It is hereby undertaken that the PV modules installed for the above-mentioned project are domestically manufactured using domestic manufactured solar cells. The details of installed PV Modules are follows:',
+    rows: [['PV Module Capacity', 'module_wp'], ['Number of PV Modules', 'module_count'], ['Sr No of PV Module', 'panel_serials'], ['PV Module Make', 'module_make'],
+      ['Purchase Order Number', 'po_no'], ['Purchase Order Date', 'po_date'], ['Cell manufacturer\u2019s name', 'cell_maker'], ['Cell GST invoice No', 'cell_invoice']],
+    p3: 'The above undertaking is based on the certificate issued by PV Module manufacturer/supplier while supplying the above mentioned order.',
+    p4: function (who, vendor) { return 'I, ' + who + ' on behalf of ' + vendor + ' further declare that the information given above is true and correct and nothing has been concealed therein. If anything is found incorrect at any stage then the due Central Financial Assistance (CFA) that I have not charged from the consumer can be withheld and appropriate action may be taken against me and my company for wrong declaration. Supporting documents and proof of the above information will be provided as and when requested by MNRE.'; }
+  };
+  var DCRD = { x0: 72, x1: 523, top: 210, bottom: 742, max: 12, min: 9, ind: 20, c1: 150, pad: 5, sigX: 318 };
+  var layoutDcr = function (v, measure) {
+    var D = DCRD, A = K.DCR, r;
+    var one = function (t) { return clean(t).replace(/\s*\n\s*/g, ', '); };
+    var blank = function (t) { return one(t) || '__________'; };
+    var dateOf = function (t) { return K.dmy(t) || clean(t) || '__________'; };
+    for (var s = D.max; s >= D.min; s -= 0.5) {
+      var ops = [], lh = 1.25 * s, y = D.top, W = D.x1 - D.x0;
+      var L = function (x1, y1, x2, y2, w) { ops.push({ ln: [r2(x1), r2(y1), r2(x2), r2(y2)], w: w || 0.4 }); };
+      /* text from x to the right margin; just = justified (all lines but the last) */
+      var para = function (t, x, f, just) {
+        f = f || 'T';
+        var ls = K.wrap(t, D.x1 - x, f, s, measure);
+        ls.forEach(function (ln, i) { var o = op(ln, x, y, f, s), ws = just && i < ls.length - 1 ? K.justify(ln, D.x1 - x, f, s, measure) : 0; if (ws) o.ws = ws; if (ln) ops.push(o); y += lh; });
+      };
+      var num = function (n, t) { ops.push(op(n + '.', D.x0, y, 'T', s)); para(clean(t), D.x0 + D.ind, 'T', true); };
+      var gap = function (n) { y += (n === undefined ? 1 : n) * lh; };
+      var hd = K.dmy(v.date) || clean(v.date); if (hd) ops.push(op(hd, WCR.dateX, WCR.headY, 'H', WCR.headS)); /* the letterhead's own Date line */
+      /* title: centred, bold, one point larger, a fine rule under it */
+      var ts = s + 1;
+      K.wrap(A.title, W, 'TB', ts, measure).forEach(function (ln) { ops.push(op(ln, D.x0 + (W - measure(ln, 'TB', ts)) / 2, y, 'TB', ts)); y += 1.25 * ts; });
+      L(D.x0, y - 1.25 * ts + 5, D.x1, y - 1.25 * ts + 5, 0.5);
+      gap(0.75);
+      num(1, A.p1(blank(v.vendor_name), blank(v.capacity), blank(v.name), blank(v.address), one(v.sanction_no), dateOf(v.sanction_date)));
+      gap(0.45);
+      num(2, A.p2);
+      /* the module details: a ruled two-column table, indented with the paragraph text */
+      var tx = D.x0 + D.ind, cx = tx + D.c1, ty = y - s * 0.55, top = ty, vw = D.x1 - cx - 2 * D.pad;
+      L(tx, ty, D.x1, ty);
+      A.rows.forEach(function (rw) {
+        var val = rw[1] === 'panel_serials' ? clean(v.panel_serials).split(/[\n,]+/).map(trim).filter(Boolean).join(', ') : rw[1] === 'po_date' ? (K.dmy(v.po_date) || clean(v.po_date)) : one(v[rw[1]]);
+        var ls = val ? K.wrap(val, vw, 'T', s, measure) : [''];
+        var h = ls.length * lh + 2 * D.pad - (lh - s) - 2, by = ty + D.pad + s * 0.78;
+        ops.push(op(clean(rw[0]), tx + D.pad, by, 'TB', s));
+        ls.forEach(function (ln, i) { if (ln) ops.push(op(ln, cx + D.pad, by + i * lh, 'T', s)); });
+        ty += h; L(tx, ty, D.x1, ty);
+      });
+      L(tx, top, tx, ty); L(cx, top, cx, ty); L(D.x1, top, D.x1, ty);
+      y = ty + lh * 1.25;
+      num(3, A.p3);
+      gap(0.45);
+      num(4, A.p4(blank(v.sign_name), blank(v.vendor_name)));
+      /* signature block at the right: room to sign and seal, then who signs */
+      gap(3);
+      ops.push(op('(Signature With official Seal)', D.sigX, y, 'T', s)); y += lh;
+      K.wrap('For ' + blank(v.vendor_name), D.x1 - D.sigX, 'TB', s, measure).forEach(function (ln) { ops.push(op(ln, D.sigX, y, 'TB', s)); y += lh; });
+      ['Name: ' + blank(v.sign_name), 'Designation: ' + blank(v.sign_designation), 'Phone: ' + blank(v.sign_phone), 'Email: ' + blank(v.sign_email)]
+        .forEach(function (t) { para(t, D.sigX, 'T', false); });
+      r = { ops: ops, size: s, overflow: y - lh > D.bottom };
+      if (!r.overflow) break;
+    }
+    return r;
+  };
+
   K.layout = function (docKey, values, measure) {
     if (docKey === 'req') return layoutReq(values || {}, measure);
     if (docKey === 'almm') return layoutAlmm(values || {}, measure);
+    if (docKey === 'dcr') return layoutDcr(values || {}, measure);
     values = values || {};
     if (docKey === 'bfr') return layoutBfr(values, measure);
     if (docKey === 'bag') return layoutBag(values, measure);

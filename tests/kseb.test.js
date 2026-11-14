@@ -765,3 +765,50 @@ test('ALMM declaration: defaults from the plant details, one page on the letterh
   assert.equal(bare.overflow, false);
   assert.ok(bare.ops.some(o => o.t && o.t.includes('__________ kW capacity')) && bare.ops.some(o => o.t === 'Name: __________'));
 });
+
+/* ---- MNRE: undertaking / self-declaration for the domestic content requirement (DCR) ---- */
+test('DCR declaration: defaults from the plant details, one page on the letterhead, numbered paragraphs and the module table', async () => {
+  const ctx = { customer: { name: 'SUMA DEVI R', address: 'Sreekovil, Pandarakonam, Anad P O', district: 'Thiruvananthapuram', pincode: '695541' },
+    plant: { capacity: '3', panel_make: 'TESTSUN', panel_wattage: '540', approved_on: '2026-10-05', dcr_po_no: '7', dcr_po_date: '2026-10-20', cell_maker: 'TESTCELL', cell_invoice_no: 'INV-T26-000123',
+      panels: Array.from({ length: 6 }, (_, i) => ({ serial: 'TS540B000' + (i + 1) })) },
+    project: null, defaults: { vendor_name: 'M/S JASPER SOLAR SOLUTIONS', vendor_email: 'office@example.test', sign_name: 'TEST SIGNATORY', sign_designation: 'CEO', sign_phone: '9000000000' }, today: '2026-11-14' };
+  const v = KD.values('dcr', ctx, {});
+  assert.deepEqual([v.date, v.vendor_name, v.capacity, v.name, v.sanction_no, v.sanction_date, v.module_wp, v.module_count, v.module_make, v.po_no, v.po_date, v.cell_maker, v.cell_invoice, v.sign_name, v.sign_designation, v.sign_phone, v.sign_email],
+    ['2026-11-14', 'M/S JASPER SOLAR SOLUTIONS', '3.24 KW', 'SUMA DEVI R', '', '2026-10-05', '540 Wp', '6 Nos', 'TESTSUN', '7', '2026-10-20', 'TESTCELL', 'INV-T26-000123', 'TEST SIGNATORY', 'CEO', '9000000000', 'office@example.test']);
+  assert.equal(v.panel_serials.split('\n').length, 6);
+  for (const g of KD.DOCS.dcr.groups) for (const f of g.fields) assert.ok(f.k in v, 'dcr.' + f.k);
+  assert.deepEqual(KD.empty('dcr', v), [], 'the sanction number is optional');
+  assert.equal(KD.DOCS.dcr.page, 'letterhead');
+  const measure = await KD.measurer(PDFLib);
+  const r = KD.layout('dcr', v, measure), text = r.ops.filter(o => o.t), lines = r.ops.filter(o => o.ln), all = text.map(o => o.t).join(' ');
+  assert.equal(r.overflow, false); assert.ok(r.size >= 10 && r.size <= 12, 'size ' + r.size);
+  const head = text.shift(); /* the date on the letterhead's own Date line */
+  assert.deepEqual([head.t, head.x, head.y, head.f], ['14-11-2026', 432, 185, 'H']);
+  for (const o of text) assert.ok(!o.p && o.x >= 72 && o.x + measure(o.t, o.f, o.s) + (o.t.split(' ').length - 1) * (o.ws || 0) <= 523.05 && o.y >= 205 && o.y <= 742, o.t);
+  const title = text[0], tw = measure(title.t, 'TB', title.s);
+  assert.ok(title.f === 'TB' && title.s === r.size + 1 && title.t.startsWith('Undertaking/Self- Declaration'), 'bold title first, one point larger');
+  assert.ok(Math.abs((title.x + tw / 2) - (72 + 523) / 2) < 0.01, 'title centred');
+  assert.deepEqual(text.filter(o => /^[1-4]\.$/.test(o.t)).map(o => o.t), ['1.', '2.', '3.', '4.']);
+  assert.ok(all.includes('M/S JASPER SOLAR SOLUTIONS has installed 3.24 KW DC Grid Connected Rooftop Solar PV Power Plant for SUMA DEVI R at'));
+  assert.ok(all.includes('under sanction number dated 05-10-2026 issued by Kerala State Electricity Board.'));
+  assert.ok(all.includes('I, TEST SIGNATORY on behalf of M/S JASPER SOLAR SOLUTIONS further declare'));
+  /* the module table: bold label in the first column, the value on the same line in the second */
+  const val = label => { const l = text.find(o => o.t === label && o.f === 'TB'); return l && text.find(o => o.y === l.y && o.x > l.x + 100); };
+  assert.deepEqual(['PV Module Capacity', 'Number of PV Modules', 'PV Module Make', 'Purchase Order Number', 'Purchase Order Date', "Cell manufacturer's name", 'Cell GST invoice No'].map(l => (val(l) || {}).t),
+    ['540 Wp', '6 Nos', 'TESTSUN', '7', '20-10-2026', 'TESTCELL', 'INV-T26-000123']);
+  assert.ok(val('Sr No of PV Module').t.startsWith('TS540B0001, TS540B0002'));
+  assert.equal(lines.length, 13, 'the rule under the title, 9 rules across the table and 3 down');
+  assert.ok(lines.every(o => o.ln[0] >= 72 && o.ln[2] <= 523 && o.w <= 0.5), 'hairlines only, inside the margins');
+  /* signature block at the right */
+  const seal = text.find(o => o.t === '(Signature With official Seal)'), forv = text.find(o => o.t === 'For M/S JASPER SOLAR SOLUTIONS');
+  assert.ok(seal && forv && seal.x === 318 && forv.x === 318 && forv.f === 'TB' && forv.y > seal.y);
+  for (const t of ['Name: TEST SIGNATORY', 'Designation: CEO', 'Phone: 9000000000', 'Email: office@example.test']) assert.ok(text.some(o => o.t === t && o.x === 318 && o.y > forv.y), t);
+  /* a sanction number, when typed, goes into the sentence */
+  assert.ok(KD.layout('dcr', Object.assign({}, v, { sanction_no: 'KS/123' }), measure).ops.map(o => o.t || '').join(' ').includes('under sanction number KS/123 dated 05-10-2026'));
+  /* 19 long serial numbers still fit on the one page */
+  const many = KD.layout('dcr', Object.assign({}, v, { panel_serials: Array.from({ length: 19 }, (_, i) => 'TS540B2026110' + (1000 + i)).join('\n') }), measure);
+  assert.equal(many.overflow, false); assert.ok(many.size >= 9);
+  /* nothing known yet: blanks to fill by hand */
+  const bare = KD.layout('dcr', KD.values('dcr', { customer: {}, plant: {}, defaults: {}, today: '2026-11-14' }, {}), measure);
+  assert.equal(bare.overflow, false); assert.ok(bare.ops.some(o => o.t === 'Name: __________'));
+});
