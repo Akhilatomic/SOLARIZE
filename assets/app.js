@@ -204,7 +204,7 @@ function csvDownload(name, cols, data) {
 function pickFile(accept = '') { return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => res(i.files[0]); i.click(); }); }
 async function upload(extra) { const f = await pickFile('.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt'); if (!f) return false; const fd = new FormData(); fd.append('file', f); Object.entries(extra).forEach(([k, v]) => fd.append(k, v ?? '')); await api('files', 'upload', fd); return true; }
 /* The numbers the CRM works by. The owner changes them in Settings › Rules (S.rules; api/lib.php rule()); these are the usual values. */
-const RULE_DEF = { doc_days: 365, gen_days: 120, trash_hours: 72, lead_lost_hours: 24, lead_remind_min: 15, feas_valid_days: 30, feas_alert_days: 3 };
+const RULE_DEF = { doc_days: 365, gen_days: 120, trash_hours: 72, lead_lost_hours: 24, lead_remind_min: 15, feas_valid_days: 30, feas_alert_days: 3, claim_hours: 36 };
 const RULE = k => { const v = ((S && S.rules) || {})[k]; return v == null || v === '' || isNaN(+v) ? RULE_DEF[k] : +v; };
 /* DOC_DAYS = days an uploaded document is kept, GEN_DAYS = days a paper made in the CRM is kept: read from the rules each time they are used */
 Object.defineProperty(window, 'DOC_DAYS', { get: () => RULE('doc_days') }); Object.defineProperty(window, 'GEN_DAYS', { get: () => RULE('gen_days') });
@@ -364,7 +364,7 @@ function bars(data, order) {
 
 // ---------- Leads ----------
 const LCOLS = [['date', 'Added'], ['name', 'Name'], ['phone', 'Phone'], ['status', 'Status'], ['city', 'Location'], ['owner', 'Claimed by'], ['remark', 'Remark'], ['appt', 'Appt'], ['cb', 'Call back']];
-const LW = { date: 92, phone: 112, status: 96, owner: 96, appt: 128, cb: 136 }; // fixed px; name/location/remark share the rest
+const LW = { date: 92, phone: 112, status: 96, owner: 158, appt: 128, cb: 136 }; // fixed px; name/location/remark share the rest
 let LF = { q: '', status: '', active: 'active', city: '', appt: '', own: '', sort: 'created', dir: -1, edit: false };
 let LHIDE = []; try { LHIDE = JSON.parse(localStorage.lcols || '[]'); } catch (e) { }
 // speed: build each date formatter once (toLocaleDateString with options builds a new one on every call — seconds on a 4,000-row table)
@@ -434,12 +434,22 @@ function callbackBox(l, after) {
 // ---- claiming: a claimed lead is locked to its owner; owner/admin can unclaim, owner/admin/assistant manager can reassign ----
 const isAdm = () => ME.role === 'admin';
 /* Leads list: the owner's display picture (initials when there is none) with a lock badge; the name shows on hover */
+/* Claim clock: a claimed lead unlocks for everyone when it is not a customer by l.unlock_at (unix seconds, from the server) */
+const claimLeft = l => { const at = +l.unlock_at || 0; if (!at) return null; const m = Math.floor((at * 1000 - Date.now()) / 60000);
+  return { m, soon: m < 360, text: m <= 0 ? 'Unlocking' : m < 60 ? m + 'm left' : m < 2880 ? Math.floor(m / 60) + 'h left' : Math.floor(m / 1440) + 'd left', when: dfmt(DF.dmy, new Date(at * 1000)) + ', ' + new Date(at * 1000).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) }; };
+const claimChip = l => { const c = claimLeft(l); if (!c) return ''; const tip = esc(`Unlocks for everyone on ${c.when} unless the lead becomes a customer`);
+  return `<span class="clmt${c.soon ? ' soon' : ''}" title="${tip}" aria-label="${tip}"><i class="i i-clock"></i>${c.text}</span>`; };
+const claimRule = () => `You have ${RULE('claim_hours')} hours to convert a claimed lead to a customer. After that the claim unlocks and anyone can claim the lead.`;
 const ownerDp = l => { const me = l.assigned_to == ME.id, who = me ? 'You' + (ME.name ? ' (' + ME.name + ')' : '') : (l.owner_name || 'another user'), tip = esc('Claimed by ' + who + (l.claimed_at ? ' · ' + agoStr(l.claimed_at) : ''));
   return `<span class="owndp${me ? ' me' : ''}" title="${tip}" data-tip="${tip}" aria-label="${tip}"><span class="dp" data-pres="${l.assigned_to}">${avImg(l.assigned_to, me ? ME.avatar || l.owner_av : l.owner_av, me ? ME.name : l.owner_name)}</span><span class="lk"><i class="i i-lock"></i></span></span>`; };
-const ownerCellRow = l => (l.assigned_to ? ownerDp(l) : ownerCell(l)) + (l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ' <button class="ib unc" data-a="unlock" title="Unclaim — release this lead"><i class="i i-x"></i></button>' : '');
+const ownerCellRow = l => (l.assigned_to ? ownerDp(l) : ownerCell(l)) + (l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ' <button class="ib unc" data-a="unlock" title="Unclaim — release this lead"><i class="i i-x"></i></button>' : '') + (l.assigned_to ? claimChip(l) : '');
 const ownerCell = l => l.assigned_to ? `<span class="own${l.assigned_to == ME.id ? ' me' : ''}" title="Claimed${l.claimed_at ? ' ' + agoStr(l.claimed_at) : ''}"><i class="i i-lock"></i>${esc(l.assigned_to == ME.id ? 'You' : (l.owner_name || 'Claimed'))}</span>`
   : (ME.can_claim && canW('leads') ? '<button class="btn sm claim" data-a="claim"><i class="i i-userplus"></i> Claim</button>' : '<span class="mut">Unclaimed</span>');
-async function claimLead(id, name) { try { await api('leads', 'claim', { id }); toast('Claimed' + (name ? ': ' + name : '') + ' — locked to you'); return true; } catch (e) { return false; } }
+async function claimLead(id, name) {
+  if (!confirm(`Claim ${name || 'this lead'}?
+
+${claimRule()}`)) return false;
+  try { const r = await api('leads', 'claim', { id }); toast('Claimed' + (name ? ': ' + name : '') + (r && r.unlock_at ? ` — locked to you for ${r.hours} hours` : ' — locked to you')); return true; } catch (e) { return false; } }
 async function unlockLead(id, mine) { if (!confirm(mine ? 'Unclaim this lead? It goes back to the unclaimed pool and anyone allowed can claim it.' : 'Unclaim (unlock) this lead? It goes back to the unclaimed pool.')) return false; await api('leads', 'unclaim', { id }); toast('Lead unclaimed — back in the pool'); return true; }
 const canReassignLead = l => canW('leads') && OWN.canReassign(l.assigned_to, ME);
 async function assignLead(l) { return !!(await reassignBox('leads', l)); } // picker in app26.js
@@ -586,7 +596,7 @@ async function leadModal(id) {
     { k: 'status', l: 'Status', opts: S.lead_statuses }, { k: 'appt', l: 'Appointment date', t: 'date' }, { k: 'kw', l: 'Interested kW', t: 'number' }, ...(FIN() ? [{ k: 'budget', l: 'Budget (₹)', t: 'number' }] : []), { k: 'remark', l: 'Remark', full: 1, t: 'textarea', rows: 2, spell: 1 }];
   if ((CACHE.camps || []).length) F.splice(4, 0, { k: 'campaign_id', l: 'Meta campaign', opts: opt(CACHE.camps.map(c => [c.id, c.name]), '— none —') });
   const w = canW('leads') && (!id || !!l.can_edit);
-  const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}</span>` : '<span class="mut">Not claimed yet. Claim it to see the full number and start working on it.</span>'}<span class="sp"></span>${l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? '<button class="btn sm sec" id="mul"><i class="i i-lock"></i> Unclaim</button>' : ''}${canReassignLead(l) ? `<button class="btn sm sec" id="mas"><i class="i i-users"></i> ${l.assigned_to ? 'Reassign' : 'Assign'}</button>` : ''}</div>` : '';
+  const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}${claimLeft(l) ? ` Unlocks for everyone on ${claimLeft(l).when} unless it becomes a customer.` : ''}</span>${claimChip(l)}` : `<span class="mut">Not claimed yet. Claim it to see the full number and start working on it. ${ME.can_claim ? claimRule() : ''}</span>`}<span class="sp"></span>${l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? '<button class="btn sm sec" id="mul"><i class="i i-lock"></i> Unclaim</button>' : ''}${canReassignLead(l) ? `<button class="btn sm sec" id="mas"><i class="i i-users"></i> ${l.assigned_to ? 'Reassign' : 'Assign'}</button>` : ''}</div>` : '';
   const m = modal(`<div class="lmh"><div class="lmt"><div><small class="mut">${id ? 'Lead' : 'New lead'}${id && l.source ? ' · ' + esc(l.source) : ''}</small><h2>${id ? esc(l.name || 'Lead') : 'Add a new lead'}</h2></div><button class="lvx" id="cx2" title="Close (Esc)"><i class="i i-x"></i></button></div>${lock}${leadTabs(l)}</div>
    <div class="lmb"><div class="ltp ltp-d"><div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2" ${SPELL}>${esc(l.notes || '')}</textarea></div>${leadSitePane(l)}${leadPlantPane(l)}
    ${id ? `<div class="ltp-d"><p class="mut" style="font-size:12px">Added by ${esc(l.added_by || '—')} on ${dmy(l.created)}</p>` + noteBox('leads', id, l.notes_log) + `<div class="card" style="margin-top:10px"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div></div>` : ''}</div>

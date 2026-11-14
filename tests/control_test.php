@@ -30,7 +30,7 @@ if ($dbPath === '' || !is_file($dbPath)) { echo "  FAIL needs the sqlite path\n"
 $db = new PDO('sqlite:' . $dbPath); $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC); $db->exec('PRAGMA busy_timeout=5000');
 $one = fn($sql, $a = []) => (function () use ($db, $sql, $a) { $s = $db->prepare($sql); $s->execute($a); return $s->fetchColumn(); })();
 $upkeep = function () use ($db, $admin) { $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('hk_last','0')"); call($admin, 'meta', 'feed'); }; /* any signed-in request runs the hourly upkeep */
-$USUAL = ['doc_days' => 365, 'gen_days' => 120, 'trash_hours' => 72, 'lead_lost_hours' => 24, 'lead_remind_min' => 15, 'feas_valid_days' => 30, 'feas_alert_days' => 3];
+$USUAL = ['doc_days' => 365, 'gen_days' => 120, 'trash_hours' => 72, 'lead_lost_hours' => 24, 'lead_remind_min' => 15, 'feas_valid_days' => 30, 'feas_alert_days' => 3, 'claim_hours' => 36];
 $save = fn($who, $k, $v) => call($who, 'settings', 'save', ['key' => $k, 'value' => $v]);
 $S = fn() => call($admin, 'settings', 'get');
 
@@ -38,7 +38,7 @@ $S = fn() => call($admin, 'settings', 'get');
 $db->exec("DELETE FROM settings WHERE k IN ('rules','doc_types')");
 $s = $S();
 chk(($s['rules'] ?? null) == $USUAL, 'the rules start at their usual values');
-chk(isset($s['rule_limits']['doc_days'], $s['rule_names']['lead_lost_hours']) && count($s['rule_limits']) === 7 && is_array($s['kseb_defaults'] ?? null) && ($s['kseb_defaults']['vendor_name'] ?? '') !== '', 'Settings gets the limits, their names and the KSEB paper details');
+chk(isset($s['rule_limits']['doc_days'], $s['rule_names']['lead_lost_hours']) && count($s['rule_limits']) === 8 && is_array($s['kseb_defaults'] ?? null) && ($s['kseb_defaults']['vendor_name'] ?? '') !== '', 'Settings gets the limits, their names and the KSEB paper details');
 chk(is_array($s['doc_types'] ?? null) && in_array('Aadhaar card', $s['doc_types'], true), 'and the document types');
 $r = $save($admin, 'rules', ['gen_days' => 60, 'doc_days' => 30]);
 chk($r['_code'] === 200 && $S()['rules'] == ['doc_days' => 30, 'gen_days' => 60] + $USUAL, 'a saved rule is kept; the others stay as they were');

@@ -112,6 +112,7 @@ function housekeeping($force = false) {
   if ($n) { audit('docs_expired', 'files', null, "$n document(s) past their keeping time moved to the Recycle bin"); }
   try { fee_alerts(); } catch (Throwable $e) { }
   try { callback_alerts(); } catch (Throwable $e) { } /* also when nobody has the CRM open */
+  try { claim_release(); } catch (Throwable $e) { } /* claimed leads not converted in time → unlocked */
   try { lead_autolost(); } catch (Throwable $e) { } /* new leads nobody attended within 24 hours → Lost */
   foreach (rows("SELECT id,data FROM trash WHERE deleted_at < datetime('now', ?)", ['-' . rule('trash_hours') . ' hours']) as $t) trash_purge_row($t);
   try { db()->exec('PRAGMA optimize'); } catch (Throwable $e) { } // keeps the query planner's statistics current (cheap, usually a no-op)

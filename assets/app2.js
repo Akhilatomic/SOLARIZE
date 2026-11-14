@@ -170,7 +170,7 @@ function stgIndex() {
     ['accounts', 'stg-accat', 'Expense categories and profit', ['Default profit %']],
     ['accounts', 'stg-inc', 'Incentive scheme', ['Own lead rate', 'Company lead rates', 'Commission']],
     ['users', 'stgusers', 'Users', ['Add a user', 'New user', 'Reset a password', 'Disable a login', 'Sign out everywhere', 'Leads access', 'Profile photo', ...Object.values(S.role_names || {})]],
-    ['rules', 'stg-rules', 'Rules', Object.values(S.rule_names || {}).concat(['Document expiry', 'Recycle bin time', 'Auto Lost', 'Lead reminder', 'Feasibility validity'])],
+    ['rules', 'stg-rules', 'Rules', Object.values(S.rule_names || {}).concat(['Document expiry', 'Recycle bin time', 'Auto Lost', 'Lead reminder', 'Feasibility validity', 'Claim unlock'])],
     ['connect', 'stgconn', 'Connections', ['Meta lead ads', 'Facebook page', 'WhatsApp Business', 'Email addresses', 'Mailboxes']],
     ['data', 'stgdata', 'Data & backup', ['Download database backup', 'Saved backups', 'Total reset', 'Audit log', 'Storage']],
   ];
@@ -234,7 +234,7 @@ function stgPanes(adm) {
     users: () => `<div id="stgusers"><p class="mut">Loading…</p></div>`,
     rules: () => `<div class="stg-cards stg-one"><div class="card" id="stg-rules"><div class="stg-grp">
        <div><h4>Documents</h4>${rn('doc_days', 'Uploaded documents are kept (days)')}${rn('gen_days', 'Papers made in the CRM are kept (days)')}${rn('trash_hours', 'Deleted items stay in the Recycle bin (hours)')}</div>
-       <div><h4>New leads</h4>${rn('lead_lost_hours', 'Marked Lost if nobody attends within (hours)')}${rn('lead_remind_min', 'Reminder while leads wait, every (minutes)')}</div>
+       <div><h4>New leads</h4>${rn('lead_lost_hours', 'Marked Lost if nobody attends within (hours)')}${rn('lead_remind_min', 'Reminder while leads wait, every (minutes)')}${rn('claim_hours', 'A claimed lead unlocks if not converted within (hours)')}</div>
        <div><h4>KSEB feasibility</h4>${rn('feas_valid_days', 'A feasibility payment is valid for (days)')}${rn('feas_alert_days', 'Warn this many days before it runs out')}</div></div>
        <p class="stg-hint" style="margin:14px 0 0">Tax bills, warranty cards and the approved quotation are always kept until someone deletes them. A new keeping time applies to documents already uploaded; a paper made in the CRM keeps the time it was saved with.</p>
        ${act('<button class="btn" id="s-rules">Save rules</button><button class="btn sec" id="s-rulesd" type="button">Fill in the usual values</button>')}</div></div>`,

@@ -136,17 +136,52 @@ function lead_autolost() {
   return $n;
 }
 
+// Owner's rule (2026-11-14): a claim lasts rule('claim_hours') hours (36). A lead that is still not a customer by then
+// is unlocked, so anyone who can claim may take it. The clock starts when the lead is claimed or handed to someone
+// (claimed_at); claims made before this rule went live count from the moment it went live, so nothing unlocks at once.
+// A lead its holder added themself is not on the clock (it was never taken from the shared list).
+function claim_from() {
+  static $f = null;
+  if ($f === null) { $r = row("SELECT v FROM settings WHERE k='claim_unlock_from'"); $f = $r ? (int)json_decode((string)$r['v'], true) : 0; if ($f < 1) { $f = time(); kv_set('claim_unlock_from', $f); } }
+  return $f;
+}
+/* when this lead's claim ends (unix seconds); 0 = no clock. Needs assigned_to, customer_id, claimed_at, added_by and owner_name. */
+function claim_unlock_at($l) {
+  if (empty($l['assigned_to']) || !empty($l['customer_id'])) return 0;
+  $by = mb_strtolower(trim((string)($l['added_by'] ?? ''))); if ($by !== '' && $by === mb_strtolower(trim((string)($l['owner_name'] ?? '')))) return 0;
+  $t = ($l['claimed_at'] ?? '') !== '' ? (int)strtotime($l['claimed_at'] . ' UTC') : 0;
+  return max($t, claim_from()) + rule('claim_hours') * 3600;
+}
+/* Runs when the Leads list is read and from the hourly housekeeping: one indexed lookup, writes only when a claim has run out. */
+function claim_release() {
+  $now = time(); $h = rule('claim_hours'); $n = 0;
+  $rs = rows("SELECT l.id,l.name,l.assigned_to,l.customer_id,l.claimed_at,l.added_by,u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to
+    WHERE l.assigned_to>0 AND (l.customer_id IS NULL OR l.customer_id=0) AND COALESCE(l.claimed_at,'')<=?", [gmdate('Y-m-d H:i:s', $now - $h * 3600)]);
+  foreach ($rs as $l) {
+    $at = claim_unlock_at($l); if (!$at || $at > $now) continue;
+    if (!q("UPDATE leads SET assigned_to=NULL, claimed_at='', updated=CURRENT_TIMESTAMP WHERE id=? AND assigned_to=?", [$l['id'], $l['assigned_to']])->rowCount()) continue; /* another request got it */
+    $who = (string)($l['owner_name'] ?? '') !== '' ? $l['owner_name'] : 'its holder';
+    q("INSERT INTO notes(entity,entity_id,text,user) VALUES('leads',?,?,'System')", [$l['id'], "Not converted to a customer within $h hours of being claimed by $who (automatic) — unlocked for everyone"]);
+    q("INSERT INTO notifs(user_id,kind,lead_id,from_id,text) VALUES(?,'assign',?,NULL,?)", [(int)$l['assigned_to'], $l['id'], mb_substr("Your claim on {$l['name']} ended after $h hours — the lead is open to everyone again", 0, 200)]);
+    $n++;
+  }
+  if ($n) audit('leads_unlocked', 'leads', null, "$n claimed lead(s) not converted within $h hours unlocked");
+  return $n;
+}
+
 // Runs before the generic CRUD for leads. Handles list/get/claim/unlock/assign; checks ownership for writes.
 function lead_guard($a, $in) {
   switch ($a) {
     case 'list':
       need('leads');
-      out(array_map(fn($x) => strip_fin(lead_mask($x)), rows('SELECT l.*, u.name owner_name, u.avatar owner_av FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC')));
+      try { claim_release(); } catch (Throwable $e) { } /* claims that ran out are open again before the list is read */
+      out(array_map(fn($x) => strip_fin(lead_mask($x + ['unlock_at' => claim_unlock_at($x)])), rows('SELECT l.*, u.name owner_name, u.avatar owner_av FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC')));
     case 'get':
       need('leads');
       $l = lead_or_404($_GET['id'] ?? 0);
       if ((int)$l['notify'] && lead_can_write($l)) { q('UPDATE leads SET notify=0 WHERE id=?', [$l['id']]); $l['notify'] = 0; audit('ack', 'leads', $l['id'], 'viewed'); } // opened by its owner / admin → off the dashboard's "new leads"
       $r = strip_fin(lead_mask(detail('leads', $l))); $r['owner_name'] = owner_name($l['assigned_to']);
+      $r['unlock_at'] = claim_unlock_at(['owner_name' => $r['owner_name']] + $l);
       if (!empty($r['masked'])) $r['messages'] = [];
       out($r);
     case 'claim':
@@ -155,7 +190,9 @@ function lead_guard($a, $in) {
       $id = (int)($in['id'] ?? 0);
       $n = q("UPDATE leads SET assigned_to=?, claimed_at=?, updated=CURRENT_TIMESTAMP WHERE id=? AND (assigned_to IS NULL OR assigned_to=0)", [uid(), gmdate('Y-m-d H:i:s'), $id])->rowCount();
       if (!$n) { $l = row('SELECT assigned_to FROM leads WHERE id=?', [$id]); if (!$l) fail('Not found', 404); fail('Already claimed by ' . owner_name($l['assigned_to']), 409); }
-      audit('claim', 'leads', $id, $_SESSION['name'] ?? ''); out(['ok' => true]);
+      audit('claim', 'leads', $id, $_SESSION['name'] ?? '');
+      $l = row('SELECT assigned_to,customer_id,claimed_at,added_by FROM leads WHERE id=?', [$id]);
+      out(['ok' => true, 'unlock_at' => claim_unlock_at($l + ['owner_name' => $_SESSION['name'] ?? '']), 'hours' => rule('claim_hours')]);
     case 'unlock': case 'unclaim':
       // the owner can release their own lead; the admin can release any lead
       $l = lead_or_404($in['id'] ?? 0); $id = (int)$l['id'];

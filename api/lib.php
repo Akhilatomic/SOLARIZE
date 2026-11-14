@@ -414,7 +414,7 @@ function defaults() {
     'company' => ['name'=>'Jasper Solar Solutions','gstin'=>'32CZHPA7698N1ZR','address'=>'Nedumangad, Thiruvananthapuram, Kerala','phone'=>'','email'=>'','quote_prefix'=>'JS','terms'=>"1. Prices valid for 15 days.\n2. 50% advance with order, balance on commissioning.\n3. 25 years panel performance warranty, 5 years inverter warranty (as per manufacturer).\n4. Net-metering and KSEB formalities handled by Jasper Solar.\n5. Central subsidy (PM Surya Ghar) credited by the government directly to the customer's bank account."],
     'gst_rate' => 8.9,
     /* the numbers the CRM works by (Settings › Rules): how long things are kept and when it acts on its own. Read with rule('…'). */
-    'rules' => ['doc_days' => 365, 'gen_days' => 120, 'trash_hours' => 72, 'lead_lost_hours' => 24, 'lead_remind_min' => 15, 'feas_valid_days' => 30, 'feas_alert_days' => 3],
+    'rules' => ['doc_days' => 365, 'gen_days' => 120, 'trash_hours' => 72, 'lead_lost_hours' => 24, 'lead_remind_min' => 15, 'feas_valid_days' => 30, 'feas_alert_days' => 3, 'claim_hours' => 36],
     /* the document chips on a customer's Documents page (Settings › Documents) */
     'doc_types' => ['Aadhaar card', 'Aadhaar card back side', 'Aadhaar 2', 'PAN card', 'Electricity bill', 'Latest paid bill', 'Passbook', 'Passbook or cancelled cheque', 'DCR Certificate',
       'Loan Quotation', 'Loan Papers', 'Building tax', 'Land tax', 'Agreement', 'Feasibility', 'Acknowledgement', 'Site Photo', 'Geo-tagged Photo', 'Customer Geo Tagged Photo'],
@@ -485,9 +485,9 @@ function company_fill($co, $qmRaw = null) {
 }
 
 /* Rules the owner can change in Settings › Rules: [smallest, largest] allowed, and the name used in messages. The defaults are in defaults()['rules']. */
-const RULE_LIMITS = ['doc_days' => [30, 3650], 'gen_days' => [7, 3650], 'trash_hours' => [1, 720], 'lead_lost_hours' => [1, 720], 'lead_remind_min' => [5, 240], 'feas_valid_days' => [1, 365], 'feas_alert_days' => [0, 60]];
+const RULE_LIMITS = ['doc_days' => [30, 3650], 'gen_days' => [7, 3650], 'trash_hours' => [1, 720], 'lead_lost_hours' => [1, 720], 'lead_remind_min' => [5, 240], 'feas_valid_days' => [1, 365], 'feas_alert_days' => [0, 60], 'claim_hours' => [1, 720]];
 const RULE_NAMES = ['doc_days' => 'Days an uploaded document is kept', 'gen_days' => 'Days a paper made in the CRM is kept', 'trash_hours' => 'Hours an item stays in the Recycle bin', 'lead_lost_hours' => 'Hours before an unattended new lead is marked Lost',
-  'lead_remind_min' => 'Minutes between reminders about waiting leads', 'feas_valid_days' => 'Days a feasibility payment is valid', 'feas_alert_days' => 'Days before the feasibility runs out to warn'];
+  'lead_remind_min' => 'Minutes between reminders about waiting leads', 'feas_valid_days' => 'Days a feasibility payment is valid', 'feas_alert_days' => 'Days before the feasibility runs out to warn', 'claim_hours' => 'Hours a claimed lead stays locked before it unlocks (if not converted)'];
 function rule($k) { $v = settings()['rules'][$k] ?? null; [$lo, $hi] = RULE_LIMITS[$k]; return is_numeric($v) ? max($lo, min($hi, (int)$v)) : (int)defaults()['rules'][$k]; }
 
 function settings($fresh = false) { // read once per request; only the keys we use (skips big blobs such as mail / Meta state)

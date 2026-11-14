@@ -854,3 +854,7 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .qla .qla-del:hover{color:var(--bad);background:#ffecea}
 :where(.card.tw>table:not(.stack)) :is(th,td).qla-c{width:1%;white-space:nowrap;padding-top:4px;padding-bottom:4px}
 .qla-ba{font-size:10px;padding:1px 6px;margin-left:4px;vertical-align:1px}
+/* Leads: time left before a claim unlocks */
+.clmt{display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:2px 7px;border-radius:999px;background:var(--fill);color:var(--mut);font-size:11px;font-weight:600;white-space:nowrap;vertical-align:middle;font-variant-numeric:tabular-nums}
+.clmt .i{width:11px;height:11px}
+.clmt.soon{background:#ffecea;color:var(--bad)}
