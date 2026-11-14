@@ -221,7 +221,7 @@ function detail($t, $r) {
     $r['notes_log'] = $notes();
     $r['projects'] = rows('SELECT p.*, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p WHERE customer_id=? ORDER BY id DESC', [$id]);
     $r['quotes'] = rows('SELECT id,number,date,total,status FROM quotes WHERE customer_id=? ORDER BY id DESC', [$id]);
-    $r['files'] = rows('SELECT id,name,kind,item,size,created,life,gen FROM files WHERE customer_id=? ORDER BY id DESC', [$id]);
+    $r['files'] = rows('SELECT id,name,kind,item,size,created,life,gen FROM files WHERE customer_id=? AND ' . DOCS_NO_PAPERS . ' ORDER BY id DESC', [$id]); /* KSEB / bank papers: on the project's KSEB documents tab */
     $r['messages'] = is_ba() ? [] : rows('SELECT * FROM messages WHERE customer_id=? ORDER BY id DESC', [$id]); // BA: no WhatsApp history
   }
   if ($t === 'projects') {

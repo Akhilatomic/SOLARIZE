@@ -7,6 +7,9 @@
 const TRASH_HOURS = 72; /* the built-in values; the ones in force come from rule('trash_hours' | 'doc_days' | 'gen_days') — Settings › Rules */
 const DOC_LIFE_DAYS = 365;
 const GEN_LIFE_DAYS = 120; /* papers the CRM makes for a customer (they can be made again any time) */
+/* Owner's rule (2026-11-14): the KSEB and bank papers made in the CRM are NOT listed on the customer's Documents page; they are kept
+   for the project and show on its KSEB documents tab (projects/get kseb_papers). SQL condition for a files query that leaves them out. */
+const DOCS_NO_PAPERS = "COALESCE(gen,'') NOT LIKE 'kseb:%' AND COALESCE(gen,'') NOT LIKE 'bank:%'";
 const KSEB_GEN_DAYS = 200; /* owner's rule (2026-11-14): the KSEB papers made in the CRM are kept 200 days (shown on the project's KSEB documents tab) */
 /* paper => [area its maker must be able to open, days the copy is kept (0 = until someone deletes it)] — used by files/keep */
 const GEN_KEEP = ['kseb' => ['checklist', GEN_LIFE_DAYS], 'bank' => ['loans', GEN_LIFE_DAYS], 'quote' => ['quotes', GEN_LIFE_DAYS], 'receipt' => ['payments', GEN_LIFE_DAYS],

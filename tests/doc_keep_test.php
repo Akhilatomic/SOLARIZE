@@ -38,7 +38,9 @@ chk(in_array('life', $cols) && in_array('gen', $cols), 'files has the life and g
 
 $cid = (int)(call($admin, 'customers', 'save', ['name' => 'Keep Test One', 'phone' => '9000000081'])['id'] ?? 0);
 $cid2 = (int)(call($admin, 'customers', 'save', ['name' => 'Keep Test Two', 'phone' => '9000000082'])['id'] ?? 0);
-$files = fn($c) => call($admin, 'customers', 'get', null, '&id=' . $c)['files'] ?? [];
+/* every kept file of the customer, straight from the database: the Documents page (customers/get) leaves the KSEB / bank papers out */
+$files = fn($c) => $db->query('SELECT id,name,kind,item,size,created,life,gen FROM files WHERE customer_id=' . (int)$c . ' ORDER BY id DESC')->fetchAll();
+$shown = fn($c) => array_map(fn($f) => (string)($f['gen'] ?? ''), call($admin, 'customers', 'get', null, '&id=' . $c)['files'] ?? []);
 $byGen = function ($c, $gen) use ($files) { return array_values(array_filter($files($c), fn($f) => ($f['gen'] ?? '') === $gen)); };
 
 /* 1. kept with the right keeping time */
@@ -60,6 +62,7 @@ $r = keep($admin, $cid, 'kseb:wcr', 'Work Completion Report', 'Work Completion R
 chk($r['_code'] === 200 && count($f) === 1 && (int)$f[0]['id'] !== (int)$old['id'] && $f[0]['name'] === 'Work Completion Report - new.pdf' && count($files($cid)) === $n0, 'a newer copy replaces the older one');
 chk(!is_file(dirname($dbPath) . '/uploads/' . $oldPath) && !$db->query("SELECT COUNT(*) FROM trash WHERE data LIKE '%" . $oldPath . "%'")->fetchColumn(), 'the replaced file is removed and does not go to the Recycle bin');
 keep($admin, $cid2, 'kseb:wcr', 'Work Completion Report', 'two.pdf'); keep($admin, $cid, 'quote:18', 'Quotation 18', 'q18.pdf');
+chk(!in_array('kseb:wcr', $shown($cid), true) && !in_array('bank:bfr', $shown($cid), true) && in_array('quote:17', $shown($cid), true) && in_array('tax', $shown($cid), true), 'the Documents page lists the quotation and the tax bill, not the KSEB / bank papers');
 chk(count($byGen($cid, 'kseb:wcr')) === 1 && count($byGen($cid2, 'kseb:wcr')) === 1 && count($byGen($cid, 'quote:17')) === 1 && count($byGen($cid, 'quote:18')) === 1, 'each customer and each quotation keeps its own copy');
 
 /* 3. what is refused */

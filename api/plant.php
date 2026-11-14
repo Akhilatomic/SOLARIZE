@@ -113,7 +113,7 @@ function docs_zip($cid) {
      uploaded against the KSEB checklist of that project */
   $kseb = ($_GET['set'] ?? '') === 'kseb'; $pid = (int)($_GET['project_id'] ?? 0);
   $fs = $kseb ? rows("SELECT * FROM files WHERE (customer_id=? AND (gen LIKE 'kseb:%' OR gen LIKE 'bank:%')) OR (project_id=? AND ? > 0 AND kind='kseb' AND project_id IN (SELECT id FROM projects WHERE customer_id=?)) ORDER BY id", [$cid, $pid, $pid, $cid])
-    : rows('SELECT * FROM files WHERE customer_id=? ORDER BY id', [$cid]);
+    : rows('SELECT * FROM files WHERE customer_id=? AND ' . DOCS_NO_PAPERS . ' ORDER BY id', [$cid]);
   if ($kseb && !can('loans')) $fs = array_values(array_filter($fs, fn($f) => strpos((string)($f['gen'] ?? ''), 'bank:') !== 0));
   if (!$fs) fail('No documents', 404);
   $dir = dirname(__DIR__) . '/data/uploads'; $used = []; $entries = []; $out = ''; $off = 0;
