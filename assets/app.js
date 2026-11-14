@@ -703,9 +703,11 @@ async function pgCustomers() {
       .sort((a, b) => CUF.sort === 'feas' ? 0 : discRank(b.id) - discRank(a.id) || (DISC.sum[a.id] && DISC.sum[b.id] ? String(DISC.sum[b.id].last_at).localeCompare(String(DISC.sum[a.id].last_at)) : 0)); // live discussions first
     const nLive = rows.filter(c => DISC.sum[c.id]).length; $('#ccount').innerHTML = rows.length + ' records' + (nLive ? ` · <span class="xdlive"><span class="xddot"></span>${nLive} live discussion${nLive === 1 ? '' : 's'}</span>` : '');
     const W = ($('#ctb').parentElement || {}).clientWidth || 1200;
-    // fit to the window: drop the least important columns first, then fold the action icons into ⋯, then consumer no. / phone
-    let COLS = [['name', 'Name', 0], ['status', 'Status', 140], ['afrf', 'AF/RF', 78], ['cno', 'Consumer no.', 128], ['dist', 'District', 130], ['phone', 'Phone', 138], ['kw', 'Capacity', 78], ['by', 'Owner', 120], ['date', 'Date', 92]], full = true;
-    const need = () => COLS.reduce((s, c) => s + c[2], 0) + (full ? 330 : 172) + 170;
+    // fit to the window: drop the least important columns first, then consumer no. / phone.
+    // Actions are always the short set (discussion, edit, project, documents); everything else is under ⋯, so the
+    // details get the room: the full name (wraps), the whole stage name and the whole district.
+    let COLS = [['name', 'Name', 0], ['status', 'Status', 220], ['afrf', 'AF/RF', 78], ['cno', 'Consumer no.', 126], ['dist', 'District', 158], ['phone', 'Phone', 130], ['kw', 'Capacity', 78], ['by', 'Owner', 120], ['date', 'Date', 92]], full = false;
+    const need = () => COLS.reduce((s, c) => s + c[2], 0) + 172 + 200;
     if (W < 680) { COLS = COLS.filter(c => c[0] !== 'date'); full = false; } // phones: card view has room for the key details (owner included)
     else for (const k of ['date', 'by', 'dist', 'kw', '#compact', 'cno', 'phone']) { /* Owner outlasts Date: Me / All needs it */ if (need() <= W) break; if (k === '#compact') full = false; else COLS = COLS.filter(c => c[0] !== k); }
     const fin = canR('fees');

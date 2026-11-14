@@ -878,3 +878,5 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .pkm{flex-wrap:wrap}.pkm .fxp{white-space:normal}
 .fxl.fxc{margin-left:0}.fxc:empty{display:inline-block}td.fxtd{white-space:nowrap}
 .fxc .fxp{padding:2px 8px;font-variant-numeric:tabular-nums;cursor:help}.fxc .fxp .i{margin-right:4px}
+/* Customers list: the full name (wraps instead of being cut) */
+#ctb:not(.stack) td.cnm .clip{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.25}
