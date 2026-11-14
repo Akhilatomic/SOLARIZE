@@ -53,8 +53,32 @@ function profile_page_save($cid, $old) {
   out(['ok' => true, 'customer' => mask_customer(strip_fin(row('SELECT * FROM customers WHERE id=?', [$cid]))), 'plant' => plant_get($cid)[0], 'project' => $np ? strip_fin($np) : null]);
 }
 
+/* Customer profile › KSEB login: the customer's KSEB portal User ID and password, for downloading their bill.
+   kl_get (GET): the User ID and whether a password is saved — never the password. kl_pw (POST): the password itself, only for
+   staff who can edit customers, and every look is written to the audit log. kl_save: User ID and, when sent, the password
+   (encrypted at rest with mail_enc); an empty User ID and password remove the row. The password is never put in the audit log. */
+function kseb_login_handle($a) {
+  $in = body(); $cid = (int)($_GET['customer_id'] ?? ($in['customer_id'] ?? 0));
+  if (!$cid || !row('SELECT 1 FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
+  $r = row('SELECT * FROM kseb_logins WHERE customer_id=?', [$cid]);
+  $pub = fn($r) => ['user_id' => (string)($r['user_id'] ?? ''), 'has_pw' => (string)($r['pw'] ?? '') !== '', 'updated' => (string)($r['updated'] ?? ''), 'updated_by' => (string)($r['updated_by'] ?? ''), 'can_edit' => can('customers', true) ? 1 : 0];
+  if ($a === 'kl_get') out($pub($r));
+  if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required', 405);
+  need('customers', true);
+  if ($a === 'kl_pw') { audit('kseb_login_view', 'customers', $cid, 'password shown or copied'); out(['password' => $r && (string)$r['pw'] !== '' ? mail_dec($r['pw']) : '']); }
+  $uid = mb_substr(trim((string)($in['user_id'] ?? '')), 0, 120);
+  $pw = array_key_exists('password', $in) ? (string)$in['password'] : null; /* not sent = keep the saved one */
+  if ($pw !== null && mb_strlen($pw) > 200) fail('That password is too long');
+  $enc = $pw === null ? (string)($r['pw'] ?? '') : ($pw === '' ? '' : mail_enc($pw));
+  if ($uid === '' && $enc === '') { q('DELETE FROM kseb_logins WHERE customer_id=?', [$cid]); if ($r) audit('kseb_login_remove', 'customers', $cid, ''); out($pub(null) + ['ok' => true]); }
+  q('INSERT INTO kseb_logins(customer_id,user_id,pw,updated,updated_by) VALUES(?,?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(customer_id) DO UPDATE SET user_id=excluded.user_id, pw=excluded.pw, updated=excluded.updated, updated_by=excluded.updated_by', [$cid, $uid, $enc, $_SESSION['name'] ?? '']);
+  audit('kseb_login_save', 'customers', $cid, 'User ID ' . ($uid === '' ? 'cleared' : 'saved') . ($pw === null ? '' : ($pw === '' ? ', password cleared' : ', password saved')));
+  out($pub(row('SELECT * FROM kseb_logins WHERE customer_id=?', [$cid])) + ['ok' => true]);
+}
+
 function handle_profile($a) {
   need('customers');
+  if (in_array($a, ['kl_get', 'kl_pw', 'kl_save'], true)) kseb_login_handle($a);
   if ($a === 'cost_get' || $a === 'cost_save') handle_cust_cost($a); /* Overview › Plant cost and payments, admin only (api/onboard.php) */
   if ($a === 'page_save') { $pcid = (int)(body()['customer_id'] ?? 0); $po = row('SELECT * FROM customers WHERE id=?', [$pcid]); if (!$po) fail('Customer not found', 404); profile_page_save($pcid, $po); }
   $cid = (int)($_GET['customer_id'] ?? 0);

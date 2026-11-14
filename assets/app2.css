@@ -992,3 +992,12 @@ body.sbah aside.mini .sbf-h{justify-content:center;margin:0 0 6px}
 body.sbah aside.mini .sbf-b{justify-content:center;padding:8px 0;min-height:44px}
 body.sbah aside.mini a:hover{transform:none}
 @media(prefers-reduced-motion:reduce){aside a,aside a::after,.sbf-b{transition:none}aside a:hover{transform:none}.sbf-dot,.sbf-b.in{animation:none}}
+/* Customer profile › KSEB login */
+.kbl{max-width:920px;padding:0!important;overflow:hidden}
+.kbl-h{padding:18px 22px 14px;border-bottom:1px solid var(--bd)}.kbl-h h3{margin:0 0 4px;font-size:18px}.kbl-h p{margin:0;font-size:13px;color:var(--mut);line-height:1.5}
+.kbl-f{padding:16px 22px 0}.kbl-f label{display:block;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mut);margin-bottom:6px}
+.kbl-i{position:relative;display:flex;align-items:center}.kbl-i input{width:100%;padding:11px 74px 11px 14px;font-size:15px;border-radius:10px}
+.kbl-i>.i{position:absolute;right:14px;width:16px;height:16px;color:var(--mut);pointer-events:none}.kbl-i .ib{position:absolute;right:38px}
+.kbl-a{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:18px 22px 0}.kbl-a .sp{flex:1}.kbl-a .btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none}.kbl-a .btn .i{width:14px;height:14px}
+.kbl-n{margin:0;padding:14px 22px 18px;font-size:12.5px;color:var(--mut);line-height:1.6}
+@media(max-width:600px){.kbl-a .sp{display:none}.kbl-a .btn{flex:1 1 calc(50% - 8px);justify-content:center}.kbl-a .kbl-go{flex-basis:100%}.kbl-h,.kbl-f,.kbl-a,.kbl-n{padding-left:16px;padding-right:16px}}

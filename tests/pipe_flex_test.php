@@ -144,6 +144,23 @@ call($admin, 'files', 'delete', ['id' => $k1['id']]);
 $w = $chkOf('Work completion report'); chk($w['status'] === 'Pending' && $w['notes'] === '', 'deleting the saved copy puts a Ready line back to Pending');
 $an2id = (int)$db->query("SELECT id FROM files WHERE customer_id=$c6 AND gen='kseb:an2'")->fetchColumn(); call($admin, 'files', 'delete', ['id' => $an2id]);
 chk($chkOf('Annexure II')['status'] === 'Submitted', 'but a Submitted line stays Submitted');
+
+/* customer profile › KSEB login: User ID + password kept with the customer, the password encrypted and never sent unasked */
+$kg = fn($who = null) => call($who ?? $admin, 'profile', 'kl_get', null, "&customer_id=$c3");
+chk($kg()['_code'] === 200 && $kg()['user_id'] === '' && $kg()['has_pw'] === false, 'no KSEB login saved yet');
+$ks = call($admin, 'profile', 'kl_save', ['customer_id' => $c3, 'user_id' => ' testuser123 ', 'password' => 'Secret#Pw-1']);
+chk($ks['_code'] === 200 && $ks['user_id'] === 'testuser123' && $ks['has_pw'] === true && !isset($ks['password']) && !isset($ks['pw']), 'saving gives back the User ID, not the password');
+$rawPw = (string)$db->query("SELECT pw FROM kseb_logins WHERE customer_id=$c3")->fetchColumn();
+chk($rawPw !== '' && strpos($rawPw, 'Secret#Pw-1') === false, 'the password is encrypted in the database');
+chk(strpos(json_encode(call($admin, 'customers', 'get', null, '&id=' . $c3)), 'Secret#Pw-1') === false && strpos(json_encode($kg()), 'Secret#Pw-1') === false, 'neither the customer record nor kl_get carries the password');
+chk(call($admin, 'profile', 'kl_pw', ['customer_id' => $c3])['password'] === 'Secret#Pw-1', 'Show / Copy fetches it');
+chk((int)$db->query("SELECT COUNT(*) FROM audit_log WHERE action='kseb_login_view' AND entity_id=$c3")->fetchColumn() === 1 && (int)$db->query("SELECT COUNT(*) FROM audit_log WHERE detail LIKE '%Secret#Pw-1%'")->fetchColumn() === 0, 'each look is logged, and the log never holds the password');
+call($admin, 'profile', 'kl_save', ['customer_id' => $c3, 'user_id' => 'newuser']);
+chk($kg()['user_id'] === 'newuser' && call($admin, 'profile', 'kl_pw', ['customer_id' => $c3])['password'] === 'Secret#Pw-1', 'changing only the User ID keeps the saved password');
+chk(call(actor('nobody3'), 'profile', 'kl_get', null, "&customer_id=$c3")['_code'] === 401 && call(actor('nobody3'), 'profile', 'kl_pw', ['customer_id' => $c3])['_code'] === 401, 'signed out: nothing');
+chk(call($admin, 'profile', 'kl_get', null, '&customer_id=999999')['_code'] === 404, 'unknown customer 404');
+$kx = call($admin, 'profile', 'kl_save', ['customer_id' => $c3, 'user_id' => '', 'password' => '']);
+chk($kx['has_pw'] === false && (int)$db->query("SELECT COUNT(*) FROM kseb_logins WHERE customer_id=$c3")->fetchColumn() === 0, 'clearing both removes the saved login');
 @unlink($pdf);
 
 echo "  $pass ok, $fail FAIL\n";
