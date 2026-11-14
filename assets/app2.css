@@ -1007,50 +1007,59 @@ body.sbah aside.mini a:hover{transform:none}
   .dg .qa .qb .ft{width:30px;height:30px;border-radius:8px!important}.dg .qa .qb .ft .i{width:16px!important;height:16px!important}}
 @media(min-width:900px) and (max-width:1180px){.dg .qa{gap:6px}.dg .qa .qb{font-size:11px;padding:9px 2px 8px}.dg .qa .qb .ft{width:26px;height:26px}.dg .qa .qb .ft .i{width:14px!important;height:14px!important}}
 @media(max-width:899px){.dg .qa .qb{padding:11px 4px 10px;gap:6px}.dg .qa .qb .ft{width:32px;height:32px}.dg .qa .qb .ft .i{width:17px!important;height:17px!important}.dg .qa{grid-template-columns:repeat(auto-fill,minmax(92px,1fr))}}
-/* ===== Dashboard › New leads to contact: the dark "radar" card =====
-   Navy like the side menu, a slow drifting glow behind the content, a radar that sweeps while nothing is waiting, lead rows as
-   glass cards that slide in one after another, and a soft red pulse round the card when leads are waiting. Scoped to #newleads:
-   the same rows in the bell panel keep the light look. Motion stops for prefers-reduced-motion. */
-#newleads .nlc{position:relative;overflow:hidden;isolation:isolate;background:linear-gradient(135deg,#0b1322 0%,#11203d 55%,#0d1a33 100%);color:#e8eefc;border:1px solid rgba(120,160,255,.18);box-shadow:0 14px 40px rgba(8,16,36,.28);min-height:190px}
-#newleads .nlx-bg{position:absolute;inset:-40%;z-index:-1;pointer-events:none;background:
-  radial-gradient(38% 42% at 22% 30%,rgba(64,132,255,.34),transparent 70%),
-  radial-gradient(34% 40% at 78% 24%,rgba(120,84,255,.26),transparent 70%),
-  radial-gradient(40% 44% at 62% 82%,rgba(0,200,180,.18),transparent 70%);animation:nlxDrift 18s ease-in-out infinite alternate}
-#newleads .nlc::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.5;
-  background-image:linear-gradient(rgba(148,170,214,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(148,170,214,.07) 1px,transparent 1px);background-size:28px 28px;
-  -webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.9),transparent 85%);mask-image:linear-gradient(180deg,rgba(0,0,0,.9),transparent 85%)}
-#newleads .nlc.hot{border-color:rgba(255,99,88,.45);animation:nlxHot 2.4s ease-in-out infinite}
-#newleads .nlx-h h3{color:#fff;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:16px}
-#newleads .nlx-bell{width:30px;height:30px;border-radius:9px;display:inline-grid;place-items:center;background:linear-gradient(135deg,rgba(77,148,255,.45),rgba(120,84,255,.35));box-shadow:0 0 18px rgba(77,148,255,.45)}
-#newleads .nlx-bell .i{width:15px;height:15px;background:#fff}
-#newleads .nlc.hot .nlx-bell{animation:nlxRing 1.6s ease-in-out infinite;transform-origin:50% 10%}
-#newleads .mut{color:rgba(190,206,240,.72)!important}
-#newleads .nlx-h .pill{background:rgba(148,170,214,.18);color:#dbe6ff}#newleads .nlx-h .pill.r{background:#ff5a4f;color:#fff;box-shadow:0 0 14px rgba(255,90,79,.6)}
+/* ===== Dashboard › New leads to contact =====
+   Nothing waiting: a light card with a quiet radar. Leads waiting (.nlc.hot): the dark navy card — a slow drifting glow, lead
+   rows as glass cards that slide in one after another, a soft red pulse round the card. Scoped to #newleads: the same rows
+   in the bell panel keep the light look. The card itself never scrolls (the glow layer is larger than the card and used to
+   make it scroll both ways under .dg #newleads>.card{overflow:auto}); only the list of leads scrolls, up and down.
+   Motion stops for prefers-reduced-motion. */
+.dg #newleads>.card.nlc{overflow:hidden;display:flex;flex-direction:column}
+#newleads .nlc{position:relative;isolation:isolate;min-height:170px;background:linear-gradient(135deg,#ffffff 0%,#f4f8ff 100%)}
+#newleads .nlc>*{flex-shrink:0}
+#newleads .nlx-bg{display:none}
+#newleads .nlx-h h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:16px}
+#newleads .nlx-bell{width:30px;height:30px;border-radius:9px;display:inline-grid;place-items:center;background:#e6f1fd}
+#newleads .nlx-bell .i{width:15px;height:15px;background:var(--pri)}
 #newleads .nlx-sync{display:inline-flex;align-items:center;gap:6px}
 #newleads .nlx-live{width:7px;height:7px;border-radius:50%;background:#34d27b;animation:sbfPulse 1.8s ease-out infinite}
-#newleads .btn.sec{background:rgba(148,170,214,.14);color:#e8eefc;border:1px solid rgba(148,170,214,.26);box-shadow:none}
-#newleads .btn.sec:hover{background:rgba(148,170,214,.26)}#newleads .btn.sec .i{background:#e8eefc}
-#newleads .btn:not(.sec){background:linear-gradient(135deg,#2f7bff,#5b6cff);color:#fff;box-shadow:0 6px 18px rgba(47,123,255,.4)}
-#newleads .btn.claim{background:linear-gradient(135deg,#00c2a8,#2f7bff)}
-/* nothing waiting: the radar */
+/* nothing waiting: the radar, on the light card */
 #newleads .nlx-empty{display:flex;align-items:center;gap:22px;padding:14px 4px 6px}
-#newleads .nlx-radar{position:relative;width:104px;height:104px;border-radius:50%;flex:none;background:radial-gradient(circle,rgba(77,148,255,.22) 0,rgba(77,148,255,.06) 55%,transparent 70%);box-shadow:inset 0 0 0 1px rgba(120,160,255,.35)}
-#newleads .nlx-radar span{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(120,170,255,.55);animation:nlxPing 3.6s ease-out infinite;opacity:0}
+#newleads .nlx-radar{position:relative;width:96px;height:96px;border-radius:50%;flex:none;overflow:hidden;background:radial-gradient(circle,rgba(0,113,227,.12) 0,rgba(0,113,227,.04) 55%,transparent 70%);box-shadow:inset 0 0 0 1px rgba(0,113,227,.22)}
+#newleads .nlx-radar span{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(0,113,227,.4);animation:nlxPing 3.6s ease-out infinite;opacity:0}
 #newleads .nlx-radar span:nth-child(2){animation-delay:1.2s}#newleads .nlx-radar span:nth-child(3){animation-delay:2.4s}
-#newleads .nlx-radar i{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(77,148,255,.55),rgba(77,148,255,0) 28%,transparent 100%);animation:nlxSweep 3.2s linear infinite}
-#newleads .nlx-radar b{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#8fbcff;box-shadow:0 0 12px #4d94ff}
-#newleads .nlx-et b{display:block;font-size:17px;color:#fff;margin-bottom:4px}#newleads .nlx-et p{margin:0;font-size:13.5px;line-height:1.55;color:rgba(200,214,244,.8);max-width:560px}
-/* leads waiting: glass rows that slide in */
-#newleads .nlx-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
-#newleads .nl{border:1px solid rgba(148,170,214,.18)!important;background:rgba(255,255,255,.06);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:transform .18s ease,background .18s ease,border-color .18s ease;animation:nlxIn .45s cubic-bezier(.2,.8,.2,1) both}
-#newleads .nl:hover{transform:translateY(-2px);background:rgba(255,255,255,.1);border-color:rgba(120,170,255,.5)!important}
-#newleads .nl:nth-child(2){animation-delay:.06s}#newleads .nl:nth-child(3){animation-delay:.12s}#newleads .nl:nth-child(4){animation-delay:.18s}#newleads .nl:nth-child(5){animation-delay:.24s}#newleads .nl:nth-child(6){animation-delay:.3s}#newleads .nl:nth-child(7){animation-delay:.36s}#newleads .nl:nth-child(8){animation-delay:.42s}
-#newleads .nlm b{color:#fff}#newleads .nlm{color:rgba(214,226,250,.9)}#newleads .nl .pill{background:rgba(148,170,214,.18);color:#dbe6ff}#newleads .nl .pill.y{background:rgba(255,196,0,.2);color:#ffd866}
-@keyframes nlxDrift{0%{transform:translate3d(-3%,-2%,0) rotate(0deg)}100%{transform:translate3d(4%,3%,0) rotate(8deg)}}
+#newleads .nlx-radar i{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(0,113,227,.34),rgba(0,113,227,0) 28%,transparent 100%);animation:nlxSweep 3.2s linear infinite}
+#newleads .nlx-radar b{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--pri);box-shadow:0 0 10px rgba(0,113,227,.6)}
+#newleads .nlx-et b{display:block;font-size:17px;color:var(--tx);margin-bottom:4px}#newleads .nlx-et p{margin:0;font-size:13.5px;line-height:1.55;color:var(--mut);max-width:560px}
+/* leads waiting: the dark card */
+#newleads .nlc.hot{background:linear-gradient(135deg,#0b1322 0%,#11203d 55%,#0d1a33 100%);color:#e8eefc;border:1px solid rgba(255,99,88,.45);box-shadow:0 14px 40px rgba(8,16,36,.28);animation:nlxHot 2.4s ease-in-out infinite}
+#newleads .nlc.hot .nlx-bg{display:block;position:absolute;inset:0;z-index:-1;pointer-events:none;background:
+  radial-gradient(38% 60% at 18% 20%,rgba(64,132,255,.34),transparent 70%),
+  radial-gradient(34% 56% at 82% 14%,rgba(120,84,255,.26),transparent 70%),
+  radial-gradient(40% 60% at 60% 96%,rgba(0,200,180,.18),transparent 70%);background-size:140% 140%;animation:nlxDrift 18s ease-in-out infinite alternate}
+#newleads .nlc.hot::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.5;
+  background-image:linear-gradient(rgba(148,170,214,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(148,170,214,.07) 1px,transparent 1px);background-size:28px 28px;
+  -webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.9),transparent 85%);mask-image:linear-gradient(180deg,rgba(0,0,0,.9),transparent 85%)}
+#newleads .nlc.hot .nlx-h h3{color:#fff}
+#newleads .nlc.hot .nlx-bell{background:linear-gradient(135deg,rgba(77,148,255,.45),rgba(120,84,255,.35));box-shadow:0 0 18px rgba(77,148,255,.45);animation:nlxRing 1.6s ease-in-out infinite;transform-origin:50% 10%}
+#newleads .nlc.hot .nlx-bell .i{background:#fff}
+#newleads .nlc.hot .mut{color:rgba(190,206,240,.72)!important}
+#newleads .nlc.hot .nlx-h .pill{background:rgba(148,170,214,.18);color:#dbe6ff}#newleads .nlc.hot .nlx-h .pill.r{background:#ff5a4f;color:#fff;box-shadow:0 0 14px rgba(255,90,79,.6)}
+#newleads .nlc.hot .btn.sec{background:rgba(148,170,214,.14);color:#e8eefc;border:1px solid rgba(148,170,214,.26);box-shadow:none}
+#newleads .nlc.hot .btn.sec:hover{background:rgba(148,170,214,.26)}#newleads .nlc.hot .btn.sec .i{background:#e8eefc}
+#newleads .nlc.hot .btn:not(.sec){background:linear-gradient(135deg,#2f7bff,#5b6cff);color:#fff;box-shadow:0 6px 18px rgba(47,123,255,.4)}
+#newleads .nlc.hot .btn.claim{background:linear-gradient(135deg,#00c2a8,#2f7bff)}
+/* the list of leads: the only part that scrolls, and only up and down */
+#newleads .nlx-list{display:flex;flex-direction:column;gap:8px;margin-top:8px;flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:2px 4px 2px 0;scrollbar-width:thin;scrollbar-color:rgba(148,170,214,.4) transparent}
+#newleads .nlx-list>.nl{flex-shrink:0}
+#newleads .nlc.hot .nl{border:1px solid rgba(148,170,214,.18)!important;background:rgba(255,255,255,.06);border-radius:12px;padding:10px 12px;transition:transform .18s ease,background .18s ease,border-color .18s ease;animation:nlxIn .45s cubic-bezier(.2,.8,.2,1) both}
+#newleads .nlc.hot .nl:hover{transform:translateY(-1px);background:rgba(255,255,255,.1);border-color:rgba(120,170,255,.5)!important}
+#newleads .nlc.hot .nl:nth-child(2){animation-delay:.06s}#newleads .nlc.hot .nl:nth-child(3){animation-delay:.12s}#newleads .nlc.hot .nl:nth-child(4){animation-delay:.18s}#newleads .nlc.hot .nl:nth-child(5){animation-delay:.24s}#newleads .nlc.hot .nl:nth-child(6){animation-delay:.3s}#newleads .nlc.hot .nl:nth-child(7){animation-delay:.36s}#newleads .nlc.hot .nl:nth-child(8){animation-delay:.42s}
+#newleads .nlc.hot .nlm b{color:#fff}#newleads .nlc.hot .nlm{color:rgba(214,226,250,.9)}#newleads .nlc.hot .nl .pill{background:rgba(148,170,214,.18);color:#dbe6ff}#newleads .nlc.hot .nl .pill.y{background:rgba(255,196,0,.2);color:#ffd866}
+@keyframes nlxDrift{0%{background-position:0% 0%}100%{background-position:100% 100%}}
 @keyframes nlxSweep{to{transform:rotate(360deg)}}
-@keyframes nlxPing{0%{transform:scale(.25);opacity:.9}100%{transform:scale(1.25);opacity:0}}
+@keyframes nlxPing{0%{transform:scale(.25);opacity:.9}100%{transform:scale(1);opacity:0}}
 @keyframes nlxIn{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:none}}
 @keyframes nlxHot{0%,100%{box-shadow:0 14px 40px rgba(8,16,36,.28),0 0 0 0 rgba(255,90,79,.0)}50%{box-shadow:0 14px 40px rgba(8,16,36,.28),0 0 0 5px rgba(255,90,79,.18)}}
 @keyframes nlxRing{0%,100%{transform:rotate(0)}15%{transform:rotate(-14deg)}30%{transform:rotate(12deg)}45%{transform:rotate(-8deg)}60%{transform:rotate(5deg)}75%{transform:rotate(0)}}
-@media(max-width:600px){#newleads .nlx-empty{gap:14px}#newleads .nlx-radar{width:76px;height:76px}#newleads .nlc{min-height:0}}
+@media(max-width:600px){#newleads .nlx-empty{gap:14px}#newleads .nlx-radar{width:72px;height:72px}#newleads .nlc{min-height:0}}
 @media(prefers-reduced-motion:reduce){#newleads .nlx-bg,#newleads .nlc.hot,#newleads .nlx-bell,#newleads .nlx-radar span,#newleads .nlx-radar i,#newleads .nl,#newleads .nlx-live{animation:none!important}#newleads .nlx-radar span{opacity:.35}}
