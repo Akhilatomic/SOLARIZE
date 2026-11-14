@@ -78,6 +78,18 @@ $m = $move($p2, 'Project completed');
 chk($m['_code'] === 200 && $proj($p2)['stage'] === 'Project completed' && in_array('pmsg', $pend($p2), true), 'a project can be completed with steps still to do');
 chk($move($p2, 'No such stage')['_code'] === 400, 'an unknown stage is refused');
 chk(call($admin, 'pipeline', 'step_done', ['id' => $p2, 'key' => 'nope'])['_code'] === 400, 'an unknown step is refused');
+
+/* feasibility days left: shown while the feasibility is paid and the registration fee is not */
+$p3 = $mk('Flex Three Test'); $c3 = (int)$db->query("SELECT customer_id FROM projects WHERE id=$p3")->fetchColumn();
+chk(!isset(call($admin, 'fees', 'feas_left')[$c3]), 'no feasibility clock before the feasibility is paid');
+$receipt($p3, 'feas_pay');
+$fl = call($admin, 'fees', 'feas_left')[$c3] ?? null;
+chk($fl && (int)$fl['days_left'] === 30 && $fl['expires'] === date('Y-m-d', strtotime('+30 days')) && !isset($fl['amount']), 'feasibility paid today → 30 days left, dates only');
+$db->exec("UPDATE fees SET paid_on='" . date('Y-m-d', strtotime('-33 days')) . "' WHERE customer_id=$c3 AND kind='feasibility'");
+chk((int)(call($admin, 'fees', 'feas_left')[$c3]['days_left'] ?? 0) === -3, 'past the 30 days it counts the days since it expired');
+$receipt($p3, 'reg_pay');
+chk(!isset(call($admin, 'fees', 'feas_left')[$c3]), 'the clock stops once the registration fee is paid');
+chk(call(actor('nobody'), 'fees', 'feas_left')['_code'] === 401, 'feasibility days left needs sign-in');
 @unlink($pdf);
 
 echo "  $pass ok, $fail FAIL\n";

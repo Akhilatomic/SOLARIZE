@@ -56,7 +56,7 @@ async function boot() {
   if (!s.auth) { loginView(s.setup, s.brand || {}); if (typeof idleSignedOut === 'function') idleSignedOut(); return; }
   ME = s.user; S = s.settings || await api('settings', 'get');
   if (typeof startIdle === 'function' && startIdle()) return; /* not used for too long: signing out */
-  shell(); mountBell(); if (typeof startPresence === 'function') startPresence(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
+  shell(); mountBell(); if (typeof startPresence === 'function') startPresence(); if (typeof startFeas === 'function') startFeas(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
 }
 function loginView(setup, brand) {
   const bg = brand.bg ? `url('${brand.bg}') center/cover no-repeat` : '';

@@ -131,7 +131,7 @@ function feasText(f) {
   return f.demanded ? { t: 'Demanded — not paid yet', c: 'y', d: f.demanded_on ? 'Demanded ' + fdate(f.demanded_on) : '' } : { t: 'Not paid', c: 'o', d: 'On the feasibility list' };
 }
 // touch devices have no hover → small chip under the name (only when it matters)
-function feasChip(id) { if (!canR('fees') || matchMedia('(hover: hover)').matches) return ''; const f = feasOf(id); if (!f) return ''; const x = feasText(f); return `<small class="feasc ${x.c}">Feasibility · ${x.t}</small>`; }
+function feasChip(id) { if (typeof feasSpot === 'function') return feasSpot(id); /* the days-left pill, on every device (app39.js) */ if (!canR('fees') || matchMedia('(hover: hover)').matches) return ''; const f = feasOf(id); if (!f) return ''; const x = feasText(f); return `<small class="feasc ${x.c}">Feasibility · ${x.t}</small>`; }
 let FH = null;
 const hoverOn = () => { try { return localStorage.custHover !== '0'; } catch (e) { return true; } };
 // current pipeline stage and what comes next

@@ -40,7 +40,7 @@ async function pgPipeline() {
   const cols = PIPE.filter(s => s[2] === PL.step);
   if (PL.view === 'list') {
     const rows = ps.filter(p => stepOf(p.stage) === PL.step);
-    body.innerHTML = `<div class="card tw fitbox" style="padding:0"><table id="ptb"><thead><tr><th>Customer</th><th>Project</th><th>Stage</th><th>In stage</th><th>Receipts</th><th>Engineer</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(p => `<tr class="row" data-id="${p.id}"><td><b>${esc(p.customer)}</b><br><small class="mut">${esc(p.phone || '')}</small></td><td>${esc(p.title)}<br><small class="mut">${p.kw} kW${FIN() ? ' · ' + inr(p.cost) : ''}</small></td><td>${pill(p.stage, stepCls(p.stage))}${pendPill(p)}</td><td>${daysSince(p.since)}d</td><td>${rcBadges(p)}</td><td>${esc(p.engineer) || '—'}</td><td class="right">${w ? nextBtn(p) : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="mut">No projects in this step</td></tr>'}</tbody></table></div>`;
+    body.innerHTML = `<div class="card tw fitbox" style="padding:0"><table id="ptb"><thead><tr><th>Customer</th><th>Project</th><th>Stage</th><th>In stage</th><th>Receipts</th><th>Engineer</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(p => `<tr class="row" data-id="${p.id}"><td><b>${esc(p.customer)}</b><br><small class="mut">${esc(p.phone || '')}</small></td><td>${esc(p.title)}<br><small class="mut">${p.kw} kW${FIN() ? ' · ' + inr(p.cost) : ''}</small></td><td>${pill(p.stage, stepCls(p.stage))}${pendPill(p)}</td><td>${daysSince(p.since)}d</td><td>${rcBadges(p)} ${feasSpot(p.customer_id)}</td><td>${esc(p.engineer) || '—'}</td><td class="right">${w ? nextBtn(p) : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="mut">No projects in this step</td></tr>'}</tbody></table></div>`;
     $$('#ptb tr.row').forEach(r => r.onclick = e => { if (!e.target.closest('button')) location.hash = '#/projects/' + r.dataset.id; });
     bindNext(body, ps); return;
   }
@@ -61,7 +61,7 @@ const rcBadges = p => [['feas_pay', 'Feasibility'], ['reg_pay', 'Registration']]
 function pcard(p, key, gate) {
   const need = gate === 'receipt' && !p.receipts[key];
   return `<div class="pk" data-id="${p.id}" draggable="${canW('projects')}"><b>${esc(p.customer || '—')}</b><small>${esc(p.title)} · ${p.kw} kW</small>
-   <div class="pkm">${p.loan === 'Yes' ? '<span class="pill">Loan</span>' : ''}${gate === 'receipt' ? (need ? '<span class="pill r"><i class="i i-alert"></i> Receipt needed</span>' : '<span class="pill g"><i class="i i-check"></i> Receipt</span>') : ''}${pendPill(p)}<span class="mut" title="Days in this stage">${daysSince(p.since)}d</span></div>
+   <div class="pkm">${p.loan === 'Yes' ? '<span class="pill">Loan</span>' : ''}${gate === 'receipt' ? (need ? '<span class="pill r"><i class="i i-alert"></i> Receipt needed</span>' : '<span class="pill g"><i class="i i-check"></i> Receipt</span>') : ''}${pendPill(p)}${feasSpot(p.customer_id)}<span class="mut" title="Days in this stage">${daysSince(p.since)}d</span></div>
    ${canW('projects') ? nextBtn(p) : ''}</div>`;
 }
 function nextBtn(p) {
@@ -101,7 +101,7 @@ function receiptModal(pid, key, done) {
   dz.ondragover = e => { e.preventDefault(); dz.classList.add('hov'); }; dz.ondragleave = () => dz.classList.remove('hov'); dz.ondrop = e => { e.preventDefault(); dz.classList.remove('hov'); e.dataTransfer.files[0] && pick(e.dataTransfer.files[0]); };
   $('#rcx', m).onclick = () => m.remove();
   $('#rsv', m).onclick = async () => { const fd = new FormData(); fd.append('file', file); fd.append('project_id', pid); fd.append('stage', key); fd.append('amount', $('#ra', m).value); fd.append('date', $('#rd', m).value); fd.append('ref', $('#rr', m).value);
-    $('#rsv', m).disabled = true; try { await api('pipeline', 'receipt', fd); toast('Receipt uploaded'); m.remove(); done && done(); } catch (e) { $('#rsv', m).disabled = false; } };
+    $('#rsv', m).disabled = true; try { await api('pipeline', 'receipt', fd); toast('Receipt uploaded'); if (typeof feasLoad === 'function') feasLoad(true); m.remove(); done && done(); } catch (e) { $('#rsv', m).disabled = false; } };
 }
 async function startModal({ customer_id }) {
   const cs = canR('customers') ? await api('customers', 'list') : [];
@@ -164,7 +164,7 @@ async function renderStepper(p, box) {
   const rec = Object.fromEntries((p.stage_data || []).map(d => [d.stage, d]));
   const when = {}; (p.steps || []).forEach(s => { when[s.stage] = s; });
   const pp = { ...p, receipts: { feas_pay: !!(rec.feas_pay && rec.feas_pay.file_id), reg_pay: !!(rec.reg_pay && rec.reg_pay.file_id) } };
-  box.innerHTML = `<div class="card pst"><div class="ch"><h3>Progress</h3><span class="pill ${stepCls(p.stage)}">Step ${stepOf(p.stage)} · ${esc(p.stage)}</span>${later.length ? `<span class="pill y" title="${esc(later.join(', '))}"><i class="i i-clock"></i> ${later.length} left for later</span>` : ''}<span class="sp"></span>${w ? nextBtn(pp) : ''}</div>
+  box.innerHTML = `<div class="card pst"><div class="ch"><h3>Progress</h3><span class="pill ${stepCls(p.stage)}">Step ${stepOf(p.stage)} · ${esc(p.stage)}</span>${feasSpot(p.customer_id)}${later.length ? `<span class="pill y" title="${esc(later.join(', '))}"><i class="i i-clock"></i> ${later.length} left for later</span>` : ''}<span class="sp"></span>${w ? nextBtn(pp) : ''}</div>
    ${w ? '<p class="pshint"><i class="i i-pencil"></i> Click a step to move the project there. Steps you jump over stay marked “Left for later” — click one when it is done.</p>' : ''}
    <div class="psteps">${[1, 2, 3].map(n => `<div class="pstep"><div class="psh">${STEPS[n - 1][1]} · ${STEPS[n - 1][2]}</div>${PIPE.filter(s => s[2] === n).map(s => { const i = PIPE.indexOf(s), lt = pend.includes(s[0]), st = lt ? 'later' : i < cur || (i === cur && s[0] === 'completed') ? 'done' : i === cur ? 'cur' : '';
       const tip = !w ? '' : lt ? (s[3] === 'receipt' ? 'Click to upload the receipt' : 'Click to mark this step done') : i === cur ? (s[3] === 'receipt' && !(rec[s[0]] && rec[s[0]].file_id) ? 'Click to upload the receipt' : '') : i > cur ? 'Click to move the project to this step' : 'Click to move the project back to this step';

@@ -50,6 +50,17 @@ function handle_fees($a) {
         unset($r); }
       out(['kind' => $kind, 'title' => FEE_KINDS[$kind], 'valid_days' => rule('feas_valid_days'), 'alert_days' => rule('feas_alert_days'), 'rows' => $rs, 'default_amount' => fee_default_amount($kind)]);
 
+    case 'feas_left': // customers whose feasibility clock is running: paid, registration fee not paid yet, project not completed.
+      // Dates only, no amounts — shown on every page to everyone who can see customers or projects (a BA: their own customers).
+      if (!can('customers') && !can('projects')) fail('Not allowed for your role', 403);
+      $m = []; $today = new DateTime(date('Y-m-d')); $days = rule('feas_valid_days');
+      foreach (rows("SELECT f.customer_id, f.paid_on FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.kind='feasibility' AND f.paid=1 AND f.paid_on<>'' AND " . cust_scope('c') . "
+        AND NOT EXISTS(SELECT 1 FROM fees r WHERE r.customer_id=f.customer_id AND r.kind='registration' AND r.paid=1)
+        AND NOT EXISTS(SELECT 1 FROM projects p WHERE p.customer_id=f.customer_id AND p.stage='Project completed')") as $r) {
+        try { $e = (new DateTime($r['paid_on']))->modify("+$days days"); } catch (Throwable $x) { continue; }
+        $m[(int)$r['customer_id']] = ['paid_on' => $r['paid_on'], 'expires' => $e->format('Y-m-d'), 'days_left' => (int)$today->diff($e)->format('%r%a')];
+      }
+      out($m ?: new stdClass);
     case 'member': // which Finance lists each customer is on (for the customer menus)
       need('fees'); $cid = (int)($_GET['customer_id'] ?? 0);
       $m = []; $today = new DateTime(date('Y-m-d'));
