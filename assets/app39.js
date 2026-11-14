@@ -11,6 +11,9 @@ const FEASX = { map: null, at: 0, busy: null, on: false,
     if (left === 0) return { t: 'Feasibility expires today', c: 'r' };
     return { t: 'Feasibility · ' + d(left) + ' left', c: left <= (warn == null ? 3 : warn) ? 'r' : left <= 10 ? 'y' : 'g' };
   },
+  /* pure: sort key for a list ordered by feasibility expiry — expired first, then the fewest days left; customers with no
+     running feasibility (not paid yet, or the registration fee already paid) come after, in the order they already had */
+  order(map, id) { const f = (map || {})[id]; return f && !f.rf && f.days_left != null ? +f.days_left : 1e7; },
   /* pure: the pill for one customer's entry f (from fees/feas_left); short = inside the AF/RF column */
   label(f, warn, short) {
     if (!f) return null;

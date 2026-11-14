@@ -664,7 +664,7 @@ function convertBox(l, done) {
 }
 
 // ---------- Customers ----------
-let CUF = { q: '', st: '', sort: 'recent' };
+let CUF = { q: '', st: '', sort: 'feas' }; /* the list opens with the feasibility that runs out first on top (the AF/RF column) */
 const STC = { New: 'b', Survey: 'y', Design: 'y', Quotation: 'p', Approval: 'p', Material: 'y', Installation: 'c', 'Net-meter': 'c', Commissioned: 'g', Subsidy: 'g', Closed: 'g' };
 async function convertLeadModal() {
   const ls = (await api('leads', 'list')).filter(l => l.can_edit && !l.customer_id && !['Won', 'Lost'].includes(l.status));
@@ -683,14 +683,14 @@ async function convertLeadModal() {
 }
 async function pgCustomers() {
   if (!PIPE && canR('projects')) { try { PIPE = (await api('pipeline', 'board')).stages; } catch (e) { } }
-  const [cs] = await Promise.all([list('customers'), discSummary(), feeMembers()]); cs.forEach(c => c.status = c.stage || 'New');
+  const [cs] = await Promise.all([list('customers'), discSummary(), feeMembers(), feasLoad()]); cs.forEach(c => c.status = c.stage || 'New');
   const w = canW('customers');
   if (CUF.ownFor !== ME.id) { CUF.ownFor = ME.id; CUF.own = ownView('customers'); } // Me / All remembered per person
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Customers</h2><div class="mut" id="ccount"></div></div><span class="sp"></span>
    <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${ME.role === 'admin' ? '<button class="btn sec" id="cimp" title="Import customers from a prepared file"><i class="i i-upload"></i> Import</button>' : ''}${canW('leads') ? '<button class="btn sec" id="cconv"><i class="i i-userplus"></i> Convert lead</button>' : ''}${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
    <div class="bar cbar" style="margin-top:12px">${ownSwitch('customers', CUF.own)}<input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
-   <select id="csort">${[['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity'], ...(canR('fees') ? [['feas', 'Feasibility expiry']] : [])].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+   <select id="csort">${[['feas', 'Feasibility expiry'], ['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity']].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
    <label class="hsw" title="Show status, next step and feasibility when you point at a customer"><input type="checkbox" id="chov" ${hoverOn() ? 'checked' : ''}><span class="hswt"></span>Hover info</label><span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex">Export CSV</button>' : ''}${w && ME.role === 'admin' ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
    <div class="card tw fitbox" style="padding:0"><table id="ctb" class="ctb2" data-min="680"></table></div>`;
   const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}" aria-label="${t}"><i class="i i-${i}"></i></button>`;
@@ -699,7 +699,7 @@ async function pgCustomers() {
     const t = CUF.q.toLowerCase();
     const rows = cs.filter(c => (CUF.own !== 'me' || OWN.mine.customers(c, ME)) && (!CUF.st || c.status === CUF.st) && (!t || [c.name, c.phone, c.consumer_no, c.district, c.address, c.email].join(' ').toLowerCase().includes(t)))
       .sort((a, b) => CUF.sort === 'name' ? a.name.localeCompare(b.name) : CUF.sort === 'kw' ? (b.kw || 0) - (a.kw || 0) : CUF.sort === 'oldest' ? (a.created > b.created ? 1 : -1) : (a.created < b.created ? 1 : -1))
-      .sort((a, b) => CUF.sort === 'feas' ? feasRank(a.id) - feasRank(b.id) : 0)
+      .sort((a, b) => CUF.sort === 'feas' ? FEASX.order(FEASX.map, a.id) - FEASX.order(FEASX.map, b.id) : 0) /* stable: the rest stay newest first */
       .sort((a, b) => CUF.sort === 'feas' ? 0 : discRank(b.id) - discRank(a.id) || (DISC.sum[a.id] && DISC.sum[b.id] ? String(DISC.sum[b.id].last_at).localeCompare(String(DISC.sum[a.id].last_at)) : 0)); // live discussions first
     const nLive = rows.filter(c => DISC.sum[c.id]).length; $('#ccount').innerHTML = rows.length + ' records' + (nLive ? ` · <span class="xdlive"><span class="xddot"></span>${nLive} live discussion${nLive === 1 ? '' : 's'}</span>` : '');
     const W = ($('#ctb').parentElement || {}).clientWidth || 1200;
