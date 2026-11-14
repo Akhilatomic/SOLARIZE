@@ -53,8 +53,9 @@ const stageCls = s => ({ Won: 'g', Commissioned: 'g', Closed: 'g', Released: 'g'
 
 async function boot() {
   const s = await api('auth', 'status', undefined, '&boot=1');
-  if (!s.auth) return loginView(s.setup, s.brand || {});
+  if (!s.auth) { loginView(s.setup, s.brand || {}); if (typeof idleSignedOut === 'function') idleSignedOut(); return; }
   ME = s.user; S = s.settings || await api('settings', 'get');
+  if (typeof startIdle === 'function' && startIdle()) return; /* not used for too long: signing out */
   shell(); mountBell(); if (typeof startPresence === 'function') startPresence(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
 }
 function loginView(setup, brand) {
@@ -82,7 +83,7 @@ function shell() {
   $('#acct').onclick = e => { e.stopPropagation(); $('#acm').classList.toggle('hide'); };
   document.addEventListener('click', e => { const m = $('#acm'); if (m && !m.contains(e.target)) m.classList.add('hide'); });
   new MutationObserver(fitSoon).observe($('#main'), { childList: true, subtree: true });
-  $('#lo').onclick = async () => { await api('auth', 'logout', {}); location.hash = ''; location.reload(); };
+  $('#lo').onclick = async () => { if (typeof idleOut === 'function') return idleOut(false); await api('auth', 'logout', {}); location.hash = ''; location.reload(); };
   $('#pdp').onclick = () => { $('#acm').classList.add('hide'); pickAvatar(0, ME.name, setMyAvatar); };
   $('#pdr').onclick = () => { $('#acm').classList.add('hide'); removeAvatar(0, setMyAvatar); };
   $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
@@ -204,7 +205,7 @@ function csvDownload(name, cols, data) {
 function pickFile(accept = '') { return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => res(i.files[0]); i.click(); }); }
 async function upload(extra) { const f = await pickFile('.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt'); if (!f) return false; const fd = new FormData(); fd.append('file', f); Object.entries(extra).forEach(([k, v]) => fd.append(k, v ?? '')); await api('files', 'upload', fd); return true; }
 /* The numbers the CRM works by. The owner changes them in Settings › Rules (S.rules; api/lib.php rule()); these are the usual values. */
-const RULE_DEF = { doc_days: 365, gen_days: 120, trash_hours: 72, lead_lost_hours: 24, lead_remind_min: 15, feas_valid_days: 30, feas_alert_days: 3, claim_hours: 36 };
+const RULE_DEF = { doc_days: 365, gen_days: 120, trash_hours: 72, lead_lost_hours: 24, lead_remind_min: 15, feas_valid_days: 30, feas_alert_days: 3, claim_hours: 36, idle_min: 30 };
 const RULE = k => { const v = ((S && S.rules) || {})[k]; return v == null || v === '' || isNaN(+v) ? RULE_DEF[k] : +v; };
 /* DOC_DAYS = days an uploaded document is kept, GEN_DAYS = days a paper made in the CRM is kept: read from the rules each time they are used */
 Object.defineProperty(window, 'DOC_DAYS', { get: () => RULE('doc_days') }); Object.defineProperty(window, 'GEN_DAYS', { get: () => RULE('gen_days') });
