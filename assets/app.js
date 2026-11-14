@@ -164,6 +164,19 @@ function popMenu(btn, items, pick) {
 }
 
 // ---------- UI helpers ----------
+/* A touch screen (phone, iPad): icon buttons are 40 px there (app.css @media pointer:coarse), so the fixed Actions columns of
+   the Leads and Customers tables are sized for them — at the mouse size the last icons (⋯ More) were cut off on an iPad.
+   html.touch is set as well, so a style can be tried on a desktop by adding the class (window.FORCE_TOUCH = true). */
+const TOUCH = () => !!window.FORCE_TOUCH || matchMedia('(pointer: coarse)').matches;
+const IBW = () => TOUCH() ? 42 : 28; /* width one row icon takes */
+document.documentElement.classList.toggle('touch', TOUCH());
+/* Details that a mouse shows on hover (title) are shown on a tap where there is no hover: the AF/RF pill, the time left on
+   someone else's claim, "N for later", days left on a saved paper. */
+document.addEventListener('click', e => {
+  if (matchMedia('(hover: hover)').matches && !window.FORCE_TOUCH) return;
+  const el = e.target.closest && e.target.closest('.fxp[title], .clmt[title], .plater[title], .ksd-t small[title], .qla-ba[title], .clmg[title]');
+  if (el && el.title && typeof toast === 'function') { e.stopPropagation(); e.preventDefault(); toast(el.title); } /* the tap is for the details, not for opening the row */
+}, true);
 function modal(html, wide) {
   const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = `<div ${wide ? 'style="max-width:900px"' : ''}>${html}</div>`;
   m.addEventListener('mousedown', e => { if (e.target === m) m._md = true; }); m.addEventListener('mouseup', e => { if (e.target === m && m._md) m.remove(); m._md = false; });
@@ -365,7 +378,7 @@ function bars(data, order) {
 
 // ---------- Leads ----------
 const LCOLS = [['date', 'Added'], ['name', 'Name'], ['phone', 'Phone'], ['status', 'Status'], ['city', 'Location'], ['owner', 'Claimed by'], ['remark', 'Remark'], ['appt', 'Appt'], ['cb', 'Call back']];
-const LW = { date: 92, phone: 112, status: 96, owner: 158, appt: 128, cb: 136 }; // fixed px; name/location/remark share the rest
+const LW = { date: 92, phone: 112, status: 96, owner: 174, appt: 128, cb: 136 }; // fixed px; name/location/remark share the rest
 let LF = { q: '', status: '', active: 'active', city: '', appt: '', own: '', sort: 'created', dir: -1, edit: false };
 let LHIDE = []; try { LHIDE = JSON.parse(localStorage.lcols || '[]'); } catch (e) { }
 // speed: build each date formatter once (toLocaleDateString with options builds a new one on every call — seconds on a 4,000-row table)
@@ -544,7 +557,7 @@ async function pgLeads() {
       : `${discBtn(l.id, 1)}${l.phone ? '<a class="ib" title="Call" href="tel:' + esc(l.phone) + '"><i class="i i-phone"></i></a>' : ''}<button class="ib" title="View / edit" data-a="vw"><i class="i i-eye"></i></button><button class="ib" title="More actions" data-a="more"><i class="i i-dots"></i></button>`;
     const rowHtml = l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}<td class="lact">${acts(l)}</td></tr>`;
     const tb = $('#ltb'); let n = Math.min(rows.length, Math.max(LAZY_FIRST, reset === true ? 0 : shown));
-    tb.innerHTML = `<colgroup>${show.map(([k]) => `<col${LW[k] ? ` style="width:${LW[k]}px"` : ''}>`).join('')}<col style="width:${isAdm() ? 136 : 128}px"></colgroup>
+    tb.innerHTML = `<colgroup>${show.map(([k]) => `<col${LW[k] ? ` style="width:${LW[k] + (k === 'owner' && TOUCH() ? 34 : 0)}px"` : ''}>`).join('')}<col style="width:${TOUCH() ? 4 * IBW() + 16 : isAdm() ? 136 : 128}px"></colgroup>
       <thead><tr>${show.map(([k, t]) => `<th data-sort="${sk(k)}">${t}<span class="so">${LF.sort === sk(k) ? (LF.dir > 0 ? '↑' : '↓') : '⇅'}</span></th>`).join('')}<th class="right">Actions</th></tr></thead>
       <tbody>${rows.slice(0, n).map(rowHtml).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
     if (reset === true && tb.parentElement) tb.parentElement.scrollTop = 0; // new sort / filter / search starts at the top
@@ -746,7 +759,7 @@ async function pgCustomers() {
     // Actions are always the short set (discussion, edit, project, documents); everything else is under ⋯, so the
     // details get the room: the full name (wraps), the whole stage name and the whole district.
     let COLS = [['name', 'Name', 0], ['status', 'Status', 220], ['afrf', 'AF/RF', 78], ['cno', 'Consumer no.', 126], ['dist', 'District', 158], ['phone', 'Phone', 130], ['kw', 'Capacity', 78], ['by', 'Owner', 120], ['date', 'Date', 92]], full = false;
-    const need = () => COLS.reduce((s, c) => s + c[2], 0) + 172 + 200;
+    const need = () => COLS.reduce((s, c) => s + c[2], 0) + (TOUCH() ? 5 * IBW() + 14 : 172) + 200;
     if (W < 680) { COLS = COLS.filter(c => c[0] !== 'date'); full = false; } // phones: card view has room for the key details (owner included)
     else for (const k of ['date', 'by', 'dist', 'kw', '#compact', 'cno', 'phone']) { /* Owner outlasts Date: Me / All needs it */ if (need() <= W) break; if (k === '#compact') full = false; else COLS = COLS.filter(c => c[0] !== k); }
     const fin = canR('fees');
@@ -764,7 +777,7 @@ async function pgCustomers() {
     const rowHtml = c => `<tr class="row ${DISC.sum[c.id] ? 'live' : ''}" data-id="${c.id}">${COLS.map(k => cell(k[0], c)).join('')}
         <td class="cact">${discBtn(c.id)}${ACTS(c).map(([k, i, t, , on]) => on === false ? `<button class="ib off" aria-disabled="true" title="${t} — start a project first"><i class="i i-${i}"></i></button>` : ic(k, i, t)).join('')}${ic('more', 'dots', 'More actions')}</td></tr>`;
     const tb = $('#ctb'); let n = Math.min(rows.length, Math.max(LAZY_FIRST, reset === true ? 0 : onScreen));
-    tb.innerHTML = `<colgroup>${COLS.map(c => `<col${c[2] ? ` style="width:${c[2]}px"` : ''}>`).join('')}<col style="width:${nA * 28 + 14}px"></colgroup>
+    tb.innerHTML = `<colgroup>${COLS.map(c => `<col${c[2] ? ` style="width:${c[2]}px"` : ''}>`).join('')}<col style="width:${nA * IBW() + 14}px"></colgroup>
       <thead><tr>${COLS.map(c => `<th>${c[1]}</th>`).join('')}<th class="right">Actions</th></tr></thead><tbody>
       ${rows.slice(0, n).map(rowHtml).join('') || `<tr><td colspan="${COLS.length + 1}" class="mut">No customers match</td></tr>`}</tbody>`;
     if (reset === true && tb.parentElement) tb.parentElement.scrollTop = 0; // new sort / filter / search starts at the top
