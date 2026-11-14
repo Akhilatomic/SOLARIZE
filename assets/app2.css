@@ -900,3 +900,5 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .ksd-r.st-g select{color:#1e7a37;font-weight:600}.ksd-r.st-b select{color:var(--pri);font-weight:600}
 @media(max-width:1000px){.chk.ksd-r{grid-template-columns:22px 1fr 32px}.ksd-r select,.ksd-r input{grid-column:2/3}.ksd-r .ksd-u{grid-row:1;grid-column:3}}
 .ksd .ch .sp{flex:1}
+/* Customer profile: the Timeline card stays in its place beside the left column (same height), only its list scrolls */
+@media(min-width:881px){.pfright{position:relative;top:auto;align-self:stretch;min-height:420px}.pfright>.pftl{position:absolute;inset:0;max-height:none}}
