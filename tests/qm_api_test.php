@@ -1,6 +1,6 @@
 <?php
 // Quotation maker API tests. Usage: php tests/qm_api_test.php http://localhost:8094  (fresh data folder)
-$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
+$base = rtrim($argv[1] ?? 'http://localhost:8094', '/');
 require_once __DIR__ . '/_onboard.php'; /* onb(): staff add customers with the approved quotation and plant cost */
 $dbPath = $argv[2] ?? '';
 $pass = 0; $fail = 0;
@@ -149,6 +149,13 @@ $g1 = call($sales, 'quotes', 'get', null, '&id=' . $q1['id']);
 chk(($q1b['id'] ?? 0) == $q1['id'] && $q1b['number'] === $q1['number'] && $g1['status'] === 'Sent' && $g1['subsidy'] == 60000, 'update keeps the number');
 chk(call($sales, 'qm', 'boot')['next_number'] === 'JSS/PMSGY/' . date('Y') . '/0146', 'update does not use a number');
 chk(call($sales, 'qm', 'save', ['customer_id' => $cid, 'status' => 'Bogus', 'doc' => $doc])['_code'] === 400, 'bad status rejected');
+/* status from the Quotations list: only the status changes */
+$sx = call($sales, 'qm', 'status', ['id' => $q1['id'], 'status' => 'Accepted']); $g1s = call($sales, 'quotes', 'get', null, '&id=' . $q1['id']);
+chk(!empty($sx['ok']) && $g1s['status'] === 'Accepted' && $g1s['number'] === $q1['number'] && $g1s['doc'] === $g1['doc'] && $g1s['total'] == $g1['total'], 'list status change keeps the quotation');
+chk(call($sales, 'qm', 'status', ['id' => $q1['id'], 'status' => 'Bogus'])['_code'] === 400, 'list status: bad status rejected');
+chk(call($sales, 'qm', 'status', ['id' => 999999, 'status' => 'Sent'])['_code'] === 404, 'list status: unknown quotation');
+chk(call($anon, 'qm', 'status', ['id' => $q1['id'], 'status' => 'Sent'])['_code'] === 401, 'list status needs sign-in');
+call($sales, 'qm', 'status', ['id' => $q1['id'], 'status' => 'Sent']);
 /* snapshot: edit the product after saving; the saved quote still has the old wording */
 call($admin, 'qm', 'product_save', ['id' => $panelId, 'name' => 'Changed name'] + $panel);
 chk(json_decode(call($sales, 'quotes', 'get', null, '&id=' . $q1['id'])['doc'], true)['snap']['panels'][0]['name'] === $panel['name'], 'saved quote keeps its snapshot');

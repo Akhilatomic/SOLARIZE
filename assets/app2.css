@@ -848,3 +848,8 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .a2h-b{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
 .a2h-b .btn{white-space:nowrap}
 @media(prefers-reduced-motion:reduce){.a2h{animation:none}}
+/* Quotations list: row actions */
+.qla{display:inline-flex;align-items:center;gap:2px;white-space:nowrap}
+.qla .ib{padding:6px}.qla .ib:disabled{opacity:.4;cursor:default}
+.qla .qla-del:hover{color:var(--bad);background:#ffecea}
+:where(.card.tw>table:not(.stack)) :is(th,td).qla-c{width:1%;white-space:nowrap;padding-top:4px;padding-bottom:4px}

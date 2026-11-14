@@ -190,6 +190,16 @@ function handle_qm($a) {
       audit('qm_template_delete', 'qm_templates', $id, (string)$cur['name']);
       out(['ok' => true]);
     }
+    case 'status': { /* Quotations list: change the status without opening the quotation */
+      need('quotes', true);
+      $id = (int)($in['id'] ?? 0); $status = (string)($in['status'] ?? '');
+      if (!in_array($status, ['Draft', 'Sent', 'Accepted', 'Rejected'], true)) fail('Unknown status');
+      $cur = row('SELECT number FROM quotes WHERE id=?', [$id]);
+      if (!$cur) fail('Quotation not found', 404);
+      q('UPDATE quotes SET status=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$status, $id]);
+      audit('quote_status', 'quotes', $id, $cur['number'] . ' → ' . $status);
+      out(['ok' => true, 'status' => $status]);
+    }
     case 'save': {
       need('quotes', true);
       $id = (int)($in['id'] ?? 0);
