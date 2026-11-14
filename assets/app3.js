@@ -38,9 +38,30 @@ function leadBeep() {
 /* the last lead alert, shared by every open tab so a reminder comes once per 15 minutes, not once per tab */
 const remindAt = () => { try { return +localStorage.leadRemindAt || 0; } catch (e) { return 0; } };
 const remindMark = () => { try { localStorage.leadRemindAt = String(Date.now()); } catch (e) { } };
+/* The pop-up for leads that just arrived: a card that drops in at the top of whatever page is open and stays until it is
+   dismissed or one of its buttons is used. It does not cover the page or take the keyboard, so typing elsewhere is not
+   interrupted. Leads that arrive while it is open are added to it. Rows and buttons are the same as on the dashboard card
+   (nlRow / bindNl): Call, WhatsApp, Open, Mark contacted, or Claim for a lead not claimed yet. */
+let NLP = [];
+function leadPopClose() { const p = $('#nlp'); if (p) { p.classList.add('bye'); setTimeout(() => p.remove(), 220); } NLP = []; document.removeEventListener('keydown', leadPopKey); }
+function leadPopKey(e) { if (e.key === 'Escape' && $('#nlp') && !$('.modal')) leadPopClose(); }
+function leadPop(fresh) {
+  fresh.forEach(l => { if (!NLP.some(x => x.id === l.id)) NLP.unshift(l); });
+  const n = NLP.length, show = NLP.slice(0, 4); let p = $('#nlp');
+  if (!p) { p = document.createElement('div'); p.id = 'nlp'; p.className = 'nlp'; p.setAttribute('role', 'alertdialog'); p.setAttribute('aria-live', 'assertive'); document.body.appendChild(p); document.addEventListener('keydown', leadPopKey); }
+  else { p.classList.remove('again'); void p.offsetWidth; p.classList.add('again'); } /* already open: a small shake for the new arrival */
+  p.setAttribute('aria-label', n === 1 ? 'New lead' : n + ' new leads');
+  p.innerHTML = `<div class="nlp-g" aria-hidden="true"></div><div class="nlp-h"><span class="nlp-ping"><i class="i i-bell"></i></span><div class="nlp-t"><b>${n === 1 ? 'New lead just arrived' : n + ' new leads just arrived'}</b><small>The first to respond usually wins the customer</small></div><button type="button" class="nlp-x" id="nlpx" title="Dismiss (Esc)" aria-label="Dismiss"><i class="i i-x"></i></button></div>
+    <div class="nlp-l">${show.map(nlRow).join('')}${n > show.length ? `<p class="nlp-m">+ ${n - show.length} more in Leads</p>` : ''}</div>
+    <div class="nlp-f"><a class="btn sm" href="#/leads" id="nlpa">View all leads</a><button type="button" class="btn sec sm" id="nlpd">Dismiss</button></div>`;
+  bindNl(p);
+  $('#nlpx', p).onclick = $('#nlpd', p).onclick = leadPopClose; $('#nlpa', p).onclick = () => leadPopClose();
+  /* using a lead's button answers the pop-up */
+  p.onclick = e => { if (e.target.closest('[data-claim],[data-ack],[data-open],[data-done],[data-wa]')) setTimeout(leadPopClose, 0); };
+}
 function alertNew(fresh) {
   remindMark();
-  toast(fresh.length === 1 ? 'New lead: ' + fresh[0].name + (fresh[0].phone ? ' · ' + fresh[0].phone : '') : fresh.length + ' new leads from Meta', false, true);
+  if (document.body && $('#shell')) leadPop(fresh); else toast(fresh.length === 1 ? 'New lead: ' + fresh[0].name + (fresh[0].phone ? ' · ' + fresh[0].phone : '') : fresh.length + ' new leads from Meta', false, true);
   leadBeep();
   try { if ('Notification' in window && Notification.permission === 'granted') new Notification('New Meta lead', { body: fresh.map(l => l.name + (l.phone ? ' · ' + l.phone : '')).join('\n'), icon: 'assets/logo.png' }); } catch (e) { }
 }
