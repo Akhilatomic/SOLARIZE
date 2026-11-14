@@ -864,3 +864,10 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .idlw-n{font-size:52px;font-weight:700;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;color:var(--bad)}
 .idlw-c h3{margin:12px 0 4px;font-size:18px}.idlw-c p{margin:0 0 18px;color:var(--mut);font-size:14px;line-height:1.45}
 .idlw-b{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+/* Project progress: a step left for later; click a step to move there */
+.psi.later .pdot{border-style:dashed;border-color:#e0a100;background:#fff8e1}
+.psi.later b{color:#9a6b00}.psi .plt{color:#9a6b00;font-weight:600}
+.psi.go{cursor:pointer;border-radius:8px;margin:0 -6px;padding-left:6px;padding-right:6px}.psi.go::before{left:16px}
+.psi.go:hover{background:var(--fill)}.psi.go:focus-visible{outline:2px solid var(--pri);outline-offset:1px}
+.pshint{margin:0 0 10px;font-size:12px;color:var(--mut);display:flex;gap:6px;align-items:center}.pshint .i{width:12px;height:12px;flex-shrink:0}
+.pill.plater{margin-left:4px}.pill.plater .i{width:11px;height:11px;vertical-align:-1px}

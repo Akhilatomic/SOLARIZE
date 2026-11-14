@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 60; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 61; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -330,6 +330,18 @@ function migrate($db) {
   foreach (['pay_date ON payments(date)', 'spend_date ON ad_spend(date)', 'accl_kind ON acc_log(kind, project_id)'] as $ix) $db->exec("CREATE INDEX IF NOT EXISTS $ix");
   /* projects.cost_ver: the cost sheet's version, +1 on every acc/cost_save (two people saving the same sheet: the older page gets 409).
      Not in the projects column list, so a project save never touches it. */
+  if (!in_array('pending', array_column($db->query('PRAGMA table_info(projects)')->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE projects ADD COLUMN pending TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } } /* v61: steps left for later */
+  /* v61: the registration fee payment now comes right after the feasibility payment. A project already at PMSG portal registration
+     has not paid it yet (it used to come next): keep it as left for later. A saved stage list gets the new order. */
+  if (!$db->query("SELECT 1 FROM settings WHERE k='pipe_order_v61'")->fetch()) {
+    $db->exec("UPDATE projects SET pending='[\"reg_pay\"]' WHERE stage='PMSG portal registration' AND COALESCE(pending,'')='' AND id NOT IN (SELECT project_id FROM stage_data WHERE stage='reg_pay' AND file_id IS NOT NULL)");
+    $ps = $db->query("SELECT v FROM settings WHERE k='project_stages'")->fetch(); $L = $ps ? json_decode((string)$ps['v'], true) : null;
+    if (is_array($L) && in_array('KSEB registration fee payment', $L, true) && in_array('KSEB feasibility payment', $L, true)) {
+      $L = array_values(array_diff($L, ['KSEB registration fee payment'])); array_splice($L, array_search('KSEB feasibility payment', $L, true) + 1, 0, ['KSEB registration fee payment']);
+      $db->prepare("UPDATE settings SET v=? WHERE k='project_stages'")->execute([json_encode($L, JSON_UNESCAPED_UNICODE)]);
+    }
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('pipe_order_v61','1')");
+  }
   if (!in_array('cost_ver', array_column($db->query('PRAGMA table_info(projects)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE projects ADD COLUMN cost_ver INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   /* v43: the price list's profit % per item and the Project cost sheet's profit % per line (NULL = the default, settings acc_profit_default) */
   foreach (['acc_materials', 'acc_costs'] as $tb) if (!in_array('profit', array_column($db->query("PRAGMA table_info($tb)")->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE $tb ADD COLUMN profit REAL"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
@@ -425,7 +437,7 @@ function defaults() {
     'login' => ['bg' => '', 'tagline' => 'Max speed CRM', 'dim' => 35],
     'lead_sources' => ['Meta Ads','Referral','Walk-in','Website','Google','Existing customer','Other'],
     'lead_statuses' => ['New','Contacted','Site Visit','Quoted','Won','Lost'],
-    'project_stages' => ['Customer','KSEB feasibility check','Loan registration','KSEB feasibility payment','PMSG portal registration','KSEB registration fee payment','Material delivery','Structure installation','Electrical installation','KSEB documents submission','DISCOM inspection','DISCOM net-meter commissioning','Subsidy process','Tax bill generation','Warranty card delivery','Project completed'],
+    'project_stages' => ['Customer','KSEB feasibility check','Loan registration','KSEB feasibility payment','KSEB registration fee payment','PMSG portal registration','Material delivery','Structure installation','Electrical installation','KSEB documents submission','DISCOM inspection','DISCOM net-meter commissioning','Subsidy process','Tax bill generation','Warranty card delivery','Project completed'],
     'subsidy_steps' => ['Registered on PM Surya Ghar portal','Application submitted (consumer no. + bank)','KSEB feasibility approval','Vendor selected on portal','Installation completed','Net-meter installed','Commissioning report submitted','Bank account details verified','Portal inspection done','Subsidy released to customer'],
     'kseb_items' => KSEB_ITEMS,
     'kseb_items_rev' => 0, // 2 once kseb_items_upgrade() has run on this database

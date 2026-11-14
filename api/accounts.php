@@ -235,7 +235,7 @@ function acc_offer_use($mid, $oid) {
 
 /* ---- money lists (pending, received, profit, expenses, overview) ---- */
 /* stages where the customer has not started paying yet; the pending list hides them unless asked */
-const ACC_EARLY = ['Customer', 'KSEB feasibility check', 'Loan registration', 'KSEB feasibility payment', 'PMSG portal registration'];
+const ACC_EARLY = ['Customer', 'KSEB feasibility check', 'Loan registration', 'KSEB feasibility payment', 'KSEB registration fee payment', 'PMSG portal registration'];
 const ACC_DEF_CATS = ['Ads', 'AI tools', 'Other'];
 
 /* [from, to] (Y-m-d, inclusive) from ?period=: 'YYYY-MM' = that month, 'fy-26-27' = 2026-04-01..2027-03-31, empty or invalid = this month (same rule as ACC.period) */

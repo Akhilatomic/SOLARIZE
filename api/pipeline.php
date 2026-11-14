@@ -1,11 +1,14 @@
 <?php
-// Project pipeline: 4 steps, gated stages (KSEB payments need an uploaded receipt), stage history, AMC & service.
+// Project pipeline: 4 steps, stage history, AMC & service.
+// Owner's rule (2026-11-14): the order is a guide, not a lock. A step can be left for later (the KSEB registration fee may be
+// paid up to 29 days after the feasibility payment while the work goes on): projects.pending = JSON list of step keys that
+// were passed without being done. A payment step counts as done once its receipt is uploaded; other steps by "Mark done".
 
 // [key, label, step, gate]  — projects.stage stores the label
 const PIPE = [
   ['customer', 'Customer', 1, ''], ['feasibility', 'KSEB feasibility check', 1, ''], ['loan', 'Loan registration', 1, 'optional'],
-  ['feas_pay', 'KSEB feasibility payment', 1, 'receipt'], ['pmsg', 'PMSG portal registration', 1, ''],
-  ['reg_pay', 'KSEB registration fee payment', 2, 'receipt'], ['delivery', 'Material delivery', 2, ''], ['structure', 'Structure installation', 2, ''],
+  ['feas_pay', 'KSEB feasibility payment', 1, 'receipt'], ['reg_pay', 'KSEB registration fee payment', 1, 'receipt'], ['pmsg', 'PMSG portal registration', 1, ''],
+  ['delivery', 'Material delivery', 2, ''], ['structure', 'Structure installation', 2, ''],
   ['electrical', 'Electrical installation', 2, ''], ['kseb_docs', 'KSEB documents submission', 2, ''], ['inspection', 'DISCOM inspection', 2, ''],
   ['netmeter', 'DISCOM net-meter commissioning', 2, ''], ['subsidy', 'Subsidy process', 2, ''],
   ['tax_bill', 'Tax bill generation', 3, ''], ['warranty', 'Warranty card delivery', 3, ''], ['completed', 'Project completed', 3, ''],
@@ -17,11 +20,25 @@ function pipe_idx($label) { $i = array_search($label, pipe_labels(), true); retu
 function pipe_key($label) { $i = pipe_idx($label); return $i < 0 ? '' : PIPE[$i][0]; }
 function has_receipt($pid, $key) { return (bool)row('SELECT 1 FROM stage_data WHERE project_id=? AND stage=? AND file_id IS NOT NULL', [$pid, $key]); }
 function receipts($pid) { $r = []; foreach (PIPE as $s) if ($s[3] === 'receipt') $r[$s[0]] = has_receipt($pid, $s[0]); return $r; }
-// first unmet gate between the current stage and the target (moving forward past a payment stage needs its receipt)
-function pipe_block($p, $to) {
-  $ti = pipe_idx($to);
-  foreach (PIPE as $i => $s) if ($s[3] === 'receipt' && $i < $ti && !has_receipt($p['id'], $s[0])) return $s[1];
-  return null;
+function pipe_pending($p) { $keys = array_column(PIPE, 0); $v = json_decode((string)($p['pending'] ?? ''), true); return is_array($v) ? array_values(array_intersect($keys, $v)) : []; } /* in pipeline order */
+function pipe_pending_set($pid, $keys) { q('UPDATE projects SET pending=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$keys ? json_encode(array_values($keys)) : '', $pid]); }
+/* The steps still to do after moving from the current stage to $to. Forward: the stage being left is done unless $skip (or it
+   is a payment step with no receipt yet); every step jumped over is left for later (not Loan registration when no loan is
+   taken, not a payment step whose receipt is already in). Backward: steps from $to onwards are simply not reached yet. */
+function pipe_pending_after($p, $to, $skip) {
+  $ci = pipe_idx($p['stage']); $ti = pipe_idx($to); $keys = array_column(PIPE, 0);
+  $pend = array_flip(pipe_pending($p));
+  if ($ti > $ci) {
+    for ($i = max(0, $ci); $i < $ti; $i++) { $s = PIPE[$i];
+      if ($s[0] === 'loan' && ($p['loan'] ?? '') === 'No') continue;
+      $rc = $s[3] === 'receipt';
+      if ($rc && has_receipt($p['id'], $s[0])) continue;
+      if ($i === $ci && !$skip && !$rc) continue; /* the stage being left: done */
+      $pend[$s[0]] = 1;
+    }
+  }
+  foreach (array_keys($pend) as $k) if (array_search($k, $keys, true) >= $ti) unset($pend[$k]);
+  return array_values(array_intersect($keys, array_keys($pend)));
 }
 function step_log($pid, $stage, $note = '') { q('INSERT INTO project_steps(project_id,stage,note,user) VALUES(?,?,?,?)', [$pid, $stage, $note, $_SESSION['name'] ?? '']); }
 
@@ -30,21 +47,32 @@ function handle_pipeline($a) {
   switch ($a) {
     case 'board':
       need('projects');
-      $ps = rows("SELECT p.id,p.title,p.kw,p.stage,p.cost,p.loan,p.engineer,p.customer_id,p.amc_start,p.amc_end,p.amc_interval,p.updated,c.name customer,c.phone,c.district,c.owner_id,
+      $ps = rows("SELECT p.id,p.title,p.kw,p.stage,p.pending,p.cost,p.loan,p.engineer,p.customer_id,p.amc_start,p.amc_end,p.amc_interval,p.updated,c.name customer,c.phone,c.district,c.owner_id,
         (SELECT MAX(created) FROM project_steps s WHERE s.project_id=p.id) since FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE " . cust_scope('c') . " ORDER BY p.updated DESC");
       $rec = []; foreach (rows("SELECT project_id,stage FROM stage_data WHERE file_id IS NOT NULL") as $r) $rec[$r['project_id']][$r['stage']] = true;
       $svc = []; foreach (rows("SELECT project_id, MAX(CASE WHEN status='Done' THEN date END) last_done, MIN(CASE WHEN status='Scheduled' THEN date END) next_sched, COUNT(*) n FROM services GROUP BY project_id") as $r) $svc[$r['project_id']] = $r;
-      foreach ($ps as &$p) { $p = strip_fin($p); $p['receipts'] = ['feas_pay' => !empty($rec[$p['id']]['feas_pay']), 'reg_pay' => !empty($rec[$p['id']]['reg_pay'])]; $p['svc'] = $svc[$p['id']] ?? null; } unset($p);
+      foreach ($ps as &$p) { $p = strip_fin($p); $p['pending'] = pipe_pending($p); $p['receipts'] = ['feas_pay' => !empty($rec[$p['id']]['feas_pay']), 'reg_pay' => !empty($rec[$p['id']]['reg_pay'])]; $p['svc'] = $svc[$p['id']] ?? null; } unset($p);
       out(['stages' => PIPE, 'projects' => $ps, 'service_types' => SERVICE_TYPES]);
     case 'move':
       need('projects', true);
       $p = row('SELECT * FROM projects WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$p) fail('Project not found', 404);
       $to = (string)($in['stage'] ?? ''); if (pipe_idx($to) < 0) fail('Unknown stage');
-      if ($to === $p['stage']) out(['ok' => true]);
-      if (pipe_idx($to) > pipe_idx($p['stage']) && ($b = pipe_block($p, $to))) fail("Upload the receipt for “{$b}” before moving on (JPG or PDF, max 2 MB).", 409);
-      q('UPDATE projects SET stage=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$to, $p['id']]);
+      if ($to === $p['stage']) out(['ok' => true, 'pending' => pipe_pending($p), 'left' => []]);
+      $was = pipe_pending($p); $pend = pipe_pending_after($p, $to, !empty($in['skip']));
+      $left = array_values(array_diff($pend, $was)); $labels = array_column(PIPE, 1, 0);
+      q('UPDATE projects SET stage=?, pending=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$to, $pend ? json_encode($pend) : '', $p['id']]);
       step_log($p['id'], $to, mb_substr(trim((string)($in['note'] ?? '')), 0, 300));
-      audit('stage', 'projects', $p['id'], $p['stage'] . ' → ' . $to); out(['ok' => true]);
+      audit('stage', 'projects', $p['id'], $p['stage'] . ' → ' . $to . ($left ? ' (left for later: ' . implode(', ', array_map(fn($k) => $labels[$k], $left)) . ')' : ''));
+      out(['ok' => true, 'pending' => $pend, 'left' => array_map(fn($k) => $labels[$k], $left)]);
+    case 'step_done': // a step that was left for later is done now (a payment step is done by uploading its receipt)
+      need('projects', true);
+      $p = row('SELECT * FROM projects WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$p) fail('Project not found', 404);
+      $key = (string)($in['key'] ?? ''); $st = array_values(array_filter(PIPE, fn($s) => $s[0] === $key))[0] ?? null; if (!$st) fail('Unknown stage');
+      $pend = pipe_pending($p); if (!in_array($key, $pend, true)) out(['ok' => true, 'pending' => $pend]);
+      if ($st[3] === 'receipt' && !has_receipt($p['id'], $key)) fail("Upload the receipt for “{$st[1]}” to mark it done (JPG or PDF, max 2 MB).", 409);
+      $pend = array_values(array_diff($pend, [$key])); pipe_pending_set($p['id'], $pend);
+      step_log($p['id'], $st[1], mb_substr(trim((string)($in['note'] ?? '')), 0, 300) ?: 'Done later');
+      audit('stage', 'projects', $p['id'], $st[1] . ' done (was left for later)'); out(['ok' => true, 'pending' => $pend]);
     case 'start': // lead or customer → new project at "Customer"
       need('projects', true);
       $cid = (int)($in['customer_id'] ?? 0);
@@ -89,6 +117,7 @@ function handle_pipeline($a) {
       q('INSERT INTO stage_data(project_id,stage,amount,ref,date,file_id,note,user) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(project_id,stage) DO UPDATE SET amount=excluded.amount,ref=excluded.ref,date=excluded.date,file_id=excluded.file_id,note=excluded.note,user=excluded.user,updated=CURRENT_TIMESTAMP',
         [$pid, $key, $amt, mb_substr(trim((string)($_POST['ref'] ?? '')), 0, 80), $date, $fid, mb_substr(trim((string)($_POST['note'] ?? '')), 0, 300), $_SESSION['name'] ?? '']);
       try { fee_from_receipt((int)$p['customer_id'], $key, $amt, $date, (string)($_POST['ref'] ?? '')); } catch (Throwable $e) { } // Finance › fee marked paid
+      $pend = pipe_pending($p); if (in_array($key, $pend, true)) { pipe_pending_set($pid, array_diff($pend, [$key])); step_log($pid, $st[1], 'Receipt uploaded'); } /* left for later → done */
       audit('receipt', 'projects', $pid, $st[1] . ($amt ? ' ₹' . $amt : '')); out(['ok' => true, 'file_id' => $fid]);
     case 'amc':
       need('projects', true);

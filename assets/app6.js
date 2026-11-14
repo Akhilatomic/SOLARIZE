@@ -1,8 +1,13 @@
-// Project pipeline v2: 4 step tabs, gated stages (KSEB receipts), stepper on the project page, AMC & service.
+// Project pipeline v2: 4 step tabs, stepper on the project page, AMC & service.
+// The order is a guide, not a lock: a step can be left for later (p.pending = keys of steps passed without being done).
+// On the project page a click on a step moves the project there, or marks a step that was left for later as done.
 const STEPS = [[1, 'Step 1', 'Registration'], [2, 'Step 2', 'Execution'], [3, 'Step 3', 'Closure'], [4, 'Step 4', 'AMC & Service']];
 let PIPE = null, PL = { step: 1, q: '', view: 'list' };
 const stepOf = label => { const s = (PIPE || []).find(x => x[1] === label); return s ? s[2] : 0; };
 const stepCls = label => ({ 1: 'y', 2: 'c', 3: 'g' })[stepOf(label)] || '';
+const pendOf = p => { let v = p && p.pending; if (typeof v === 'string') { try { v = JSON.parse(v || '[]'); } catch (e) { v = []; } } return Array.isArray(v) ? v : []; };
+const pendNames = p => pendOf(p).map(k => ((PIPE || []).find(s => s[0] === k) || [])[1]).filter(Boolean);
+const pendPill = p => { const n = pendNames(p); return n.length ? ` <span class="pill y plater" title="Left for later: ${esc(n.join(', '))}"><i class="i i-clock"></i> ${n.length} for later</span>` : ''; };
 const daysSince = d => d ? Math.max(0, Math.floor((Date.now() - new Date(String(d).replace(' ', 'T') + 'Z')) / 864e5)) : 0;
 const addMonths = (ds, n) => { const d = pdate(ds); d.setMonth(d.getMonth() + n); return ymd(d); };
 function nextService(p) {
@@ -35,13 +40,13 @@ async function pgPipeline() {
   const cols = PIPE.filter(s => s[2] === PL.step);
   if (PL.view === 'list') {
     const rows = ps.filter(p => stepOf(p.stage) === PL.step);
-    body.innerHTML = `<div class="card tw fitbox" style="padding:0"><table id="ptb"><thead><tr><th>Customer</th><th>Project</th><th>Stage</th><th>In stage</th><th>Receipts</th><th>Engineer</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(p => `<tr class="row" data-id="${p.id}"><td><b>${esc(p.customer)}</b><br><small class="mut">${esc(p.phone || '')}</small></td><td>${esc(p.title)}<br><small class="mut">${p.kw} kW${FIN() ? ' · ' + inr(p.cost) : ''}</small></td><td>${pill(p.stage, stepCls(p.stage))}</td><td>${daysSince(p.since)}d</td><td>${rcBadges(p)}</td><td>${esc(p.engineer) || '—'}</td><td class="right">${w ? nextBtn(p) : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="mut">No projects in this step</td></tr>'}</tbody></table></div>`;
+    body.innerHTML = `<div class="card tw fitbox" style="padding:0"><table id="ptb"><thead><tr><th>Customer</th><th>Project</th><th>Stage</th><th>In stage</th><th>Receipts</th><th>Engineer</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(p => `<tr class="row" data-id="${p.id}"><td><b>${esc(p.customer)}</b><br><small class="mut">${esc(p.phone || '')}</small></td><td>${esc(p.title)}<br><small class="mut">${p.kw} kW${FIN() ? ' · ' + inr(p.cost) : ''}</small></td><td>${pill(p.stage, stepCls(p.stage))}${pendPill(p)}</td><td>${daysSince(p.since)}d</td><td>${rcBadges(p)}</td><td>${esc(p.engineer) || '—'}</td><td class="right">${w ? nextBtn(p) : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="mut">No projects in this step</td></tr>'}</tbody></table></div>`;
     $$('#ptb tr.row').forEach(r => r.onclick = e => { if (!e.target.closest('button')) location.hash = '#/projects/' + r.dataset.id; });
     bindNext(body, ps); return;
   }
 
   body.innerHTML = `<div class="pboard s${PL.step}">${cols.map(([k, label, , gate]) => { const cs = ps.filter(p => p.stage === label);
-    return `<div class="pcol" data-stage="${esc(label)}"><div class="pch"><b title="${esc(label)}">${esc(label)}</b><span>${cs.length}</span></div>${gate === 'receipt' ? '<div class="pgate"><i class="i i-lock"></i> Receipt required to move on</div>' : gate === 'optional' ? '<div class="pgate">Only if a loan is taken</div>' : ''}
+    return `<div class="pcol" data-stage="${esc(label)}"><div class="pch"><b title="${esc(label)}">${esc(label)}</b><span>${cs.length}</span></div>${gate === 'receipt' ? '<div class="pgate"><i class="i i-file"></i> Receipt can be uploaded now or later</div>' : gate === 'optional' ? '<div class="pgate">Only if a loan is taken</div>' : ''}
      <div class="pcl">${cs.map(p => pcard(p, k, gate)).join('') || '<p class="mut pce">—</p>'}</div></div>`; }).join('')}</div>`;
   $$('.pk[data-id]', body).forEach(c => { c.onclick = e => { if (!e.target.closest('button')) location.hash = '#/projects/' + c.dataset.id; }; if (w) c.ondragstart = e => e.dataTransfer.setData('text/plain', c.dataset.id); });
   if (w) $$('.pcol[data-stage]', body).forEach(col => { if (!col.dataset.stage) return;
@@ -56,12 +61,11 @@ const rcBadges = p => [['feas_pay', 'Feasibility'], ['reg_pay', 'Registration']]
 function pcard(p, key, gate) {
   const need = gate === 'receipt' && !p.receipts[key];
   return `<div class="pk" data-id="${p.id}" draggable="${canW('projects')}"><b>${esc(p.customer || '—')}</b><small>${esc(p.title)} · ${p.kw} kW</small>
-   <div class="pkm">${p.loan === 'Yes' ? '<span class="pill">Loan</span>' : ''}${gate === 'receipt' ? (need ? '<span class="pill r"><i class="i i-alert"></i> Receipt needed</span>' : '<span class="pill g"><i class="i i-check"></i> Receipt</span>') : ''}<span class="mut" title="Days in this stage">${daysSince(p.since)}d</span></div>
+   <div class="pkm">${p.loan === 'Yes' ? '<span class="pill">Loan</span>' : ''}${gate === 'receipt' ? (need ? '<span class="pill r"><i class="i i-alert"></i> Receipt needed</span>' : '<span class="pill g"><i class="i i-check"></i> Receipt</span>') : ''}${pendPill(p)}<span class="mut" title="Days in this stage">${daysSince(p.since)}d</span></div>
    ${canW('projects') ? nextBtn(p) : ''}</div>`;
 }
 function nextBtn(p) {
   const i = PIPE.findIndex(s => s[1] === p.stage), cur = PIPE[i], nx = PIPE[i + 1]; if (!nx) return '';
-  if (cur[3] === 'receipt' && !p.receipts[cur[0]]) return `<button class="btn sm rc" data-rc="${p.id}" data-key="${cur[0]}"><i class="i i-upload"></i> Upload receipt</button>`;
   const skip = nx[0] === 'loan' && p.loan === 'No' ? PIPE[i + 2] : nx;
   return `<button class="btn sm sec nx" data-next="${p.id}" data-to="${esc(skip[1])}" title="Move to ${esc(skip[1])}">Next: ${esc(skip[1])} →</button>`;
 }
@@ -69,15 +73,20 @@ function bindNext(root, ps) {
   $$('[data-next]', root).forEach(b => b.onclick = async e => { e.stopPropagation(); const p = ps.find(x => x.id == b.dataset.next); await moveTo(p, b.dataset.to); });
   $$('[data-rc]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const p = ps.find(x => x.id == b.dataset.rc); receiptModal(p.id, b.dataset.key, () => pgPipeline()); });
 }
-async function moveTo(p, stage, note) {
+/* skip = the stage being left is not done yet (left for later). Steps jumped over are left for later too. */
+async function moveTo(p, stage, note, skip) {
   if (p.stage === stage) return;
-  const r = await fetch('api.php?m=pipeline&a=move', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, stage, note: note || '' }) }).then(x => x.json());
-  if (r.error) { toast(r.error, true); const blocked = PIPE.find(s => r.error.includes(s[1]) && s[3] === 'receipt'); if (blocked) receiptModal(p.id, blocked[0], () => route()); return false; }
-  toast((p.customer ? p.customer + ': ' : '') + 'moved to ' + stage); route(); return true;
+  if (stage === 'Project completed') { const ci = PIPE.findIndex(s => s[1] === p.stage), cur = PIPE[ci];
+    const open = pendNames(p).concat(cur && (skip || (cur[3] === 'receipt' && !(p.receipts || {})[cur[0]])) ? [cur[1]] : []);
+    if (open.length && !confirm(`Still to do:\n• ${open.join('\n• ')}\n\nMark the project completed anyway? These stay marked as still to do.`)) return false; }
+  let r; try { r = await api('pipeline', 'move', { id: p.id, stage, note: note || '', skip: skip ? 1 : 0 }); } catch (e) { return false; }
+  const who = p.customer && typeof p.customer === 'object' ? p.customer.name : p.customer;
+  toast((who ? who + ': ' : '') + 'moved to ' + stage + (r.left && r.left.length ? ' · left for later: ' + r.left.join(', ') : '')); route(); return true;
 }
+async function stepDone(p, key) { try { await api('pipeline', 'step_done', { id: p.id, key }); } catch (e) { return false; } toast(((PIPE.find(s => s[0] === key) || [])[1] || 'Step') + ' marked done'); route(); return true; }
 function receiptModal(pid, key, done) {
   const st = PIPE.find(s => s[0] === key);
-  const m = modal(`<h2 style="margin-top:0">Upload receipt</h2><p class="mut" style="margin-top:-6px">${esc(st[1])} — the project can move to the next stage only after this receipt is uploaded.</p>
+  const m = modal(`<h2 style="margin-top:0">Upload receipt</h2><p class="mut" style="margin-top:-6px">${esc(st[1])} — the step is marked done once its receipt is uploaded. The project can move on meanwhile.</p>
    <div class="two"><div><label>Amount paid (₹)</label><input id="ra" type="number" step="any"></div><div><label>Payment date</label><input id="rd" type="date" value="${today()}"></div>
    <div class="full"><label>Receipt / transaction no.</label><input id="rr" placeholder="Optional"></div></div>
    <div id="rdrop" class="drop"><i class="i i-upload" style="width:26px;height:26px"></i><div><b>Choose receipt</b> or drop it here</div><small class="mut">JPG or PDF only · maximum 2 MB</small><input type="file" id="rf" accept=".jpg,.jpeg,.pdf,image/jpeg,application/pdf" class="hide"></div><div id="rinfo" style="margin-top:8px;font-size:14px"></div>
@@ -92,7 +101,7 @@ function receiptModal(pid, key, done) {
   dz.ondragover = e => { e.preventDefault(); dz.classList.add('hov'); }; dz.ondragleave = () => dz.classList.remove('hov'); dz.ondrop = e => { e.preventDefault(); dz.classList.remove('hov'); e.dataTransfer.files[0] && pick(e.dataTransfer.files[0]); };
   $('#rcx', m).onclick = () => m.remove();
   $('#rsv', m).onclick = async () => { const fd = new FormData(); fd.append('file', file); fd.append('project_id', pid); fd.append('stage', key); fd.append('amount', $('#ra', m).value); fd.append('date', $('#rd', m).value); fd.append('ref', $('#rr', m).value);
-    $('#rsv', m).disabled = true; try { await api('pipeline', 'receipt', fd); toast('Receipt uploaded — you can move this project on'); m.remove(); done && done(); } catch (e) { $('#rsv', m).disabled = false; } };
+    $('#rsv', m).disabled = true; try { await api('pipeline', 'receipt', fd); toast('Receipt uploaded'); m.remove(); done && done(); } catch (e) { $('#rsv', m).disabled = false; } };
 }
 async function startModal({ customer_id }) {
   const cs = canR('customers') ? await api('customers', 'list') : [];
@@ -151,19 +160,30 @@ function serviceModal(pid, s, types, done, p) {
 // ---------- stepper on the project page ----------
 async function renderStepper(p, box) {
   if (!PIPE) PIPE = (await api('pipeline', 'board')).stages;
-  const cur = PIPE.findIndex(s => s[1] === p.stage), w = canW('projects');
+  const cur = PIPE.findIndex(s => s[1] === p.stage), w = canW('projects'), pend = pendOf(p), later = pendNames(p);
   const rec = Object.fromEntries((p.stage_data || []).map(d => [d.stage, d]));
   const when = {}; (p.steps || []).forEach(s => { when[s.stage] = s; });
   const pp = { ...p, receipts: { feas_pay: !!(rec.feas_pay && rec.feas_pay.file_id), reg_pay: !!(rec.reg_pay && rec.reg_pay.file_id) } };
-  box.innerHTML = `<div class="card pst"><div class="ch"><h3>Progress</h3><span class="pill ${stepCls(p.stage)}">Step ${stepOf(p.stage)} · ${esc(p.stage)}</span><span class="sp"></span>${w ? nextBtn(pp) : ''}${w ? `<select id="pmove" title="Move to any stage (receipts still required)"><option value="">Move to…</option>${PIPE.map(s => `<option ${s[1] === p.stage ? 'disabled' : ''}>${esc(s[1])}</option>`).join('')}</select>` : ''}</div>
-   <div class="psteps">${[1, 2, 3].map(n => `<div class="pstep"><div class="psh">${STEPS[n - 1][1]} · ${STEPS[n - 1][2]}</div>${PIPE.filter(s => s[2] === n).map(s => { const i = PIPE.indexOf(s), st = i < cur || (i === cur && s[0] === 'completed') ? 'done' : i === cur ? 'cur' : '';
-      const r = rec[s[0]]; return `<div class="psi ${st} ${s[0] === 'loan' && p.loan === 'No' ? 'skip' : ''}"><span class="pdot">${st === 'done' ? '<i class="i i-check"></i>' : ''}</span><div><b>${esc(s[1])}</b>${when[s[1]] ? `<small>${dmy(when[s[1]].created)} · ${esc(when[s[1]].user)}${when[s[1]].note ? ' · ' + esc(when[s[1]].note) : ''}</small>` : ''}
-        ${s[3] === 'receipt' ? (r && r.file_id ? `<small><a href="api.php?m=files&a=get&id=${r.file_id}" target="_blank"><i class="i i-file"></i> Receipt${r.amount ? ' · ' + inr(r.amount) : ''}${r.ref ? ' · ' + esc(r.ref) : ''}</a>${w ? ` · <a href="#" data-rcu="${s[0]}">replace</a>` : ''}</small>` : (i <= cur && w ? `<small><a href="#" data-rcu="${s[0]}" class="over"><i class="i i-upload"></i> Upload receipt (required)</a></small>` : '<small class="mut">Receipt required</small>')) : ''}
+  box.innerHTML = `<div class="card pst"><div class="ch"><h3>Progress</h3><span class="pill ${stepCls(p.stage)}">Step ${stepOf(p.stage)} · ${esc(p.stage)}</span>${later.length ? `<span class="pill y" title="${esc(later.join(', '))}"><i class="i i-clock"></i> ${later.length} left for later</span>` : ''}<span class="sp"></span>${w ? nextBtn(pp) : ''}</div>
+   ${w ? '<p class="pshint"><i class="i i-pencil"></i> Click a step to move the project there. Steps you jump over stay marked “Left for later” — click one when it is done.</p>' : ''}
+   <div class="psteps">${[1, 2, 3].map(n => `<div class="pstep"><div class="psh">${STEPS[n - 1][1]} · ${STEPS[n - 1][2]}</div>${PIPE.filter(s => s[2] === n).map(s => { const i = PIPE.indexOf(s), lt = pend.includes(s[0]), st = lt ? 'later' : i < cur || (i === cur && s[0] === 'completed') ? 'done' : i === cur ? 'cur' : '';
+      const tip = !w ? '' : lt ? (s[3] === 'receipt' ? 'Click to upload the receipt' : 'Click to mark this step done') : i === cur ? (s[3] === 'receipt' && !(rec[s[0]] && rec[s[0]].file_id) ? 'Click to upload the receipt' : '') : i > cur ? 'Click to move the project to this step' : 'Click to move the project back to this step';
+      const r = rec[s[0]]; return `<div class="psi ${st} ${s[0] === 'loan' && p.loan === 'No' ? 'skip' : ''}${tip ? ' go' : ''}"${tip ? ` data-go="${i}" title="${tip}" tabindex="0" role="button"` : ''}><span class="pdot">${st === 'done' ? '<i class="i i-check"></i>' : ''}</span><div><b>${esc(s[1])}</b>${when[s[1]] ? `<small>${dmy(when[s[1]].created)} · ${esc(when[s[1]].user)}${when[s[1]].note ? ' · ' + esc(when[s[1]].note) : ''}</small>` : ''}
+        ${s[3] === 'receipt' ? (r && r.file_id ? `<small><a href="api.php?m=files&a=get&id=${r.file_id}" target="_blank"><i class="i i-file"></i> Receipt${r.amount ? ' · ' + inr(r.amount) : ''}${r.ref ? ' · ' + esc(r.ref) : ''}</a>${w ? ` · <a href="#" data-rcu="${s[0]}">replace</a>` : ''}</small>` : (i <= cur && w ? `<small><a href="#" data-rcu="${s[0]}" class="over"><i class="i i-upload"></i> Upload receipt${lt ? ' (left for later)' : ''}</a></small>` : `<small class="mut">${lt ? 'Left for later — receipt still to upload' : 'Receipt needed'}</small>`)) : ''}
+        ${lt && s[3] !== 'receipt' ? `<small><span class="plt">Left for later</span>${w ? ' · click when done' : ''}</small>` : ''}
+        ${i === cur && w && PIPE[i + 1] && s[3] !== 'receipt' ? `<small><a href="#" data-skipcur="1" title="Move on and keep this step as still to do">Skip for now</a></small>` : ''}
         ${s[0] === 'loan' && p.loan === 'No' ? '<small class="mut">No loan — skipped</small>' : ''}</div></div>`; }).join('')}</div>`).join('')}</div></div>`;
   $$('[data-next]', box).forEach(b => b.onclick = () => moveTo(pp, b.dataset.to));
   $$('[data-rc]', box).forEach(b => b.onclick = () => receiptModal(p.id, b.dataset.key, () => route()));
   $$('[data-rcu]', box).forEach(a => a.onclick = e => { e.preventDefault(); receiptModal(p.id, a.dataset.rcu, () => route()); });
-  if ($('#pmove', box)) $('#pmove', box).onchange = async e => { const to = e.target.value; if (!to) return; const note = prompt('Note for this step (optional):', '') ?? ''; if (!(await moveTo(pp, to, note))) e.target.value = ''; };
+  $$('[data-skipcur]', box).forEach(a => a.onclick = e => { e.preventDefault(); e.stopPropagation(); const nb = $('[data-next]', box); if (nb) moveTo(pp, nb.dataset.to, '', true); });
+  /* click to select: a later step = move there; a step left for later = done now; an earlier step = move back (asks first) */
+  const go = el => { const i = +el.dataset.go, s = PIPE[i]; if (!s) return;
+    if (pend.includes(s[0])) return s[3] === 'receipt' ? receiptModal(p.id, s[0], () => route()) : stepDone(p, s[0]);
+    if (i === cur) return receiptModal(p.id, s[0], () => route());
+    if (i < cur && !confirm(`Move the project back to “${s[1]}”?\n\nThe steps after it will show as not done yet.`)) return;
+    moveTo(pp, s[1]); };
+  $$('.psi[data-go]', box).forEach(el => { el.onclick = e => { if (!e.target.closest('a,button')) go(el); }; el.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); go(el); } }; });
 }
 async function amcTab(p, box) {
   const types = ['AMC visit', 'Panel cleaning', 'Periodic maintenance', 'Inverter service', 'Repair / complaint', 'Inspection'], w = canW('projects');

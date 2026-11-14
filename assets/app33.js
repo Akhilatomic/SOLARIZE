@@ -333,7 +333,7 @@ ACCT_TABS.pending = async box => {
     $$('[data-acx-f]', box).forEach(b => { b.classList.toggle('on', b.dataset.acxF === ACXP.f); $('.acx-n', b).textContent = hit.filter(r => acPendPass(r, b.dataset.acxF)).length; });
     $('.acx-sum', box).textContent = `${acPl(L.length, 'project')} · ${inr2(ACC.r2(L.reduce((s, r) => s + (+r.due || 0), 0)))} pending`;
     $('[data-acx-note]', box).textContent = ACXP.f === 'early'
-      ? 'Projects still in an early stage (Customer, KSEB feasibility check, Loan registration, KSEB feasibility payment, PMSG portal registration). They are not in the pending total and get no reminder.'
+      ? 'Projects still in an early stage (Customer, KSEB feasibility check, Loan registration, KSEB feasibility payment, KSEB registration fee payment, PMSG portal registration). They are not in the pending total and get no reminder.'
       : "Projects past the early stages with money still due: the same list as the Dashboard, biggest first. Reminder opens WhatsApp with the message ready; press send there. On a loan project it asks only for the customer's own share (price − loan amount); Bank's part only = the customer has paid theirs, so there is no reminder.";
     acFill(tb, L, r => acPendRow(r, true), rows.length ? 'Nothing matches.' : 'Nothing pending.');
   };
