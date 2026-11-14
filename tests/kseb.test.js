@@ -812,3 +812,13 @@ test('DCR declaration: defaults from the plant details, one page on the letterhe
   const bare = KD.layout('dcr', KD.values('dcr', { customer: {}, plant: {}, defaults: {}, today: '2026-11-14' }, {}), measure);
   assert.equal(bare.overflow, false); assert.ok(bare.ops.some(o => o.t === 'Name: __________'));
 });
+
+/* ---- profile fields found missing when every paper was checked: sanction number, Electrical Inspectorate approval ---- */
+test('papers read the sanction number and the Electrical Inspectorate approval from the profile', () => {
+  const base = { customer: { name: 'SUMA DEVI R' }, project: null, defaults: {}, today: '2026-11-14' };
+  const none = Object.assign({ plant: {} }, base), has = Object.assign({ plant: { sanction_no: 'KS/FEAS/123', ei_approval_no: 'EI/TVM/77', ei_approval_date: '2026-11-02' } }, base);
+  assert.equal(KD.values('dcr', none, {}).sanction_no, '');
+  assert.equal(KD.values('dcr', has, {}).sanction_no, 'KS/FEAS/123');
+  assert.deepEqual([KD.values('doi', none, {}).energ, KD.values('doi', none, {}).energ_details, KD.values('an3', none, {}).inspector], ['Not Applicable', '', 'NOT APPLICABLE']);
+  assert.deepEqual([KD.values('doi', has, {}).energ, KD.values('doi', has, {}).energ_details, KD.values('an3', has, {}).inspector], ['Yes', 'No. EI/TVM/77 dated 02-11-2026', 'YES']);
+});

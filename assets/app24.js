@@ -598,7 +598,7 @@ var KD = (function () {
         /* DC capacity = modules x Wp when both are known, else the plant capacity */
         capacity: isNum(dcnt) && isNum(dwp) && +dwp > 0 ? Math.round(+dcnt * +dwp) / 1000 + ' KW' : cap('KW'),
         name: trim(c.name), address: K.joinAddr(c),
-        sanction_no: '', sanction_date: trim(p.approved_on),
+        sanction_no: trim(p.sanction_no), sanction_date: trim(p.approved_on),
         module_wp: bare(p.panel_wattage, 'Wp'), module_count: isNum(dcnt) ? dcnt + ' Nos' : dcnt,
         panel_serials: dser.join('\n'), module_make: dmake,
         po_no: trim(p.dcr_po_no), po_date: trim(p.dcr_po_date),
@@ -676,7 +676,9 @@ var KD = (function () {
         dc_voltage: bare(p.inverter_dc_voltage, 'Vdc'),
         ac_voltage: dip === 'single' ? '230V, 1 Phase' : dip === 'three' ? '415V, 3 Phase' : '',
         /* the checklist answers and inverter settings the office normally gives (as on the KSEB sample) */
-        hybrid: '', completion: '', energ: 'Not Applicable', energ_details: '',
+        /* an Electrical Inspectorate approval, when the profile has one (plants that need it), answers 8 and 9 */
+        hybrid: '', completion: '', energ: trim(p.ei_approval_no) ? 'Yes' : 'Not Applicable',
+        energ_details: trim(p.ei_approval_no) ? ['No. ' + trim(p.ei_approval_no), K.dmy(p.ei_approval_date) ? 'dated ' + K.dmy(p.ei_approval_date) : ''].filter(Boolean).join(' ') : '',
         dc_isolator: 'Yes', visual_isolator: 'Yes', wiring: 'Yes', earthing: 'Yes', protection: 'Yes',
         volt_trip: 'Yes', ov_set: '264', uv_set: '192', v_time: '200ms',
         freq_trip: 'Yes', of_set: '50.5', uf_set: '47.5', f_time: '200ms',
@@ -725,7 +727,7 @@ var KD = (function () {
         specs: 'YES', meters: 'YES', drawings: 'YES', days: '30 DAYS'
       } : docKey === 'an3' ? {
         reg_no: trim(p.kseb_reg_no), capacity: cap('kWp'),
-        type_test: 'YES', specs: 'YES', inspector: 'NOT APPLICABLE'
+        type_test: 'YES', specs: 'YES', inspector: trim(p.ei_approval_no) ? 'YES' : 'NOT APPLICABLE'
       } : {};
       Object.keys(more).forEach(function (k) { v[k] = more[k]; });
     }

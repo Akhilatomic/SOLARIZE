@@ -13,6 +13,9 @@ const PLANT_KEYS = [
   'dcr_po_no', 'dcr_po_date', 'cell_maker', 'cell_invoice_no',
   'applied_kw', 'approved_kw', 'approved_on', 'etoken_id', 'netmeter_on',
   'ir_total', 'ir_earth', 'ir_between', 'earth_resistance', 'earth_max',
+  // found missing when every KSEB / bank paper was checked against the profile (2026-11-14): the DCR declaration's sanction number and
+  // the Electrical Inspectorate approval asked by Details of installation and Annexure 3 (only for plants that need one)
+  'sanction_no', 'ei_approval_no', 'ei_approval_date',
 ];
 
 // lead survey (site condition) and proposed system (plant) — stored as JSON on the lead, copied to the customer on conversion

@@ -1,7 +1,8 @@
 /* Profile pages: the page model (pure, no DOM, no network). Which details sit on which page, which papers use them, and which empty ones are due now. */
 var PFP = (function () {
   var ALL = ['cov', 'req', 'wcr', 'an1', 'an2', 'an3', 'doi', 'agr', 'chk', 'bfr', 'bag'];
-  var NOCHK = ALL.filter(function (d) { return d !== 'chk'; });
+  var DECL = ['almm', 'dcr']; /* the vendor's ALMM and DCR declarations */
+  var NOCHK = ALL.filter(function (d) { return d !== 'chk'; }).concat(DECL);
   var ANX = ['an1', 'an2', 'an3'];
   var BANK_ONLY = ['bfr', 'bag'];
 
@@ -21,7 +22,7 @@ var PFP = (function () {
 
   var PAGES = [
     { key: 'kseb', tab: 'KSEB connection', icon: 'gauge', sections: [{ paper: 'KSEB bill', fields: [
-      f('name', 'Consumer name (exactly as on the KSEB bill — printed on every document)', 'c', ALL, { hi: true }),
+      f('name', 'Consumer name (exactly as on the KSEB bill — printed on every document)', 'c', ALL.concat(DECL), { hi: true }),
       f('consumer_no', 'Consumer no.', 'c', ALL),
       f('kseb_section', 'KSEB section', 'c', ['cov', 'req', 'wcr', 'doi', 'agr', 'chk']),
       f('kseb_subdivision', 'Sub division', 'c', ['cov', 'doi']),
@@ -62,7 +63,12 @@ var PFP = (function () {
       ] },
       { paper: 'KSEB feasibility approval', fields: [
         f('approved_kw', 'Approved capacity (kW)', 'p', [], due('feasibility', { t: 'num', opt: true })),
-        f('approved_on', 'Approved on', 'p', [], due('feasibility', { t: 'date', opt: true }))
+        f('approved_on', 'Approved on', 'p', ['dcr'], due('feasibility', { t: 'date', opt: true })),
+        f('sanction_no', 'Sanction no.', 'p', ['dcr'], due('feasibility', OPT))
+      ] },
+      { paper: 'Electrical Inspectorate approval (only for plants that need one)', fields: [
+        f('ei_approval_no', 'Energisation approval no.', 'p', ['doi', 'an3'], due('inspection', OPT)),
+        f('ei_approval_date', 'Approval date', 'p', ['doi', 'an3'], due('inspection', { t: 'date', opt: true }))
       ] },
       { paper: 'KSEB registration & commissioning', fields: [
         f('kseb_reg_no', 'KSEB registration no.', 'p', ['cov', 'an3'], due('reg_pay')),
@@ -93,11 +99,11 @@ var PFP = (function () {
       ] }
     ] },
     { key: 'plant', tab: 'Plant details', icon: 'sun', sections: [{ paper: 'Plant details', fields: [
-      f('capacity', 'Solar capacity (kWp)', 'p', ['cov', 'wcr', 'an1', 'an2', 'an3', 'doi', 'agr', 'bfr', 'bag'], due('electrical', { t: 'num' })),
-      f('panel_make', 'Panel make', 'p', ['cov', 'wcr', 'bag'], due('electrical')),
+      f('capacity', 'Solar capacity (kWp)', 'p', ['cov', 'wcr', 'an1', 'an2', 'an3', 'doi', 'agr', 'bfr', 'bag'].concat(DECL), due('electrical', { t: 'num' })),
+      f('panel_make', 'Panel make', 'p', ['cov', 'wcr', 'bag'].concat(DECL), due('electrical')),
       f('panel_type', 'Panel type', 'p', ['cov', 'wcr'], due('electrical')),
-      f('panel_wattage', 'Panel wattage (W)', 'p', ['cov', 'wcr', 'doi', 'bag'], due('electrical', { t: 'num' })),
-      f('panel_count', 'Number of panels', 'p', ['cov', 'doi'], due('electrical', { t: 'num' })),
+      f('panel_wattage', 'Panel wattage (W)', 'p', ['cov', 'wcr', 'doi', 'bag'].concat(DECL), due('electrical', { t: 'num' })),
+      f('panel_count', 'Number of panels', 'p', ['cov', 'doi'].concat(DECL), due('electrical', { t: 'num' })),
       f('panel_model', 'Panel model no.', 'p', ['bag'], due('electrical')),
       f('panel_efficiency', 'Panel efficiency (%)', 'p', ['bag'], due('electrical', { t: 'num' })),
       f('inverter_make', 'Inverter make', 'p', ['cov', 'wcr', 'doi', 'bag'], due('electrical')),
@@ -106,8 +112,11 @@ var PFP = (function () {
       f('meter_make', 'Meter make', 'p', ['agr'], due('inspection')),
       f('meter_serial', 'Meter serial no.', 'p', ['agr'], due('inspection')),
       f('meter_reading', 'Meter reading', 'p', ['agr'], due('inspection', { t: 'num' })),
-      f('cell_invoice_no', 'Cell invoice no.', 'p', ['cov'], due('delivery')),
-      f('panel_serials', 'Panel serial numbers', 'p', ['cov'], due('electrical', { ro: true })),
+      f('cell_invoice_no', 'Cell invoice no.', 'p', ['cov', 'dcr'], due('delivery')),
+      f('cell_maker', 'Cell manufacturer', 'p', ['dcr'], due('delivery')),
+      f('dcr_po_no', 'Purchase order / invoice no. (modules)', 'p', ['dcr'], due('delivery')),
+      f('dcr_po_date', 'Purchase order / invoice date', 'p', ['dcr'], due('delivery', { t: 'date' })),
+      f('panel_serials', 'Panel serial numbers', 'p', ['cov'].concat(DECL), due('electrical', { ro: true })),
       f('inverter_serials', 'Inverter serial numbers', 'p', ['cov', 'wcr', 'doi'], due('electrical', { ro: true }))
     ] }] }
   ];

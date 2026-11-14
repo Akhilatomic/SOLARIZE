@@ -97,6 +97,12 @@ $kp = call($admin, 'files', 'keep', ['file' => new CURLFile($pdf, 'application/p
 $pg = call($admin, 'projects', 'get', null, '&id=' . $p3);
 chk(($kp['life'] ?? 0) === 200 && (int)($pg['kseb_days'] ?? 0) === 200 && count($pg['kseb_papers'] ?? []) === 1 && $pg['kseb_papers'][0]['gen'] === 'kseb:cov' && (int)$pg['kseb_papers'][0]['life'] === 200, 'the project carries the KSEB papers made for its customer, kept 200 days');
 chk(count(call($admin, 'projects', 'get', null, '&id=' . $p2)['kseb_papers'] ?? [1]) === 0, 'another customer\'s project does not list them');
+
+/* profile page 3 takes the fields the papers were missing (sanction number, Electrical Inspectorate approval) */
+$sv = call($admin, 'profile', 'page_save', ['customer_id' => $c3, 'page' => 'reg', 'data' => ['sanction_no' => 'KS/FEAS/123', 'ei_approval_no' => 'EI/TVM/77', 'ei_approval_date' => '2026-11-02']]);
+$pl = json_decode((string)$db->query("SELECT data FROM plant WHERE customer_id=$c3")->fetchColumn(), true) ?: [];
+chk($sv['_code'] === 200 && ($pl['sanction_no'] ?? '') === 'KS/FEAS/123' && ($pl['ei_approval_no'] ?? '') === 'EI/TVM/77' && ($pl['ei_approval_date'] ?? '') === '2026-11-02', 'the sanction number and the Electrical Inspectorate approval are saved with the plant details');
+chk(call($admin, 'profile', 'page_save', ['customer_id' => $c3, 'page' => 'kseb', 'data' => ['sanction_no' => 'x']])['_code'] === 400, 'they belong to page 3 only');
 @unlink($pdf);
 
 echo "  $pass ok, $fail FAIL\n";

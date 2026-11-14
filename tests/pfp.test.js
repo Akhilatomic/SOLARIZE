@@ -6,10 +6,10 @@ const PIPE = ['customer', 'feasibility', 'loan', 'feas_pay', 'pmsg', 'reg_pay', 
 const PHP = {
   kseb: ['name', 'consumer_no', 'kseb_section', 'kseb_subdivision', 'kseb_division', 'kseb_circle', 'tariff', 'phase', 'sanctioned_load', 'meter_no', 'transformer', 'pole_no', 'address', 'district', 'pincode', 'local_body', 'village_survey', 'premises'],
   contact: ['phone', 'alt_phone', 'email', 'aadhaar_no', 'pan_no', 'gst_no', 'lead_type', 'landmark', 'notes'],
-  reg: ['application_no', 'application_date', 'applied_kw', 'etoken_id', 'approved_kw', 'approved_on', 'kseb_reg_no', 'spin', 'installed_on', 'inspected_on', 'netmeter_on', 'commissioned_on', 'subsidy_amount'],
+  reg: ['application_no', 'application_date', 'applied_kw', 'etoken_id', 'approved_kw', 'approved_on', 'sanction_no', 'ei_approval_no', 'ei_approval_date', 'kseb_reg_no', 'spin', 'installed_on', 'inspected_on', 'netmeter_on', 'commissioned_on', 'subsidy_amount'],
   bank: ['bank_holder', 'bank_name', 'bank_branch', 'bank_account', 'bank_ifsc', 'jansamarth_id', 'loan_bank', 'loan_branch', 'loan_amount', 'loan_sanctioned_on', 'loan_bank_email', 'loan_mgr_name', 'loan_mgr_phone']
 };
-const PLANT = ['capacity', 'panel_make', 'panel_type', 'panel_wattage', 'panel_count', 'panel_model', 'panel_efficiency', 'inverter_make', 'inverter_capacity', 'inverter_dc_voltage', 'meter_make', 'meter_serial', 'meter_reading', 'cell_invoice_no'];
+const PLANT = ['capacity', 'panel_make', 'panel_type', 'panel_wattage', 'panel_count', 'panel_model', 'panel_efficiency', 'inverter_make', 'inverter_capacity', 'inverter_dc_voltage', 'meter_make', 'meter_serial', 'meter_reading', 'cell_invoice_no', 'cell_maker', 'dcr_po_no', 'dcr_po_date'];
 
 function ctx(o) {
   o = o || {};
@@ -22,7 +22,7 @@ function miss(pk, c) { return PFP.missing(pk, c).map(function (f) { return f.k; 
 
 test('page order and papers', function () {
   assert.deepStrictEqual(PFP.PAGES.map(function (p) { return p.key; }), ['kseb', 'contact', 'reg', 'bank', 'plant']);
-  assert.deepStrictEqual(page('reg').sections.map(function (s) { return s.paper; }), ['MNRE application acknowledgement & e-token', 'KSEB feasibility approval', 'KSEB registration & commissioning']);
+  assert.deepStrictEqual(page('reg').sections.map(function (s) { return s.paper; }), ['MNRE application acknowledgement & e-token', 'KSEB feasibility approval', 'Electrical Inspectorate approval (only for plants that need one)', 'KSEB registration & commissioning']);
   assert.deepStrictEqual(page('bank').sections.map(function (s) { return s.paper; }), ['Passbook (subsidy account)', 'Loan papers (Jan Samarth)']);
 });
 
@@ -148,4 +148,14 @@ test('bank-only documents count only when the latest project has a loan', functi
   var early = ctx({ prog: { key: 'pmsg' }, j: { loan: 'No' } });
   var pm = fields('plant').filter(function (x) { return x.k === 'panel_model'; })[0];
   assert.strictEqual(PFP.later(pm, early), false);
+});
+
+test('the ALMM and DCR declarations: their profile fields name them, and the new fields are optional or due at delivery', function () {
+  var by = {}; PFP.PAGES.forEach(function (p) { p.sections.forEach(function (sec) { sec.fields.forEach(function (f) { by[f.k] = f; }); }); });
+  ['name', 'address', 'capacity', 'panel_make', 'panel_wattage', 'panel_count', 'panel_serials'].forEach(function (k) { assert.ok(by[k].docs.indexOf('almm') >= 0 && by[k].docs.indexOf('dcr') >= 0, k); });
+  ['approved_on', 'sanction_no', 'cell_invoice_no', 'cell_maker', 'dcr_po_no', 'dcr_po_date'].forEach(function (k) { assert.ok(by[k].docs.indexOf('dcr') >= 0, k); });
+  assert.ok(by.consumer_no.docs.indexOf('dcr') < 0, 'the declarations do not print the consumer number');
+  ['sanction_no', 'ei_approval_no', 'ei_approval_date'].forEach(function (k) { assert.strictEqual(by[k].opt, true, k); assert.strictEqual(by[k].s, 'p', k); });
+  ['cell_maker', 'dcr_po_no', 'dcr_po_date'].forEach(function (k) { assert.strictEqual(by[k].due, 'delivery', k); });
+  assert.deepStrictEqual(by.ei_approval_no.docs, ['doi', 'an3']);
 });
