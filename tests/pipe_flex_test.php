@@ -88,7 +88,8 @@ chk($fl && (int)$fl['days_left'] === 30 && $fl['expires'] === date('Y-m-d', strt
 $db->exec("UPDATE fees SET paid_on='" . date('Y-m-d', strtotime('-33 days')) . "' WHERE customer_id=$c3 AND kind='feasibility'");
 chk((int)(call($admin, 'fees', 'feas_left')[$c3]['days_left'] ?? 0) === -3, 'past the 30 days it counts the days since it expired');
 $receipt($p3, 'reg_pay');
-chk(!isset(call($admin, 'fees', 'feas_left')[$c3]), 'the clock stops once the registration fee is paid');
+$fl = call($admin, 'fees', 'feas_left')[$c3] ?? null;
+chk($fl && (int)($fl['rf'] ?? 0) === 1 && $fl['rf_on'] === date('Y-m-d') && !isset($fl['days_left']), 'once the registration fee is paid it says RF paid instead of the days left');
 chk(call(actor('nobody'), 'fees', 'feas_left')['_code'] === 401, 'feasibility days left needs sign-in');
 @unlink($pdf);
 

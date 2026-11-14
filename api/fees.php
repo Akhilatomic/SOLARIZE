@@ -50,7 +50,8 @@ function handle_fees($a) {
         unset($r); }
       out(['kind' => $kind, 'title' => FEE_KINDS[$kind], 'valid_days' => rule('feas_valid_days'), 'alert_days' => rule('feas_alert_days'), 'rows' => $rs, 'default_amount' => fee_default_amount($kind)]);
 
-    case 'feas_left': // customers whose feasibility clock is running: paid, registration fee not paid yet, project not completed.
+    case 'feas_left': // the AF/RF column: customers whose feasibility (AF) clock is running — paid, registration fee (RF) not paid yet,
+      // project not completed — and customers whose registration fee is paid ({rf: 1, rf_on}).
       // Dates only, no amounts — shown on every page to everyone who can see customers or projects (a BA: their own customers).
       if (!can('customers') && !can('projects')) fail('Not allowed for your role', 403);
       $m = []; $today = new DateTime(date('Y-m-d')); $days = rule('feas_valid_days');
@@ -60,6 +61,7 @@ function handle_fees($a) {
         try { $e = (new DateTime($r['paid_on']))->modify("+$days days"); } catch (Throwable $x) { continue; }
         $m[(int)$r['customer_id']] = ['paid_on' => $r['paid_on'], 'expires' => $e->format('Y-m-d'), 'days_left' => (int)$today->diff($e)->format('%r%a')];
       }
+      foreach (rows("SELECT f.customer_id, f.paid_on FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.kind='registration' AND f.paid=1 AND " . cust_scope('c')) as $r) $m[(int)$r['customer_id']] = ['rf' => 1, 'rf_on' => (string)$r['paid_on']];
       out($m ?: new stdClass);
     case 'member': // which Finance lists each customer is on (for the customer menus)
       need('fees'); $cid = (int)($_GET['customer_id'] ?? 0);

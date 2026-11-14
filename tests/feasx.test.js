@@ -16,3 +16,10 @@ test('the warning days follow the rule', () => {
   assert.equal(FEASX.text(5, 7).c, 'r');
   assert.equal(FEASX.text(5).c, 'y');
 });
+test('AF/RF: RF paid replaces the days left; the column uses the short wording', () => {
+  assert.deepEqual(FEASX.label({ rf: 1, rf_on: '2026-11-14' }, 3, true), { t: 'RF paid', c: 'g', i: 'check' });
+  assert.equal(FEASX.label({ days_left: 12 }, 3, true).t, 'AF · 12 days left');
+  assert.equal(FEASX.label({ days_left: -2 }, 3, true).t, 'AF expired 2 days ago');
+  assert.equal(FEASX.label({ days_left: 12 }, 3, false).t, 'Feasibility · 12 days left');
+  assert.equal(FEASX.label(null, 3, true), null);
+});

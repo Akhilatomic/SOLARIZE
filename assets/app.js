@@ -704,7 +704,7 @@ async function pgCustomers() {
     const nLive = rows.filter(c => DISC.sum[c.id]).length; $('#ccount').innerHTML = rows.length + ' records' + (nLive ? ` · <span class="xdlive"><span class="xddot"></span>${nLive} live discussion${nLive === 1 ? '' : 's'}</span>` : '');
     const W = ($('#ctb').parentElement || {}).clientWidth || 1200;
     // fit to the window: drop the least important columns first, then fold the action icons into ⋯, then consumer no. / phone
-    let COLS = [['name', 'Name', 0], ['status', 'Status', 140], ['cno', 'Consumer no.', 128], ['dist', 'District', 130], ['phone', 'Phone', 138], ['kw', 'Capacity', 78], ['by', 'Owner', 120], ['date', 'Date', 92]], full = true;
+    let COLS = [['name', 'Name', 0], ['status', 'Status', 140], ['afrf', 'AF/RF', 148], ['cno', 'Consumer no.', 128], ['dist', 'District', 130], ['phone', 'Phone', 138], ['kw', 'Capacity', 78], ['by', 'Owner', 120], ['date', 'Date', 92]], full = true;
     const need = () => COLS.reduce((s, c) => s + c[2], 0) + (full ? 330 : 172) + 170;
     if (W < 680) { COLS = COLS.filter(c => c[0] !== 'date'); full = false; } // phones: card view has room for the key details (owner included)
     else for (const k of ['date', 'by', 'dist', 'kw', '#compact', 'cno', 'phone']) { /* Owner outlasts Date: Me / All needs it */ if (need() <= W) break; if (k === '#compact') full = false; else COLS = COLS.filter(c => c[0] !== k); }
@@ -715,6 +715,7 @@ async function pgCustomers() {
       return full ? list : list.filter(x => ['ed', 'pj', 'docs'].includes(x[0])); };
     const cell = (k, c) => ({ name: `<td class="cnm"><b class="clip">${esc(c.name)}</b>${feasChip(c.id)}${!COLS.some(x => x[0] === 'cno') && c.consumer_no ? `<small class="mono mut">${esc(c.consumer_no)}</small>` : ''}</td>`,
       status: `<td><span class="pill ${c.status === 'New' ? 'b' : (typeof stepCls === 'function' && PIPE ? stepCls(c.status) : STC[c.status]) || ''}">${esc(c.status)}</span></td>`,
+      afrf: `<td class="fxtd">${typeof feasCol === 'function' ? feasCol(c.id) : ''}</td>`,
       cno: `<td class="mono">${esc(c.consumer_no) || '<span class="mut">—</span>'}</td>`, dist: `<td title="${esc(c.district)}"><span class="clip">${esc(c.district) || '<span class="mut">—</span>'}</span></td>`,
       phone: `<td>${c.phone ? `<a href="tel:${esc(c.phone)}" class="tel"><i class="i i-phone"></i> ${esc(c.phone)}</a>` : '<span class="mut">—</span>'}</td>`, kw: `<td>${c.kw ? c.kw + ' kWp' : '<span class="mut">—</span>'}</td>`,
       by: `<td title="${esc((c.owner_name ? 'Owner: ' + c.owner_name : 'No owner') + (c.added_by ? ' · added by ' + c.added_by : ''))}">${+c.owner_id ? `<span class="own${+c.owner_id === +ME.id ? ' me' : ''}"><i class="i i-user"></i><span class="clip">${esc(ownLabel(c.owner_id, c.owner_name))}</span></span>` : '<span class="mut">—</span>'}</td>`, date: `<td class="mut">${dt(c.created)}</td>` })[k];

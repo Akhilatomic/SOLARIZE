@@ -876,3 +876,4 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .fxp{white-space:nowrap}.fxp .i{width:11px;height:11px;vertical-align:-1px;margin-right:3px}
 .cnm .fxl{display:block;margin:3px 0 0}.cnm .fxl:empty{display:none}.pkm .fxl{margin-left:0}
 .pkm{flex-wrap:wrap}.pkm .fxp{white-space:normal}
+.fxl.fxc{margin-left:0}.fxc:empty{display:inline-block}td.fxtd{white-space:nowrap}

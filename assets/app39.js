@@ -1,4 +1,4 @@
-// Solarize CRM - "feasibility: N days left" shown wherever a customer or project appears.
+// Solarize CRM - AF/RF: "feasibility (AF): N days left", then "RF paid" once the registration fee is paid — wherever a customer or project appears.
 // A KSEB feasibility payment is valid for a set number of days (Settings › Rules); the registration fee has to be paid
 // before it runs out. The server lists every customer whose feasibility clock is still running (fees/feas_left: paid,
 // registration fee not paid yet, project not completed). Any element with data-feas="<customer id>" gets the pill;
@@ -10,20 +10,30 @@ const FEASX = { map: null, at: 0, busy: null, on: false,
     if (left < 0) return { t: 'Feasibility expired ' + d(-left) + ' ago', c: 'r' };
     if (left === 0) return { t: 'Feasibility expires today', c: 'r' };
     return { t: 'Feasibility · ' + d(left) + ' left', c: left <= (warn == null ? 3 : warn) ? 'r' : left <= 10 ? 'y' : 'g' };
+  },
+  /* pure: the pill for one customer's entry f (from fees/feas_left); short = inside the AF/RF column */
+  label(f, warn, short) {
+    if (!f) return null;
+    if (f.rf) return { t: 'RF paid', c: 'g', i: 'check' };
+    const x = FEASX.text(f.days_left, warn); x.i = 'clock';
+    if (short) x.t = x.t.replace(/^Feasibility · /, 'AF · ').replace(/^Feasibility /, 'AF ');
+    return x;
   } };
 if (typeof module !== 'undefined') module.exports = FEASX;
 
 const feasSpot = cid => +cid ? `<span class="fxl" data-feas="${+cid}"></span>` : ''; /* put this where the pill should appear */
+const feasCol = cid => +cid ? `<span class="fxl fxc" data-feas="${+cid}" data-fxc="1"><span class="mut">—</span></span>` : '<span class="mut">—</span>'; /* the cell of an AF/RF column */
 function feasPaint() {
   if (!FEASX.map) return;
   const fd = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
   document.querySelectorAll('[data-feas]').forEach(el => {
-    const f = FEASX.map[el.dataset.feas], key = f ? f.days_left + '|' + f.expires : '';
+    const f = FEASX.map[el.dataset.feas], col = !!el.dataset.fxc, key = f ? (f.rf ? 'rf|' + f.rf_on : f.days_left + '|' + f.expires) : '-';
     if (el.dataset.fx === key) return; el.dataset.fx = key;
-    if (!f) { el.innerHTML = ''; return; }
-    const x = FEASX.text(f.days_left, typeof RULE === 'function' ? RULE('feas_alert_days') : 3);
-    const tip = `Feasibility paid ${fd(f.paid_on)} · ${f.days_left < 0 ? 'expired' : 'expires'} ${fd(f.expires)}. ${f.days_left < 0 ? 'Renew the feasibility payment.' : 'Pay the KSEB registration fee before then.'}`;
-    el.innerHTML = `<span class="pill ${x.c} fxp" title="${esc(tip)}"><i class="i i-clock"></i>${esc(x.t)}</span>`;
+    if (!f) { el.innerHTML = col ? '<span class="mut" title="Feasibility fee (AF) not paid yet">—</span>' : ''; return; }
+    const x = FEASX.label(f, typeof RULE === 'function' ? RULE('feas_alert_days') : 3, col);
+    const tip = f.rf ? 'KSEB registration fee paid' + (f.rf_on ? ' on ' + fd(f.rf_on) : '')
+      : `Feasibility fee (AF) paid ${fd(f.paid_on)} · ${f.days_left < 0 ? 'expired' : 'expires'} ${fd(f.expires)}. ${f.days_left < 0 ? 'Renew the feasibility payment.' : 'Pay the KSEB registration fee (RF) before then.'}`;
+    el.innerHTML = `<span class="pill ${x.c} fxp" title="${esc(tip)}"><i class="i i-${x.i}"></i>${esc(x.t)}</span>`;
   });
 }
 async function feasLoad(force) {
