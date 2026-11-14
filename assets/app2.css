@@ -853,3 +853,4 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .qla .ib{padding:6px}.qla .ib:disabled{opacity:.4;cursor:default}
 .qla .qla-del:hover{color:var(--bad);background:#ffecea}
 :where(.card.tw>table:not(.stack)) :is(th,td).qla-c{width:1%;white-space:nowrap;padding-top:4px;padding-bottom:4px}
+.qla-ba{font-size:10px;padding:1px 6px;margin-left:4px;vertical-align:1px}

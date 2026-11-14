@@ -60,7 +60,11 @@ function handle_crud($t, $a) {
       foreach (['customer_id','project_id','campaign_id','lead_id','status','stage','source','assigned_to'] as $f)
         if (in_array($f, $cols) && isset($_GET[$f]) && $_GET[$f] !== '') { $w[] = "$f=?"; $args[] = $_GET[$f]; }
       /* quotes: the list needs no doc (a maker quotation's doc is 8-10 KB) or old-style items/terms; quotes/get still returns them */
-      $sel = $t === 'quotes' ? 'id,customer_id,lead_id,number,date,gst_rate,subsidy,status,total,created,updated' : '*';
+      /* ...plus who owns it: the customer's owner, else whoever claimed the lead (name + role, so the list can mark a Business Associate) */
+      if ($t === 'quotes') out(rows('SELECT q.id,q.customer_id,q.lead_id,q.number,q.date,q.gst_rate,q.subsidy,q.status,q.total,q.created,q.updated, u.id owner_id, u.name owner_name, u.role owner_role
+        FROM quotes q LEFT JOIN customers c ON c.id=q.customer_id LEFT JOIN leads l ON l.id=q.lead_id LEFT JOIN users u ON u.id=COALESCE(NULLIF(c.owner_id,0), NULLIF(l.assigned_to,0))'
+        . ($w ? ' WHERE ' . implode(' AND ', array_map(fn($x) => 'q.' . $x, $w)) : '') . ' ORDER BY q.updated DESC, q.id DESC', $args));
+      $sel = '*';
       out(rows("SELECT $sel FROM $t" . ($w ? ' WHERE ' . implode(' AND ', $w) : '') . ' ORDER BY updated DESC, id DESC', $args));
     case 'get':
       $r = row("SELECT * FROM $t WHERE id=?", [(int)($_GET['id'] ?? 0)]); if (!$r) fail('Not found', 404);
