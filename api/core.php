@@ -234,7 +234,7 @@ function detail($t, $r) {
     $r['services'] = rows('SELECT * FROM services WHERE project_id=? ORDER BY date DESC, id DESC', [$id]);
     $r['files'] = rows('SELECT id,name,kind,item,size,created,life,gen FROM files WHERE project_id=? ORDER BY id DESC', [$id]);
     /* the KSEB papers made in the CRM for this customer (kept copies, files.gen = kseb:<paper>) — the project's KSEB documents tab */
-    $r['kseb_papers'] = can('files') || can('checklist') ? rows("SELECT id,name,item,size,created,life,gen,user FROM files WHERE customer_id=? AND gen LIKE 'kseb:%' ORDER BY id DESC", [$r['customer_id']]) : [];
+    $r['kseb_papers'] = can('files') || can('checklist') ? rows("SELECT id,name,item,size,created,life,gen,user FROM files WHERE customer_id=? AND (gen LIKE 'kseb:%'" . (can('loans') ? " OR gen LIKE 'bank:%'" : '') . ") ORDER BY id DESC", [$r['customer_id']]) : [];
     $r['kseb_days'] = KSEB_GEN_DAYS;
     $saved = [];
     foreach (rows('SELECT * FROM checklist WHERE project_id=?', [$id]) as $c) $saved[$c['kind'] . '|' . $c['item']] = $c;

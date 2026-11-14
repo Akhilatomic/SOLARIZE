@@ -905,3 +905,5 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 /* Quotations list: accept / reject icons; off-screen pages while an accepted quotation's PDF is made */
 .qla .qla-acc:hover,.qla .qla-acc.on{color:#1e7a37;background:#e8f6ec}.qla .qla-rej:hover,.qla .qla-rej.on{color:var(--bad);background:#ffecea}
 .qm-off{position:fixed;left:-12000px;top:0;width:794px;pointer-events:none}
+.ksd-bk{font-size:10px;font-weight:600;color:var(--mut);border:1px solid var(--bd);border-radius:999px;padding:0 6px;margin-left:4px;vertical-align:1px}
+.ksd .ch .btn .i{width:13px;height:13px;vertical-align:-2px}.ksd .ch a.btn{text-decoration:none}

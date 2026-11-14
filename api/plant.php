@@ -109,12 +109,19 @@ function handle_plant($a) {
 function docs_zip($cid) {
   need('files');
   $c = row('SELECT name FROM customers WHERE id=?', [$cid]); if (!$c) fail('Customer not found', 404);
-  $fs = rows('SELECT * FROM files WHERE customer_id=? ORDER BY id', [$cid]); if (!$fs) fail('No documents', 404);
+  /* set=kseb (project › KSEB documents): only the KSEB / bank papers made in the CRM for this customer and the files
+     uploaded against the KSEB checklist of that project */
+  $kseb = ($_GET['set'] ?? '') === 'kseb'; $pid = (int)($_GET['project_id'] ?? 0);
+  $fs = $kseb ? rows("SELECT * FROM files WHERE (customer_id=? AND (gen LIKE 'kseb:%' OR gen LIKE 'bank:%')) OR (project_id=? AND ? > 0 AND kind='kseb' AND project_id IN (SELECT id FROM projects WHERE customer_id=?)) ORDER BY id", [$cid, $pid, $pid, $cid])
+    : rows('SELECT * FROM files WHERE customer_id=? ORDER BY id', [$cid]);
+  if ($kseb && !can('loans')) $fs = array_values(array_filter($fs, fn($f) => strpos((string)($f['gen'] ?? ''), 'bank:') !== 0));
+  if (!$fs) fail('No documents', 404);
   $dir = dirname(__DIR__) . '/data/uploads'; $used = []; $entries = []; $out = ''; $off = 0;
   foreach ($fs as $f) {
     $p = "$dir/" . basename($f['path']); if (!is_file($p)) continue;
     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-    $base = preg_replace('/[^\w\- .()]+/u', '_', trim(($f['item'] ?: pathinfo($f['name'], PATHINFO_FILENAME)))) ?: 'document';
+    /* a paper made in the CRM keeps its own file name ("Cover Page - <customer>"); an upload is named after its checklist item */
+    $base = preg_replace('/[^\w\- .()]+/u', '_', trim(((string)($f['gen'] ?? '') !== '' ? pathinfo($f['name'], PATHINFO_FILENAME) : ($f['item'] ?: pathinfo($f['name'], PATHINFO_FILENAME))))) ?: 'document';
     $n = "$base.$ext"; $k = 2; while (isset($used[strtolower($n)])) $n = "$base ($k++).$ext"; $used[strtolower($n)] = 1;
     $data = file_get_contents($p); $crc = crc32($data); $len = strlen($data);
     $t = strtotime($f['created'] ?: 'now'); $dt = ((date('Y', $t) - 1980) << 25) | (date('n', $t) << 21) | (date('j', $t) << 16) | (date('G', $t) << 11) | ((int)date('i', $t) << 5) | ((int)date('s', $t) >> 1);
@@ -126,7 +133,7 @@ function docs_zip($cid) {
   foreach ($entries as [$n, $crc, $len, $dt, $o]) $cd .= pack('VvvvvVVVVvvvvvVV', 0x02014b50, 20, 20, 0x0800, 0, $dt, $crc, $len, $len, strlen($n), 0, 0, 0, 0, 0, $o) . $n;
   $out .= $cd . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($cd), $off, 0);
   audit('download_all', 'customers', $cid, count($entries) . ' document(s)');
-  $fn = preg_replace('/[^\w\- ]+/', '', $c['name']) . ' - documents.zip';
+  $fn = preg_replace('/[^\w\- ]+/', '', $c['name']) . ($kseb ? ' - KSEB documents.zip' : ' - documents.zip');
   header_remove('Content-Type'); header('Content-Type: application/zip'); header('Content-Length: ' . strlen($out));
   header('Content-Disposition: attachment; filename="' . $fn . '"'); echo $out; exit;
 }

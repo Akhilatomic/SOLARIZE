@@ -103,6 +103,24 @@ $sv = call($admin, 'profile', 'page_save', ['customer_id' => $c3, 'page' => 'reg
 $pl = json_decode((string)$db->query("SELECT data FROM plant WHERE customer_id=$c3")->fetchColumn(), true) ?: [];
 chk($sv['_code'] === 200 && ($pl['sanction_no'] ?? '') === 'KS/FEAS/123' && ($pl['ei_approval_no'] ?? '') === 'EI/TVM/77' && ($pl['ei_approval_date'] ?? '') === '2026-11-02', 'the sanction number and the Electrical Inspectorate approval are saved with the plant details');
 chk(call($admin, 'profile', 'page_save', ['customer_id' => $c3, 'page' => 'kseb', 'data' => ['sanction_no' => 'x']])['_code'] === 400, 'they belong to page 3 only');
+
+/* the first payment puts a customer on the pipeline: pipeline/ensure starts the project when there is none */
+$c5 = (int)(call($admin, 'customers', 'save', ['name' => 'Flex Five Test', 'phone' => '9' . random_int(100000000, 999999999)])['id'] ?? 0);
+chk((int)$db->query("SELECT COUNT(*) FROM projects WHERE customer_id=$c5")->fetchColumn() === 0, 'a new customer has no project yet');
+$e1 = call($admin, 'pipeline', 'ensure', ['customer_id' => $c5, 'cost' => 210000]);
+$pr5 = $db->query("SELECT id, stage, cost FROM projects WHERE customer_id=$c5")->fetchAll();
+chk($e1['_code'] === 200 && (int)$e1['created'] === 1 && count($pr5) === 1 && $pr5[0]['stage'] === 'Customer' && (float)$pr5[0]['cost'] == 210000.0 && (int)$pr5[0]['id'] === (int)$e1['id'], 'ensure starts the project at Customer with the plant cost');
+$e2 = call($admin, 'pipeline', 'ensure', ['customer_id' => $c5]);
+chk((int)$e2['created'] === 0 && (int)$e2['id'] === (int)$e1['id'] && (int)$db->query("SELECT COUNT(*) FROM projects WHERE customer_id=$c5")->fetchColumn() === 1, 'asking again gives the same project, no second one');
+chk(in_array($e1['id'], array_map(fn($x) => (int)$x['id'], call($admin, 'pipeline', 'board')['projects'] ?? []), true), 'the customer is on the Project pipeline');
+$pay = call($admin, 'payments', 'save', ['project_id' => $e1['id'], 'amount' => 50000, 'date' => date('Y-m-d'), 'mode' => 'Cash']);
+chk($pay['_code'] === 200 && !empty($pay['id']), 'and the payment is recorded against it');
+chk(call($admin, 'pipeline', 'ensure', ['customer_id' => 999999])['_code'] === 404 && call(actor('nobody2'), 'pipeline', 'ensure', ['customer_id' => $c5])['_code'] === 401, 'ensure: unknown customer 404, signed out 401');
+
+/* Download all (ZIP) on the KSEB documents tab: the papers kept for the customer */
+$z = call($admin, 'files', 'zip', null, "&customer_id=$c3&set=kseb&project_id=$p3");
+chk($z['_code'] === 200 && substr((string)($z['_text'] ?? ''), 0, 2) === 'PK' && strpos($z['_text'], 'Cover Page - Flex.pdf') !== false && strpos($z['_text'], 'receipt') === false, 'the ZIP holds the kept KSEB paper under its own file name, not the fee receipts');
+chk(call($admin, 'files', 'zip', null, "&customer_id=$c5&set=kseb&project_id=" . (int)$e1['id'])['_code'] === 404, 'nothing saved yet → 404');
 @unlink($pdf);
 
 echo "  $pass ok, $fail FAIL\n";

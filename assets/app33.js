@@ -172,9 +172,12 @@ async function acRemind(r, done) {
 /* + Payment on a pending row; done() redraws the list */
 function acAddPayment(r, done) { acPayForm({ pid: r.id, customer: r.customer, kw: r.kw, loan: r.loan, due: r.due }, null, { done }); }
 /* A payment belongs to a project: a customer who has none gets it started with the plant cost first (gen/cost). Gives the project id, or 0 after saying why not. */
+/* A payment belongs to a project. A customer with none gets one now (pipeline/ensure), so recording the first payment
+   puts the customer on the Project pipeline; the plant cost, when known, becomes the project value. */
 async function acProjectFor(customerId, cost) {
-  if (!(+cost > 0)) { toast('Enter the total plant cost first, on the customer’s Payments tab', true); return 0; }
-  try { return +(await api('gen', 'cost', { kind: 'tax', customer_id: customerId, cost: +cost })).acct.project_id || 0; } catch (e) { return 0; }
+  try { const r = await api('pipeline', 'ensure', { customer_id: customerId, cost: +cost > 0 ? +cost : 0 });
+    if (r.created) toast('Added to the Project pipeline' + (+cost > 0 ? '' : ' — enter the total plant cost on the Payments tab'));
+    return +r.id || 0; } catch (e) { return 0; }
 }
 
 /* The payment form: date, amount, mode, reference no., who paid (loan projects), note -> payments/save; then the receipt when it can be made

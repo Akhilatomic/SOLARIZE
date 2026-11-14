@@ -96,6 +96,19 @@ function handle_pipeline($a) {
       cust_cost_to_project($cid, $pid); /* no value typed: the plant cost agreed with the customer */
       cap_from_project($pid); cap_reconcile($cid); /* size typed: it is the customer's plant capacity; not typed: the capacity already known */
       out(['id' => $pid, 'customer_id' => $cid]);
+    case 'ensure': // the customer's project, started now if there is none — recording the first payment puts the customer on the pipeline
+      need('customers'); if (!can('payments', true) && !can('projects', true)) fail('Not allowed for your role', 403);
+      $cid = (int)($in['customer_id'] ?? 0); if (!$cid || !row('SELECT 1 FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
+      $p = row('SELECT id FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid]);
+      if ($p) out(['id' => (int)$p['id'], 'created' => 0]);
+      [$pl] = plant_get($cid); $kw = (float)($pl['capacity'] ?? 0); $title = ($kw ? $kw . ' kWp ' : '') . 'solar plant';
+      q("INSERT INTO projects(customer_id,title,kw,stage,cost) VALUES(?,?,?,'Customer',0)", [$cid, ucfirst($title), $kw]);
+      $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Added to the pipeline with the first payment'); audit('create', 'projects', $pid, ucfirst($title));
+      cust_cost_to_project($cid, $pid); /* the plant cost agreed with the customer */
+      $cost = round(max(0, (float)($in['cost'] ?? 0)), 2);
+      if ($cost > 0 && can('finance')) q('UPDATE projects SET cost=? WHERE id=? AND (cost IS NULL OR cost=0)', [$cost, $pid]);
+      cap_from_project($pid); cap_reconcile($cid);
+      out(['id' => $pid, 'created' => 1]);
     case 'receipt': // KSEB payment receipt: JPG/PDF only, max 2 MB
       need('projects', true);
       $pid = (int)($_POST['project_id'] ?? 0); $key = (string)($_POST['stage'] ?? '');
