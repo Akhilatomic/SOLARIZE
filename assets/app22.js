@@ -463,6 +463,7 @@ async function qmkSave() {
     const h = '#/quotes/' + r.id; if (location.hash !== h) history.replaceState(null, '', h); QMK.hash = h;
     qmkHead(); if (QMK.tab === 'customer') qmkTab('customer');
     toast('Saved · ' + r.number); qmkRender();
+    if (QMK.status === 'Accepted' && QMK.cust.customer_id) qmKeepNote(r.id); /* an accepted quotation: its PDF goes to the customer's Documents */
     return true;
   } catch (e) { if (!e || !e.error) { console.error(e); toast((e && e.message) || String(e), true); } return false; }
   finally { QMK.busy = false; if (b) { b.disabled = false; b.textContent = 'Save'; } }
@@ -522,6 +523,36 @@ async function qmShareQuote(id, person) {
   if (!QMB) QMB = await api('qm', 'boot');
   const st = QM.effectiveSettings(d, QMB.settings, S.subsidy_rates), lines = qmLines(d, QMB.products), calc = QM.calc(d, lines, st, st.subsidy_rates);
   waOpen(Object.assign(base, { name: d.customer.name || base.name, phone: d.customer.mobile || base.phone, text: qmWaText(d, calc, st) }));
+}
+/* An accepted quotation: make its PDF off-screen (no download) from the saved copy and keep it in the customer's Documents.
+   Gives { kept } or { kept: false, why: 'lead' | 'old' } — a lead has no Documents page yet; quotations from before the
+   quotation maker have no pages to print here. */
+async function qmKeepQuote(id) {
+  const q = await api('quotes', 'get', undefined, '&id=' + id);
+  if (!q.customer_id) return { kept: false, why: 'lead' };
+  let d = null; try { d = q.doc ? JSON.parse(q.doc) : null; } catch (e) { d = null; }
+  if (!d || typeof d !== 'object') return { kept: false, why: 'old' };
+  qmkNorm(d); if (!d.number) d.number = q.number;
+  if (!QMB) QMB = await api('qm', 'boot');
+  const st = QM.effectiveSettings(d, QMB.settings, S.subsidy_rates), lines = qmLines(d, QMB.products), calc = QM.calc(d, lines, st, st.subsidy_rates);
+  const name = [calc.title, d.customer.name, String(d.number || '').replace(/\//g, '-')].map(s => String(s || '').trim()).filter(Boolean).join(' - ').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-').replace(/\s+/g, ' ').slice(0, 180) + '.pdf';
+  const box = document.createElement('div'); box.className = 'qm-off'; box.setAttribute('aria-hidden', 'true'); document.body.appendChild(box);
+  try {
+    qmMount(box, qmPagesHtml(d, lines, calc, d.pill ? Object.assign({}, st, { pill: d.pill }) : st));
+    const blob = await qmDownloadPdf(box, name, false);
+    return { kept: !!(await docKeep(q.customer_id, 'quote:' + id, 'Quotation ' + (d.number || ''), name, blob)), name };
+  } finally { box.remove(); }
+}
+/* the same, with the messages (used by the Quotations list and by Save in the maker) */
+async function qmKeepNote(id) {
+  try {
+    const r = await qmKeepQuote(id);
+    if (r.kept) toast('Accepted quotation saved in the customer’s Documents');
+    else if (r.why === 'lead') toast('Accepted. The PDF is not saved yet: this quotation is for a lead, which has no Documents page until it becomes a customer.');
+    else if (r.why === 'old') toast('Accepted. This older quotation has no PDF to save — open it and use Print / PDF.');
+    else toast('Accepted, but the PDF could not be saved in Documents', true);
+    return r;
+  } catch (e) { if (!e || !e.error) toast('Accepted, but the PDF could not be saved: ' + ((e && e.message) || e), true); return { kept: false }; }
 }
 function qmkMore(btn) {
   const w = canW('quotes'), c = QMK.cust;

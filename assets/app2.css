@@ -902,3 +902,6 @@ table.acc .uac-hi{background:rgba(0,113,227,.06)}
 .ksd .ch .sp{flex:1}
 /* Customer profile: the Timeline card stays in its place beside the left column (same height), only its list scrolls */
 @media(min-width:881px){.pfright{position:relative;top:auto;align-self:stretch;min-height:420px}.pfright>.pftl{position:absolute;inset:0;max-height:none}}
+/* Quotations list: accept / reject icons; off-screen pages while an accepted quotation's PDF is made */
+.qla .qla-acc:hover,.qla .qla-acc.on{color:#1e7a37;background:#e8f6ec}.qla .qla-rej:hover,.qla .qla-rej.on{color:var(--bad);background:#ffecea}
+.qm-off{position:fixed;left:-12000px;top:0;width:794px;pointer-events:none}

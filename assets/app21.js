@@ -288,8 +288,8 @@ async function qpAddPicture(pdf, el, W, H) {
   } catch (e) { return false; }
 }
 
-/* Every .qp page in container -> one A4 page (595.28 × 841.89 pt); saved as fileName. Gives back the PDF (a Blob). */
-async function qmDownloadPdf(container, fileName) {
+/* Every .qp page in container -> one A4 page (595.28 × 841.89 pt); saved as fileName (save === false: not downloaded, only made). Gives back the PDF (a Blob). */
+async function qmDownloadPdf(container, fileName, save) {
   await qpLibs();
   if (container._qmReady) await container._qmReady;
   await qpFontsReady();
@@ -308,6 +308,6 @@ async function qmDownloadPdf(container, fileName) {
     pdf.addImage(qpJpeg(cv), 'JPEG', 0, 0, W, H);
     cv.width = cv.height = 0; /* free the canvas memory */
   }
-  pdf.save(fileName || 'Quotation.pdf');
+  if (save !== false) pdf.save(fileName || 'Quotation.pdf');
   return pdf.output('blob');
 }
