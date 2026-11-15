@@ -35,17 +35,40 @@ function hrBellHtml() {
   const P = HR.pend || []; if (!P.length) return '';
   return `<div class="bar" style="margin:0 0 4px"><b>Leave requests (${P.length})</b><span class="sp"></span><a class="btn sec sm" href="#/leaves">Open</a></div>
    ${P.slice(0, 8).map(x => `<div class="nl lvn"><div class="nlm"><b>${esc(x.user_name || '')}</b> <span class="mut">· ${agoStr(x.created)}</span><br><span style="font-size:13px"><span class="pill b">${esc(x.type)}</span> ${esc(lvRange(x))}</span>${x.reason ? `<br><small class="mut">${esc(x.reason)}</small>` : ''}</div>
-     <div class="nla"><button class="btn ok sm" data-lap="${x.id}"><i class="i i-check"></i> Approve</button><button class="btn sec sm" data-lrj="${x.id}"><i class="i i-x"></i> Reject</button></div></div>`).join('')}<div class="bsep"></div>`;
+     <div class="nla"><button class="btn ok sm" data-lap="${x.id}"><i class="i i-check"></i> Approve</button><button class="btn sec sm" data-lrv="${x.id}">Review</button></div></div>`).join('')}<div class="bsep"></div>`;
 }
 function hrBellBind(root) {
-  const go = async (id, decision, btn) => {
-    let note = '';
-    if (decision === 'Rejected') { note = prompt('Reason for rejecting:', ''); if (note === null) return; if (!note.trim()) return toast('Add a reason for rejecting', true); }
-    btn.disabled = true;
-    try { const r = await api('hr', 'decide', { id, decision, note }); toast(decision === 'Approved' ? 'Leave approved' + (r.cleared ? ` · ${r.cleared} attendance entr${r.cleared === 1 ? 'y' : 'ies'} removed` : '') : 'Leave rejected');
-      await hrMe(); if (/^#\/(leaves|attendance)/.test(location.hash)) route(); } catch (e) { btn.disabled = false; } };
-  $$('[data-lap]', root).forEach(b => b.onclick = e => { e.stopPropagation(); go(+b.dataset.lap, 'Approved', b); });
-  $$('[data-lrj]', root).forEach(b => b.onclick = e => { e.stopPropagation(); go(+b.dataset.lrj, 'Rejected', b); });
+  const after = async () => { await hrMe(); if (/^#\/(leaves|attendance)/.test(location.hash)) route(); };
+  $$('[data-lap]', root).forEach(b => b.onclick = async e => { e.stopPropagation(); b.disabled = true;
+    try { const r = await api('hr', 'decide', { id: +b.dataset.lap, decision: 'Approved', note: '' }); toast('Leave approved' + lvCleared(r.cleared)); await after(); } catch (e) { b.disabled = false; } });
+  $$('[data-lrv]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const p = $('#bellp'); if (p) p.classList.add('hide'); lvReview(+b.dataset.lrv, after); });
+}
+const lvCleared = n => n ? ` · ${n} attendance entr${n === 1 ? 'y' : 'ies'} removed, shown as leave` : '';
+// review window for one leave request: balance, who else is away, attendance already marked, note, Approve / Reject
+async function lvReview(id, done) {
+  let r; try { r = await api('hr', 'review', undefined, '&id=' + id); } catch (e) { return; }
+  const l = r.leave, b = r.balance, tn = ((HR.me && HR.me.cfg.leave_types || []).find(t => t.code === l.type) || {}).name || l.type;
+  if (l.status !== 'Pending') { toast('This request was already ' + l.status.toLowerCase(), true); return done && done(); }
+  const after = b && b.left !== null ? b.left - l.days : null, fd = x => new Date(x + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const row = (k, v) => `<div><span>${k}</span><b>${v}</b></div>`;
+  const m = modal(`<div class="lvm">
+   <div class="lvh"><span class="lvi"><i class="i i-leave"></i></span><div><h2>${esc(l.user_name || '')}</h2><small>Leave request · asked ${agoStr(l.created)}</small></div><button class="lvx" id="rvx" title="Close"><i class="i i-x"></i></button></div>
+   <div class="lvb">
+    <div class="lrv">${row('Leave type', esc(tn))}${row('Dates', esc(lvRange(l)))}${row('Balance', !b ? '—' : b.left === null ? `${b.used} day${b.used === 1 ? '' : 's'} taken this year · no limit` : `${b.left} left · <span class="${after < 0 ? 'over' : ''}">${after} after this leave</span>`)}${row('Reason', esc(l.reason || '—'))}</div>
+    ${r.marked.length && !l.half ? `<div class="lvd lrv-w"><i class="i i-clock"></i> <span>Attendance is already marked on ${r.marked.map(x => fd(x.date) + (x.check_in ? ' (' + esc(x.check_in) + (x.check_out ? '–' + esc(x.check_out) : '') + ')' : ' (' + esc(x.status) + ')')).join(', ')}. Approving removes it and the day${r.marked.length === 1 ? '' : 's'} will show as leave.</span></div>` : ''}
+    ${l.half ? `<div class="lvd"><i class="i i-clock"></i> <span>Half-day leave (${esc(l.half)} half): the check-in for the other half is kept.</span></div>` : ''}
+    <div><label>Also away on these dates</label>${r.away.length ? `<div class="lrv-a">${r.away.map(x => `<div><b>${esc(x.name)}</b> <span class="mut">${esc(x.type)} · ${esc(lvRange({ ...x, days: '' }).replace(/ \(.*$/, ''))}</span> ${x.status === 'Pending' ? pill('Pending', 'y') : ''}</div>`).join('')}</div>` : '<div class="mut" style="font-size:13px">Nobody else has leave on these dates.</div>'}</div>
+    <div><label>Note to ${esc((l.user_name || '').split(' ')[0])} <span class="mut" style="font-weight:400">· needed to reject</span></label><textarea id="rvn" rows="2" placeholder="Optional when approving"></textarea></div>
+   </div>
+   <div class="lvf"><button class="btn bad" id="rvr">Reject</button><button class="btn ok" id="rva"><i class="i i-check"></i> Approve</button></div></div>`);
+  m.classList.add('lvmod');
+  $('#rvx', m).onclick = () => m.remove();
+  const go = async decision => { const note = $('#rvn', m).value.trim();
+    if (decision === 'Rejected' && !note) { $('#rvn', m).focus(); return toast('Add a reason for rejecting', true); }
+    $('#rva', m).disabled = $('#rvr', m).disabled = true;
+    try { const x = await api('hr', 'decide', { id, decision, note }); m.remove(); toast(decision === 'Approved' ? 'Leave approved' + lvCleared(x.cleared) : 'Leave rejected'); if (done) done(); }
+    catch (e) { if ($('#rva', m)) $('#rva', m).disabled = $('#rvr', m).disabled = false; } };
+  $('#rva', m).onclick = () => go('Approved'); $('#rvr', m).onclick = () => go('Rejected');
 }
 
 function getLoc() {
@@ -263,12 +286,12 @@ async function pgLeaves() {
   const st = { Pending: 'y', Approved: 'g', Rejected: 'r', Cancelled: '' };
   box.innerHTML = `<div class="card tw" style="padding:0"><table id="lvt"><thead><tr>${mgr && HR.lvTab !== 'mine' ? '<th>Staff</th>' : ''}<th>Type</th><th>Dates</th><th>Days</th><th>Reason</th><th>Status</th><th class="right">Actions</th></tr></thead><tbody>
    ${rows.map(r => { const own = r.user_id == ME.id, canDecide = mgr && r.status === 'Pending' && (!own || ME.role === 'admin');
-     return `<tr>${mgr && HR.lvTab !== 'mine' ? `<td><b>${esc(r.user_name)}</b></td>` : ''}<td>${pill(r.type)}</td><td>${dmy(r.from_date)}${r.to_date !== r.from_date ? ' – ' + dmy(r.to_date) : ''}${r.half ? `<br><small class="mut">${r.half} half</small>` : ''}</td><td>${r.days}</td>
-       <td>${esc(r.reason)}${r.approver_note ? `<br><small class="mut">${esc(r.approver_name || '')}: ${esc(r.approver_note)}</small>` : ''}</td><td>${pill(r.status, st[r.status])}</td>
-       <td class="right" style="white-space:nowrap">${canDecide ? `<button class="btn ok sm" data-ap="${r.id}"><i class="i i-check"></i> Approve</button> <button class="btn bad sm" data-rj="${r.id}">Reject</button>` : ''}${(own && r.status === 'Pending') || (mgr && r.status === 'Approved') ? ` <button class="btn sec sm" data-cx="${r.id}">Cancel</button>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="7" class="mut">${HR.lvTab === 'requests' ? 'No pending requests 🎉' : 'No leaves yet'}</td></tr>`}</tbody></table></div>`;
-  const decide = async (id, decision) => { const note = prompt(decision === 'Approved' ? 'Note to the employee (optional):' : 'Reason for rejecting:', ''); if (note === null) return; if (decision === 'Rejected' && !note.trim()) return toast('Add a reason for rejecting', true); await api('hr', 'decide', { id, decision, note }); toast('Leave ' + decision.toLowerCase()); hrMe(); pgLeaves(); };
-  $$('[data-ap]', box).forEach(b => b.onclick = () => decide(+b.dataset.ap, 'Approved'));
-  $$('[data-rj]', box).forEach(b => b.onclick = () => decide(+b.dataset.rj, 'Rejected'));
+     return `<tr>${mgr && HR.lvTab !== 'mine' ? `<td><b>${esc(r.user_name)}</b><br><small class="mut">asked ${agoStr(r.created)}</small></td>` : ''}<td>${pill(r.type)}</td><td>${dmy(r.from_date)}${r.to_date !== r.from_date ? ' – ' + dmy(r.to_date) : ''}${r.half ? `<br><small class="mut">${r.half} half</small>` : ''}</td><td>${r.days}</td>
+       <td>${esc(r.reason)}${r.approver_note ? `<br><small class="mut">${esc(r.approver_name || '')}: ${esc(r.approver_note)}</small>` : ''}</td><td>${pill(r.status, st[r.status])}${r.status !== 'Pending' && r.approver_name ? `<br><small class="mut">by ${esc(r.approver_name)}</small>` : ''}</td>
+       <td class="right" style="white-space:nowrap">${canDecide ? `<button class="btn ok sm" data-ap="${r.id}"><i class="i i-check"></i> Approve</button> <button class="btn sec sm" data-rv="${r.id}">Review</button>` : ''}${(own && r.status === 'Pending') || (r.status === 'Approved' && (mgr || (own && r.from_date > today()))) ? ` <button class="btn sec sm" data-cx="${r.id}">Cancel</button>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="7" class="mut">${HR.lvTab === 'requests' ? 'No pending requests' : 'No leaves yet'}</td></tr>`}</tbody></table></div>`;
+  const redo = () => { hrMe(); if (location.hash.startsWith('#/leaves')) pgLeaves(); };
+  $$('[data-ap]', box).forEach(b => b.onclick = async () => { b.disabled = true; try { const x = await api('hr', 'decide', { id: +b.dataset.ap, decision: 'Approved', note: '' }); toast('Leave approved' + lvCleared(x.cleared)); redo(); } catch (e) { b.disabled = false; } });
+  $$('[data-rv]', box).forEach(b => b.onclick = () => lvReview(+b.dataset.rv, redo));
   $$('[data-cx]', box).forEach(b => b.onclick = async () => { if (!confirm('Cancel this leave?')) return; await api('hr', 'cancel', { id: +b.dataset.cx }); toast('Leave cancelled'); hrMe(); pgLeaves(); });
 }
 async function applyModal(d) {
@@ -282,8 +305,9 @@ async function applyModal(d) {
     <div class="two"><div><label>From Date <em>*</em></label><input type="date" id="lfr" value="${today()}"></div><div><label>To Date <em>*</em></label><input type="date" id="lto" value="${today()}"></div></div>
     <div class="lvd" id="ldy"><i class="i i-calendar"></i> <span>…</span></div>
     <div id="lhw"><label>Duration</label><select id="lhf"><option value="">Full day</option><option value="first">Half day — first half (morning)</option><option value="second">Half day — second half (afternoon)</option></select></div>
-    <div><label>Leave Type <em>*</em></label><select id="lty"><option value="">— Select leave type —</option>${d.cfg.leave_types.map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('')}</select></div>
+    <div><label>Leave Type <em>*</em></label><select id="lty"><option value="">— Select leave type —</option>${d.cfg.leave_types.map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('')}</select><small class="mut" id="lbl" style="display:block;margin-top:4px"></small></div>
     <div><label>Reason / Remarks <em>*</em></label><textarea id="lrs" rows="3" placeholder="Briefly describe the reason for your leave..."></textarea></div>
+    ${mgr ? `<label class="lrv-now" id="lnw"><input type="checkbox" id="lnow" checked> <span>Approve now <small class="mut">· the days show as leave in attendance straight away</small></span></label>` : ''}
    </div>
    <div class="lvf"><button class="btn sec" id="lcx">Cancel</button><button class="btn" id="lsv">Submit Request</button></div></div>`);
   m.classList.add('lvmod');
@@ -293,14 +317,19 @@ async function applyModal(d) {
     try { const r = await api('hr', 'days', undefined, `&from=${f}&to=${t}${$('#lhf', m).value ? '&half=1' : ''}`);
       box.innerHTML = r.days ? `<b>${r.days}</b> day${r.days === 1 ? '' : 's'} of leave <span class="mut">· weekly offs and holidays not counted</span>` : 'These dates are all holidays or weekly offs'; if (!r.days) $('#ldy', m).classList.add('bad'); } catch (e) { } };
   ['#lfr', '#lto', '#lhf'].forEach(x => $(x, m).onchange = upd); upd();
+  /* own balance of the chosen type · "Approve now" only where this person may approve (someone else's leave, or the admin's own) */
+  const hint = () => { const me = !$('#lu', m) || $('#lu', m).value == ME.id, c = $('#lty', m).value, x = left(c);
+    $('#lbl', m).textContent = !c || !me ? '' : x === null ? 'No yearly limit for this type' : `${x} day${x === 1 ? '' : 's'} available`;
+    if ($('#lnw', m)) $('#lnw', m).style.display = !me || ME.role === 'admin' ? '' : 'none'; };
+  $('#lty', m).addEventListener('change', hint); if ($('#lu', m)) $('#lu', m).onchange = hint; hint();
   $('#lfr', m).addEventListener('change', () => { if ($('#lto', m).value < $('#lfr', m).value) { $('#lto', m).value = $('#lfr', m).value; upd(); } });
   $('#lcx', m).onclick = $('#lcx2', m).onclick = () => m.remove();
   $('#lsv', m).onclick = async () => {
     if (!$('#lty', m).value) { $('#lty', m).focus(); return toast('Select a leave type', true); }
     if (!$('#lrs', m).value.trim()) { $('#lrs', m).focus(); return toast('Add a reason', true); }
     const b = $('#lsv', m); b.disabled = true;
-    try { const r = await api('hr', 'apply', { user_id: $('#lu', m)?.value, type: $('#lty', m).value, from: $('#lfr', m).value, to: $('#lto', m).value, half: $('#lhf', m).value, reason: $('#lrs', m).value });
-      m.remove(); toast(`Leave request sent for approval (${r.days} day${r.days === 1 ? '' : 's'})`); HR.lvTab = 'mine'; hrMe(); if (location.hash.startsWith('#/leaves')) pgLeaves(); } finally { b.disabled = false; } };
+    try { const r = await api('hr', 'apply', { user_id: $('#lu', m)?.value, type: $('#lty', m).value, from: $('#lfr', m).value, to: $('#lto', m).value, half: $('#lhf', m).value, reason: $('#lrs', m).value, approve: $('#lnw', m) && $('#lnw', m).style.display !== 'none' && $('#lnow', m).checked ? 1 : 0 });
+      m.remove(); toast(r.approved ? `Leave approved (${r.days} day${r.days === 1 ? '' : 's'})` + lvCleared(r.cleared) : `Leave request sent for approval (${r.days} day${r.days === 1 ? '' : 's'})`); if (!mgr) HR.lvTab = 'mine'; else if (r.approved) HR.lvTab = 'all'; hrMe(); if (location.hash.startsWith('#/leaves')) pgLeaves(); } finally { b.disabled = false; } };
 }
 
 // ---------- Settings → Attendance & leave ----------
@@ -341,8 +370,8 @@ async function attWeek(mine) {
   const day = (u, ds) => { const r = rec[u + '|' + ds], l = lvOn(u, ds), wd = new Date(ds + 'T00:00:00').getDay();
     if (r && r.status === 'Absent') return { k: 'A', c: 'ab', pay: 0, work: 1, tip: 'Absent' + (r.notes ? ' · ' + r.notes : '') };
     if (r && (r.check_in || r.status)) { const hd = r.status === 'Half day', h = hrsBetween(r.check_in, r.check_out);
-      return { k: { Present: 'P', Late: 'L', 'Half day': 'HD', 'On duty': 'OD' }[r.status] || 'P', c: { Present: 'pr', Late: 'lt', 'Half day': 'hd', 'On duty': 'od' }[r.status] || 'pr', pay: hd ? .5 : 1, work: d.cfg.week_off.includes(wd) || hol[ds] ? 0 : 1, hrs: h, late: r.status === 'Late', hd, early: r.check_out && r.check_out < (d.cfg.end || '18:00') && !hd,
-        tip: `${r.status} ${r.check_in || ''}${r.check_out ? '–' + r.check_out + (+r.auto_out ? ' (auto check-out)' : '') : ' (no check-out)'}${r.in_place ? ' · in at ' + r.in_place : ''}${r.out_place && r.out_place !== r.in_place ? ' · out at ' + r.out_place : ''}${r.notes ? ' · ' + r.notes : ''}` }; }
+      return { k: { Present: 'P', Late: 'L', 'Half day': 'HD', 'On duty': 'OD' }[r.status] || 'P', c: { Present: 'pr', Late: 'lt', 'Half day': 'hd', 'On duty': 'od' }[r.status] || 'pr', pay: hd ? (l && l.half && paid[l.type] ? 1 : .5) : 1, lv: hd && l && l.half ? .5 : 0, lop: hd && l && l.half && !paid[l.type] ? .5 : 0, work: d.cfg.week_off.includes(wd) || hol[ds] ? 0 : 1, hrs: h, late: r.status === 'Late', hd, early: r.check_out && r.check_out < (d.cfg.end || '18:00') && !hd,
+        tip: `${r.status} ${r.check_in || ''}${r.check_out ? '–' + r.check_out + (+r.auto_out ? ' (auto check-out)' : '') : ' (no check-out)'}${r.in_place ? ' · in at ' + r.in_place : ''}${r.out_place && r.out_place !== r.in_place ? ' · out at ' + r.out_place : ''}${r.notes ? ' · ' + r.notes : ''}${l && l.half ? ' · half-day leave ' + l.type + (paid[l.type] ? ' (paid)' : ' (unpaid)') : ''}` }; }
     if (hol[ds]) return { k: 'H', c: 'ho', pay: d.cfg.week_off.includes(wd) ? 0 : 1, work: 0, tip: 'Holiday · ' + hol[ds] };
     if (d.cfg.week_off.includes(wd)) return { k: 'WO', c: 'wo', pay: 0, work: 0, tip: 'Weekly off' };
     if (l) { const p = paid[l.type] ? (l.half ? .5 : 1) : 0; return { k: l.half ? 'HL' : 'LV', c: 'lv', pay: p, work: 1, lv: l.half ? .5 : 1, lop: paid[l.type] ? 0 : (l.half ? .5 : 1), tip: 'Leave · ' + l.type + (paid[l.type] ? ' (paid)' : ' (unpaid)') }; }

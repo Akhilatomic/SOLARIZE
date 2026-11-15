@@ -42,6 +42,21 @@ function hr_fill_places($limit = 3) {
 }
 function hr_leave_on($user, $date) { return row("SELECT id,type,half FROM leaves WHERE user_id=? AND status='Approved' AND ? BETWEEN from_date AND to_date ORDER BY half='' DESC LIMIT 1", [$user, $date]); }
 function hr_mgr($m) { return can($m, true); }
+/* "20 Nov" or "20 Nov – 22 Nov" (+ half) for messages */
+function hr_lv_when($l) { $f = date('j M', strtotime($l['from_date'])); $t = date('j M', strtotime($l['to_date'])); return ($l['from_date'] === $l['to_date'] ? $f : "$f – $t") . ($l['half'] !== '' ? " ({$l['half']} half)" : ''); }
+/* bell message about a leave (kind 'leave'; opens the Leaves page) */
+function hr_lv_notify($to, $text) { $to = (int)$to; if ($to && $to !== uid()) q("INSERT INTO notifs(user_id,kind,from_id,text) VALUES(?,'leave',?,?)", [$to, uid(), mb_substr($text, 0, 200)]); }
+/* Approve a leave and bring attendance in line: a full-day leave removes the attendance entries on those days (the days then show
+   as leave everywhere: Today, weekly, monthly, the person's own button); a half-day leave keeps the entry for the half worked. */
+function hr_lv_approve($l, $note = '') {
+  q("UPDATE leaves SET status='Approved', approver_id=?, approver_note=?, decided_at=CURRENT_TIMESTAMP WHERE id=?", [uid(), mb_substr(trim((string)$note), 0, 300), $l['id']]);
+  $cleared = 0;
+  if ($l['half'] === '') { $cleared = (int)row('SELECT COUNT(*) c FROM attendance WHERE user_id=? AND date BETWEEN ? AND ?', [$l['user_id'], $l['from_date'], $l['to_date']])['c'];
+    if ($cleared) q('DELETE FROM attendance WHERE user_id=? AND date BETWEEN ? AND ?', [$l['user_id'], $l['from_date'], $l['to_date']]); }
+  audit('leave_approved', 'leaves', $l['id'], "{$l['type']} {$l['from_date']}→{$l['to_date']}" . ($cleared ? " · cleared $cleared attendance" : ''));
+  hr_lv_notify($l['user_id'], "Leave approved: {$l['type']} · " . hr_lv_when($l) . (trim((string)$note) !== '' ? ' — ' . trim((string)$note) : ''));
+  return $cleared;
+}
 function hr_now() { return [date('Y-m-d'), date('H:i')]; }
 function hr_hol($cfg) { $h = []; foreach ($cfg['holidays'] as $x) if (!empty($x['date'])) $h[$x['date']] = $x['name'] ?? 'Holiday'; return $h; }
 // working days between two dates (skips weekly offs and holidays)
@@ -182,25 +197,45 @@ function handle_hr($a) {
         if ($days > $b['left'] - $b['pending']) fail("Not enough {$t['name']} left: " . max(0, $b['left'] - $b['pending']) . " day(s) available. Choose Unpaid leave or fewer days."); }
       $reason = trim((string)($in['reason'] ?? '')); if ($reason === '') fail('Add a reason');
       q('INSERT INTO leaves(user_id,type,from_date,to_date,half,days,reason,status) VALUES(?,?,?,?,?,?,?,?)', [$who, $type, $from, $to, $half, $days, mb_substr($reason, 0, 500), 'Pending']);
-      $id = (int)db()->lastInsertId(); audit('leave_apply', 'leaves', $id, "{$type} {$from}→{$to} ({$days} d)"); out(['id' => $id, 'days' => $days]);
+      $id = (int)db()->lastInsertId(); audit('leave_apply', 'leaves', $id, "{$type} {$from}→{$to} ({$days} d)");
+      /* a manager entering leave for someone (or the admin for themself) can approve it in the same step */
+      $now = !empty($in['approve']) && hr_mgr('leaves') && ($who !== $uid || is_admin()); $cleared = 0;
+      if ($now) $cleared = hr_lv_approve(row('SELECT * FROM leaves WHERE id=?', [$id]));
+      elseif ($who !== $uid) hr_lv_notify($who, ($_SESSION['name'] ?? 'A manager') . " entered a leave request for you: $type · " . hr_lv_when(['from_date' => $from, 'to_date' => $to, 'half' => $half]));
+      out(['id' => $id, 'days' => $days, 'approved' => $now ? 1 : 0, 'cleared' => $cleared]);
+    case 'review': /* what a manager needs to decide a request: balance, who else is away, attendance already marked on those days */
+      need('leaves', true);
+      $l = row('SELECT l.*, u.name user_name FROM leaves l LEFT JOIN users u ON u.id=l.user_id WHERE l.id=?', [(int)($_GET['id'] ?? 0)]); if (!$l) fail('Not found', 404);
+      $bal = array_values(array_filter(hr_balance($l['user_id'], substr($l['from_date'], 0, 4), $cfg), fn($x) => $x['code'] === $l['type']))[0] ?? null;
+      out(['leave' => $l, 'balance' => $bal,
+        'away' => rows("SELECT u.name, o.type, o.from_date, o.to_date, o.half, o.status FROM leaves o JOIN users u ON u.id=o.user_id WHERE o.id<>? AND o.user_id<>? AND o.status IN ('Approved','Pending') AND o.from_date<=? AND o.to_date>=? ORDER BY o.from_date LIMIT 20", [$l['id'], $l['user_id'], $l['to_date'], $l['from_date']]),
+        'marked' => rows('SELECT date, check_in, check_out, status FROM attendance WHERE user_id=? AND date BETWEEN ? AND ? ORDER BY date', [$l['user_id'], $l['from_date'], $l['to_date']])]);
     case 'decide':
       need('leaves', true);
       $l = row('SELECT * FROM leaves WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$l) fail('Not found', 404);
       if ($l['status'] !== 'Pending') fail('This request was already ' . strtolower($l['status']));
       if ((int)$l['user_id'] === $uid && !is_admin()) fail('Someone else has to approve your own leave', 403);
-      $dec = ($in['decision'] ?? '') === 'Approved' ? 'Approved' : 'Rejected';
-      q('UPDATE leaves SET status=?, approver_id=?, approver_note=?, decided_at=CURRENT_TIMESTAMP WHERE id=?', [$dec, $uid, mb_substr(trim((string)($in['note'] ?? '')), 0, 300), $l['id']]);
-      $cleared = 0; if ($dec === 'Approved' && $l['half'] === '') { $cleared = (int)row('SELECT COUNT(*) c FROM attendance WHERE user_id=? AND date BETWEEN ? AND ?', [$l['user_id'], $l['from_date'], $l['to_date']])['c'];
-        if ($cleared) q('DELETE FROM attendance WHERE user_id=? AND date BETWEEN ? AND ?', [$l['user_id'], $l['from_date'], $l['to_date']]); }
-      audit('leave_' . strtolower($dec), 'leaves', $l['id'], "{$l['type']} {$l['from_date']}→{$l['to_date']}" . ($cleared ? " · cleared $cleared attendance" : '')); out(['ok' => true, 'cleared' => $cleared]);
+      $dec = ($in['decision'] ?? '') === 'Approved' ? 'Approved' : 'Rejected'; $note = mb_substr(trim((string)($in['note'] ?? '')), 0, 300);
+      if ($dec === 'Approved') out(['ok' => true, 'cleared' => hr_lv_approve($l, $note)]);
+      if ($note === '') fail('Add a reason for rejecting');
+      q("UPDATE leaves SET status='Rejected', approver_id=?, approver_note=?, decided_at=CURRENT_TIMESTAMP WHERE id=?", [$uid, $note, $l['id']]);
+      audit('leave_rejected', 'leaves', $l['id'], "{$l['type']} {$l['from_date']}→{$l['to_date']}");
+      hr_lv_notify($l['user_id'], "Leave not approved: {$l['type']} · " . hr_lv_when($l) . " — $note");
+      out(['ok' => true, 'cleared' => 0]);
     case 'cancel':
       need('leaves');
       $l = row('SELECT * FROM leaves WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$l) fail('Not found', 404);
       $own = (int)$l['user_id'] === $uid;
-      if (!($own && $l['status'] === 'Pending') && !hr_mgr('leaves')) fail($own ? 'Ask a manager to cancel an approved leave' : 'Not allowed', 403);
       if (in_array($l['status'], ['Rejected', 'Cancelled'])) fail('Already ' . strtolower($l['status']));
+      /* your own: a waiting request any time, an approved leave until the day before it starts; after that a manager cancels it */
+      $mine = $own && ($l['status'] === 'Pending' || $l['from_date'] > date('Y-m-d'));
+      if (!$mine && !hr_mgr('leaves')) fail($own ? 'This leave has started — ask a manager to cancel it' : 'Not allowed', 403);
+      $was = $l['status']; $by = (int)$l['approver_id'];
       q("UPDATE leaves SET status='Cancelled', decided_at=CURRENT_TIMESTAMP, approver_id=? WHERE id=?", [$uid, $l['id']]);
-      audit('leave_cancel', 'leaves', $l['id'], ''); out(['ok' => true]);
+      audit('leave_cancel', 'leaves', $l['id'], "{$l['type']} {$l['from_date']}→{$l['to_date']} (was $was)");
+      if (!$own) hr_lv_notify($l['user_id'], "Leave cancelled: {$l['type']} · " . hr_lv_when($l));
+      elseif ($was === 'Approved') hr_lv_notify($by, ($_SESSION['name'] ?? 'Staff') . " cancelled their approved leave: {$l['type']} · " . hr_lv_when($l));
+      out(['ok' => true]);
     case 'days': // preview count for the apply form
       need('leaves'); $from = hr_dt($_GET['from'] ?? '', 'From'); $to = hr_dt($_GET['to'] ?? $from, 'To');
       out(['days' => $to < $from ? 0 : hr_days($from, $to, !empty($_GET['half']), $cfg)]);
