@@ -106,7 +106,7 @@ function handle_gen($a) {
       $p = row('SELECT id FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid]);
       if ($p) q('UPDATE projects SET cost=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$cost, $p['id']]);
       else { [$pl] = plant_get($cid); q("INSERT INTO projects(customer_id,title,kw,cost,stage) VALUES(?,?,?,?,'Customer')", [$cid, trim(($pl['capacity'] ?? '') ? $pl['capacity'] . ' kWp solar plant' : 'Solar plant'), (float)($pl['capacity'] ?? 0), $cost]);
-        $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Project created from the tax bill'); }
+        $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Project created from the tax bill'); sv_on_pipeline($cid, $pid); }
       audit('plant_cost', 'customers', $cid, '₹' . $cost);
       out(['ok' => true, 'acct' => gen_acct($cid)]);
 

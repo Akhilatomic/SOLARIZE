@@ -21,6 +21,28 @@ function sv_clean($raw, array $keys) { $v = is_array($raw) ? $raw : []; $o = [];
 function sv_default_user() { return (int)(row("SELECT id FROM users WHERE role='admin' AND active=1 AND COALESCE(deleted,0)=0 ORDER BY id LIMIT 1")['id'] ?? uid()); }
 function sv_users() { return rows("SELECT id, name, role FROM users WHERE active=1 AND COALESCE(deleted,0)=0 AND role<>'ba' ORDER BY name"); }
 function sv_notify($to, $s, $text) { $to = (int)$to; if ($to && $to !== uid()) q("INSERT INTO notifs(user_id,kind,customer_id,lead_id,from_id,text) VALUES(?,'survey',?,?,?,?)", [$to, $s['customer_id'] ?: null, $s['lead_id'] ?: null, uid(), mb_substr($text, 0, 200)]); }
+/* the survey of a customer: its own, or the one started while the customer was still a lead */
+function sv_of_customer($cid) {
+  return row('SELECT * FROM surveys WHERE customer_id=? ORDER BY id DESC LIMIT 1', [(int)$cid])
+      ?: row('SELECT s.* FROM surveys s JOIN leads l ON l.id=s.lead_id WHERE l.customer_id=? ORDER BY s.id DESC LIMIT 1', [(int)$cid]);
+}
+/* Pipeline → site survey: a customer put on the pipeline (a project is started) goes on the survey list by itself, given to the
+   admin, unless the survey already exists. Never stops the project from being created. */
+function sv_on_pipeline($cid, $pid = 0) {
+  try {
+    $cid = (int)$cid; if (!$cid || sv_of_customer($cid)) return 0;
+    $to = sv_default_user();
+    q('INSERT INTO surveys(customer_id,assigned_to,note,created_by) VALUES(?,?,?,?)', [$cid, $to, 'Added with the project on the pipeline', uid()]);
+    $id = (int)db()->lastInsertId(); $s = row('SELECT * FROM surveys WHERE id=?', [$id]); $t = sv_target($s);
+    audit('survey_add', 'surveys', $id, ($t['name'] ?? '') . ' · from the pipeline');
+    sv_notify($to, $s, 'Site survey for you: ' . ($t['name'] ?? '') . (($t['place'] ?? '') !== '' ? ' · ' . $t['place'] : '') . ' — new on the pipeline');
+    return $id;
+  } catch (Throwable $e) { return 0; }
+}
+/* what a project page and the survey list show about the other side */
+function sv_brief($cid) { $s = sv_of_customer($cid); return $s ? ['id' => (int)$s['id'], 'status' => $s['status'], 'visit_date' => $s['visit_date'], 'assigned_name' => row('SELECT name FROM users WHERE id=?', [$s['assigned_to']])['name'] ?? ''] : null; }
+function sv_project($s) { $cid = (int)($s['customer_id'] ?: (row('SELECT customer_id FROM leads WHERE id=?', [(int)$s['lead_id']])['customer_id'] ?? 0));
+  return $cid ? (row('SELECT id, stage, title FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid]) ?: null) : null; }
 /* the lead or customer a survey is for */
 function sv_target($s) {
   if ($s['lead_id']) { $l = row('SELECT id, name, phone, address, city, site, plant, customer_id FROM leads WHERE id=?', [$s['lead_id']]);
@@ -39,7 +61,8 @@ function handle_survey($a) {
       $w = sv_all() ? '1=1' : '(s.assigned_to=' . $uid . ' OR s.created_by=' . $uid . ')';
       out(['all' => sv_all() ? 1 : 0, 'rows' => rows("SELECT s.id, s.lead_id, s.customer_id, s.assigned_to, s.status, s.visit_date, s.note, s.created, s.done_at, u.name assigned_name,
         COALESCE(c.name, l.name) name, COALESCE(c.phone, l.phone) phone, TRIM(COALESCE(c.address, l.address, '') || ' ' || COALESCE(c.district, l.city, '')) place,
-        (SELECT COUNT(*) FROM survey_files f WHERE f.survey_id=s.id) files
+        (SELECT COUNT(*) FROM survey_files f WHERE f.survey_id=s.id) files,
+        (SELECT p.stage FROM projects p WHERE p.customer_id=COALESCE(s.customer_id, l.customer_id) ORDER BY p.id DESC LIMIT 1) stage
         FROM surveys s LEFT JOIN users u ON u.id=s.assigned_to LEFT JOIN leads l ON l.id=s.lead_id LEFT JOIN customers c ON c.id=s.customer_id
         WHERE $w ORDER BY CASE s.status WHEN 'Done' THEN 1 ELSE 0 END, CASE WHEN s.visit_date='' THEN 1 ELSE 0 END, s.visit_date, s.id DESC LIMIT 500")]);
     case 'get':
@@ -52,7 +75,7 @@ function handle_survey($a) {
       $prod = []; try { foreach (rows("SELECT grp, name FROM acc_materials WHERE COALESCE(hidden,0)=0 AND grp IN ('Panels','Inverter','Structure') ORDER BY sort, name") as $r) $prod[$r['grp']][] = $r['name']; } catch (Throwable $e) { }
       out(['survey' => ['id' => (int)$s['id'], 'status' => $s['status'], 'visit_date' => $s['visit_date'], 'note' => $s['note'], 'assigned_to' => (int)$s['assigned_to'], 'created' => $s['created'], 'done_at' => $s['done_at'],
           'assigned_name' => row('SELECT name FROM users WHERE id=?', [$s['assigned_to']])['name'] ?? '', 'confirmed' => !empty($d['confirmed']) ? 1 : 0, 'confirmed_by' => $d['confirmed_by'] ?? '', 'confirmed_at' => $d['confirmed_at'] ?? ''],
-        'target' => $t, 'site' => (object)$site, 'plant' => (object)$plant, 'plan' => (object)($d['plan'] ?? []),
+        'project' => can('projects') ? sv_project($s) : null, 'target' => $t, 'site' => (object)$site, 'plant' => (object)$plant, 'plan' => (object)($d['plan'] ?? []),
         'files' => rows('SELECT id, slot, name, size, user, created FROM survey_files WHERE survey_id=? ORDER BY id', [$s['id']]),
         'slots' => SV_SLOTS, 'products' => (object)$prod, 'users' => sv_users(), 'can_edit' => can('survey', true) ? 1 : 0, 'can_assign' => sv_all() || (int)$s['created_by'] === $uid ? 1 : 0]);
     case 'add': /* from a lead's or a customer's action menu */
@@ -62,9 +85,7 @@ function handle_survey($a) {
       if (!$lid) { need('customers'); if (!$cid || !row('SELECT 1 FROM customers WHERE id=?', [$cid])) fail('Choose a lead or a customer', 404); }
       $to = (int)($in['assigned_to'] ?? 0) ?: sv_default_user(); if (!row("SELECT 1 FROM users WHERE id=? AND active=1 AND role<>'ba'", [$to])) fail('Choose who does the survey');
       $vd = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['visit_date'] ?? '')) ? $in['visit_date'] : ''; $note = mb_substr(trim((string)($in['note'] ?? '')), 0, 500);
-      $old = $lid ? row('SELECT * FROM surveys WHERE lead_id=?', [$lid]) : row('SELECT * FROM surveys WHERE customer_id=?', [$cid]);
-      if (!$old && $cid) { /* the survey started while this customer was still a lead */
-        $old = row('SELECT s.* FROM surveys s JOIN leads l ON l.id=s.lead_id WHERE l.customer_id=? ORDER BY s.id DESC LIMIT 1', [$cid]); }
+      $old = $lid ? row('SELECT * FROM surveys WHERE lead_id=?', [$lid]) : sv_of_customer($cid);
       if ($old) { /* one survey per lead / customer: adding again hands it to the chosen person */
         q("UPDATE surveys SET assigned_to=?, visit_date=CASE WHEN ?<>'' THEN ? ELSE visit_date END, note=CASE WHEN ?<>'' THEN ? ELSE note END, updated=CURRENT_TIMESTAMP WHERE id=?", [$to, $vd, $vd, $note, $note, $old['id']]);
         $id = (int)$old['id']; $new = 0;

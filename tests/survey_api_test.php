@@ -45,7 +45,7 @@ chk(call($sal, 'survey', 'add', ['lead_id' => $lid, 'assigned_to' => $bid])['_co
 chk(call($ba, 'survey', 'list')['_code'] === 403 && call($ba, 'survey', 'add', ['lead_id' => $lid])['_code'] === 403, 'BA has no site survey');
 
 /* who sees what */
-chk(count(call($admin, 'survey', 'list')['rows']) === 2, 'admin sees every survey');
+$ids = array_map('intval', array_column(call($admin, 'survey', 'list')['rows'], 'id')); chk(in_array($s1, $ids) && in_array($s2, $ids), 'admin sees every survey');
 chk(array_column(call($eng, 'survey', 'list')['rows'], 'id') == [$s1, $s2] || array_column(call($eng, 'survey', 'list')['rows'], 'id') == [$s2, $s1], 'the surveyor sees the surveys given to them');
 chk(array_map('intval', array_column(call($sal, 'survey', 'list')['rows'], 'id')) === [$s1], 'sales sees only the survey they added');
 chk(call($sal, 'survey', 'get', null, "&id=$s2")['_code'] === 403, 'and cannot open someone else’s');
@@ -87,6 +87,28 @@ chk(call($eng, 'survey', 'save', ['id' => $s1, 'plan' => ['plan_panels' => '12']
 chk(call($eng, 'survey', 'save', ['id' => $s1, 'status' => 'In progress'])['_code'] === 200 && call($eng, 'survey', 'save', ['id' => $s1, 'plan' => ['plan_panels' => '12']])['_code'] === 200, 'until it is reopened');
 chk(call($eng, 'survey', 'delete', ['id' => $s1])['_code'] === 403, 'the surveyor cannot remove a survey');
 chk(call($sal, 'survey', 'delete', ['id' => $s1])['_code'] === 200 && !$db->query("SELECT 1 FROM surveys WHERE id=$s1")->fetch() && !$db->query("SELECT 1 FROM survey_files WHERE survey_id=$s1")->fetch(), 'the person who added it removes it (Recycle bin)');
+
+/* pipeline → site survey */
+$db->exec("DELETE FROM surveys"); $db->exec("DELETE FROM notifs WHERE kind='survey'");
+$db->exec("INSERT INTO customers(name,phone,address,district) VALUES('Pipeline Customer Test','9000000013','Canal Road','Testpuram')"); $c2 = (int)$db->lastInsertId();
+$r = call($sal, 'pipeline', 'start', ['customer_id' => $c2, 'kw' => 5]); $p1 = (int)($r['id'] ?? 0);
+$sv = $db->query("SELECT * FROM surveys WHERE customer_id=$c2")->fetchAll();
+chk($r['_code'] === 200 && count($sv) === 1 && (int)$sv[0]['assigned_to'] === $adminId && $sv[0]['status'] === 'To visit', 'customer put on the pipeline is added to site survey by itself, given to the admin');
+chk((int)$db->query("SELECT COUNT(*) c FROM notifs WHERE kind='survey' AND user_id=$adminId AND customer_id=$c2")->fetch()['c'] === 1, 'the admin gets a bell message');
+call($sal, 'pipeline', 'start', ['customer_id' => $c2, 'kw' => 3]);
+chk((int)$db->query("SELECT COUNT(*) c FROM surveys WHERE customer_id=$c2")->fetch()['c'] === 1, 'a second project does not make a second survey');
+$pg = call($admin, 'projects', 'get', null, "&id=$p1");
+chk(($pg['survey']['status'] ?? '') === 'To visit' && (int)$pg['survey']['id'] === (int)$sv[0]['id'], 'the project page shows the site survey status');
+$sg = call($admin, 'survey', 'get', null, '&id=' . (int)$sv[0]['id']);
+chk(($sg['project']['stage'] ?? '') === 'Customer', 'the survey page shows the pipeline stage');
+chk((call($admin, 'survey', 'list')['rows'][0]['stage'] ?? '') === 'Customer', 'and so does the survey list');
+/* a survey started on the lead is kept when that lead becomes a customer on the pipeline */
+$db->exec("INSERT INTO customers(name,phone) VALUES('Converted Lead Test','9000000014')"); $c3 = (int)$db->lastInsertId();
+$db->exec("INSERT INTO leads(name,phone,status,customer_id) VALUES('Converted Lead Test','9000000014','Won',$c3)"); $l3 = (int)$db->lastInsertId();
+$db->exec("INSERT INTO surveys(lead_id,assigned_to,status,created_by) VALUES($l3,$eid,'In progress',$adminId)");
+call($admin, 'pipeline', 'start', ['customer_id' => $c3, 'kw' => 4]);
+chk((int)$db->query("SELECT COUNT(*) c FROM surveys WHERE customer_id=$c3 OR lead_id=$l3")->fetch()['c'] === 1, 'a survey started on the lead is reused, not duplicated');
+$db->exec("DELETE FROM projects WHERE customer_id IN ($c2,$c3)"); $db->exec("DELETE FROM customers WHERE id IN ($c2,$c3)"); $db->exec("DELETE FROM leads WHERE id=$l3");
 
 $db->exec("DELETE FROM surveys"); $db->exec("DELETE FROM survey_files"); $db->exec("DELETE FROM notifs WHERE kind='survey'"); $db->exec("DELETE FROM leads WHERE id=$lid"); $db->exec("DELETE FROM customers WHERE id=$cid");
 @unlink($png); @unlink($txt);

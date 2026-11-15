@@ -92,7 +92,7 @@ function handle_pipeline($a) {
       $kw = (float)($in['kw'] ?? 0); $title = trim((string)($in['title'] ?? '')) ?: (($kw ? $kw . ' kW ' : '') . 'rooftop solar');
       $loan = in_array($in['loan'] ?? '', ['Yes', 'No']) ? $in['loan'] : '';
       q("INSERT INTO projects(customer_id,title,kw,stage,cost,loan,engineer) VALUES(?,?,?,?,?,?,?)", [$cid, $title, $kw, 'Customer', can('finance') ? (float)($in['cost'] ?? 0) : 0, $loan, trim((string)($in['engineer'] ?? ''))]);
-      $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Project started'); audit('create', 'projects', $pid, $title);
+      $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Project started'); audit('create', 'projects', $pid, $title); sv_on_pipeline($cid, $pid); /* on the pipeline → on the site survey list */
       cust_cost_to_project($cid, $pid); /* no value typed: the plant cost agreed with the customer */
       cap_from_project($pid); cap_reconcile($cid); /* size typed: it is the customer's plant capacity; not typed: the capacity already known */
       out(['id' => $pid, 'customer_id' => $cid]);
@@ -103,7 +103,7 @@ function handle_pipeline($a) {
       if ($p) out(['id' => (int)$p['id'], 'created' => 0]);
       [$pl] = plant_get($cid); $kw = (float)($pl['capacity'] ?? 0); $title = ($kw ? $kw . ' kWp ' : '') . 'solar plant';
       q("INSERT INTO projects(customer_id,title,kw,stage,cost) VALUES(?,?,?,'Customer',0)", [$cid, ucfirst($title), $kw]);
-      $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Added to the pipeline with the first payment'); audit('create', 'projects', $pid, ucfirst($title));
+      $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Added to the pipeline with the first payment'); audit('create', 'projects', $pid, ucfirst($title)); sv_on_pipeline($cid, $pid);
       cust_cost_to_project($cid, $pid); /* the plant cost agreed with the customer */
       $cost = round(max(0, (float)($in['cost'] ?? 0)), 2);
       if ($cost > 0 && can('finance')) q('UPDATE projects SET cost=? WHERE id=? AND (cost IS NULL OR cost=0)', [$cost, $pid]);

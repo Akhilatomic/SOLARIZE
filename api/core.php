@@ -108,7 +108,7 @@ function handle_crud($t, $a) {
         $id = (int)db()->lastInsertId(); audit('create', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
         if ($t === 'customers') q('UPDATE customers SET owner_id=? WHERE id=?', [uid(), $id]); // whoever adds a customer owns it
         if ($t === 'customers') onboard_store($id, $onb);
-        if ($t === 'projects') step_log($id, 'Customer', 'Project created');
+        if ($t === 'projects') { step_log($id, 'Customer', 'Project created'); sv_on_pipeline($v['customer_id'], $id); /* on the pipeline → on the site survey list */ }
         if ($t === 'projects') cust_cost_to_project($v['customer_id'], $id); /* no value typed: the plant cost agreed with the customer */
         if ($t === 'quotes' && $v['number'] === '') {
           $c = settings()['company'];
@@ -217,6 +217,7 @@ function detail($t, $r) {
   $id = (int)$r['id'];
   $notes = fn() => rows('SELECT * FROM notes WHERE entity=? AND entity_id=? ORDER BY id DESC', [$t, $id]);
   if ($t === 'leads') { $r['notes_log'] = $notes(); $r['messages'] = is_ba() ? [] : rows('SELECT * FROM messages WHERE lead_id=? ORDER BY id DESC', [$id]); }
+  if ($t === 'projects' && can('survey')) $r['survey'] = sv_brief($r['customer_id']); /* the project page shows where the site survey stands */
   if ($t === 'customers') {
     $r['notes_log'] = $notes();
     $r['projects'] = rows('SELECT p.*, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p WHERE customer_id=? ORDER BY id DESC', [$id]);
