@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 66; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 67; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -190,6 +190,15 @@ function migrate($db) {
   $db->exec('CREATE INDEX IF NOT EXISTS wam_chat ON wa_msgs(chat_id, id)'); $db->exec('CREATE INDEX IF NOT EXISTS wam_wamid ON wa_msgs(wamid)');
   $db->exec("CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, check_in TEXT, check_out TEXT, in_lat REAL, in_lng REAL, in_acc INTEGER, out_lat REAL, out_lng REAL, out_acc INTEGER, in_place TEXT DEFAULT '', out_place TEXT DEFAULT '', status TEXT DEFAULT 'Present', notes TEXT DEFAULT '', edited_by TEXT DEFAULT '', cont INTEGER DEFAULT 0, auto_out INTEGER DEFAULT 0, last_act TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, date))");
   $db->exec("CREATE TABLE IF NOT EXISTS leaves(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, from_date TEXT, to_date TEXT, half TEXT DEFAULT '', days REAL, reason TEXT DEFAULT '', status TEXT DEFAULT 'Pending', approver_id INTEGER, approver_note TEXT DEFAULT '', decided_at TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
+  /* v67: leave types are Emergency / Sick / Personal only. Runs once (settings hr_types_rev): a saved type list is replaced, and
+     leaves taken under the old Casual / Earned / Maternity / Paternity / Other types are kept as Personal. Old unpaid (LOP) leaves stay as they are. */
+  try { if (!$db->query("SELECT 1 FROM settings WHERE k='hr_types_rev'")->fetchColumn()) {
+    $hv = $db->query("SELECT v FROM settings WHERE k='hr'")->fetchColumn(); $hs = $hv ? json_decode($hv, true) : null;
+    if (is_array($hs) && isset($hs['leave_types'])) { $hs['leave_types'] = [['code' => 'EM', 'name' => 'Emergency Leave', 'quota' => 6], ['code' => 'SL', 'name' => 'Sick Leave', 'quota' => 12], ['code' => 'PE', 'name' => 'Personal Leave', 'quota' => 12]];
+      $db->prepare("UPDATE settings SET v=? WHERE k='hr'")->execute([json_encode($hs)]); }
+    $db->exec("UPDATE leaves SET type='PE' WHERE type IN ('CL','EL','OT','ML','PL')");
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('hr_types_rev','2')");
+  } } catch (PDOException $e) { }
   /* v60: plant capacity is held once per customer (customers.plant_kw, api/capacity.php). Once: every existing customer gets the capacity
      already entered somewhere (projects, plant details, approved / applied capacity, the lead), and a lone project without a size gets it too. */
   if (!in_array('plant_kw', array_column($db->query('PRAGMA table_info(customers)')->fetchAll(), 'name'))) { try { $db->exec('ALTER TABLE customers ADD COLUMN plant_kw REAL DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }

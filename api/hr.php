@@ -4,9 +4,11 @@
 
 const HR_HOLIDAYS_2026 = [['date' => '2026-01-02', 'name' => 'Mannam Jayanthi'], ['date' => '2026-01-26', 'name' => 'Republic Day'], ['date' => '2026-02-15', 'name' => 'Maha Sivaratri'], ['date' => '2026-04-01', 'name' => 'Annual Closing of Bank Accounts'], ['date' => '2026-04-02', 'name' => 'Maundy Thursday'], ['date' => '2026-04-03', 'name' => 'Good Friday'], ['date' => '2026-04-05', 'name' => 'Easter Sunday'], ['date' => '2026-04-14', 'name' => 'Dr. B.R. Ambedkar Jayanthi'], ['date' => '2026-04-15', 'name' => 'Vishu'], ['date' => '2026-05-01', 'name' => 'May Day (Labour Day)'], ['date' => '2026-08-12', 'name' => 'Karkadaka Vavu'], ['date' => '2026-08-15', 'name' => 'Independence Day'], ['date' => '2026-08-25', 'name' => 'First Onam'], ['date' => '2026-08-26', 'name' => 'Thiruvonam'], ['date' => '2026-08-27', 'name' => 'Third Onam'], ['date' => '2026-08-28', 'name' => 'Fourth Onam / Sree Narayana Guru Jayanthi'], ['date' => '2026-09-04', 'name' => 'Sreekrishna Jayanthi'], ['date' => '2026-09-21', 'name' => 'Sree Narayana Guru Samadhi Day'], ['date' => '2026-10-02', 'name' => 'Gandhi Jayanthi'], ['date' => '2026-10-20', 'name' => 'Mahanavami'], ['date' => '2026-10-21', 'name' => 'Vijayadasami'], ['date' => '2026-11-08', 'name' => 'Deepavali'], ['date' => '2026-12-25', 'name' => 'Christmas Day']];
 
+/* the office's three leave types (owner, 2026-11-15): no casual / earned / other types. Days per year can be changed in Settings › Attendance & leave. */
+const HR_LEAVE_TYPES = [['code' => 'EM', 'name' => 'Emergency Leave', 'quota' => 6], ['code' => 'SL', 'name' => 'Sick Leave', 'quota' => 12], ['code' => 'PE', 'name' => 'Personal Leave', 'quota' => 12]];
 function hr_cfg() {
   $d = ['start' => '09:00', 'end' => '18:00', 'half_after' => '14:00', 'pay_day' => 6, 'grace' => 15, 'half_hours' => 0, 'full_hours' => 9, 'week_off' => [0], 'holidays' => HR_HOLIDAYS_2026,
-    'leave_types' => [['code' => 'SL', 'name' => 'Sick Leave', 'quota' => 12], ['code' => 'CL', 'name' => 'Casual Leave', 'quota' => 12], ['code' => 'EL', 'name' => 'Earned Leave', 'quota' => 15], ['code' => 'ML', 'name' => 'Maternity Leave', 'quota' => 182], ['code' => 'PL', 'name' => 'Paternity Leave', 'quota' => 5], ['code' => 'OT', 'name' => 'Other', 'quota' => 0], ['code' => 'LOP', 'name' => 'Unpaid Leave (LOP)', 'quota' => 0]]];
+    'leave_types' => HR_LEAVE_TYPES];
   $r = row("SELECT v FROM settings WHERE k='hr'"); $s = $r ? (json_decode($r['v'], true) ?: []) : [];
   if ($s && !isset($s['half_after'])) unset($s['start'], $s['half_hours'], $s['full_hours']); // settings saved before 9–6 office hours: take the new defaults
   if (empty($s['holidays']) && empty($s['holidays_set'])) unset($s['holidays']); // no list saved yet: use the 2026 office holiday list
@@ -194,7 +196,7 @@ function handle_hr($a) {
       $days = hr_days($from, $to, $half, $cfg); if ($days <= 0) fail('Those dates are all holidays or weekly offs');
       if (row("SELECT 1 FROM leaves WHERE user_id=? AND status IN ('Pending','Approved') AND from_date<=? AND to_date>=?", [$who, $to, $from])) fail('You already have leave on some of these dates');
       if ((float)$t['quota'] > 0) { $b = array_values(array_filter(hr_balance($who, substr($from, 0, 4), $cfg), fn($x) => $x['code'] === $type))[0];
-        if ($days > $b['left'] - $b['pending']) fail("Not enough {$t['name']} left: " . max(0, $b['left'] - $b['pending']) . " day(s) available. Choose Unpaid leave or fewer days."); }
+        if ($days > $b['left'] - $b['pending']) fail("Not enough {$t['name']} left: " . max(0, $b['left'] - $b['pending']) . " day(s) available. Choose fewer days or another leave type."); }
       $reason = trim((string)($in['reason'] ?? '')); if ($reason === '') fail('Add a reason');
       q('INSERT INTO leaves(user_id,type,from_date,to_date,half,days,reason,status) VALUES(?,?,?,?,?,?,?,?)', [$who, $type, $from, $to, $half, $days, mb_substr($reason, 0, 500), 'Pending']);
       $id = (int)db()->lastInsertId(); audit('leave_apply', 'leaves', $id, "{$type} {$from}→{$to} ({$days} d)");

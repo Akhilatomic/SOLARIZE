@@ -36,7 +36,7 @@ $att = fn($d) => $db->query("SELECT * FROM attendance WHERE user_id=$sid AND dat
 
 /* 1. full-day leave today, after the person already checked in */
 chk(call($staff, 'hr', 'punch', ['kind' => 'in'])['_code'] === 200, 'staff checked in today');
-$r = call($staff, 'hr', 'apply', ['type' => 'CL', 'from' => $today, 'to' => $day(1), 'reason' => 'Family function', 'approve' => 1]);
+$r = call($staff, 'hr', 'apply', ['type' => 'PE', 'from' => $today, 'to' => $day(1), 'reason' => 'Family function', 'approve' => 1]);
 chk($r['_code'] === 200 && empty($r['approved']), 'staff request waits for approval (cannot approve own)');
 $id = (int)$r['id'];
 $rv = call($admin, 'hr', 'review', null, "&id=$id");
@@ -49,7 +49,7 @@ chk(str_contains($note(), 'Leave approved') && str_contains($note(), 'Enjoy'), '
 $me = call($staff, 'hr', 'me');
 chk(!empty($me['on_leave']) && empty($me['today']), 'staff own button: on leave today');
 $t = call($admin, 'hr', 'today'); $row = array_values(array_filter($t['rows'], fn($x) => (int)$x['user_id'] === $sid))[0] ?? [];
-chk(($row['leave'] ?? '') === 'CL' && empty($row['check_in']), 'Today board shows the person on leave');
+chk(($row['leave'] ?? '') === 'PE' && empty($row['check_in']), 'Today board shows the person on leave');
 $w = call($admin, 'hr', 'range', null, "&from=$today&to=" . $day(1));
 chk(count(array_filter($w['leaves'], fn($x) => (int)$x['user_id'] === $sid)) === 1 && !array_filter($w['records'], fn($x) => (int)$x['user_id'] === $sid), 'weekly / monthly data: leave, no attendance entry');
 chk(call($staff, 'hr', 'punch', ['kind' => 'in'])['_code'] !== 200, 'check-in refused on an approved leave day');
@@ -66,7 +66,7 @@ chk(call($staff, 'hr', 'cancel', ['id' => $id2])['_code'] === 200, 'staff can ca
 chk((int)$db->query("SELECT COUNT(*) c FROM notifs WHERE kind='leave' AND user_id<>$sid")->fetch()['c'] === $n0 + 1, 'the approver is told about it');
 
 /* 3. rejected */
-$r = call($staff, 'hr', 'apply', ['type' => 'CL', 'from' => $day(8), 'to' => $day(8), 'reason' => 'Trip']); $id3 = (int)$r['id'];
+$r = call($staff, 'hr', 'apply', ['type' => 'PE', 'from' => $day(8), 'to' => $day(8), 'reason' => 'Trip']); $id3 = (int)$r['id'];
 chk(call($admin, 'hr', 'decide', ['id' => $id3, 'decision' => 'Rejected', 'note' => 'Site work that day'])['_code'] === 200 && str_contains($note(), 'Site work that day'), 'rejection reaches the staff with the reason');
 
 /* 4. manager enters leave for staff and approves in one step */
@@ -74,15 +74,29 @@ $db->prepare("INSERT INTO attendance(user_id,date,status,notes) VALUES(?,?,'Abse
 $r = call($admin, 'hr', 'apply', ['user_id' => $sid, 'type' => 'SL', 'from' => $day(-1), 'to' => $day(-1), 'reason' => 'Was sick', 'approve' => 1]);
 chk($r['_code'] === 200 && !empty($r['approved']) && (int)$r['cleared'] === 1 && !$att($day(-1)), 'entered and approved in one step; the Absent mark becomes leave');
 chk($db->query("SELECT status FROM leaves WHERE id=" . (int)$r['id'])->fetch()['status'] === 'Approved' && str_contains($note(), 'Leave approved'), 'leave is Approved and staff is told');
-$r = call($admin, 'hr', 'apply', ['user_id' => $sid, 'type' => 'CL', 'from' => $day(12), 'to' => $day(12), 'reason' => 'Asked by phone']);
+$r = call($admin, 'hr', 'apply', ['user_id' => $sid, 'type' => 'PE', 'from' => $day(12), 'to' => $day(12), 'reason' => 'Asked by phone']);
 chk($r['_code'] === 200 && empty($r['approved']) && str_contains($note(), 'entered a leave request for you'), 'without "approve now" it waits, and staff is told it was entered');
 
 /* 5. half-day leave keeps the attendance entry */
 $db->exec("DELETE FROM attendance WHERE user_id=$sid AND date='$today'");
 call($staff, 'hr', 'punch', ['kind' => 'in']);
-$r = call($staff, 'hr', 'apply', ['type' => 'CL', 'from' => $today, 'to' => $today, 'half' => 'second', 'reason' => 'Bank work']);
+$r = call($staff, 'hr', 'apply', ['type' => 'PE', 'from' => $today, 'to' => $today, 'half' => 'second', 'reason' => 'Bank work']);
 $r2 = call($admin, 'hr', 'decide', ['id' => (int)$r['id'], 'decision' => 'Approved']);
 chk($r2['_code'] === 200 && (int)$r2['cleared'] === 0 && $att($today), 'half-day leave keeps the check-in for the half worked');
 
 $db->exec("DELETE FROM leaves WHERE user_id=$sid"); $db->exec("DELETE FROM attendance WHERE user_id=$sid"); $db->exec("DELETE FROM notifs WHERE kind='leave'"); $db->exec("DELETE FROM settings WHERE k='hr'");
+$t = array_column(call($admin, 'hr', 'me')['cfg']['leave_types'], 'code');
+chk($t === ['EM', 'SL', 'PE'], 'leave types are Emergency, Sick, Personal only');
+chk(call($admin, 'hr', 'apply', ['type' => 'CL', 'from' => $day(20), 'to' => $day(20), 'reason' => 'x'])['_code'] !== 200, 'Casual leave can no longer be requested');
+/* upgrade of an office that saved the old type list and has old leaves */
+$db->exec("DELETE FROM settings WHERE k='hr_types_rev'");
+$db->prepare("INSERT OR REPLACE INTO settings(k,v) VALUES('hr',?)")->execute([json_encode(['start' => '09:30', 'half_after' => '14:00', 'leave_types' => [['code' => 'SL', 'name' => 'Sick Leave', 'quota' => 12], ['code' => 'CL', 'name' => 'Casual Leave', 'quota' => 12], ['code' => 'LOP', 'name' => 'Unpaid', 'quota' => 0]]])]);
+$db->exec("INSERT INTO leaves(user_id,type,from_date,to_date,days,reason,status) VALUES($sid,'CL','2026-01-05','2026-01-05',1,'old','Approved'),($sid,'LOP','2026-01-06','2026-01-06',1,'old','Approved')");
+$db->exec('PRAGMA user_version=66'); $db = null;
+$c = call($admin, 'hr', 'me')['cfg'];
+chk(array_column($c['leave_types'], 'code') === ['EM', 'SL', 'PE'] && $c['start'] === '09:30', 'upgrade replaces a saved type list and keeps the other settings');
+$db = new PDO('sqlite:' . $dbPath); $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+$ty = array_column($db->query("SELECT type FROM leaves WHERE user_id=$sid ORDER BY from_date")->fetchAll(), 'type');
+chk($ty === ['PE', 'LOP'], 'old Casual leave is kept as Personal; old unpaid leave untouched');
+$db->exec("DELETE FROM leaves WHERE user_id=$sid"); $db->exec("DELETE FROM settings WHERE k='hr'");
 echo "  $pass passed, $fail failed\n"; exit($fail ? 1 : 0);
