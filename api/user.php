@@ -30,7 +30,11 @@ function handle_user($a) {
       $now = time(); $act = !empty($_GET['act']); $me = uid();
       $u0 = row('SELECT seen_at, active_at FROM users WHERE id=?', [$me]);
       if ($u0 && ($now - (int)$u0['seen_at'] >= 40 || ($act && $now - (int)$u0['active_at'] >= 40))) /* at most one write a minute per tab */
+      {
         q('UPDATE users SET seen_at=?' . ($act ? ', active_at=?' : '') . ' WHERE id=?', $act ? [$now, $now, $me] : [$now, $me]);
+        /* working past office end time ("Continue working"): remember when the CRM was last used, for the check-out time if they forget */
+        if ($act) q("UPDATE attendance SET last_act=? WHERE user_id=? AND date=? AND cont=1 AND COALESCE(check_out,'')=''", [date('H:i'), $me, date('Y-m-d')]);
+      }
       $in = []; foreach (rows("SELECT user_id, check_in FROM attendance WHERE date=? AND COALESCE(check_in,'')<>'' AND COALESCE(check_out,'')=''", [date('Y-m-d')]) as $r) $in[(int)$r['user_id']] = $r['check_in'];
       $list = []; $team = !empty($_GET['team']); /* team=1 (the dashboard's Who's online): names, roles and pictures too */
       foreach (rows('SELECT id, name, role, avatar, seen_at, active_at FROM users WHERE active=1') as $u) {

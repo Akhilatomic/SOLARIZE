@@ -62,9 +62,28 @@ function hr_balance($uid, $year, $cfg) {
 function hr_dt($v, $label) { $v = trim((string)$v); if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $v)) fail("$label: choose a date"); return $v; }
 function hr_tm($v) { $v = trim((string)$v); return preg_match('/^\d{2}:\d{2}$/', $v) ? $v : ''; }
 function hr_mins($t) { return $t ? ((int)substr($t, 0, 2)) * 60 + (int)substr($t, 3, 2) : 0; }
+/* Auto check-out. Someone still checked in at office end time is checked out at that time, unless they chose "Continue working"
+   (attendance.cont). A continued day nobody closed is closed after midnight with the last time the person used the CRM that day
+   (attendance.last_act, kept by the presence heartbeat in user.php).
+   Runs on every hr request (every open CRM asks hr/me once a minute), so it also works for people who closed the CRM. */
+function hr_auto_out($cfg) {
+  [$d, $t] = hr_now(); $end = hr_tm($cfg['end'] ?? '') ?: '18:00';
+  /* days left open before this feature arrived stay as they are: the first run stores its date */
+  $from = row("SELECT v FROM settings WHERE k='hr_auto_from'")['v'] ?? '';
+  if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) { $from = $d; q("INSERT OR REPLACE INTO settings(k,v) VALUES('hr_auto_from',?)", [$from]); }
+  foreach (rows("SELECT a.id, a.date, a.check_in, COALESCE(a.cont,0) cont, a.last_act FROM attendance a WHERE COALESCE(a.check_in,'')<>'' AND COALESCE(a.check_out,'')='' AND a.date>=?", [$from]) as $r) {
+    $past = $r['date'] < $d;
+    if (!$past && ((int)$r['cont'] || $t < $end)) continue;
+    $o = $end;
+    if ((int)$r['cont'] && hr_tm($r['last_act'] ?? '')) $o = max($end, $r['last_act']);
+    $o = max($o, $r['check_in']);
+    q("UPDATE attendance SET check_out=?, auto_out=1, updated=CURRENT_TIMESTAMP WHERE id=? AND COALESCE(check_out,'')=''", [$o, $r['id']]);
+  }
+}
 
 function handle_hr($a) {
   $in = body(); $cfg = hr_cfg(); $uid = uid();
+  try { hr_auto_out($cfg); } catch (Throwable $e) { }
   switch ($a) {
     case 'me':
       need('attendance');
@@ -82,8 +101,10 @@ function handle_hr($a) {
         $lv = hr_leave_on($uid, $d); if ($lv && $lv['half'] === '') fail("You are on approved leave today ({$lv['type']}), so attendance can't be marked. Ask a manager to cancel the leave if you are working.");
         $late = hr_mins($t) > hr_mins($cfg['start']) + (int)$cfg['grace'];
         $st = hr_mins($t) >= hr_mins($cfg['half_after']) ? 'Half day' : ($late ? 'Late' : 'Present');
-        if ($r) q('UPDATE attendance SET check_in=?, in_lat=?, in_lng=?, in_acc=?, status=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$t, $lat, $lng, $acc, $st, $r['id']]);
-        else q('INSERT INTO attendance(user_id,date,check_in,in_lat,in_lng,in_acc,status) VALUES(?,?,?,?,?,?,?)', [$uid, $d, $t, $lat, $lng, $acc, $st]);
+        $ct = $t >= (hr_tm($cfg['end'] ?? '') ?: '18:00') ? 1 : 0; /* checked in after office end time: no auto check-out today */
+        if ($r) q('UPDATE attendance SET check_in=?, in_lat=?, in_lng=?, in_acc=?, status=?, cont=?, auto_out=0, updated=CURRENT_TIMESTAMP WHERE id=?', [$t, $lat, $lng, $acc, $st, $ct, $r['id']]);
+        else q('INSERT INTO attendance(user_id,date,check_in,in_lat,in_lng,in_acc,status,cont) VALUES(?,?,?,?,?,?,?,?)', [$uid, $d, $t, $lat, $lng, $acc, $st, $ct]);
+        if ($ct) q('UPDATE attendance SET last_act=? WHERE user_id=? AND date=?', [$t, $uid, $d]);
         $place = hr_place($lat, $lng); if ($place !== '') q('UPDATE attendance SET in_place=? WHERE user_id=? AND date=?', [$place, $uid, $d]);
         audit('check_in', 'attendance', $uid, $t . ($late ? ' (late)' : '') . ($place ? ' @ ' . $place : '')); out(['ok' => true, 'time' => $t, 'late' => $late, 'status' => $st, 'place' => $place]);
       }
@@ -91,12 +112,19 @@ function handle_hr($a) {
       if ($r['check_out']) fail('You already checked out at ' . $r['check_out']);
       $hrs = max(0, hr_mins($t) - hr_mins($r['check_in'])) / 60;
       $status = (hr_mins($t) < hr_mins($cfg['half_after']) || ((float)$cfg['half_hours'] > 0 && $hrs < (float)$cfg['half_hours'])) ? 'Half day' : $r['status'];
-      q('UPDATE attendance SET check_out=?, out_lat=?, out_lng=?, out_acc=?, status=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$t, $lat, $lng, $acc, $status, $r['id']]);
+      q('UPDATE attendance SET check_out=?, out_lat=?, out_lng=?, out_acc=?, status=?, auto_out=0, updated=CURRENT_TIMESTAMP WHERE id=?', [$t, $lat, $lng, $acc, $status, $r['id']]);
       $place = hr_place($lat, $lng); if ($place !== '') q('UPDATE attendance SET out_place=? WHERE id=?', [$place, $r['id']]);
       audit('check_out', 'attendance', $uid, $t . ($place ? ' @ ' . $place : '')); out(['ok' => true, 'time' => $t, 'hours' => round($hrs, 2), 'status' => $status, 'early' => hr_mins($t) < hr_mins($cfg['end']), 'place' => $place]);
+    case 'continue': /* keep working past office end time: no auto check-out today (also undoes today's auto check-out) */
+      need('attendance');
+      [$d] = hr_now(); $r = row('SELECT * FROM attendance WHERE user_id=? AND date=?', [$uid, $d]);
+      if (!$r || !$r['check_in']) fail('Check in first');
+      if ($r['check_out'] && !(int)($r['auto_out'] ?? 0)) fail('You already checked out at ' . $r['check_out']);
+      q('UPDATE attendance SET cont=1, auto_out=0, check_out=NULL, last_act=?, updated=CURRENT_TIMESTAMP WHERE id=?', [date('H:i'), $r['id']]);
+      audit('att_continue', 'attendance', $uid, 'Continue working past ' . $cfg['end']); out(['ok' => true]);
     case 'today':
       need('attendance', true); [$d] = hr_now(); hr_fill_places();
-      out(['date' => $d, 'rows' => rows("SELECT u.id user_id, u.name, u.role, a.check_in, a.check_out, a.status, a.in_lat, a.in_lng, a.out_lat, a.out_lng, a.in_place, a.out_place, a.notes,
+      out(['date' => $d, 'rows' => rows("SELECT u.id user_id, u.name, u.role, a.check_in, a.check_out, a.status, a.in_lat, a.in_lng, a.out_lat, a.out_lng, a.in_place, a.out_place, a.notes, a.auto_out, a.cont,
         (SELECT type || CASE WHEN half<>'' THEN ' (half)' ELSE '' END FROM leaves l WHERE l.user_id=u.id AND l.status='Approved' AND ? BETWEEN l.from_date AND l.to_date LIMIT 1) leave
         FROM users u LEFT JOIN attendance a ON a.user_id=u.id AND a.date=? WHERE u.active=1 ORDER BY u.name", [$d, $d])]);
     case 'month':
@@ -125,7 +153,7 @@ function handle_hr($a) {
       if ($ci && $co && hr_mins($co) < hr_mins($ci)) fail('Check-out must be after check-in');
       $lv = hr_leave_on($u, $d); if ($lv && $lv['half'] === '' && empty($in['clear'])) fail("Approved leave ({$lv['type']}) on $d — cancel the leave first to mark attendance.");
       if (($in['clear'] ?? 0)) { q('DELETE FROM attendance WHERE user_id=? AND date=?', [$u, $d]); audit('att_clear', 'attendance', $u, $d); out(['ok' => true]); }
-      q('INSERT INTO attendance(user_id,date,check_in,check_out,status,notes,edited_by) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id,date) DO UPDATE SET check_in=excluded.check_in, check_out=excluded.check_out, status=excluded.status, notes=excluded.notes, edited_by=excluded.edited_by, updated=CURRENT_TIMESTAMP',
+      q('INSERT INTO attendance(user_id,date,check_in,check_out,status,notes,edited_by) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id,date) DO UPDATE SET check_in=excluded.check_in, check_out=excluded.check_out, status=excluded.status, notes=excluded.notes, edited_by=excluded.edited_by, auto_out=0, updated=CURRENT_TIMESTAMP',
         [$u, $d, $ci ?: null, $co ?: null, $st, $note, $_SESSION['name'] ?? '']);
       audit('att_edit', 'attendance', $u, "$d $st $ci-$co" . ($note ? " · $note" : '')); out(['ok' => true]);
 

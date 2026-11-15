@@ -8,7 +8,14 @@ const placeCell = (lbl, place, lat, lng, acc) => lat ? `<div class="aplace"><sma
 const mapLink = (lat, lng) => lat ? `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" title="Open location"><i class="i i-target"></i></a>` : '';
 const ATT = { Present: 'g', Late: 'y', 'Half day': 'y', Absent: 'r', 'On duty': 'b' };
 
-async function hrMe() { try { HR.me = await api('hr', 'me'); } catch (e) { HR.me = null; } drawPunch(); hrBadge(); hrPending(); return HR.me; }
+async function hrMe() {
+  const was = HR.me && HR.me.today;
+  try { HR.me = await api('hr', 'me'); } catch (e) { HR.me = null; }
+  drawPunch(); hrBadge(); hrPending();
+  const t = HR.me && HR.me.today; /* the CRM checked this person out at office end time while they were looking: say so and offer to continue */
+  if (was && was.check_in && !was.check_out && t && t.date === was.date && t.check_out && +t.auto_out) { HR.wk = null; toast('Checked out automatically at ' + t.check_out); pnOpen(); if (location.hash.startsWith('#/attendance')) route(); }
+  return HR.me;
+}
 // leave requests waiting for approval → bell + toast for managers
 async function hrPending() {
   if (!HR.me || !HR.me.manage_lv) { HR.pend = []; return; }
@@ -49,17 +56,111 @@ async function punch(kind, btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'Getting location…'; }
   const loc = await getLoc();
   try { const r = await api('hr', 'punch', { kind, ...loc }); toast(kind === 'in' ? `Checked in at ${r.time}${r.status === 'Half day' ? ' (half day)' : r.late ? ' (late)' : ''}${loc.lat ? (r.place ? ' · ' + r.place : '') : ' · location not shared'}` : `Checked out at ${r.time} · ${fmtH(r.hours)}${r.status === 'Half day' ? ' · half day' : r.early ? ' · left early' : ''}`); }
-  finally { await hrMe(); if (location.hash.startsWith('#/attendance')) route(); }
+  finally { if (btn) btn.disabled = false; HR.wk = null; await hrMe(); if (location.hash.startsWith('#/attendance')) route(); }
 }
+// keep working past office end time: no auto check-out today (also takes back today's auto check-out)
+async function pnContinue(btn) {
+  if (btn) btn.disabled = true;
+  try { await api('hr', 'continue', {}); toast('Still checked in · remember to check out when you finish'); }
+  finally { HR.wk = null; await hrMe(); if (location.hash.startsWith('#/attendance')) route(); }
+}
+const pnNow = () => new Date().toTimeString().slice(0, 5);
+const pnMin = t => +t.slice(0, 2) * 60 + +t.slice(3);
+const pnDur = m => Math.floor(m / 60) + 'h ' + String(Math.round(m % 60)).padStart(2, '0') + 'm';
+const pnEnd = () => (HR.me && HR.me.cfg && HR.me.cfg.end) || '18:00';
+const pnDays = n => (n % 1 ? (Math.floor(n) || '') + '½' : n) + ' day' + (n === 1 || n === .5 ? '' : 's');
+const PN_WARN = 10, PN_OFFER = 30; /* minutes before office end time: the card opens by itself · "Continue working" can be chosen */
+// minutes left until the auto check-out (null when it does not apply: not in, already out, or continuing)
+function pnLeft() { const t = HR.me && HR.me.today; if (!t || !t.check_in || t.check_out || +t.cont) return null; return pnMin(pnEnd()) - pnMin(pnNow()); }
+// this week's attendance (Monday to Sunday) for the signed-in person; kept for 5 minutes
+async function pnWeekLoad() {
+  const mon = new Date(); mon.setDate(mon.getDate() - (mon.getDay() + 6) % 7); const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const from = ymd2(mon);
+  if (HR.wk && HR.wk.from === from && Date.now() - HR.wk.at < 300000) return HR.wk.d;
+  const d = await api('hr', 'range', undefined, `&from=${from}&to=${ymd2(sun)}&mine=1`);
+  HR.wk = { from, at: Date.now(), d }; return d;
+}
+function pnWeekHtml(d) {
+  const [y, m, dd] = d.from.split('-').map(Number), td = ymd2(new Date()), me = d.users[0] ? d.users[0].id : 0;
+  const hol = Object.fromEntries(d.cfg.holidays.map(h => [h.date, h.name])), rec = Object.fromEntries(d.records.map(r => [r.date, r]));
+  if (HR.me && HR.me.today) rec[td] = HR.me.today;
+  let days = 0, mins = 0; const rows = [];
+  for (let i = 0; i < 7; i++) {
+    const x = new Date(y, m - 1, dd + i), ds = ymd2(x), r = rec[ds], l = d.leaves.find(v => v.user_id == me && ds >= v.from_date && ds <= v.to_date), off = d.cfg.week_off.includes(x.getDay());
+    let k = '–', c = '', txt = '', h = '';
+    if (r && r.status === 'Absent') { k = 'A'; c = 'ab'; txt = 'Absent'; }
+    else if (r && r.check_in) { k = { Present: 'P', Late: 'L', 'Half day': 'HD', 'On duty': 'OD' }[r.status] || 'P'; c = { Present: 'pr', Late: 'lt', 'Half day': 'hd', 'On duty': 'od' }[r.status] || 'pr';
+      const out = r.check_out || (ds === td ? pnNow() : ''), mn = out ? Math.max(0, pnMin(out) - pnMin(r.check_in)) : 0; mins += mn; days += r.status === 'Half day' ? .5 : 1;
+      txt = `${esc(r.check_in)} – ${r.check_out ? esc(r.check_out) : ds === td ? 'now' : 'no check-out'}${+r.auto_out ? ' <span class="pn-auto" title="Checked out automatically at office end time">auto</span>' : ''}`; h = mn ? pnDur(mn) : ''; }
+    else if (r && r.status) { k = 'OD'; c = 'od'; txt = esc(r.status); days += r.status === 'Half day' ? .5 : 1; }
+    else if (l) { k = 'LV'; c = 'lv'; txt = 'Leave · ' + esc(l.type); }
+    else if (hol[ds]) { k = 'H'; c = 'ho'; txt = esc(hol[ds]); }
+    else if (off) continue;
+    else if (ds < td) { k = 'A'; c = 'ab'; txt = 'Absent'; }
+    else if (ds === td) txt = 'Not checked in';
+    rows.push(`<div class="pn-d${ds === td ? ' pn-td' : ''}${ds > td ? ' pn-fu' : ''}"><span class="pn-dn">${WD[x.getDay()]} <small>${x.getDate()}</small></span><span class="ac ${c}">${k}</span><span class="pn-dt">${txt}</span><span class="pn-dh">${h}</span></div>`);
+  }
+  return `<div class="pn-wkh">This week</div>${rows.join('')}<div class="pn-tot"><span>Total</span><b>${pnDays(days)} · ${mins ? pnDur(mins) : '0h'}</b></div>`;
+}
+// fills every week box on screen (card under the top-bar button, Attendance page)
+async function pnWeekFill() {
+  if (!$('.pn-wk')) return;
+  try { const d = await pnWeekLoad(); $$('.pn-wk').forEach(b => b.innerHTML = pnWeekHtml(d)); } catch (e) { $$('.pn-wk').forEach(b => b.innerHTML = '<small class="mut">Could not load this week.</small>'); }
+}
+// the line about auto check-out + its buttons, shared by the card and the Attendance page
+function pnNote() {
+  const t = HR.me && HR.me.today, end = pnEnd(); if (!t || !t.check_in) return '';
+  if (t.check_out) return +t.auto_out ? `<div class="pn-note"><span>Checked out automatically at ${esc(t.check_out)}. Still working?</span><button class="btn sec sm" data-pncont>Continue working</button></div>` : '';
+  if (+t.cont) return `<div class="pn-note"><span>Working past ${esc(end)} · no auto check-out today. Remember to check out when you finish.</span></div>`;
+  const left = pnLeft();
+  if (left > PN_OFFER) return `<div class="pn-note pn-q"><span>Auto check-out at ${esc(end)}</span></div>`;
+  return `<div class="pn-note${left <= PN_WARN ? ' pn-warn' : ''}"><span>Auto check-out at ${esc(end)}${left > 0 ? ` · in ${left} min` : ''}. Staying longer?</span><button class="btn sec sm" data-pncont>Continue working</button></div>`;
+}
+function pnBind(root) {
+  $$('[data-pncont]', root).forEach(b => b.onclick = e => { e.stopPropagation(); pnContinue(b); });
+  $$('[data-pnout]', root).forEach(b => b.onclick = e => { e.stopPropagation(); punch('out', b); });
+}
+function pnCard() {
+  const c = $('#pncard'), t = HR.me && HR.me.today; if (!c || c.classList.contains('hide')) return;
+  if (!t || !t.check_in) return pnClose();
+  const worked = Math.max(0, pnMin(t.check_out || pnNow()) - pnMin(t.check_in));
+  c.innerHTML = `<div class="pn-h"><div><small>${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</small><b>${pnDur(worked)}</b><span class="mut">${t.check_out ? 'worked today' : 'so far today'}</span></div>${pill(t.status, ATT[t.status])}</div>
+   <div class="pn-io"><div><small>Check in</small><b>${esc(t.check_in)}</b></div><div><small>Check out</small><b>${t.check_out ? esc(t.check_out) : '—'}</b></div></div>
+   ${pnNote()}
+   ${t.check_out ? '' : '<button class="btn pn-out" data-pnout><i class="i i-clock"></i> Check out</button>'}
+   <div class="pn-wk">${HR.wk ? pnWeekHtml(HR.wk.d) : '<small class="mut">Loading this week…</small>'}</div>
+   <a class="pn-more" href="#/attendance">Open attendance</a>`;
+  pnBind(c); $('.pn-more', c).onclick = () => pnClose(); pnWeekFill();
+}
+function pnOpen() { const c = $('#pncard'); if (!c) return; c.classList.remove('hide'); const p = $('#bellp'); if (p) p.classList.add('hide'); pnCard(); }
+function pnClose() { const c = $('#pncard'); if (c) c.classList.add('hide'); }
 // top-bar check-in / check-out button
 function drawPunch() {
   const top = $('.top'); if (!top || !canR('attendance')) return;
-  let b = $('#punch'); if (!b) { b = document.createElement('button'); b.id = 'punch'; b.className = 'btn sm'; top.insertBefore(b, $('#pwb')); }
-  const t = HR.me && HR.me.today;
-  if (HR.me && HR.me.on_leave && !t) { b.className = 'btn sec sm'; b.innerHTML = '<i class="i i-leave"></i><span class="pl"> On leave</span>'; b.onclick = () => location.hash = '#/leaves'; return; }
-  if (!t || !t.check_in) { b.className = 'btn sm'; b.innerHTML = '<i class="i i-clock"></i><span class="pl"> Check in</span><span class="ps"> In</span>'; b.onclick = () => punch('in', b); }
-  else if (!t.check_out) { b.className = 'btn ok sm'; b.innerHTML = `<i class="i i-clock"></i><span class="pl"> In since ${t.check_in} · Check out</span><span class="ps"> Out</span>`; b.onclick = () => { if (confirm('Check out now?')) punch('out', b); }; }
-  else { b.className = 'btn sec sm'; b.innerHTML = `<i class="i i-check"></i><span class="pl"> ${t.check_in}–${t.check_out}</span>`; b.onclick = () => location.hash = '#/attendance'; }
+  let w = $('#pnw');
+  if (!w) { w = document.createElement('div'); w.id = 'pnw'; w.innerHTML = '<button id="punch" class="btn sm"></button><div id="pncard" class="card hide"></div>'; top.insertBefore(w, $('#pwb'));
+    $('#pncard').onclick = e => e.stopPropagation(); }
+  if (!HR.pnDoc) { HR.pnDoc = 1; document.addEventListener('click', e => { if (!e.target.closest('#pnw')) pnClose(); }); document.addEventListener('keydown', e => { if (e.key === 'Escape') pnClose(); }); window.addEventListener('hashchange', pnClose); }
+  const b = $('#punch'), t = HR.me && HR.me.today, tog = e => { e.stopPropagation(); $('#pncard').classList.contains('hide') ? pnOpen() : pnClose(); };
+  if (HR.me && HR.me.on_leave && !t) { b.className = 'btn sec sm'; b.title = ''; b.innerHTML = '<i class="i i-leave"></i><span class="pl"> On leave</span>'; b.onclick = () => location.hash = '#/leaves'; pnClose(); }
+  else if (!t || !t.check_in) { b.className = 'btn sm'; b.title = 'Start your day'; b.innerHTML = '<i class="i i-clock"></i><span class="pl"> Check in</span><span class="ps"> In</span>'; b.onclick = () => punch('in', b); pnClose(); }
+  else if (!t.check_out) { const left = pnLeft(), dur = pnDur(Math.max(0, pnMin(pnNow()) - pnMin(t.check_in)));
+    b.className = 'btn sm pn-on' + (left !== null && left <= PN_WARN ? ' pn-soon' : ''); b.title = 'Checked in at ' + t.check_in + ' · click to check out';
+    b.innerHTML = `<span class="pn-dot"></span><span class="pl">${esc(t.check_in)} · <b>${dur}</b></span><span class="ps">${dur}</span><span class="pn-cv"></span>`; b.onclick = tog; }
+  else { b.className = 'btn sec sm pn-done'; b.title = 'Today’s attendance'; b.innerHTML = `<i class="i i-check"></i><span class="pl"> ${esc(t.check_in)} – ${esc(t.check_out)}${+t.auto_out ? ' <span class="pn-auto">auto</span>' : ''}</span>`; b.onclick = tog; }
+  pnCard(); pnWatch();
+}
+// every 20 s: running time on the button, the card opens 10 minutes before office end time, and the server is asked again at end time
+function pnWatch() {
+  if (HR.pnT) return;
+  HR.pnT = setInterval(() => {
+    const t = HR.me && HR.me.today; if (!t || !t.check_in || t.check_out || !$('#punch')) return;
+    const left = pnLeft(), day = HR.me.date;
+    if (left !== null && left <= 0) { if (HR.pnAsked !== day + pnNow()) { HR.pnAsked = day + pnNow(); hrMe(); } return; } /* office end time: the server checks out */
+    drawPunch();
+    if (left !== null && left <= PN_WARN && HR.pnWarned !== day) { HR.pnWarned = day; pnOpen();
+      if ('Notification' in window && Notification.permission === 'granted' && document.hidden) try { new Notification('Auto check-out at ' + pnEnd(), { body: 'Open the CRM and choose Continue working if you are staying longer.' }); } catch (e) { } }
+  }, 20000);
 }
 function hrBadge() {
   const a = $('aside a[data-m="leaves"]'); if (!a) return; let b = a.querySelector('.nb');
@@ -81,11 +182,13 @@ async function pgAttendance() {
      ${me.on_leave && !t ? `<p class="mut">You are on approved leave today (${esc(me.on_leave.type)}).</p>` : ''}
      <div class="pstat">${t && t.check_in ? pill(t.status, ATT[t.status]) : pill('Not checked in')}</div>
      <div class="pgrid"><div><small>Check in</small><b>${hmAgo(t && t.check_in)}</b></div><div><small>Check out</small><b>${hmAgo(t && t.check_out)}</b></div><div><small>Worked</small><b>${fmtH(worked)}</b></div></div>
-     ${!t || !t.check_in ? '<button class="btn pbig" id="pin"><i class="i i-clock"></i> Check in</button>' : !t.check_out ? '<button class="btn ok pbig" id="pout"><i class="i i-clock"></i> Check out</button>' : '<p class="mut" style="text-align:center;margin:8px 0 0">Done for today 👍</p>'}
+     ${!t || !t.check_in ? '<button class="btn pbig" id="pin"><i class="i i-clock"></i> Check in</button>' : !t.check_out ? '<button class="btn ok pbig" id="pout"><i class="i i-clock"></i> Check out</button>' : '<p class="mut" style="text-align:center;margin:8px 0 0">Done for today</p>'}
+     ${pnNote()}
+     <div class="pn-wk"><small class="mut">Loading this week…</small></div>
      <p class="mut" style="font-size:12px;margin:10px 0 0">Your location is recorded with each check-in/out if you allow it — useful for site visits.</p></div>
     <div id="atb"></div></div>`;
   const tick = setInterval(() => { const c = $('#pclock'); if (!c) return clearInterval(tick); c.textContent = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }); }, 15000);
-  if ($('#pin')) $('#pin').onclick = e => punch('in', e.currentTarget); if ($('#pout')) $('#pout').onclick = e => punch('out', e.currentTarget);
+  if ($('#pin')) $('#pin').onclick = e => punch('in', e.currentTarget); if ($('#pout')) $('#pout').onclick = e => punch('out', e.currentTarget); pnBind($('.punchcard')); pnWeekFill();
   $$('[data-at]').forEach(b => b.onclick = () => { HR.attTab = b.dataset.at; pgAttendance(); });
   if (HR.attTab === 'today' && mgr) return attToday();
   if (HR.attTab === 'week' && mgr) return attWeek(false);
@@ -97,7 +200,7 @@ async function attToday() {
   box.innerHTML = `<div class="grid stats" style="margin-bottom:12px">${[['Present', d.rows.filter(r => r.check_in).length, 'g'], ['Late', cnt('Late'), 'y'], ['On leave', cnt('leave'), 'b'], ['Not in yet', cnt('absent'), 'r']].map(([l, v]) => `<div class="card stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
    <div class="card tw" style="padding:0"><table id="att"><thead><tr><th>Staff</th><th>Status</th><th>In</th><th>Out</th><th>Hours</th><th>Location</th><th class="right">Edit</th></tr></thead><tbody>
    ${d.rows.map(r => `<tr><td><b>${esc(r.name)}</b><br><small class="mut">${esc((S.role_names || {})[r.role] || r.role)}</small></td><td>${r.leave ? pill('Leave · ' + r.leave, 'b') : r.status ? pill(r.status, ATT[r.status]) : pill('Not in', 'r')}${r.notes ? `<br><small class="mut">${esc(r.notes)}</small>` : ''}</td>
-     <td>${hmAgo(r.check_in)}</td><td>${hmAgo(r.check_out)}${r.check_out && r.check_out < (HR.me.cfg.end || '18:00') ? ' <span class="pill y" title="Left before office end">early</span>' : ''}</td><td>${fmtH(hrsBetween(r.check_in, r.check_out))}</td><td>${placeCell('In', r.in_place, r.in_lat, r.in_lng) + placeCell('Out', r.out_place, r.out_lat, r.out_lng) || (r.check_in ? '<small class="mut">Not shared</small>' : '')}</td>
+     <td>${hmAgo(r.check_in)}</td><td>${hmAgo(r.check_out)}${+r.auto_out ? ' <span class="pn-auto" title="Checked out automatically at office end time">auto</span>' : ''}${r.check_out && r.check_out < (HR.me.cfg.end || '18:00') ? ' <span class="pill y" title="Left before office end">early</span>' : ''}</td><td>${fmtH(hrsBetween(r.check_in, r.check_out))}</td><td>${placeCell('In', r.in_place, r.in_lat, r.in_lng) + placeCell('Out', r.out_place, r.out_lat, r.out_lng) || (r.check_in ? '<small class="mut">Not shared</small>' : '')}</td>
      <td class="right"><button class="ib" data-ed="${r.user_id}" title="Correct attendance"><i class="i i-pencil"></i></button></td></tr>`).join('')}</tbody></table></div>`;
   $$('[data-ed]', box).forEach(b => b.onclick = () => { const r = d.rows.find(x => x.user_id == b.dataset.ed); attEdit({ user_id: r.user_id, name: r.name, date: d.date, ...r }, attToday); });
 }
@@ -233,7 +336,7 @@ async function attWeek(mine) {
     if (r && r.status === 'Absent') return { k: 'A', c: 'ab', pay: 0, work: 1, tip: 'Absent' + (r.notes ? ' · ' + r.notes : '') };
     if (r && (r.check_in || r.status)) { const hd = r.status === 'Half day', h = hrsBetween(r.check_in, r.check_out);
       return { k: { Present: 'P', Late: 'L', 'Half day': 'HD', 'On duty': 'OD' }[r.status] || 'P', c: { Present: 'pr', Late: 'lt', 'Half day': 'hd', 'On duty': 'od' }[r.status] || 'pr', pay: hd ? .5 : 1, work: d.cfg.week_off.includes(wd) || hol[ds] ? 0 : 1, hrs: h, late: r.status === 'Late', hd, early: r.check_out && r.check_out < (d.cfg.end || '18:00') && !hd,
-        tip: `${r.status} ${r.check_in || ''}${r.check_out ? '–' + r.check_out : ' (no check-out)'}${r.in_place ? ' · in at ' + r.in_place : ''}${r.out_place && r.out_place !== r.in_place ? ' · out at ' + r.out_place : ''}${r.notes ? ' · ' + r.notes : ''}` }; }
+        tip: `${r.status} ${r.check_in || ''}${r.check_out ? '–' + r.check_out + (+r.auto_out ? ' (auto check-out)' : '') : ' (no check-out)'}${r.in_place ? ' · in at ' + r.in_place : ''}${r.out_place && r.out_place !== r.in_place ? ' · out at ' + r.out_place : ''}${r.notes ? ' · ' + r.notes : ''}` }; }
     if (hol[ds]) return { k: 'H', c: 'ho', pay: d.cfg.week_off.includes(wd) ? 0 : 1, work: 0, tip: 'Holiday · ' + hol[ds] };
     if (d.cfg.week_off.includes(wd)) return { k: 'WO', c: 'wo', pay: 0, work: 0, tip: 'Weekly off' };
     if (l) { const p = paid[l.type] ? (l.half ? .5 : 1) : 0; return { k: l.half ? 'HL' : 'LV', c: 'lv', pay: p, work: 1, lv: l.half ? .5 : 1, lop: paid[l.type] ? 0 : (l.half ? .5 : 1), tip: 'Leave · ' + l.type + (paid[l.type] ? ' (paid)' : ' (unpaid)') }; }

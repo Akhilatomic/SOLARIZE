@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 65; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 66; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -162,6 +162,9 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS geo_cache(k TEXT PRIMARY KEY, name TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $ac = array_column($db->query('PRAGMA table_info(attendance)')->fetchAll(), 'name');
   foreach (['in_place', 'out_place'] as $c) if ($ac && !in_array($c, $ac)) { try { $db->exec("ALTER TABLE attendance ADD COLUMN $c TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  /* v66: cont = chose "Continue working" past office end time · auto_out = checked out by the CRM, not by the person */
+  foreach (['cont', 'auto_out'] as $c) if ($ac && !in_array($c, $ac)) { try { $db->exec("ALTER TABLE attendance ADD COLUMN $c INTEGER DEFAULT 0"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  if ($ac && !in_array('last_act', $ac)) { try { $db->exec("ALTER TABLE attendance ADD COLUMN last_act TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } } /* last time the CRM was used while continuing */
   $uc = array_column($db->query('PRAGMA table_info(users)')->fetchAll(), 'name');
   if (!in_array('can_claim', $uc)) {
     try { $db->exec('ALTER TABLE users ADD COLUMN can_claim INTEGER DEFAULT 0'); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; }
@@ -185,7 +188,7 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS wa_chats(id INTEGER PRIMARY KEY AUTOINCREMENT, wa_id TEXT UNIQUE, name TEXT DEFAULT '', lead_id INTEGER, customer_id INTEGER, assigned_to INTEGER, last_msg TEXT DEFAULT '', last_at TEXT, last_in_at TEXT, last_in_wamid TEXT DEFAULT '', unread INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE TABLE IF NOT EXISTS wa_msgs(id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER, dir TEXT, type TEXT, body TEXT DEFAULT '', wamid TEXT DEFAULT '', status TEXT DEFAULT '', error TEXT DEFAULT '', user TEXT DEFAULT '', media_id TEXT DEFAULT '', file_path TEXT DEFAULT '', filename TEXT DEFAULT '', mime TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec('CREATE INDEX IF NOT EXISTS wam_chat ON wa_msgs(chat_id, id)'); $db->exec('CREATE INDEX IF NOT EXISTS wam_wamid ON wa_msgs(wamid)');
-  $db->exec("CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, check_in TEXT, check_out TEXT, in_lat REAL, in_lng REAL, in_acc INTEGER, out_lat REAL, out_lng REAL, out_acc INTEGER, in_place TEXT DEFAULT '', out_place TEXT DEFAULT '', status TEXT DEFAULT 'Present', notes TEXT DEFAULT '', edited_by TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, date))");
+  $db->exec("CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, check_in TEXT, check_out TEXT, in_lat REAL, in_lng REAL, in_acc INTEGER, out_lat REAL, out_lng REAL, out_acc INTEGER, in_place TEXT DEFAULT '', out_place TEXT DEFAULT '', status TEXT DEFAULT 'Present', notes TEXT DEFAULT '', edited_by TEXT DEFAULT '', cont INTEGER DEFAULT 0, auto_out INTEGER DEFAULT 0, last_act TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, date))");
   $db->exec("CREATE TABLE IF NOT EXISTS leaves(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, from_date TEXT, to_date TEXT, half TEXT DEFAULT '', days REAL, reason TEXT DEFAULT '', status TEXT DEFAULT 'Pending', approver_id INTEGER, approver_note TEXT DEFAULT '', decided_at TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   /* v60: plant capacity is held once per customer (customers.plant_kw, api/capacity.php). Once: every existing customer gets the capacity
      already entered somewhere (projects, plant details, approved / applied capacity, the lead), and a lone project without a size gets it too. */
