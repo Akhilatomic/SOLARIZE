@@ -7,7 +7,7 @@ const HR_HOLIDAYS_2026 = [['date' => '2026-01-02', 'name' => 'Mannam Jayanthi'],
 /* the office's three leave types (owner, 2026-11-15): no casual / earned / other types. Days per year can be changed in Settings › Attendance & leave. */
 const HR_LEAVE_TYPES = [['code' => 'EM', 'name' => 'Emergency Leave', 'quota' => 6], ['code' => 'SL', 'name' => 'Sick Leave', 'quota' => 12], ['code' => 'PE', 'name' => 'Personal Leave', 'quota' => 12]];
 function hr_cfg() {
-  $d = ['start' => '09:00', 'end' => '18:00', 'half_after' => '14:00', 'pay_day' => 6, 'grace' => 15, 'half_hours' => 0, 'full_hours' => 9, 'week_off' => [0], 'holidays' => HR_HOLIDAYS_2026,
+  $d = ['start' => '09:00', 'end' => '18:00', 'half_after' => '14:00', 'pay_day' => 6, 'grace' => 15, 'half_hours' => 0, 'full_hours' => 9, 'year_max' => 30, 'week_off' => [0], 'holidays' => HR_HOLIDAYS_2026,
     'leave_types' => HR_LEAVE_TYPES];
   $r = row("SELECT v FROM settings WHERE k='hr'"); $s = $r ? (json_decode($r['v'], true) ?: []) : [];
   if ($s && !isset($s['half_after'])) unset($s['start'], $s['half_hours'], $s['full_hours']); // settings saved before 9–6 office hours: take the new defaults
@@ -75,6 +75,11 @@ function hr_balance($uid, $year, $cfg) {
     $out[] = ['code' => $t['code'], 'name' => $t['name'], 'quota' => (float)$t['quota'], 'used' => $used, 'pending' => $pend, 'left' => (float)$t['quota'] > 0 ? (float)$t['quota'] - $used : null];
   }
   return $out;
+}
+/* leave days in one calendar year, all types together (cfg year_max is the limit; 0 = no limit) */
+function hr_year($uid, $year, $cfg) {
+  $r = row("SELECT COALESCE(SUM(CASE WHEN status='Approved' THEN days END),0) u, COALESCE(SUM(CASE WHEN status='Pending' THEN days END),0) p FROM leaves WHERE user_id=? AND status IN ('Approved','Pending') AND substr(from_date,1,4)=?", [$uid, (string)$year]);
+  return ['max' => (float)($cfg['year_max'] ?? 30), 'used' => (float)$r['u'], 'pending' => (float)$r['p'], 'year' => (int)$year];
 }
 function hr_dt($v, $label) { $v = trim((string)$v); if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $v)) fail("$label: choose a date"); return $v; }
 function hr_tm($v) { $v = trim((string)$v); return preg_match('/^\d{2}:\d{2}$/', $v) ? $v : ''; }
@@ -180,7 +185,7 @@ function handle_hr($a) {
       $w = $all ? '1=1' : 'l.user_id=' . $uid; $args = [];
       if (!empty($_GET['status'])) { $w .= ' AND l.status=?'; $args[] = $_GET['status']; }
       out(['rows' => rows("SELECT l.*, u.name user_name, a.name approver_name FROM leaves l LEFT JOIN users u ON u.id=l.user_id LEFT JOIN users a ON a.id=l.approver_id WHERE $w ORDER BY CASE l.status WHEN 'Pending' THEN 0 ELSE 1 END, l.from_date DESC LIMIT 500", $args),
-        'balance' => hr_balance($uid, date('Y'), $cfg), 'cfg' => $cfg, 'manage' => hr_mgr('leaves') ? 1 : 0]);
+        'balance' => hr_balance($uid, date('Y'), $cfg), 'year' => hr_year($uid, date('Y'), $cfg), 'cfg' => $cfg, 'manage' => hr_mgr('leaves') ? 1 : 0]);
     case 'pending': // leave requests waiting for this manager
       need('leaves', true);
       out(['rows' => rows("SELECT l.id,l.user_id,l.type,l.from_date,l.to_date,l.half,l.days,l.reason,l.created,u.name user_name FROM leaves l LEFT JOIN users u ON u.id=l.user_id WHERE l.status='Pending'" . (is_admin() ? '' : ' AND l.user_id<>' . $uid) . ' ORDER BY l.created DESC LIMIT 30')]);
@@ -197,6 +202,9 @@ function handle_hr($a) {
       if (row("SELECT 1 FROM leaves WHERE user_id=? AND status IN ('Pending','Approved') AND from_date<=? AND to_date>=?", [$who, $to, $from])) fail('You already have leave on some of these dates');
       if ((float)$t['quota'] > 0) { $b = array_values(array_filter(hr_balance($who, substr($from, 0, 4), $cfg), fn($x) => $x['code'] === $type))[0];
         if ($days > $b['left'] - $b['pending']) fail("Not enough {$t['name']} left: " . max(0, $b['left'] - $b['pending']) . " day(s) available. Choose fewer days or another leave type."); }
+      $yr = hr_year($who, substr($from, 0, 4), $cfg); /* yearly limit across all leave types */
+      if ($yr['max'] > 0 && $yr['used'] + $yr['pending'] + $days > $yr['max']) { $free = max(0, $yr['max'] - $yr['used'] - $yr['pending']);
+        fail("Yearly leave limit is {$yr['max']} days: {$yr['used']} used" . ($yr['pending'] ? ", {$yr['pending']} waiting for approval" : '') . ' in ' . $yr['year'] . ($free > 0 ? " — only $free day(s) can still be requested." : ' — no days left this year.')); }
       $reason = trim((string)($in['reason'] ?? '')); if ($reason === '') fail('Add a reason');
       q('INSERT INTO leaves(user_id,type,from_date,to_date,half,days,reason,status) VALUES(?,?,?,?,?,?,?,?)', [$who, $type, $from, $to, $half, $days, mb_substr($reason, 0, 500), 'Pending']);
       $id = (int)db()->lastInsertId(); audit('leave_apply', 'leaves', $id, "{$type} {$from}→{$to} ({$days} d)");
@@ -209,7 +217,7 @@ function handle_hr($a) {
       need('leaves', true);
       $l = row('SELECT l.*, u.name user_name FROM leaves l LEFT JOIN users u ON u.id=l.user_id WHERE l.id=?', [(int)($_GET['id'] ?? 0)]); if (!$l) fail('Not found', 404);
       $bal = array_values(array_filter(hr_balance($l['user_id'], substr($l['from_date'], 0, 4), $cfg), fn($x) => $x['code'] === $l['type']))[0] ?? null;
-      out(['leave' => $l, 'balance' => $bal,
+      out(['leave' => $l, 'balance' => $bal, 'year' => hr_year($l['user_id'], substr($l['from_date'], 0, 4), $cfg),
         'away' => rows("SELECT u.name, o.type, o.from_date, o.to_date, o.half, o.status FROM leaves o JOIN users u ON u.id=o.user_id WHERE o.id<>? AND o.user_id<>? AND o.status IN ('Approved','Pending') AND o.from_date<=? AND o.to_date>=? ORDER BY o.from_date LIMIT 20", [$l['id'], $l['user_id'], $l['to_date'], $l['from_date']]),
         'marked' => rows('SELECT date, check_in, check_out, status FROM attendance WHERE user_id=? AND date BETWEEN ? AND ? ORDER BY date', [$l['user_id'], $l['from_date'], $l['to_date']])]);
     case 'decide':
@@ -254,7 +262,7 @@ function handle_hr($a) {
     case 'cfg_save':
       if (!is_admin()) fail('Admin only', 403);
       $c = hr_cfg(); $v = $in['value'] ?? [];
-      $c['start'] = hr_tm($v['start'] ?? '') ?: '09:00'; $c['end'] = hr_tm($v['end'] ?? '') ?: '18:00'; $c['half_after'] = hr_tm($v['half_after'] ?? '') ?: '14:00'; $c['grace'] = max(0, min(180, (int)($v['grace'] ?? 15)));
+      $c['start'] = hr_tm($v['start'] ?? '') ?: '09:00'; $c['end'] = hr_tm($v['end'] ?? '') ?: '18:00'; $c['half_after'] = hr_tm($v['half_after'] ?? '') ?: '14:00'; $c['grace'] = max(0, min(180, (int)($v['grace'] ?? 15))); $c['year_max'] = max(0, min(366, (int)($v['year_max'] ?? 30)));
       $c['half_hours'] = max(0, min(12, (float)($v['half_hours'] ?? 0))); $c['full_hours'] = max(1, min(16, (float)($v['full_hours'] ?? 8)));
       $c['week_off'] = array_values(array_unique(array_filter(array_map('intval', (array)($v['week_off'] ?? [])), fn($x) => $x >= 0 && $x <= 6)));
       $c['holidays'] = array_values(array_filter(array_map(fn($h) => ['date' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $h['date'] ?? '') ? $h['date'] : '', 'name' => mb_substr(trim((string)($h['name'] ?? '')), 0, 60)], (array)($v['holidays'] ?? [])), fn($h) => $h['date']));

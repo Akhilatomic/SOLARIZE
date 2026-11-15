@@ -88,6 +88,18 @@ $db->exec("DELETE FROM leaves WHERE user_id=$sid"); $db->exec("DELETE FROM atten
 $t = array_column(call($admin, 'hr', 'me')['cfg']['leave_types'], 'code');
 chk($t === ['EM', 'SL', 'PE'], 'leave types are Emergency, Sick, Personal only');
 chk(call($admin, 'hr', 'apply', ['type' => 'CL', 'from' => $day(20), 'to' => $day(20), 'reason' => 'x'])['_code'] !== 200, 'Casual leave can no longer be requested');
+/* yearly limit across all types (default 30, admin setting) */
+$y = (int)date('Y') + 1; /* next year: every date is free */
+chk((float)call($staff, 'hr', 'leaves')['year']['max'] === 30.0, 'yearly limit is 30 days by default');
+$db->prepare("INSERT OR REPLACE INTO settings(k,v) VALUES('hr',?)")->execute([json_encode(['start' => '09:00', 'end' => '23:59', 'half_after' => '14:00', 'grace' => 15, 'week_off' => [], 'holidays' => [], 'holidays_set' => 1, 'year_max' => 3])]);
+chk(call($staff, 'hr', 'apply', ['type' => 'SL', 'from' => "$y-03-02", 'to' => "$y-03-03", 'reason' => 'two days'])['_code'] === 200, 'two days fit under a limit of 3');
+$r = call($staff, 'hr', 'apply', ['type' => 'PE', 'from' => "$y-04-06", 'to' => "$y-04-07", 'reason' => 'two more']);
+chk($r['_code'] !== 200 && str_contains($r['error'] ?? '', 'only 1 day'), 'two more are refused: the waiting request counts, 1 day is still free');
+chk(call($staff, 'hr', 'apply', ['type' => 'EM', 'from' => "$y-04-06", 'to' => "$y-04-06", 'reason' => 'one more'])['_code'] === 200, 'one more day is accepted');
+chk(call($admin, 'hr', 'apply', ['user_id' => $sid, 'type' => 'EM', 'from' => "$y-05-04", 'to' => "$y-05-04", 'reason' => 'by manager', 'approve' => 1])['_code'] !== 200, 'a manager cannot go over the limit for someone either');
+$r = call($admin, 'hr', 'cfg_save', ['value' => ['start' => '09:00', 'end' => '23:59', 'half_after' => '14:00', 'grace' => 15, 'week_off' => [], 'year_max' => 0, 'leave_types' => [['code' => 'EM', 'name' => 'Emergency Leave', 'quota' => 6], ['code' => 'SL', 'name' => 'Sick Leave', 'quota' => 12], ['code' => 'PE', 'name' => 'Personal Leave', 'quota' => 12]]]]);
+chk($r['_code'] === 200 && call($staff, 'hr', 'apply', ['type' => 'EM', 'from' => "$y-05-04", 'to' => "$y-05-04", 'reason' => 'no limit'])['_code'] === 200, 'admin sets the limit to 0 in settings: no yearly limit');
+$db->exec("DELETE FROM leaves WHERE user_id=$sid"); $db->exec("DELETE FROM settings WHERE k='hr'");
 /* upgrade of an office that saved the old type list and has old leaves */
 $db->exec("DELETE FROM settings WHERE k='hr_types_rev'");
 $db->prepare("INSERT OR REPLACE INTO settings(k,v) VALUES('hr',?)")->execute([json_encode(['start' => '09:30', 'half_after' => '14:00', 'leave_types' => [['code' => 'SL', 'name' => 'Sick Leave', 'quota' => 12], ['code' => 'CL', 'name' => 'Casual Leave', 'quota' => 12], ['code' => 'LOP', 'name' => 'Unpaid', 'quota' => 0]]])]);

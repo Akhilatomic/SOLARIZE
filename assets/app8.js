@@ -54,7 +54,7 @@ async function lvReview(id, done) {
   const m = modal(`<div class="lvm">
    <div class="lvh"><span class="lvi"><i class="i i-leave"></i></span><div><h2>${esc(l.user_name || '')}</h2><small>Leave request · asked ${agoStr(l.created)}</small></div><button class="lvx" id="rvx" title="Close"><i class="i i-x"></i></button></div>
    <div class="lvb">
-    <div class="lrv">${row('Leave type', esc(tn))}${row('Dates', esc(lvRange(l)))}${row('Balance', !b ? '—' : b.left === null ? `${b.used} day${b.used === 1 ? '' : 's'} taken this year · no limit` : `${b.left} left · <span class="${after < 0 ? 'over' : ''}">${after} after this leave</span>`)}${row('Reason', esc(l.reason || '—'))}</div>
+    <div class="lrv">${row('Leave type', esc(tn))}${row('Dates', esc(lvRange(l)))}${row('Balance', !b ? '—' : b.left === null ? `${b.used} day${b.used === 1 ? '' : 's'} taken this year · no limit` : `${b.left} left · <span class="${after < 0 ? 'over' : ''}">${after} after this leave</span>`)}${r.year && r.year.max > 0 ? row('This year', `${r.year.used} of ${r.year.max} days used · <span class="${r.year.used + l.days > r.year.max ? 'over' : ''}">${r.year.used + l.days} after this leave</span>`) : ''}${row('Reason', esc(l.reason || '—'))}</div>
     ${r.marked.length && !l.half ? `<div class="lvd lrv-w"><i class="i i-clock"></i> <span>Attendance is already marked on ${r.marked.map(x => fd(x.date) + (x.check_in ? ' (' + esc(x.check_in) + (x.check_out ? '–' + esc(x.check_out) : '') + ')' : ' (' + esc(x.status) + ')')).join(', ')}. Approving removes it and the day${r.marked.length === 1 ? '' : 's'} will show as leave.</span></div>` : ''}
     ${l.half ? `<div class="lvd"><i class="i i-clock"></i> <span>Half-day leave (${esc(l.half)} half): the check-in for the other half is kept.</span></div>` : ''}
     <div><label>Also away on these dates</label>${r.away.length ? `<div class="lrv-a">${r.away.map(x => `<div><b>${esc(x.name)}</b> <span class="mut">${esc(x.type)} · ${esc(lvRange({ ...x, days: '' }).replace(/ \(.*$/, ''))}</span> ${x.status === 'Pending' ? pill('Pending', 'y') : ''}</div>`).join('')}</div>` : '<div class="mut" style="font-size:13px">Nobody else has leave on these dates.</div>'}</div>
@@ -273,7 +273,7 @@ async function pgLeaves() {
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:10px"><div><h2 style="margin:0;font-size:26px">Leaves</h2><div class="mut">${new Date().getFullYear()} balances · weekly off: ${d.cfg.week_off.map(x => WD[x]).join(', ') || 'none'}</div></div><span class="sp"></span>
     ${mgr ? `<div class="tabs" style="margin:0">${[['requests', `Requests${pend ? ' (' + pend + ')' : ''}`], ['all', 'All leaves'], ['bal', 'Team balances'], ['mine', 'My leaves']].map(([k, l]) => `<button data-lt="${k}" class="${HR.lvTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
     <button class="btn" id="lapply"><i class="i i-plus"></i> New Leave Request</button></div>
-   <div class="grid stats" style="margin-bottom:14px">${d.balance.map(b => `<div class="card stat lbal"><b>${b.left === null ? (b.used || 0) : b.left}</b><span>${esc(b.name)}</span><small class="mut">${b.left === null ? 'days taken (no limit)' : `left of ${b.quota} · used ${b.used}${b.pending ? ' · ' + b.pending + ' pending' : ''}`}</small></div>`).join('')}</div><div id="lvb"></div>`;
+   <div class="grid stats" style="margin-bottom:14px">${d.year && d.year.max > 0 ? `<div class="card stat lbal"><b>${Math.max(0, d.year.max - d.year.used)}</b><span>Days left this year</span><small class="mut">of ${d.year.max} · used ${d.year.used}${d.year.pending ? ' · ' + d.year.pending + ' pending' : ''}</small></div>` : ''}${d.balance.map(b => `<div class="card stat lbal"><b>${b.left === null ? (b.used || 0) : b.left}</b><span>${esc(b.name)}</span><small class="mut">${b.left === null ? 'days taken (no limit)' : `left of ${b.quota} · used ${b.used}${b.pending ? ' · ' + b.pending + ' pending' : ''}`}</small></div>`).join('')}</div><div id="lvb"></div>`;
   $$('[data-lt]').forEach(b => b.onclick = () => { HR.lvTab = b.dataset.lt; pgLeaves(); });
   $('#lapply').onclick = () => applyModal(d);
   const box = $('#lvb');
@@ -319,7 +319,7 @@ async function applyModal(d) {
   ['#lfr', '#lto', '#lhf'].forEach(x => $(x, m).onchange = upd); upd();
   /* own balance of the chosen type · "Approve now" only where this person may approve (someone else's leave, or the admin's own) */
   const hint = () => { const me = !$('#lu', m) || $('#lu', m).value == ME.id, c = $('#lty', m).value, x = left(c);
-    $('#lbl', m).textContent = !c || !me ? '' : x === null ? 'No yearly limit for this type' : `${x} day${x === 1 ? '' : 's'} available`;
+    $('#lbl', m).textContent = !c || !me ? '' : (x === null ? 'No limit for this type' : `${x} day${x === 1 ? '' : 's'} available`) + (d.year && d.year.max > 0 ? ` · ${Math.max(0, d.year.max - d.year.used - d.year.pending)} of ${d.year.max} left this year` : '');
     if ($('#lnw', m)) $('#lnw', m).style.display = !me || ME.role === 'admin' ? '' : 'none'; };
   $('#lty', m).addEventListener('change', hint); if ($('#lu', m)) $('#lu', m).onchange = hint; hint();
   $('#lfr', m).addEventListener('change', () => { if ($('#lto', m).value < $('#lfr', m).value) { $('#lto', m).value = $('#lfr', m).value; upd(); } });
@@ -342,11 +342,12 @@ async function drawHrSettings() {
     <div><label>Also half day if worked less than (hours, 0 = off)</label><input type="number" step="0.5" id="hs3" value="${c.half_hours}"></div><div><label>Full day hours</label><input type="number" step="0.5" id="hs4" value="${c.full_hours}"></div>
     <div class="full"><label>Salary day (weekly attendance ends on)</label><select id="hs9">${WD.map((w, i) => `<option value="${i}" ${(c.pay_day ?? 6) == i ? 'selected' : ''}>${w}</option>`).join('')}</select></div>
     <div class="full"><label>Weekly off</label><div class="wkd">${WD.map((w, i) => `<label class="ck"><input type="checkbox" data-wo="${i}" ${c.week_off.includes(i) ? 'checked' : ''}> ${w}</label>`).join('')}</div></div>
+    <div class="full"><label>Maximum leave days per person in a year <span class="mut" style="font-weight:400">· all leave types together, 0 = no limit</span></label><input type="number" id="hs10" min="0" max="366" step="1" value="${+(c.year_max ?? 30)}" style="max-width:160px"></div>
     <div class="full"><label>Leave types (one per line: CODE | name | days per year, 0 = unlimited/unpaid)</label><textarea id="hs6" rows="5">${esc(c.leave_types.map(t => t.code + ' | ' + t.name + ' | ' + t.quota).join('\n'))}</textarea></div></div>
     <button class="btn" id="hssv" style="margin-top:10px">Save attendance & leave settings</button>`;
   $('#hssv').onclick = async () => {
     const lines = id => $(id).value.split('\n').map(x => x.split('|').map(s => s.trim())).filter(x => x[0]);
-    await api('hr', 'cfg_save', { value: { start: $('#hs1').value, end: $('#hs7').value, half_after: $('#hs8').value, pay_day: +$('#hs9').value, grace: $('#hs2').value, half_hours: $('#hs3').value, full_hours: $('#hs4').value, week_off: $$('[data-wo]').filter(x => x.checked).map(x => +x.dataset.wo),
+    await api('hr', 'cfg_save', { value: { start: $('#hs1').value, end: $('#hs7').value, half_after: $('#hs8').value, pay_day: +$('#hs9').value, grace: $('#hs2').value, year_max: +$('#hs10').value || 0, half_hours: $('#hs3').value, full_hours: $('#hs4').value, week_off: $$('[data-wo]').filter(x => x.checked).map(x => +x.dataset.wo),
       leave_types: lines('#hs6').map(([code, name, quota]) => ({ code, name, quota: +quota || 0 })) } });
     toast('Attendance & leave settings saved'); hrMe(); drawHrSettings();
   };
