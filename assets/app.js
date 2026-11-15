@@ -22,7 +22,7 @@ const app = $('#app');
 let ME = null, S = {}, CACHE = {}, TAB = {};
 const SUB_STATUS = ['Not applied', 'Applied', 'Under review', 'Approved', 'Released'];
 const MODS = [ // id, label, icon, perm
-  ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['calendar', 'Calendar', '<i class="i i-calendar"></i>', 'calendar'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
+  ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['calendar', 'Calendar', '<i class="i i-calendar"></i>', 'calendar'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['survey', 'Site survey', '<i class="i i-pin"></i>', 'survey'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
   ['projects', 'Project pipeline', '<i class="i i-project"></i>', 'projects'], ['folder', 'Folder', '<i class="i i-file"></i>', 'folder'], ['quotes', 'Quotations', '<i class="i i-receipt"></i>', 'quotes'],
   ['subsidy', 'Subsidy (PM Surya Ghar)', '<i class="i i-coin"></i>', 'checklist'], ['kseb', 'KSEB documentation', '<i class="i i-folder"></i>', 'checklist'], ['bank', 'Bank documentation', '<i class="i i-bank"></i>', 'loans'],
   ['fees', 'Finance', '<i class="i i-coin"></i>', 'fees'], ['accounts', 'Accounts', '<i class="i i-coin"></i>', 'accounts'], ['whatsapp', 'WhatsApp', '<i class="i i-whatsapp"></i>', 'whatsapp'], ['email', 'Email', '<i class="i i-mail"></i>', 'email'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['attendance', 'Attendance', '<i class="i i-clock"></i>', 'attendance'], ['leaves', 'Leaves', '<i class="i i-leave"></i>', 'leaves'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['recycle', 'Recycle bin', '<i class="i i-trash"></i>', 'recycle'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
@@ -129,7 +129,7 @@ async function route() {
   const t = MODS.find(m => m[0] === mod);
   $('#title').innerHTML = t ? `<span class="ft t-${t[0]}">${t[2]}</span><span class="ttl">${esc(t[1])}</span>` : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
-  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, subsidy: () => pgOverview('subsidy'), kseb: pgKseb, bank: pgBank, comm: pgComm, accounts: pgAccounts, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
+  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, survey: id ? pgSurvey : pgSurveys, subsidy: () => pgOverview('subsidy'), kseb: pgKseb, bank: pgBank, comm: pgComm, accounts: pgAccounts, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
   try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { if (nav === ROUTE_N) main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
@@ -586,6 +586,7 @@ async function pgLeads() {
     if (a === 'vw' || a === 'ed') leadModal(l.id);
     if (a === 'rm') return remarkBox(l);
     if (a === 'cb') return callbackBox(l);
+    if (a === 'sv') return svAddBox(l.customer_id ? { customer_id: l.customer_id, name: l.name } : { lead_id: l.id, name: l.name }); /* Site survey: first stage of the project */
     if (a === 'cv') return convertBox(l, r => { location.hash = '#/customers/' + r.customer_id; });
     if (a === 'oc') location.hash = '#/customers/' + l.customer_id;
     if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ lead_id: l.id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; }
@@ -602,7 +603,7 @@ async function pgLeads() {
   const closeMenu = () => { const m = $('#lmenu'); if (m) m.remove(); };
   const moreMenu = (l, btn) => {
     closeMenu();
-    const items = [l.phone && !BA() ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['cb', 'phone', l.callback_at ? 'Call back: ' + cbWhen(l.callback_at) : 'Call back reminder'], ['ed', 'pencil', 'Edit lead'], l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
+    const items = [l.phone && !BA() ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['cb', 'phone', l.callback_at ? 'Call back: ' + cbWhen(l.callback_at) : 'Call back reminder'], ['ed', 'pencil', 'Edit lead'], canW('survey') ? ['sv', 'pin', 'Add to site survey'] : null, l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
       l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ['unlock', 'lock', l.assigned_to == ME.id ? 'Unclaim (release lead)' : 'Unclaim / unlock (admin)'] : null, canReassignLead(l) ? ['assign', 'users', l.assigned_to ? 'Reassign to…' : 'Assign to…'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu';
     m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('');
@@ -795,6 +796,7 @@ async function pgCustomers() {
         if (a === 'pj') { if (c.project_id) { TAB.proj = 'overview'; location.hash = '#/projects/' + c.project_id; } else if (canW('projects')) startModal({ customer_id: c.id }); else toast('No project yet', true); }
         if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ customer_id: c.id, name: c.name }); location.hash = '#/quotes/new'; }
         if (a === 'pay') proj('overview'); if (a === 'kseb') proj('kseb'); if (a === 'sub') proj('subsidy');
+        if (a === 'sv') svAddBox({ customer_id: c.id, name: c.name }); /* Site survey: first stage of the project */
         if (a === 'kdoc') location.hash = '#/kseb/' + c.id; /* KSEB documentation page, filled in for this customer */
         if (a === 'bdoc') location.hash = '#/bank/' + c.id; /* Bank documentation page (loan papers), filled in for this customer */
         if (a === 'op') location.hash = '#/customers/' + c.id;
@@ -808,7 +810,7 @@ async function pgCustomers() {
         if (a === 'fees') return popMenu(b, feeMenuItems(c.id), run);
         if (a !== 'more') return run(a);
         const shown = new Set($$('[data-a]', tr).map(x => x.dataset.a));
-        popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id && canR('payments')], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['kdoc', 'clipboard', 'KSEB documentation', canR('checklist')], ['bdoc', 'bank', 'Bank documentation', canR('loans')], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner', w && OWN.canReassign(c.owner_id, ME)], ['rv', 'undo', 'Revert to lead', w && canW('leads') && !BA()]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
+        popMenu(b, [canW('quotes') ? ['qt', 'receipt', 'New quotation'] : null, ...[['ed', 'pencil', 'Edit customer', w], ['pay', 'card', 'Payments', !!c.project_id && canR('payments')], ['kseb', 'folder', 'KSEB documents', !!c.project_id], ['sv', 'pin', 'Add to site survey', canW('survey')], ['kdoc', 'clipboard', 'KSEB documentation', canR('checklist')], ['bdoc', 'bank', 'Bank documentation', canR('loans')], ['sub', 'sun', 'Subsidy', !!c.project_id], ['tl', 'clock', 'Timeline & profile', true], ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner', w && OWN.canReassign(c.owner_id, ME)], ['rv', 'undo', 'Revert to lead', w && canW('leads') && !BA()]].filter(x => x[3] && !shown.has(x[0])).map(x => x.slice(0, 3)), ...(shown.has('fees') ? [] : feeMenuItems(c.id))], run);
       });
     });
     bind([...tb.tBodies[0].rows]); onScreen = n;

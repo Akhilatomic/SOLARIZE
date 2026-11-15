@@ -17,6 +17,7 @@ require __DIR__ . '/api/pipeline.php';
 require __DIR__ . '/api/reset.php';
 require __DIR__ . '/api/wa.php';
 require __DIR__ . '/api/hr.php';
+require __DIR__ . '/api/survey.php';
 require __DIR__ . '/api/disc.php';
 require __DIR__ . '/api/trash.php';
 require __DIR__ . '/api/profile.php';
@@ -69,6 +70,7 @@ try {
     case 'reset': handle_reset($a);
     case 'wa': handle_wa($a);
     case 'hr': handle_hr($a);
+    case 'survey': handle_survey($a);
     case 'disc': handle_disc($a);
     case 'trash': handle_trash($a);
     case 'profile': handle_profile($a);

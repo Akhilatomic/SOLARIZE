@@ -14,7 +14,7 @@ const KSEB_GEN_DAYS = 200; /* owner's rule (2026-11-14): the KSEB papers made in
 /* paper => [area its maker must be able to open, days the copy is kept (0 = until someone deletes it)] — used by files/keep */
 const GEN_KEEP = ['kseb' => ['checklist', GEN_LIFE_DAYS], 'bank' => ['loans', GEN_LIFE_DAYS], 'quote' => ['quotes', GEN_LIFE_DAYS], 'receipt' => ['payments', GEN_LIFE_DAYS],
   'tax' => ['finance', 0], 'warranty' => ['customers', 0]];
-const TRASH_FILE_COLS = ['files' => 'path', 'datasheets' => 'path', 'wa_msgs' => 'file_path'];
+const TRASH_FILE_COLS = ['files' => 'path', 'datasheets' => 'path', 'survey_files' => 'path', 'wa_msgs' => 'file_path'];
 
 function trash_dir() { $d = dirname(__DIR__) . '/data/trash'; if (!is_dir($d)) mkdir($d, 0750, true); return $d; }
 function up_dir() { $d = dirname(__DIR__) . '/data/uploads'; if (!is_dir($d)) mkdir($d, 0750, true); return $d; }

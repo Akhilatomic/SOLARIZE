@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 67; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 68; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -18,16 +18,17 @@ $E = [
 
 // role => [read modules, write modules]; '*' = everything
 // Permission modules. 'finance' = every money figure (project values, payments, balances, ad spend, dashboard money cards).
-const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','loans','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email','incentive','accounts'];
+const MODULES = ['dashboard','calendar','attendance','leaves','leads','customers','projects','checklist','loans','files','folder','whatsapp','quotes','payments','ads','finance','settings','recycle','fees','email','incentive','accounts','survey'];
+// 'survey': Site survey — the first stage of a project (api/survey.php). View = see the surveys given to you; Edit = add to survey, fill it in, upload photos
 // 'incentive': View = Finance › Incentive received (my customers the admin shared); Edit = manage every staff member's incentive (api/comm.php)
 const ROLE_NAMES = ['admin' => 'Admin', 'assistant_manager' => 'Assistant manager', 'sales' => 'Sales', 'engineer' => 'Engineer', 'accounts' => 'Accounts', 'ba' => 'Business Associate (BA)'];
 // role => [read modules, write modules]; '*' = everything. Admin can change these in Settings → User access.
 const ROLE_DEFAULTS = [
   'admin' => ['*', '*'],
-  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','settings','recycle','fees','email','incentive'], ['attendance','leaves','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','recycle','fees','email']],
-  'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','whatsapp','ads','settings','email','incentive'], ['leads','customers','quotes','loans','whatsapp','files','folder','calendar','projects','email']],
-  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','settings','fees','email','incentive'], ['projects','checklist','files','customers','folder','calendar','email']],
-  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','ads','whatsapp','settings','finance','fees','email','incentive','accounts'], ['quotes','payments','loans','ads','calendar','fees','email','accounts']],
+  'assistant_manager' => [['attendance','leaves','dashboard','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','settings','recycle','fees','email','incentive','survey'], ['attendance','leaves','calendar','leads','customers','projects','checklist','loans','files','folder','whatsapp','recycle','fees','email','survey']],
+  'sales' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','whatsapp','ads','settings','email','incentive','survey'], ['leads','customers','quotes','loans','whatsapp','files','folder','calendar','projects','email','survey']],
+  'engineer' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','settings','fees','email','incentive','survey'], ['projects','checklist','files','customers','folder','calendar','email','survey']],
+  'accounts' => [['attendance','leaves','calendar','folder','dashboard','leads','customers','projects','quotes','checklist','loans','files','payments','ads','whatsapp','settings','finance','fees','email','incentive','accounts','survey'], ['quotes','payments','loans','ads','calendar','fees','email','accounts']],
   // Business Associate: their own leads and customers, their customers' projects (view only), no money. Rows are limited in claims.php (ba_gate, cust_scope).
   'ba' => [['dashboard','leads','customers','projects'], ['leads','customers']],
 ];
@@ -52,7 +53,7 @@ function lead_type_save($t, $in, $id) {
 function cust_from_lead($cid) { return (int)$cid > 0 && (bool)row('SELECT 1 FROM leads WHERE customer_id=? LIMIT 1', [(int)$cid]); }
 // Areas a role never gets, whatever is ticked in Settings → User access or granted by "Can see & claim leads".
 // Business Associates are outside partners: no WhatsApp (inbox, business number, message history), and commission instead of incentive.
-const ROLE_NEVER = ['ba' => ['whatsapp', 'incentive', 'accounts']];
+const ROLE_NEVER = ['ba' => ['whatsapp', 'incentive', 'accounts', 'survey']];
 function claim_grants($role) { return array_values(array_diff(CLAIM_GRANTS, ROLE_NEVER[$role] ?? [])); }
 function roles() {
   static $r = null; if ($r !== null) return $r;
@@ -60,7 +61,7 @@ function roles() {
   try { $o = row("SELECT v FROM settings WHERE k='role_perms'"); } catch (Throwable $e) { $o = null; }
   $saved = $o ? (json_decode($o['v'], true) ?: []) : [];
   // areas added after the admin saved custom access start from their defaults
-  $seen = $saved['_modules'] ?? array_values(array_diff(MODULES, ['attendance', 'leaves', 'incentive', 'accounts']));
+  $seen = $saved['_modules'] ?? array_values(array_diff(MODULES, ['attendance', 'leaves', 'incentive', 'accounts', 'survey']));
   $fresh = array_values(array_diff(MODULES, $seen));
   foreach ($saved as $role => $p) {
     if ($role === '_modules' || $role === 'admin' || !isset(ROLE_DEFAULTS[$role]) || !is_array($p)) continue;
@@ -190,6 +191,11 @@ function migrate($db) {
   $db->exec('CREATE INDEX IF NOT EXISTS wam_chat ON wa_msgs(chat_id, id)'); $db->exec('CREATE INDEX IF NOT EXISTS wam_wamid ON wa_msgs(wamid)');
   $db->exec("CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, check_in TEXT, check_out TEXT, in_lat REAL, in_lng REAL, in_acc INTEGER, out_lat REAL, out_lng REAL, out_acc INTEGER, in_place TEXT DEFAULT '', out_place TEXT DEFAULT '', status TEXT DEFAULT 'Present', notes TEXT DEFAULT '', edited_by TEXT DEFAULT '', cont INTEGER DEFAULT 0, auto_out INTEGER DEFAULT 0, last_act TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, date))");
   $db->exec("CREATE TABLE IF NOT EXISTS leaves(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, from_date TEXT, to_date TEXT, half TEXT DEFAULT '', days REAL, reason TEXT DEFAULT '', status TEXT DEFAULT 'Pending', approver_id INTEGER, approver_note TEXT DEFAULT '', decided_at TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
+  /* v68: site survey (api/survey.php) — one row per lead / customer, its photos and site plan in survey_files */
+  $db->exec("CREATE TABLE IF NOT EXISTS surveys(id INTEGER PRIMARY KEY AUTOINCREMENT, lead_id INTEGER, customer_id INTEGER, assigned_to INTEGER, status TEXT DEFAULT 'To visit', visit_date TEXT DEFAULT '', note TEXT DEFAULT '', data TEXT DEFAULT '', created_by INTEGER, done_at TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec("CREATE TABLE IF NOT EXISTS survey_files(id INTEGER PRIMARY KEY AUTOINCREMENT, survey_id INTEGER, slot TEXT, name TEXT, path TEXT, size INTEGER, user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE INDEX IF NOT EXISTS ix_surveys_lead ON surveys(lead_id)'); $db->exec('CREATE INDEX IF NOT EXISTS ix_surveys_cust ON surveys(customer_id)');
+  $db->exec('CREATE INDEX IF NOT EXISTS ix_surveys_to ON surveys(assigned_to)'); $db->exec('CREATE INDEX IF NOT EXISTS ix_svfiles_s ON survey_files(survey_id)');
   /* v67: leave types are Emergency / Sick / Personal only. Runs once (settings hr_types_rev): a saved type list is replaced, and
      leaves taken under the old Casual / Earned / Maternity / Paternity / Other types are kept as Personal. Old unpaid (LOP) leaves stay as they are. */
   try { if (!$db->query("SELECT 1 FROM settings WHERE k='hr_types_rev'")->fetchColumn()) {
