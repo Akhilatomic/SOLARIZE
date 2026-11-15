@@ -171,6 +171,9 @@ function hrBadge() {
 function startHr() { if (canR('attendance') || canR('leaves')) hrMe(); clearInterval(HR.poll); HR.poll = setInterval(() => { if (canR('attendance') || canR('leaves')) { if (!document.hidden) hrMe(); else if (HR.me && HR.me.manage_lv) hrPending(); } }, 60000); }
 
 // ---------- Attendance page ----------
+// managers: show one person in the weekly / monthly lists (HR.attUser, 0 = all staff). Returns the full staff list for the picker.
+function attUserPick(d, mine) { const all = d.users; if (!mine && HR.attUser && all.some(u => u.id == HR.attUser)) d.users = all.filter(u => u.id == HR.attUser); return all; }
+const attUserSel = (all, mine) => mine || all.length < 2 ? '' : `<select id="atu" title="Show one person" style="width:auto;max-width:200px"><option value="">All staff</option>${all.map(u => `<option value="${u.id}" ${u.id == HR.attUser ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select>`;
 async function pgAttendance() {
   const me = await hrMe(); if (!me) return;
   const mgr = !!me.manage_att; if (!HR.attTab) HR.attTab = mgr ? 'today' : 'mine'; if (!HR.month) HR.month = today().slice(0, 7);
@@ -190,6 +193,7 @@ async function pgAttendance() {
   const tick = setInterval(() => { const c = $('#pclock'); if (!c) return clearInterval(tick); c.textContent = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }); }, 15000);
   if ($('#pin')) $('#pin').onclick = e => punch('in', e.currentTarget); if ($('#pout')) $('#pout').onclick = e => punch('out', e.currentTarget); pnBind($('.punchcard')); pnWeekFill();
   $$('[data-at]').forEach(b => b.onclick = () => { HR.attTab = b.dataset.at; pgAttendance(); });
+  $('#atb').onchange = e => { if (e.target.id === 'atu') { HR.attUser = +e.target.value || 0; HR.attTab === 'week' ? attWeek(false) : attRegister(false); } };
   if (HR.attTab === 'today' && mgr) return attToday();
   if (HR.attTab === 'week' && mgr) return attWeek(false);
   return attRegister(HR.attTab === 'mine' || !mgr);
@@ -206,6 +210,7 @@ async function attToday() {
 }
 async function attRegister(mine) {
   const d = await api('hr', 'month', undefined, '&month=' + HR.month + (mine ? '&mine=1' : '')), box = $('#atb'); if (!box) return;
+  const staff = attUserPick(d, mine);
   const [y, m] = HR.month.split('-').map(Number), dim = new Date(y, m, 0).getDate(), hol = Object.fromEntries(d.cfg.holidays.map(h => [h.date, h.name]));
   const days = Array.from({ length: dim }, (_, i) => `${HR.month}-${String(i + 1).padStart(2, '0')}`);
   const rec = {}; d.records.forEach(r => rec[r.user_id + '|' + r.date] = r);
@@ -218,7 +223,7 @@ async function attRegister(mine) {
     if (ds < d.today) return ['A', 'ab', 'Absent (no check-in)']; return ['', '', ''];
   };
   const totals = u => { const c = { P: 0, L: 0, HD: 0, A: 0, LV: 0 }; days.forEach(ds => { const k = code(u, ds)[0]; if (k === 'P' || k === 'OD') c.P++; else if (k === 'L') c.L++; else if (k === 'HD') c.HD++; else if (k === 'A') c.A++; else if (k === 'LV') c.LV++; else if (k === 'HL') c.LV += .5; }); return c; };
-  box.innerHTML = `<div class="card"><div class="ch"><h3>${mine ? 'My attendance' : 'Monthly register'}</h3><span class="sp"></span><input type="month" id="amon" value="${HR.month}" style="max-width:170px">${mine ? '' : '<button class="btn sec sm" id="acsv"><i class="i i-download"></i> CSV</button>'}</div>
+  box.innerHTML = `<div class="card"><div class="ch"><h3>${mine ? 'My attendance' : 'Monthly register'}</h3><span class="sp"></span>${attUserSel(staff, mine)}<input type="month" id="amon" value="${HR.month}" style="max-width:170px">${mine ? '' : '<button class="btn sec sm" id="acsv"><i class="i i-download"></i> CSV</button>'}</div>
     <div class="alegend">${[['P', 'pr', 'Present'], ['L', 'lt', 'Late'], ['HD', 'hd', 'Half day'], ['A', 'ab', 'Absent'], ['LV', 'lv', 'Leave'], ['H', 'ho', 'Holiday'], ['WO', 'wo', 'Weekly off']].map(([k, c, l]) => `<span><i class="ac ${c}">${k}</i>${l}</span>`).join('')}</div>
     <div class="tw areg"><table class="regt" data-nofit="1"><thead><tr><th class="rn">Staff</th>${days.map(ds => { const dt = new Date(ds + 'T00:00:00'); return `<th class="${ds === d.today ? 'tdy' : ''}"><small>${WD[dt.getDay()][0]}</small>${dt.getDate()}</th>`; }).join('')}<th>P</th><th>L</th><th>HD</th><th>LV</th><th>A</th></tr></thead><tbody>
     ${d.users.map(u => { const t = totals(u.id); return `<tr><td class="rn"><b>${esc(u.name)}</b></td>${days.map(ds => { const [k, c, tip] = code(u.id, ds); return `<td><button class="ac ${c}" data-u="${u.id}" data-d="${ds}" title="${esc(ds + ' · ' + (tip || '—'))}" ${!mine && !c.match(/lv|ho|wo/) && ds <= d.today ? '' : 'disabled'}>${k}</button></td>`; }).join('')}<td><b>${t.P}</b></td><td>${t.L}</td><td>${t.HD}</td><td>${t.LV}</td><td class="${t.A ? 'over' : ''}">${t.A}</td></tr>`; }).join('')}</tbody></table></div>
@@ -328,6 +333,7 @@ async function attWeek(mine) {
   const end = new Date(HR.wkEnd + 'T00:00:00'), start = new Date(end); start.setDate(end.getDate() - 6);
   const from = ymd2(start), to = HR.wkEnd;
   const d = await api('hr', 'range', undefined, `&from=${from}&to=${to}${mine ? '&mine=1' : ''}`), box = $('#atb'); if (!box) return;
+  const staff = attUserPick(d, mine);
   const days = Array.from({ length: 7 }, (_, i) => { const x = new Date(start); x.setDate(start.getDate() + i); return ymd2(x); });
   const hol = Object.fromEntries(d.cfg.holidays.map(h => [h.date, h.name])), paid = Object.fromEntries(d.cfg.leave_types.map(t => [t.code, +t.quota > 0]));
   const rec = {}; d.records.forEach(r => rec[r.user_id + '|' + r.date] = r);
@@ -346,7 +352,7 @@ async function attWeek(mine) {
   const sum = u => { const s = { work: 0, pay: 0, P: 0, L: 0, HD: 0, A: 0, LV: 0, LOP: 0, hrs: 0, early: 0 }; days.forEach(ds => { const x = day(u, ds); s.work += x.work; s.pay += x.pay; s.hrs += x.hrs || 0; if (x.k === 'P' || x.k === 'OD') s.P++; if (x.k === 'L') { s.L++; } if (x.hd) s.HD++; if (x.k === 'A') s.A++; if (x.lv) s.LV += x.lv; if (x.lop) s.LOP += x.lop; if (x.early) s.early++; }); return s; };
   const lbl = `${start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
   const isCur = HR.wkEnd === ymd2(weekEnd(new Date()));
-  const html = `<div class="card"><div class="ch"><h3>${mine ? 'My week' : 'Weekly attendance'} <span class="mut" style="font-weight:400">· salary on ${WD[payDay()]} ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></h3><span class="sp"></span>
+  const html = `<div class="card"><div class="ch"><h3>${mine ? 'My week' : 'Weekly attendance'} <span class="mut" style="font-weight:400">· salary on ${WD[payDay()]} ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></h3><span class="sp"></span>${attUserSel(staff, mine)}
      <button class="btn sec sm" id="wkp" title="Previous week">‹</button><b style="font-size:14px;white-space:nowrap">${lbl}</b><button class="btn sec sm" id="wkn" title="Next week" ${isCur ? 'disabled' : ''}>›</button>${isCur ? '' : '<button class="btn sec sm" id="wkt">This week</button>'}${mine ? '' : '<button class="btn sec sm" id="wkcsv"><i class="i i-download"></i> CSV</button>'}</div>
     <div class="tw areg"><table class="regt wkt" data-nofit="1"><thead><tr><th class="rn">Staff</th>${days.map(ds => { const dt = new Date(ds + 'T00:00:00'); return `<th class="${ds === d.today ? 'tdy' : ''}"><small>${WD[dt.getDay()]}</small>${dt.getDate()}</th>`; }).join('')}<th>Hours</th><th>Late</th><th>Half</th><th>Leave</th><th>Absent</th><th class="pay">Payable days</th></tr></thead><tbody>
     ${d.users.map(u => { const s = sum(u.id); return `<tr><td class="rn"><b>${esc(u.name)}</b></td>${days.map(ds => { const x = day(u.id, ds); return `<td><button class="ac ${x.c}" data-u="${u.id}" data-d="${ds}" title="${esc(ds + ' · ' + x.tip)}" ${!mine && !x.c.match(/lv|ho|wo/) && ds <= d.today ? '' : 'disabled'}>${x.k}${x.early ? '<sup>e</sup>' : ''}</button>${x.hrs ? `<small class="wkh">${fmtH(x.hrs)}</small>` : ''}</td>`; }).join('')}
