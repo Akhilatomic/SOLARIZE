@@ -766,6 +766,17 @@ a.fm-cpath:hover{color:var(--pri)}
 .onb-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}
 .onb-file span{min-width:0;overflow-wrap:anywhere}
 .onb-skip{display:flex;align-items:center;gap:8px;margin:8px 0 2px;font-size:13px;color:var(--tx);cursor:pointer}.onb-skip input{width:auto;margin:0;flex:none}
+/* Documents: Copy text from picture (app44.js) */
+.modal.ocmod>div{max-width:min(1100px,96vw)}
+.ocw{display:flex;flex-direction:column;gap:12px}
+.och{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.och h3{margin:0}.och .ocn{font-size:13px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.och select{width:auto}
+.ocb{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;height:min(62vh,640px)}
+.oci{border:1px solid var(--bd);border-radius:12px;overflow:auto;background:var(--galt,#f5f5f7)}.oci img{display:block;width:100%;height:auto}
+.oct{display:flex;flex-direction:column;gap:8px;min-height:0}.oct textarea{flex:1;min-height:0;resize:none;font:13.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;overflow:auto}
+.ocs{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mut)}.ocs[hidden]{display:none}.ocs.bad{color:#c62828}.ocs.bad .ocp{display:none}
+.ocp{height:4px;border-radius:4px;background:var(--bd);overflow:hidden}.ocp i{display:block;height:100%;width:0;background:#0a84ff;transition:width .25s}
+.ocf{margin:0;align-items:center}.ocf small{font-size:12px;max-width:420px}
+@media(max-width:820px){.ocb{grid-template-columns:1fr;height:auto}.oci{max-height:34vh}.oct textarea{min-height:34vh}}
 .onb-n{margin:10px 0 0;font-size:12px}
 .pcz .pfch .pill{font-size:11px}
 .pcz-sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:2px 0 12px}
