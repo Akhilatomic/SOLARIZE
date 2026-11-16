@@ -1,6 +1,6 @@
 // Menu tabs: pages open in tabs like a web browser, so staff can work in several menus at once.
 // A click in the side menu opens the page in the tab in front; right-click (or Ctrl+click / middle click) > "Open in new tab"
-// opens another tab. A tab left in the background for 5 minutes closes by itself unless it holds unsaved work.
+// opens another tab. Tabs stay open until they are closed by hand.
 // Each tab is a page-frame holding its own copy of the CRM (index.html?tab=<id>#/<page>) with the side menu and top bar hidden,
 // so a half-typed form, the filters and the scroll position of one tab stay untouched while another tab is used.
 // The outer window keeps the side menu, the top bar and every alert (bell, new-lead pop-up, reminders, attendance).
@@ -9,7 +9,6 @@
 /* ---- rules (pure; tests/tabs.test.js) ---- */
 const TABR = {
   MAX: 8,                 /* each tab is a whole copy of the app: enough to work with, not enough to slow the computer down */
-  IDLE_MS: 5 * 60000,     /* a tab that has not been in front for this long is closed */
   KEY: 'mtabs',           /* sessionStorage: the open tabs come back after a reload */
   norm(h) { h = String(h || ''); return /^#\/[a-z][a-z0-9_]*(\/|$)/i.test(h) ? h.replace(/\/+$/, '') : '#/dashboard'; },
   mod(h) { return TABR.norm(h).split('/')[1]; },
@@ -20,8 +19,6 @@ const TABR = {
     const L = list.filter(t => t.id !== id);
     return { list: L, active: active !== id ? active : L.length ? L[Math.min(i, L.length - 1)].id : '' };
   },
-  /* tabs to close by themselves: not in front, and last in front (seen) at least `ms` ago */
-  stale(list, active, now, ms = TABR.IDLE_MS) { return list.filter(t => t.id !== active && now - (t.seen || 0) >= ms).map(t => t.id); },
   pack(list, active) { return JSON.stringify({ a: TABR.find(list, active), t: list.map(t => [t.hash, t.title || '']) }); },
   /* -> { list: [{hash, title}], active: index or -1 } */
   unpack(s) {
@@ -67,10 +64,10 @@ const TABS = {
   info(mod) { const m = MODS.find(x => x[0] === mod); return m ? { name: m[1], icon: m[2] } : { name: mod.charAt(0).toUpperCase() + mod.slice(1), icon: '<i class="i i-file"></i>' }; },
   label(t) { return t.title || TABS.info(TABR.mod(t.hash)).name; },
   src(t) { return 'index.html?tab=' + t.id + t.hash; },
-  add(hash, title) { const t = { id: 't' + (++TABS.seq), hash: TABR.norm(hash), title: title || '', seen: Date.now() }; TABS.list.push(t); return t; },
+  add(hash, title) { const t = { id: 't' + (++TABS.seq), hash: TABR.norm(hash), title: title || '' }; TABS.list.push(t); return t; },
   /* called from shell(): draws the bar and the frame stack; the first route() then opens the tabs */
   mount() {
-    TABS.live = TABS.want(); TABS.list = []; TABS.active = ''; TABS.started = false; clearInterval(TABS.tm);
+    TABS.live = TABS.want(); TABS.list = []; TABS.active = ''; TABS.started = false;
     document.documentElement.classList.toggle('mt-on', TABS.live);
     if (!TABS.live) return;
     const bar = document.createElement('div'); bar.id = 'mtabs'; bar.className = 'mt-bar'; bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', 'Open tabs');
@@ -98,7 +95,6 @@ const TABS = {
     side.addEventListener('auxclick', e => { const h = tabLink(e); if (h && e.button === 1) { e.preventDefault(); TABS.open(h); } });
     side.addEventListener('mousedown', e => { if (e.button === 1 && tabLink(e)) e.preventDefault(); });
     side.addEventListener('contextmenu', e => { const h = tabLink(e); if (!h) return; e.preventDefault(); tabMenu(e.clientX, e.clientY, () => TABS.open(h)); });
-    TABS.tm = setInterval(TABS.sweep, 30000);
   },
   mod() { const c = TABS.cur(); return c ? TABR.mod(c.hash) : ''; },
   /* route() of the outer window: the address bar changed (a notification, a typed address), or some code asked for a redraw */
@@ -125,14 +121,12 @@ const TABS = {
   },
   /* a new tab */
   open(hash) {
-    if (TABS.list.length >= TABR.MAX) TABS.sweep();
     if (TABS.list.length >= TABR.MAX) { if (typeof toast === 'function') toast(`${TABR.MAX} tabs are open. Close a tab first.`, true); return; }
     TABS.show(TABS.add(hash).id);
   },
   show(id) {
     const t = TABS.get(id); if (!t) return;
-    const was = TABS.cur(); if (was && was !== t) was.seen = Date.now(); /* the 5 minutes count from the moment a tab leaves the front */
-    TABS.active = id; t.seen = Date.now(); let f = TABS.frame(id);
+    TABS.active = id; let f = TABS.frame(id);
     if (!f) { f = document.createElement('iframe'); f.className = 'mt-f'; f.dataset.id = id; f.title = TABS.label(t); f.src = TABS.src(t); TABS.stack.appendChild(f); }
     for (const x of TABS.stack.children) {
       const on = x === f; if (x.classList.contains('on') === on) continue;
@@ -151,14 +145,6 @@ const TABS = {
     const r = TABR.close(TABS.list, TABS.active, id), f = TABS.frame(id); TABS.list = r.list; if (f) f.remove();
     if (!r.list.length) { TABS.active = ''; return TABS.open('#/dashboard'); }
     if (r.active !== TABS.active) TABS.show(r.active); else { TABS.draw(); TABS.save(); }
-  },
-  /* every 30 s: background tabs not looked at for 5 minutes close by themselves - never one with a window open,
-     an upload running or something typed on its page */
-  sweep() {
-    for (const id of TABR.stale(TABS.list, TABS.active, Date.now())) {
-      const w = TABS.win(id); let why = ''; try { why = w ? w.TABFRAME.busy('auto') : ''; } catch (e) { why = 'x'; }
-      if (!why) TABS.drop(id);
-    }
   },
   /* the tab in front draws its page again - unless a window is open or something is being typed there */
   poke() { const w = TABS.win(TABS.active); try { if (w) w.TABFRAME.redraw(); } catch (e) { } },
@@ -191,7 +177,7 @@ const TABS = {
 if (typeof window !== 'undefined') window.TABS = TABS; /* page-frames reach the outer window through this */
 
 /* ---- inside a page-frame ---- */
-const TABF = { id: '', active: true, dirty: false };
+const TABF = { id: '', active: true };
 function tabFrameInit() {
   const fe = window.frameElement; TABF.id = fe.dataset.id; TABF.active = fe.classList.contains('on');
   document.documentElement.classList.add('mt-frame');
@@ -204,12 +190,10 @@ function tabFrameInit() {
   } catch (e) { }
   window.TABFRAME = {
     show(on) { if (TABF.active === on) return; TABF.active = on; document.dispatchEvent(new Event('visibilitychange')); },
-    /* a reason not to throw this tab's page away. how: '' = the tab is being closed by hand, 'nav' = another page is opening
-       in it, 'auto' = it is about to close by itself (anything typed on the page keeps it open) */
+    /* a reason not to throw this tab's page away. how: '' = the tab is being closed, 'nav' = another page is opening in it */
     busy(how) {
       if (how !== 'nav' && typeof FMU !== 'undefined' && FMU.busy) return 'Files are still uploading in this tab.';
       if (document.querySelector('.modal')) return 'A window is open in this tab. Anything typed there and not saved will be lost.';
-      if (how === 'auto' && TABF.dirty) return 'Something was typed on this page.';
       return '';
     },
     leave() { document.querySelectorAll('.modal').forEach(m => m.remove()); },
@@ -218,11 +202,10 @@ function tabFrameInit() {
       route(); },
   };
   addEventListener('pointerdown', () => { try { parent.TABS.tap(); } catch (e) { } }, true);
-  addEventListener('input', () => { TABF.dirty = true; }, true);
   addEventListener('contextmenu', e => { const h = tabLink(e); if (!h) return; e.preventDefault(); tabMenu(e.clientX, e.clientY, () => { try { parent.TABS.open(h); } catch (x) { } }); });
 }
 /* route() of a page-frame: the outer window is told which page this tab shows now */
-function tabFrameRoute() { TABF.dirty = false; try { parent.TABS.note(TABF.id, location.hash || '#/dashboard'); } catch (e) { } }
+function tabFrameRoute() { try { parent.TABS.note(TABF.id, location.hash || '#/dashboard'); } catch (e) { } }
 /* boot() of a page-frame: the page and the feeds it reads. Alerts, reminders, badges and the attendance button belong to the outer window. */
 function bootFrame() {
   shell();

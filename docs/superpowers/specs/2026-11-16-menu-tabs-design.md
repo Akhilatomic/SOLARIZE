@@ -43,9 +43,8 @@ pages are alive; more background requests for tabs nobody is looking at.
 - Side menu, right click: a small menu "Open in new tab". Ctrl / Shift + click and the middle
   button do the same. Right click on a link inside a page offers the same.
 - Links inside a page open in the same tab, as in a browser.
-- A tab that has not been in front for 5 minutes closes by itself (checked every 30 s;
-  `TABR.IDLE_MS`). Never the tab in front, and never a tab with an open window, a running upload
-  or something typed on its page since it was drawn.
+- Tabs never close by themselves (the 5-minute auto-close was removed on the owner's word, 2026-11-16).
+- The tab in front has a slowly moving blue background (`mt-flow`).
 - Bell, new-lead pop-up, toasts and desktop notifications live in the outer window and open their
   target in the tab in front.
 - The address bar follows the tab in front, so a reload or a bookmark opens the same page.

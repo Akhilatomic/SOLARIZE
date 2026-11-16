@@ -14,15 +14,6 @@ test('closing: the neighbour comes to the front; a background tab closes quietly
   assert.deepEqual(TABR.close([L()[0]], 't1', 't1'), { list: [], active: '' });
   assert.equal(TABR.close(L(), 't1', 'nope').list.length, 3);
 });
-test('tabs left in the background for 5 minutes close by themselves; the tab in front never does', () => {
-  assert.equal(TABR.IDLE_MS, 5 * 60000);
-  const at = s => s + TABR.IDLE_MS;
-  assert.deepEqual(TABR.stale(L(), 't3', at(999)), []);
-  assert.deepEqual(TABR.stale(L(), 't3', at(1000)), ['t1']);
-  assert.deepEqual(TABR.stale(L(), 't3', at(2500)), ['t1', 't2']);
-  assert.deepEqual(TABR.stale(L(), 't1', at(99999)), ['t2', 't3']); /* t1 is in front, however long ago it was opened */
-  assert.deepEqual(TABR.stale(L(), 't3', 5000, 1000), ['t1', 't2']);
-});
 test('the open tabs survive a reload - the same menu may be open twice', () => {
   const list = L(); list[1].title = 'Anil';
   const back = TABR.unpack(TABR.pack(list, 't2'));
