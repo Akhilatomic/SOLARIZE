@@ -47,10 +47,14 @@ final class Notes {
      * Shows one notification. A tap opens the app on the Leads page - on that lead's window when `lead` is given.
      * With a full phone number the notification also carries Call and WhatsApp buttons, so a new lead can be rung at once.
      */
-    static void show(Context c, int id, String title, String text, long lead, String phone) {
+    static void show(Context c, int id, String title, String text, long lead, String phone) { show(c, id, title, text, lead, phone, ""); }
+
+    /** disc = a team discussion to open on a tap: "l<lead id>" or "c<customer id>" (else ""). */
+    static void show(Context c, int id, String title, String text, long lead, String phone, String disc) {
         channel(c);
         Intent open = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         if (lead > 0) open.putExtra(MainActivity.EXTRA_LEAD, lead);
+        if (disc != null && !disc.isEmpty()) open.putExtra(MainActivity.EXTRA_DISC, disc);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(c, CHANNEL) : new Notification.Builder(c);
         b.setSmallIcon(R.drawable.ic_note).setContentTitle(title).setContentText(text)

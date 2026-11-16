@@ -66,6 +66,7 @@ RedirectMatch 404 /\.git
 
 # Home-screen app manifest (iPhone / iPad / Android)
 AddType application/manifest+json .webmanifest
+AddType application/vnd.android.package-archive .apk
 
 # the service worker file is always re-checked
 <FilesMatch "^sw\.js$">

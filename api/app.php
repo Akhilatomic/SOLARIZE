@@ -4,6 +4,11 @@
 // The token is a 256-bit random value; only its SHA-256 is stored. It dies when the user signs out in the app, changes
 // the password (users.sess_ver), is disabled or deleted, or after APP_TOKEN_DAYS without use.
 const APP_TOKEN_DAYS = 30;
+/* The newest app version and where its APK is (app/Jasper.apk in the site root). After building a new APK with android/build.sh:
+   copy it to app/Jasper.apk and raise this number - every older app then shows "New version available" in its side menu. */
+const APP_LATEST = '1.4';
+const APP_URL = 'app/Jasper.apk';
+const APP_ALERT_TITLES = ['callback' => 'Call back reminder', 'assign' => 'Lead for you', 'mention' => 'You were tagged in a team discussion', 'reply' => 'Team discussion', 'end' => 'Team discussion ended'];
 
 function app_token_issue($uid, $device = '') {
   $u = row('SELECT sess_ver FROM users WHERE id=?', [(int)$uid]);
@@ -44,8 +49,9 @@ function handle_app($a) {
     $leads = []; $alerts = [];
     if ($ld >= 0) $leads = array_map(fn($x) => ['id' => (int)$x['id'], 'name' => (string)$x['name'], 'phone' => (string)($x['phone'] ?? ''), 'city' => (string)($x['city'] ?? ''), 'source' => (string)($x['source'] ?? '')],
       array_map('lead_mask', rows("SELECT l.* FROM leads l WHERE l.notify=1 AND l.id>? AND $sc ORDER BY l.id DESC LIMIT 20", [$ld])));
-    if ($nf >= 0) $alerts = array_map(fn($x) => ['id' => (int)$x['id'], 'kind' => (string)$x['kind'], 'text' => (string)$x['text'], 'lead_id' => (int)$x['lead_id']],
-      rows("SELECT id,kind,text,lead_id FROM notifs WHERE user_id=? AND id>? AND lead_id IS NOT NULL AND kind IN ('callback','assign') ORDER BY id DESC LIMIT 20", [uid(), $nf]));
+    /* lead alerts (call back, assigned) and every team-discussion alert (tagged, reply, ended) - on a lead or a customer */
+    if ($nf >= 0) $alerts = array_map(fn($x) => ['id' => (int)$x['id'], 'kind' => (string)$x['kind'], 'title' => APP_ALERT_TITLES[$x['kind']] ?? 'Jasper', 'text' => (string)$x['text'], 'lead_id' => (int)$x['lead_id'], 'customer_id' => (int)$x['customer_id']],
+      rows("SELECT id,kind,text,lead_id,customer_id FROM notifs WHERE user_id=? AND id>? AND ((lead_id IS NOT NULL AND kind IN ('callback','assign')) OR kind IN ('mention','reply','end')) ORDER BY id DESC LIMIT 20", [uid(), $nf]));
     out(['lead' => $maxL, 'notif' => $maxN, 'leads' => $leads, 'alerts' => $alerts,
       'waiting' => (int)row("SELECT COUNT(*) c FROM leads l WHERE l.notify=1 AND $sc")['c'], 'name' => (string)($_SESSION['name'] ?? '')]);
   }

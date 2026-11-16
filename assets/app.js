@@ -23,6 +23,7 @@ let ME = null, S = {}, CACHE = {}, TAB = {}, STAY = 0;
 /* Android app "Solarize Leads" (android/): the CRM runs inside the app, which offers window.SolarizeApp. There the CRM shows the
    Leads page only, stays signed in with a device token kept by the app, and hands its alerts to the phone's notifications. */
 const APPLITE = typeof window !== 'undefined' && !!window.SolarizeApp;
+let APP_INFO = {}; /* newest app version and its download address (auth/status) */
 const appCall = (fn, ...a) => { try { return window.SolarizeApp[fn](...a); } catch (e) { return ''; } };
 if (APPLITE) { document.documentElement.classList.add('applite');
   function AppNote(title, opts) { this.onclick = null; this.close = () => { }; appCall('notify', String(title || ''), String((opts && opts.body) || '')); }
@@ -90,6 +91,7 @@ async function boot() {
     loginView(s.setup, s.brand || {}); if (typeof idleSignedOut === 'function') idleSignedOut(); return; }
   ME = s.user; S = s.settings || await api('settings', 'get');
   STAY = (+s.stay || 0) * 1000; /* a phone signed in for the day: no sign-out for inactivity before this time (app38.js) */
+  APP_INFO = s.app || {};
   if (APPLITE) { STAY = Date.now() + 3650 * 864e5; /* the app stays signed in until Sign out */
     if (typeof startIdle === 'function') startIdle(); shell(); mountBell(); startMeta(); startDisc(); if (typeof startPresence === 'function') startPresence(); route(); appCall('ready'); /* the app's opening screen may go */ return; }
   if (FRAME) return bootFrame();
@@ -114,7 +116,7 @@ function shell() {
   const items = MODS.filter(m => APPLITE ? m[0] === 'leads' : m[0] === 'admin' ? ME.role === 'admin' : m[0] === 'fees' ? feesNavItems().length > 0 : canR(m[3]));
   app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span><button type="button" class="sbpin" id="sbpin" aria-pressed="false"><i class="i i-pin"></i></button></h1>
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}${m[0] === 'fees' ? feesNav() : `<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}"><span class="ft t-${m[0]}">${m[2]}</span><span class="lbl">${m[1]}</span></a>`}`).join('')}
-   </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2>
+   ${APPLITE ? appVerHtml() : ''}</aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2>
    <div id="pwb" class="acctw"><button class="acct" id="acct" title="Account"><span class="acav" data-pres="${ME.id}">${avImg(ME.id, ME.avatar, ME.name)}</span><span class="acn">${esc(ME.name)}<small>${esc(ME.role_name || ME.role)}</small></span></button>
     <div class="card menu acm hide" id="acm"><div class="acmh"><span class="acav big">${avImg(ME.id, ME.avatar, ME.name)}</span><div><b>${esc(ME.name)}</b><small class="mut">${esc(ME.role_name || ME.role)} · @${esc(ME.username || '')}</small></div></div><button id="pdp"><i class="i i-user"></i>Change photo</button><button id="pdr" ${ME.avatar ? '' : 'hidden'}><i class="i i-x"></i>Remove photo</button><button id="pwc"><i class="i i-lock"></i>Change password</button><button id="mtsw" class="mt-sw"><i class="i i-file"></i>Open menus in tabs: ${TABS.off() ? 'Off' : 'On'}</button><button id="lo"><i class="i i-x"></i>Sign out</button></div></div></div><main id="main"></main></div><div id="scrim"></div></div>`;
   $('#bg').onclick = () => { $('#side').classList.toggle('open'); document.body.classList.toggle('drawer', $('#side').classList.contains('open')); };
@@ -127,6 +129,7 @@ function shell() {
   $('#pdr').onclick = () => { $('#acm').classList.add('hide'); removeAvatar(0, setMyAvatar); };
   $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
   $('#mtsw').onclick = () => TABS.setOff(!TABS.off());
+  if (APPLITE) appVerBind();
   if (FRAME) return; /* a tab's page-frame: its own menu and top bar stay hidden */
   TABS.mount();
   sideAuto();
@@ -578,7 +581,10 @@ async function pgLeads() {
       && (!LF.own || (LF.own === 'me' ? l.assigned_to == ME.id : LF.own === 'none' ? !l.assigned_to : l.assigned_to == LF.own))
       && (!LF.appt || (LF.appt === 'none' ? !l.appt : LF.appt === 'overdue' ? l.appt && l.appt < td && isActiveLead(l) : LF.appt === 'today' ? l.appt === td : l.appt > td)));
     const key = l => l[LF.sort] ?? '';
-    return r.sort((a, b) => { const x = key(a), y = key(b); if (LF.sort === 'appt' || LF.sort === 'callback_at') { if (!x) return 1; if (!y) return -1; } return (x > y ? 1 : x < y ? -1 : 0) * LF.dir; });
+    r.sort((a, b) => { const x = key(a), y = key(b); if (LF.sort === 'appt' || LF.sort === 'callback_at') { if (!x) return 1; if (!y) return -1; } return (x > y ? 1 : x < y ? -1 : 0) * LF.dir; });
+    /* owner's rule: a lead with a live team discussion has priority - it goes to the top (unread messages first, then the latest message) */
+    const dr = l => { const x = DISC.lsum[l.id]; return x ? (+x.unread ? 2 : 1) : 0; };
+    return r.sort((a, b) => dr(b) - dr(a) || (dr(a) ? String(DISC.lsum[b.id].last_at || '').localeCompare(String(DISC.lsum[a.id].last_at || '')) : 0));
   };
   const sk = k => k === 'date' ? 'created' : k === 'cb' ? 'callback_at' : k;
   let shown = 0; // rows on screen; a redraw after an edit keeps at least this many so the scroll position stays put
@@ -600,7 +606,7 @@ async function pgLeads() {
       cb: l => `<td data-cb="1" class="cbc${w && l.can_edit ? ' qe' : ''}">${cbBadge(l)}</td>` };
     const acts = l => !l.can_edit ? `<button class="ib" title="View" data-a="vw"><i class="i i-eye"></i></button>`
       : `${discBtn(l.id, 1)}${l.phone ? '<a class="ib apcall" title="Call" href="tel:' + esc(l.phone) + '"><i class="i i-phone"></i></a>' : ''}${APPLITE && l.phone && !BA() ? '<a class="ib apwa" title="WhatsApp" href="https://wa.me/' + waNum(l.phone) + '"><i class="i i-whatsapp"></i></a>' : ''}<button class="ib" title="View / edit" data-a="vw"><i class="i i-eye"></i></button><button class="ib" title="More actions" data-a="more"><i class="i i-dots"></i></button>`;
-    const rowHtml = l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}<td class="lact">${acts(l)}</td></tr>`;
+    const rowHtml = l => `<tr data-id="${l.id}"${DISC.lsum[l.id] ? ' class="ldlive" title="Team discussion going on"' : ''}>${show.map(([k]) => cell[k](l)).join('')}<td class="lact">${acts(l)}</td></tr>`;
     const tb = $('#ltb'); let n = Math.min(rows.length, Math.max(LAZY_FIRST, reset === true ? 0 : shown));
     tb.innerHTML = `<colgroup>${show.map(([k]) => `<col${LW[k] ? ` style="width:${LW[k] + (k === 'owner' && TOUCH() ? 34 : 0)}px"` : ''}>`).join('')}<col style="width:${TOUCH() ? 4 * IBW() + 16 : isAdm() ? 136 : 128}px"></colgroup>
       <thead><tr>${show.map(([k, t]) => `<th data-sort="${sk(k)}">${t}<span class="so">${LF.sort === sk(k) ? (LF.dir > 0 ? '↑' : '↓') : '⇅'}</span></th>`).join('')}<th class="right">Actions</th></tr></thead>
@@ -1105,3 +1111,24 @@ if (APPLITE) (() => {
   addEventListener('touchend', () => { const go = on && far; end(); if (go) refreshShow(document.querySelector('#lref'), 'Leads'); }, { passive: true });
   addEventListener('touchcancel', end, { passive: true });
 })();
+
+/* A tap on a team-discussion notification (called by the app): the discussion opens once the CRM is ready. kind = 'l' lead, 'c' customer. */
+function appOpenDisc(kind, id, n = 0) {
+  if (ME && typeof discOpen === 'function' && document.querySelector('#main')) { if (!document.querySelector('.modal')) discOpen(kind === 'c' ? { customer_id: +id } : { lead_id: +id }); return; }
+  if (n < 60) setTimeout(() => appOpenDisc(kind, id, n + 1), 250);
+}
+/* ---- Android app: its version at the foot of the side menu, and "New version available" when the server has a newer APK ---- */
+const appVerNum = v => String(v || '0').split('.').map(x => parseInt(x, 10) || 0);
+const appVerNewer = (a, b) => { const x = appVerNum(a), y = appVerNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+const appVerNow = () => appCall('version') || '1.0';
+const appVerUrl = () => new URL(APP_INFO.url || 'app/Jasper.apk', location.href).href;
+function appVerHtml() {
+  const v = appVerNow(), up = APP_INFO.latest && appVerNewer(APP_INFO.latest, v);
+  return `<div class="apver"><div class="apver-v"><b>Jasper app</b><span>Version ${esc(v)}${up ? '' : ' · up to date'}</span></div>${up ? `<button type="button" class="apver-u" id="apvup"><i class="i i-download"></i><span>New version ${esc(APP_INFO.latest)} available<small>Tap to update</small></span></button>` : ''}</div>`;
+}
+function appVerBind() {
+  const b = document.getElementById('apvup'); if (!b) return;
+  /* from 1.4 the app hands the APK to the phone's browser, which downloads it; older apps cannot, so they are given the link */
+  b.onclick = () => { if (appVerNewer('1.4', appVerNow())) prompt('Copy this link and open it in Chrome to download the new version:', appVerUrl()); else location.href = appVerUrl(); };
+  try { if (sessionStorage.apvSaid !== APP_INFO.latest) { sessionStorage.apvSaid = APP_INFO.latest; setTimeout(() => toast(`New version ${APP_INFO.latest} of the app is available. Open the menu to update.`), 2500); } } catch (e) { }
+}

@@ -42,8 +42,9 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
     static final String HOME = "https://solarize.jasper.solar/";
     static final String HOST = "solarize.jasper.solar";
-    static final String VERSION = "1.3";
+    static final String VERSION = "1.4";
     static final String EXTRA_LEAD = "lead";
+    static final String EXTRA_DISC = "disc";
     private static final int PICK = 41;
 
     private WebView web;
@@ -52,6 +53,7 @@ public class MainActivity extends Activity {
     private long splashAt;
     private static final long SPLASH_MIN = 1600, SPLASH_MAX = 15000;
     private ValueCallback<Uri[]> picking;
+    private String pendingDisc = ""; /* a team-discussion notification was tapped */
     private long pendingLead; /* a lead's notification was tapped: its window opens when the page is ready */
     private long backAt;      /* Back pressed once on the Leads page: a second press within 2 s leaves the app */
 
@@ -100,7 +102,9 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView v, String url) {
-                if (pendingLead > 0 && url != null && url.startsWith(HOME)) { openLead(pendingLead); pendingLead = 0; }
+                if (url == null || !url.startsWith(HOME)) return;
+                if (pendingLead > 0) { openLead(pendingLead); pendingLead = 0; }
+                if (!pendingDisc.isEmpty()) { openDisc(pendingDisc); pendingDisc = ""; }
             }
 
             @Override
@@ -126,8 +130,12 @@ public class MainActivity extends Activity {
                 return true;
             }
         });
-        web.setDownloadListener((url, ua, disp, mime, len) ->
-            Toast.makeText(this, "Downloads are not part of the app. Open the CRM in a browser for that.", Toast.LENGTH_LONG).show());
+        web.setDownloadListener((url, ua, disp, mime, len) -> {
+            if (url != null && url.startsWith(HOME + "app/") && url.endsWith(".apk")) { /* the new version of this app: the phone's browser downloads it */
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); return; } catch (ActivityNotFoundException e) { /* no browser: say so below */ }
+            }
+            Toast.makeText(this, "Downloads are not part of the app. Open the CRM in a browser for that.", Toast.LENGTH_LONG).show();
+        });
 
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 1);
@@ -135,6 +143,7 @@ public class MainActivity extends Activity {
         if (!Notes.token(this).isEmpty()) LeadJob.schedule(this);
 
         pendingLead = getIntent() == null ? 0 : getIntent().getLongExtra(EXTRA_LEAD, 0);
+        pendingDisc = getIntent() == null || getIntent().getStringExtra(EXTRA_DISC) == null ? "" : getIntent().getStringExtra(EXTRA_DISC);
         if (saved != null) web.restoreState(saved); else web.loadUrl(HOME + "#/leads");
     }
 
@@ -146,6 +155,8 @@ public class MainActivity extends Activity {
         long lead = i == null ? 0 : i.getLongExtra(EXTRA_LEAD, 0);
         web.evaluateJavascript("if(location.hash!=='#/leads')location.hash='#/leads';else if(typeof route==='function'&&!document.querySelector('.modal'))route();", null);
         if (lead > 0) openLead(lead);
+        String disc = i == null ? null : i.getStringExtra(EXTRA_DISC);
+        if (disc != null && !disc.isEmpty()) openDisc(disc);
     }
 
     /** The opening screen: the Jasper logo breathing gently, the name, and three dots that pulse one after another. */
@@ -186,6 +197,12 @@ public class MainActivity extends Activity {
         final View s = splash; if (s == null) return;
         splash = null;
         s.animate().alpha(0f).setDuration(320).withEndAction(() -> { if (s.getParent() instanceof FrameLayout) ((FrameLayout) s.getParent()).removeView(s); }).start();
+    }
+
+    /** disc = "l<lead id>" or "c<customer id>": that team discussion opens. */
+    private void openDisc(String disc) {
+        if (!disc.matches("[lc]\\d{1,12}")) return;
+        web.evaluateJavascript("if(typeof appOpenDisc==='function')appOpenDisc('" + disc.charAt(0) + "'," + disc.substring(1) + ");", null);
     }
 
     private void openLead(long id) {

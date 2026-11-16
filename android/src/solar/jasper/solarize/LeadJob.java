@@ -85,7 +85,10 @@ public class LeadJob extends JobService {
         }
         for (int i = alerts == null ? -1 : alerts.length() - 1; i >= 0; i--) {
             JSONObject a = alerts.getJSONObject(i);
-            Notes.show(c, 300000 + (int) (a.optLong("id") % 100000), "callback".equals(a.optString("kind")) ? "Call back reminder" : "Lead for you", a.optString("text"), a.optLong("lead_id"), "");
+            String kind = a.optString("kind");
+            boolean talk = "mention".equals(kind) || "reply".equals(kind) || "end".equals(kind); /* a team discussion: a tap opens it */
+            String disc = !talk ? "" : a.optLong("lead_id") > 0 ? "l" + a.optLong("lead_id") : a.optLong("customer_id") > 0 ? "c" + a.optLong("customer_id") : "";
+            Notes.show(c, 300000 + (int) (a.optLong("id") % 100000), a.optString("title", "callback".equals(kind) ? "Call back reminder" : "Lead for you"), a.optString("text"), talk ? 0 : a.optLong("lead_id"), "", disc);
         }
         /* Owner's rule in the CRM: while new leads wait unattended, remind every 15 minutes. The app does the same at each
            check during the day (8 am - 8 pm on the phone's clock), unless this check has just announced a new lead. */
