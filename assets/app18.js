@@ -184,7 +184,7 @@ async function renderMfr(box, c, id, fresh) {
 // ---------------- Tax bill (GST invoice) ----------------
 const HSN = [[/install|commission|labour|service|kseb|net.?meter|formalit/i, '995461', 18], [/panel|module|pv|mono|perc|topcon/i, '85414300', 5], [/inverter|micro|optimi/i, '85044090', 5], [/structure|mount|gi |frame|rail/i, '73089090', 18], [/cable|wire|mc4|earth|la |lightning|db|acdb|dcdb|meter/i, '85444999', 18]]; 
 const guessHsn = d => (HSN.find(([re]) => re.test(d || '')) || [null, '', 18]);
-let TAX_KEEP = 0, MNRE_KEEP = 0; /* customer whose bill / certificate was just saved: its copy is kept once the tab is drawn again */
+const TAX_KEPT = {}; let TAX_KEEP = 0, MNRE_KEEP = 0; /* customer whose bill / certificate was just saved: its copy is kept once the tab is drawn again */
 async function renderTax(box, c, id) {
   box.innerHTML = '<p class="mut">Loading…</p>';
   if (!document.getElementById('taxdoc-css')) document.head.insertAdjacentHTML('beforeend', `<style id="taxdoc-css">${TAXDOC_CSS}</style>`);
@@ -405,7 +405,13 @@ async function renderTax(box, c, id) {
   const drawShare = () => { const el = $('#tshr', box); if (!el || !g.doc) return;
     const bk = isLoan && canR('loans'), sb = (via, to, icon, label) => `<button class="btn sec sm" data-via="${via}" data-to="${to}"><i class="i i-${icon}"></i> ${label}</button>`;
     el.innerHTML = `<div class="acx-tsh"><div class="bar"><b>Send the bill</b><span class="sp"></span>${sb('pdf', 'customer', 'download', 'PDF')}${sb('email', 'customer', 'mail', 'Email')}${sb('whatsapp', 'customer', 'whatsapp', 'WhatsApp')}${bk ? sb('email', 'bank', 'bank', 'Email to bank') + sb('whatsapp', 'bank', 'whatsapp', 'WhatsApp to bank') : ''}</div>
-      <div class="acx-shl">${acSharedHtml(g.shared || [])}</div></div>`;
+      <div class="acx-shl">${acSharedHtml(g.shared || [])}</div>
+      <div class="bar"><span class="mut" id="tkst" style="font-size:12.5px"></span><span class="sp"></span><button class="btn sec sm" id="tkeep"><i class="i i-folder"></i> Save to Documents</button></div></div>`;
+    drawKept();
+    /* by hand: the same copy the CRM keeps by itself after a save, a print or a send — here with a clear answer when it could not be kept */
+    $('#tkeep', el).onclick = async e => { if (formSnap() !== savedSnap) return toast('Save the changes first', true);
+      const b = e.currentTarget; b.disabled = true; const k = await keepTax(); b.disabled = false;
+      toast(k ? 'Tax bill saved in Documents — kept until someone deletes it' : 'The tax bill could not be saved in Documents. Check the connection and try again.', !k); };
     /* the bill is sent as saved: with changes on the form that are not saved yet, the share waits for Save (Print shows the form as it is) */
     $$('[data-via]', el).forEach(btn => btn.onclick = () => formSnap() !== savedSnap ? toast('Save the changes first', true) : acShareBtn(btn, async () => { const k = calc(), Q = g.qm || {}, cu = g.customer || c, name = acFileName('Tax invoice', g.doc.number, c.name);
       const blob = await acPdfFromHtml(`<div class="doc dtax">${html()}</div>`, DOC_CSS + ACX_A4_FILL, name); /* one A4 page, as printed */
@@ -419,7 +425,13 @@ async function renderTax(box, c, id) {
   /* a copy of the issued bill for the customer's Documents page, kept until someone deletes it: made as saved — right after an issue or a save,
      and again whenever the bill is printed or sent (changes on the form that are not saved yet are never kept) */
   const keepTax = async blob => { if (!g.doc || formSnap() !== savedSnap) return null; const name = acFileName('Tax invoice', g.doc.number, c.name);
-    try { return await docKeep(id, 'tax', 'Tax invoice ' + g.doc.number, name, blob || await acPdfFromHtml(`<div class="doc dtax">${html()}</div>`, DOC_CSS + ACX_A4_FILL, name)); } catch (e) { return null; } };
+    try { const k = await docKeep(id, 'tax', 'Tax invoice ' + g.doc.number, name, blob || await acPdfFromHtml(`<div class="doc dtax">${html()}</div>`, DOC_CSS + ACX_A4_FILL, name));
+      if (k) { keptF = TAX_KEPT[id] = { id: k.id, name, created: new Date().toISOString() }; drawKept(); } return k; } catch (e) { return null; } };
+  /* the copy on the Documents page (one per customer; a newer one takes its place) and the line that says so */
+  let keptF = TAX_KEPT[id] || (c.files || []).find(f => f.gen === 'tax') || null; /* TAX_KEPT: copies made since the customer was loaded */
+  function drawKept() { const el = $('#tkst', box); if (!el) return;
+    el.innerHTML = keptF ? `<i class="i i-check"></i> Saved in Documents on ${fdt(String(keptF.created || '').slice(0, 10))} · kept until someone deletes it · <a href="${fileUrl(keptF, 'v')}" target="_blank" rel="noopener">Open</a>` : 'Not saved in Documents yet';
+    const b = $('#tkeep', box); if (b) b.lastChild.textContent = keptF ? ' Save again' : ' Save to Documents'; }
   drawIssue(); drawShare();
   if (TAX_KEEP === id) { TAX_KEEP = 0; keepTax().then(k => { if (k) toast('A copy of the tax bill is kept in Documents'); }); }
 }
