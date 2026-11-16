@@ -20,7 +20,17 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
+import android.animation.ValueAnimator;
+import android.graphics.Typeface;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
@@ -32,12 +42,15 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
     static final String HOME = "https://solarize.jasper.solar/";
     static final String HOST = "solarize.jasper.solar";
-    static final String VERSION = "1.2";
+    static final String VERSION = "1.3";
     static final String EXTRA_LEAD = "lead";
     private static final int PICK = 41;
 
     private WebView web;
     private ProgressBar bar;
+    private View splash;      /* the opening screen: logo, name and a loading animation until the CRM is on screen */
+    private long splashAt;
+    private static final long SPLASH_MIN = 1600, SPLASH_MAX = 15000;
     private ValueCallback<Uri[]> picking;
     private long pendingLead; /* a lead's notification was tapped: its window opens when the page is ready */
     private long backAt;      /* Back pressed once on the Leads page: a second press within 2 s leaves the app */
@@ -53,6 +66,12 @@ public class MainActivity extends Activity {
         bar.setMax(100);
         bar.setProgressTintList(ColorStateList.valueOf(0xFF007AFF));
         root.addView(bar, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, Math.round(3 * getResources().getDisplayMetrics().density), Gravity.TOP));
+        splash = saved == null ? buildSplash() : null; /* only on a fresh start, not when the screen is rotated */
+        if (splash != null) {
+            root.addView(splash, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            splashAt = System.currentTimeMillis();
+            new Handler(Looper.getMainLooper()).postDelayed(this::hideSplash, SPLASH_MAX); /* never stuck on it */
+        }
         setContentView(root);
 
         WebSettings s = web.getSettings();
@@ -93,7 +112,9 @@ public class MainActivity extends Activity {
             @Override
             public void onProgressChanged(WebView v, int p) {
                 bar.setProgress(p);
-                bar.setVisibility(p >= 100 ? View.GONE : View.VISIBLE);
+                bar.setVisibility(p >= 100 || splash != null ? View.GONE : View.VISIBLE);
+                if (p >= 100 && splash != null) /* the page is in: the opening screen stays at least SPLASH_MIN, then fades */
+                    new Handler(Looper.getMainLooper()).postDelayed(MainActivity.this::hideSplash, Math.max(2500, SPLASH_MIN - (System.currentTimeMillis() - splashAt)));
             }
 
             @Override
@@ -125,6 +146,46 @@ public class MainActivity extends Activity {
         long lead = i == null ? 0 : i.getLongExtra(EXTRA_LEAD, 0);
         web.evaluateJavascript("if(location.hash!=='#/leads')location.hash='#/leads';else if(typeof route==='function'&&!document.querySelector('.modal'))route();", null);
         if (lead > 0) openLead(lead);
+    }
+
+    /** The opening screen: the Jasper logo breathing gently, the name, and three dots that pulse one after another. */
+    private View buildSplash() {
+        float d = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL); box.setGravity(Gravity.CENTER); box.setBackgroundColor(0xFFFFFFFF); box.setClickable(true);
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.splash_logo);
+        box.addView(logo, new LinearLayout.LayoutParams(Math.round(132 * d), Math.round(132 * d)));
+        TextView name = new TextView(this);
+        name.setText(R.string.app_name); name.setTextSize(30); name.setTextColor(0xFF1D1D1F); name.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD)); name.setLetterSpacing(0.04f); name.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT); np.topMargin = Math.round(18 * d);
+        box.addView(name, np);
+        TextView sub = new TextView(this);
+        sub.setText(R.string.splash_sub); sub.setTextSize(14); sub.setTextColor(0xFF8E8E93); sub.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT); sp.topMargin = Math.round(4 * d);
+        box.addView(sub, sp);
+        LinearLayout dots = new LinearLayout(this); dots.setOrientation(LinearLayout.HORIZONTAL); dots.setGravity(Gravity.CENTER);
+        for (int i = 0; i < 3; i++) {
+            View dot = new View(this);
+            android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(); g.setShape(android.graphics.drawable.GradientDrawable.OVAL); g.setColor(0xFFD73B3E);
+            dot.setBackground(g);
+            LinearLayout.LayoutParams dp = new LinearLayout.LayoutParams(Math.round(10 * d), Math.round(10 * d)); dp.leftMargin = dp.rightMargin = Math.round(5 * d);
+            dots.addView(dot, dp);
+            ObjectAnimator a = ObjectAnimator.ofPropertyValuesHolder(dot, PropertyValuesHolder.ofFloat(View.SCALE_X, 0.55f, 1.25f), PropertyValuesHolder.ofFloat(View.SCALE_Y, 0.55f, 1.25f), PropertyValuesHolder.ofFloat(View.ALPHA, 0.3f, 1f));
+            a.setDuration(520); a.setStartDelay(i * 170L); a.setRepeatCount(ValueAnimator.INFINITE); a.setRepeatMode(ValueAnimator.REVERSE); a.setInterpolator(new AccelerateDecelerateInterpolator()); a.start();
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT); lp.topMargin = Math.round(34 * d);
+        box.addView(dots, lp);
+        ObjectAnimator breathe = ObjectAnimator.ofPropertyValuesHolder(logo, PropertyValuesHolder.ofFloat(View.SCALE_X, 0.94f, 1.05f), PropertyValuesHolder.ofFloat(View.SCALE_Y, 0.94f, 1.05f));
+        breathe.setDuration(900); breathe.setRepeatCount(ValueAnimator.INFINITE); breathe.setRepeatMode(ValueAnimator.REVERSE); breathe.setInterpolator(new AccelerateDecelerateInterpolator()); breathe.start();
+        box.setAlpha(1f);
+        return box;
+    }
+
+    private void hideSplash() {
+        final View s = splash; if (s == null) return;
+        splash = null;
+        s.animate().alpha(0f).setDuration(320).withEndAction(() -> { if (s.getParent() instanceof FrameLayout) ((FrameLayout) s.getParent()).removeView(s); }).start();
     }
 
     private void openLead(long id) {
@@ -179,12 +240,15 @@ public class MainActivity extends Activity {
 
         /** An alert raised by the open CRM page (new lead, reminder, call back, discussion). */
         @JavascriptInterface public void notify(String title, String body) {
-            Notes.show(MainActivity.this, 500000 + (int) (System.currentTimeMillis() % 100000), title == null || title.isEmpty() ? "Solarize" : title, body == null ? "" : body, 0, "");
+            Notes.show(MainActivity.this, 500000 + (int) (System.currentTimeMillis() % 100000), title == null || title.isEmpty() ? "Jasper" : title, body == null ? "" : body, 0, "");
         }
 
         /** The open page has already shown these: the background check must not announce them again. */
         @JavascriptInterface public void seenLead(String id) { try { Notes.seen(MainActivity.this, "lead", Long.parseLong(id)); } catch (NumberFormatException e) { } }
         @JavascriptInterface public void seenAlert(String id) { try { Notes.seen(MainActivity.this, "notif", Long.parseLong(id)); } catch (NumberFormatException e) { } }
+
+        /** The CRM has drawn its first screen (sign-in or Leads): the opening screen may go. */
+        @JavascriptInterface public void ready() { runOnUiThread(() -> new Handler(Looper.getMainLooper()).postDelayed(MainActivity.this::hideSplash, Math.max(0, SPLASH_MIN - (System.currentTimeMillis() - splashAt)))); }
 
         @JavascriptInterface public String version() { return VERSION; }
     }

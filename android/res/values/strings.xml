@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Solarize Leads</string>
+    <string name="app_name">Jasper</string>
+    <string name="splash_sub">Solar Solutions · Leads</string>
     <string name="channel_leads">Leads</string>
     <string name="channel_leads_about">New leads, call-back reminders and leads assigned to you</string>
 </resources>

@@ -67,7 +67,7 @@ public class LeadJob extends JobService {
         int code = h.getResponseCode();
         if (code == 401) { /* signed out elsewhere, password changed, or the account was closed */
             p.edit().remove("token").apply(); cancel(c);
-            Notes.show(c, 1, "Solarize Leads", "You are signed out. Open the app and sign in to keep getting lead notifications.", 0, "");
+            Notes.show(c, 1, "Jasper", "You are signed out. Open the app and sign in to keep getting lead notifications.", 0, "");
             return;
         }
         if (code != 200) return;

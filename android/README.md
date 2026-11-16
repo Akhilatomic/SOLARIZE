@@ -1,4 +1,4 @@
-# Solarize Leads — Android app
+# Jasper (Solarize Leads) — Android app
 
 The CRM's **Leads page** in an app, for staff phones.
 
@@ -28,7 +28,7 @@ Android SDK (`sdk/`, packages `platforms;android-34` and `build-tools;34.0.0`).
 bash android/build.sh
 ```
 
-The APK is written to `C:\Users\gotjo\android-build\out\SolarizeLeads-<version>.apk`.
+The APK is written to `C:\Users\gotjo\android-build\out\Jasper-<version>.apk`.
 For an update, raise `android:versionCode` and `android:versionName` in `AndroidManifest.xml` first.
 
 ## The signing key — keep it safe

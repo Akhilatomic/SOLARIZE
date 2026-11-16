@@ -91,12 +91,13 @@ async function boot() {
   ME = s.user; S = s.settings || await api('settings', 'get');
   STAY = (+s.stay || 0) * 1000; /* a phone signed in for the day: no sign-out for inactivity before this time (app38.js) */
   if (APPLITE) { STAY = Date.now() + 3650 * 864e5; /* the app stays signed in until Sign out */
-    if (typeof startIdle === 'function') startIdle(); shell(); mountBell(); startMeta(); startDisc(); if (typeof startPresence === 'function') startPresence(); route(); return; }
+    if (typeof startIdle === 'function') startIdle(); shell(); mountBell(); startMeta(); startDisc(); if (typeof startPresence === 'function') startPresence(); route(); appCall('ready'); /* the app's opening screen may go */ return; }
   if (FRAME) return bootFrame();
   if (typeof startIdle === 'function' && startIdle()) return; /* not used for too long: signing out */
   shell(); mountBell(); if (typeof startSideFeed === 'function') startSideFeed(); if (typeof startPresence === 'function') startPresence(); if (typeof startFeas === 'function') startFeas(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
 }
 function loginView(setup, brand) {
+  if (APPLITE) setTimeout(() => appCall('ready'), 0); /* Android app: the sign-in page is up, its opening screen may go */
   const bg = brand.bg ? `url('${brand.bg}') center/cover no-repeat` : '';
   app.innerHTML = `<div class="lg" style="${bg ? 'background:' + bg : ''}"><div class="lg-dim" style="opacity:${bg ? (brand.dim ?? 35) / 100 : 0}"></div>
    <form class="lg-card" id="lf" autocomplete="on"><img src="assets/logo.png" alt="Jasper" class="lg-logo">

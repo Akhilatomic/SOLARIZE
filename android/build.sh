@@ -26,7 +26,7 @@ javac -nowarn -source 8 -target 8 -classpath "$PLAT" -d "$OUT/classes" $(find "$
 "$BT/d8.bat" --lib "$PLAT" --min-api 24 --output "$OUT/dex" $(find "$OUT/classes" -name '*.class')
 (cd "$OUT/dex" && "$BT/aapt" add ../base.apk classes.dex >/dev/null)
 "$BT/zipalign" -f 4 "$OUT/base.apk" "$OUT/aligned.apk"
-APK="$T/out/SolarizeLeads-$VER.apk"
+APK="$T/out/Jasper-$VER.apk"
 "$BT/apksigner.bat" sign --ks "$(cygpath -w "$KS" 2>/dev/null || echo "$KS")" --ks-pass "file:$(cygpath -w "$KP" 2>/dev/null || echo "$KP")" --out "$APK" "$OUT/aligned.apk"
 "$BT/apksigner.bat" verify "$APK"
 echo "APK: $APK"
