@@ -680,7 +680,7 @@ async function pgLeads() {
   /* Me / All and the owner list stay in step: Me = "My leads"; any other owner choice is part of All */
   $('#lown').addEventListener('change', () => { const v = LF.own === 'me' ? 'me' : 'all'; ownSave('leads', v); ownMark($('.lbar'), v); });
   ownBind($('.lbar'), 'leads', v => { LF.own = v === 'me' ? 'me' : ''; $('#lown').value = LF.own; draw(true); });
-  $('#lref').onclick = () => route();
+  $('#lref').onclick = e => refreshShow(e.currentTarget, 'Leads');
   if ($('#ledit')) $('#ledit').onclick = () => { LF.edit = !LF.edit; route(); };
   if ($('#lnew')) $('#lnew').onclick = () => leadModal(0);
   $('#lcol').onclick = () => $('#lcm').classList.toggle('hide');
@@ -1065,4 +1065,24 @@ function appBack() {
 function appOpenLead(id, n = 0) {
   if (ME && typeof leadModal === 'function' && document.querySelector('#main')) { if (!document.querySelector('.modal')) leadModal(+id); return; }
   if (n < 60) setTimeout(() => appOpenLead(id, n + 1), 250);
+}
+
+/* Refresh with a show (owner's wish): the button's arrow spins, the list dims under a moving blue line and a "Refreshing…" pill
+   for 2 seconds, then the page is read again from the server and the new list fades in with a note. */
+const REFRESH_MS = 2000;
+async function refreshShow(btn, what) {
+  if (document.getElementById('rfpill')) return; /* already refreshing */
+  const main = document.querySelector('#main'), box = main && main.querySelector('.fitbox');
+  const pill = document.createElement('div'); pill.id = 'rfpill'; pill.className = 'rf-pill'; pill.setAttribute('role', 'status');
+  pill.innerHTML = `<i class="i i-refresh"></i><span>Refreshing ${esc(String(what || '').toLowerCase())}…</span>`;
+  document.body.appendChild(pill);
+  if (btn) { btn.disabled = true; btn.classList.add('rf-on'); }
+  if (box) box.classList.add('rf-dim');
+  const here = location.hash;
+  await new Promise(r => setTimeout(r, REFRESH_MS));
+  try { if (location.hash === here) await route(); } finally { pill.remove(); }
+  if (location.hash !== here) return;
+  const nb = document.querySelector('#main .fitbox'); if (nb) { nb.classList.add('rf-in'); setTimeout(() => nb.classList.remove('rf-in'), 700); }
+  const t = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  if (typeof toast === 'function') toast(`${what} updated · ${t}`);
 }
