@@ -96,7 +96,9 @@ function handle_crud($t, $a) {
         if ($t === 'leads') { $keep = ['added_by','meta_id','meta_form','meta_ad','meta_campaign','notify','assigned_to','claimed_at']; foreach ($keep as $k) unset($v[$k]); $cols = array_values(array_diff($cols, $keep)); }
         $set = implode(',', array_map(fn($c) => "$c=:$c", $cols));
         $v['id'] = $id;
+        $oldRm = $t === 'leads' ? (string)(row('SELECT remark FROM leads WHERE id=?', [$id])['remark'] ?? '') : '';
         q("UPDATE $t SET $set, updated=CURRENT_TIMESTAMP WHERE id=:id", $v);
+        if ($t === 'leads' && array_key_exists('remark', $v)) lead_remark_log($id, $oldRm, (string)$v['remark']); /* remark history */
         if ($t === 'leads') q('UPDATE leads SET notify=0 WHERE id=? AND notify=1', [$id]); // edited → no longer a "new lead to contact"
         audit('update', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
         if ($t === 'quotes') q('UPDATE quotes SET edit_by=? WHERE id=?', [uid(), $id]);
@@ -108,6 +110,7 @@ function handle_crud($t, $a) {
         q("INSERT INTO $t(" . implode(',', $cols) . ') VALUES(' . implode(',', array_map(fn($c) => ":$c", $cols)) . ')', $v);
         $id = (int)db()->lastInsertId(); audit('create', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
         if ($t === 'customers') q('UPDATE customers SET owner_id=? WHERE id=?', [uid(), $id]); // whoever adds a customer owns it
+        if ($t === 'leads') lead_remark_log($id, '', (string)($v['remark'] ?? ''));
         if ($t === 'customers') onboard_store($id, $onb);
         if ($t === 'projects') { step_log($id, 'Customer', 'Project created'); sv_on_pipeline($v['customer_id'], $id); /* on the pipeline → on the site survey list */ }
         if ($t === 'projects') cust_cost_to_project($v['customer_id'], $id); /* no value typed: the plant cost agreed with the customer */

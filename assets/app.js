@@ -559,7 +559,7 @@ async function pgLeads() {
       status: l => ed(l, 'status', pill(l.status, stageCls(l.status))),
       city: l => ed(l, 'city', `<span class="clip">${esc(loc(l))}</span>`, loc(l)),
       owner: l => `<td class="ownc">${ownerCellRow(l)}</td>`,
-      remark: l => ed(l, 'remark', l.remark ? `<span class="clamp">${esc(l.remark)}</span>` : (l.can_edit ? '<span class="mut"><i>Add remark</i></span>' : ''), l.remark),
+      remark: l => ed(l, 'remark', l.remark ? `<span class="rmh-c"><span class="clamp">${esc(l.remark)}</span><button type="button" class="rmh-b" data-rmh aria-label="Remark history" title="Remark history: every remark, who wrote it and when"><i class="i i-clock"></i></button></span>` : (l.can_edit ? '<span class="mut"><i>Add remark</i></span>' : ''), l.remark),
       appt: l => ed(l, 'appt', apptBadge(l)),
       cb: l => `<td data-cb="1" class="cbc${w && l.can_edit ? ' qe' : ''}">${cbBadge(l)}</td>` };
     const acts = l => !l.can_edit ? `<button class="ib" title="View" data-a="vw"><i class="i i-eye"></i></button>`
@@ -575,6 +575,7 @@ async function pgLeads() {
     const bind = trs => trs.forEach(tr => {
       const l = byId.get(tr.dataset.id); if (!l) return;
       if (w && l.can_edit) $$('td[data-f]', tr).forEach(td => { if (LF.edit || QE.includes(td.dataset.f)) td.onclick = () => startEdit(td, l); });
+      { const h = $('[data-rmh]', tr); if (h) h.onclick = e => { e.stopPropagation(); remarkHist(l); }; }
       if (w && l.can_edit) $$('td[data-cb]', tr).forEach(td => td.onclick = () => callbackBox(l));
       $$('[data-a]', tr).forEach(b => b.onclick = e => { e.stopPropagation(); act(b.dataset.a, l, b); });
     });
@@ -594,6 +595,7 @@ async function pgLeads() {
     if (a === 'ds') discOpen({ lead_id: l.id });
     if (a === 'vw' || a === 'ed') leadModal(l.id);
     if (a === 'rm') return remarkBox(l);
+    if (a === 'rh') return remarkHist(l);
     if (a === 'cb') return callbackBox(l);
     if (a === 'sv') return svAddBox(l.customer_id ? { customer_id: l.customer_id, name: l.name } : { lead_id: l.id, name: l.name }); /* Site survey: first stage of the project */
     if (a === 'cv') return convertBox(l, r => { location.hash = '#/customers/' + r.customer_id; });
@@ -603,7 +605,8 @@ async function pgLeads() {
   /* "Add remark": a box with spell check (the browser's prompt() has none). Ctrl+Enter saves, Esc closes. */
   const remarkBox = l => {
     const m = modal(`<h3 style="margin-top:0">Remark — ${esc(l.name)}</h3><textarea id="rmt" rows="4" ${SPELL} placeholder="Type the remark…">${esc(l.remark || '')}</textarea>
-     <div class="bar" style="margin-top:12px"><button class="btn" id="rms">Save</button><button class="btn sec" id="rmc">Cancel</button></div>`);
+     <div class="bar" style="margin-top:12px"><button class="btn" id="rms">Save</button><button class="btn sec" id="rmc">Cancel</button><span class="sp"></span><button class="btn sec" id="rmhs"><i class="i i-clock"></i> History</button></div>`);
+    $('#rmhs', m).onclick = () => remarkHist(l);
     const t = $('#rmt', m); t.focus(); t.setSelectionRange(t.value.length, t.value.length);
     $('#rmc', m).onclick = () => m.remove();
     $('#rms', m).onclick = async () => { if (t.value !== (l.remark || '')) { l.remark = t.value; await api('leads', 'save', { ...l }); } m.remove(); draw(); };
@@ -612,7 +615,7 @@ async function pgLeads() {
   const closeMenu = () => { const m = $('#lmenu'); if (m) m.remove(); };
   const moreMenu = (l, btn) => {
     closeMenu();
-    const items = [l.phone && !BA() ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['cb', 'phone', l.callback_at ? 'Call back: ' + cbWhen(l.callback_at) : 'Call back reminder'], ['ed', 'pencil', 'Edit lead'], canW('survey') ? ['sv', 'pin', 'Add to site survey'] : null, l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
+    const items = [l.phone && !BA() ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['rh', 'clock', 'Remark history'], ['cb', 'phone', l.callback_at ? 'Call back: ' + cbWhen(l.callback_at) : 'Call back reminder'], ['ed', 'pencil', 'Edit lead'], canW('survey') ? ['sv', 'pin', 'Add to site survey'] : null, l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
       l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ['unlock', 'lock', l.assigned_to == ME.id ? 'Unclaim (release lead)' : 'Unclaim / unlock (admin)'] : null, canReassignLead(l) ? ['assign', 'users', l.assigned_to ? 'Reassign to…' : 'Assign to…'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu';
     m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('');
@@ -993,4 +996,15 @@ function bindChecklist(pid, p) {
     $$('select[data-f],input[type=date]', row).forEach(e => e.onchange = save); const nt = $('input[data-f=notes]', row); if (nt) nt.onchange = save;
     const up = $('[data-up]', row); if (up) up.onclick = async () => { if (await upload({ project_id: pid, kind: row.dataset.kind, item: it.item })) route(); };
   });
+}
+
+/* Leads > Remark > history: every remark this lead has had, newest first, with who wrote it and when (table lead_remarks). */
+async function remarkHist(l) {
+  const m = modal(`<div class="bar" style="margin:0 0 4px"><h3 style="margin:0">Remark history</h3><span class="sp"></span><button class="ib" id="rmhx" title="Close"><i class="i i-x"></i></button></div><div class="mut" style="margin-bottom:12px">${esc(l.name || 'Lead')}${l.phone ? ' · ' + esc(l.phone) : ''}</div><div id="rmhl"><p class="mut">Loading…</p></div>`);
+  $('#rmhx', m).onclick = () => m.remove();
+  let R; try { R = (await api('leads', 'remarks', undefined, '&id=' + l.id)).rows; } catch (e) { m.remove(); return; }
+  const when = c => { const d = new Date(String(c).replace(' ', 'T') + 'Z'); return isNaN(d) ? esc(c) : d.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }); };
+  $('#rmhl', m).innerHTML = R.length ? `<div class="rmh-l">${R.map((r, i) => `<div class="rmh-r${i ? '' : ' now'}"><span class="rmh-d"></span><div class="rmh-t">${r.text ? esc(r.text) : '<i class="mut">Remark removed</i>'}</div>
+     <small class="mut">${+r.old ? 'Written before history was kept' : esc(r.user || 'Unknown')} · ${when(r.created)}${i ? '' : ' · current'}</small></div>`).join('')}</div>`
+    : '<p class="mut" style="margin:0">No remarks yet. Each remark saved from now on is listed here with the person and the time.</p>';
 }

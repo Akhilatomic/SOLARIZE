@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 69; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 70; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -127,6 +127,12 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS audit_log(id INTEGER PRIMARY KEY AUTOINCREMENT, user TEXT, action TEXT, entity TEXT, entity_id INTEGER, detail TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE TABLE IF NOT EXISTS settings(k TEXT PRIMARY KEY, v TEXT)");
   $db->exec("CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY AUTOINCREMENT, entity TEXT, entity_id INTEGER, text TEXT, user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
+  /* v70: every change of a lead's remark, with who and when (leads list > Remark > history). The remarks already there are
+     put in once as the first entry (old = 1: who wrote them is not known). */
+  $rmNew = !$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='lead_remarks'")->fetchColumn();
+  $db->exec("CREATE TABLE IF NOT EXISTS lead_remarks(id INTEGER PRIMARY KEY AUTOINCREMENT, lead_id INTEGER, text TEXT, user_id INTEGER, user TEXT, old INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE INDEX IF NOT EXISTS lrm_lead ON lead_remarks(lead_id)');
+  if ($rmNew && $db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='leads'")->fetchColumn()) { try { $db->exec("INSERT INTO lead_remarks(lead_id,text,user,old,created) SELECT id, remark, '', 1, COALESCE(updated, created, CURRENT_TIMESTAMP) FROM leads WHERE TRIM(COALESCE(remark,''))<>''"); } catch (PDOException $e) { } }
   $db->exec("CREATE TABLE IF NOT EXISTS checklist(id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER, kind TEXT, item TEXT, status TEXT DEFAULT 'Pending', date TEXT, notes TEXT, UNIQUE(project_id,kind,item))");
   $db->exec("CREATE TABLE IF NOT EXISTS files(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, project_id INTEGER, kind TEXT, item TEXT, name TEXT, path TEXT, size INTEGER, user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, lead_id INTEGER, phone TEXT, text TEXT, user TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)");

@@ -176,8 +176,17 @@ function claim_release() {
 }
 
 // Runs before the generic CRUD for leads. Handles list/get/claim/unlock/assign; checks ownership for writes.
+/* Remark history: one row each time a lead's remark really changes (an emptied remark is kept as an empty entry). */
+function lead_remark_log($lid, $old, $new) {
+  if (trim((string)$old) === trim((string)$new)) return;
+  q('INSERT INTO lead_remarks(lead_id,text,user_id,user) VALUES(?,?,?,?)', [(int)$lid, trim((string)$new), uid(), $_SESSION['name'] ?? '']);
+}
 function lead_guard($a, $in) {
   switch ($a) {
+    case 'remarks': /* GET leads/remarks&id= : newest first; only for a lead this person may see */
+      need('leads'); $lid = (int)($_GET['id'] ?? 0);
+      if (!row('SELECT l.id FROM leads l WHERE l.id=? AND ' . lead_scope(), [$lid])) fail('Not found', 404);
+      out(['rows' => rows('SELECT r.id, r.text, r.old, r.created, COALESCE(u.name, r.user) user FROM lead_remarks r LEFT JOIN users u ON u.id=r.user_id WHERE r.lead_id=? ORDER BY r.id DESC', [$lid])]);
     case 'list':
       need('leads');
       try { claim_release(); } catch (Throwable $e) { } /* claims that ran out are open again before the list is read */

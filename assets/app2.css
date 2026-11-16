@@ -1137,6 +1137,13 @@ html.mt-on #title,html.mt-on #main{display:none}
 .mt-x:hover{background:rgba(0,0,0,.09);color:#1d1d1f}
 .mt-x .i{width:11px;height:11px}
 html.touch .mt-x{opacity:1;width:28px;height:28px}
+/* leads: remark history */
+.rmh-c{display:flex;align-items:flex-start;gap:6px}.rmh-c .clamp{flex:1;min-width:0}
+.rmh-b{flex:none;width:24px;height:24px;border:0;border-radius:7px;background:none;color:#8e8e93;display:grid;place-items:center;cursor:pointer;padding:0;margin:-2px -4px 0 0}.rmh-b:hover{background:rgba(0,122,255,.12);color:#007aff}.rmh-b .i{width:14px;height:14px}
+html.touch .rmh-b{width:34px;height:34px}
+.rmh-l{position:relative;padding-left:20px;max-height:60vh;overflow:auto}.rmh-l::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:1.5px;background:#e3e3e8}
+.rmh-r{position:relative;padding:0 0 14px}.rmh-r:last-child{padding-bottom:2px}.rmh-d{position:absolute;left:-19px;top:5px;width:9px;height:9px;border-radius:50%;background:#c7c7cc;box-shadow:0 0 0 3px #fff}.rmh-r.now .rmh-d{background:#007aff}
+.rmh-t{font-size:14.5px;white-space:pre-wrap;overflow-wrap:anywhere}.rmh-r small{display:block;margin-top:2px;font-size:12px}
 /* customer profile: Quotations card */
 .pfq{display:flex;align-items:center;gap:10px}.pfq-m{flex:1;min-width:0}.pfq .btn{flex:none}.pfq-h{flex-wrap:wrap}.pfq-h .btn{margin:0}
 .mt-cm{position:fixed;z-index:90;min-width:190px;padding:5px}
