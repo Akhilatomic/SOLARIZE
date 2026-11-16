@@ -35,8 +35,11 @@ async function idleOut(auto) {
   try { await api('auth', 'logout', {}); } catch (e) { }
   location.hash = ''; location.reload();
 }
+/* a phone signed in for the day (STAY, set in boot()): nothing is signed out for inactivity before office end time; at that time the day is over */
+const idleStay = () => typeof STAY !== 'undefined' && STAY > 0;
 function idleTick() {
   if (IDLE.busy) return;
+  if (idleStay()) { if (Date.now() < STAY) { idleMark(); return; } STAY = 0; return idleOut(false); }
   if (typeof FMU !== 'undefined' && FMU.busy) idleMark(); /* a running upload counts as using the CRM */
   const last = Math.max(IDLE.last, +idleGet(IDLE.KEY) || 0), s = IDLE.state(Date.now(), last, idleMin(), IDLE.WARN);
   if (s.st === 'out') return idleOut(true);
@@ -45,7 +48,7 @@ function idleTick() {
 /* called from boot() once signed in; true = the last use was too long ago (browser left open or closed), signing out now */
 function startIdle() {
   const old = +idleGet(IDLE.KEY) || 0;
-  if (old && IDLE.state(Date.now(), old, idleMin(), IDLE.WARN).st === 'out') { idleOut(true); return true; }
+  if (old && !idleStay() && IDLE.state(Date.now(), old, idleMin(), IDLE.WARN).st === 'out') { idleOut(true); return true; }
   idleMark(true);
   if (!IDLE.on) { IDLE.on = true;
     ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach(ev => addEventListener(ev, () => idleMark(), { passive: true, capture: true }));

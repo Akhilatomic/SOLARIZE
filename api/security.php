@@ -94,14 +94,32 @@ const SESSION_IDLE = 12 * 3600; // signed out after 12 hours without activity
 function sec_session_start() {
   ini_set('session.use_strict_mode', '1'); ini_set('session.use_only_cookies', '1'); ini_set('session.cookie_httponly', '1');
   session_name('SOLSESS');
+  /* Sessions are kept in the CRM's own (web-denied) data folder: the server's shared session folder is cleaned after about 24 minutes
+     without a request, which signed a phone out as soon as the app had been closed for a while. */
+  $dd = dirname(__DIR__) . '/data'; $sd = $dd . '/sessions';
+  if (!is_dir($sd)) { @mkdir($sd, 0750, true); if (is_dir($dd) && !file_exists("$dd/.htaccess")) @file_put_contents("$dd/.htaccess", "Require all denied\nDeny from all\n"); }
+  if (is_dir($sd) && is_writable($sd) && file_exists("$dd/.htaccess")) { ini_set('session.save_path', $sd); ini_set('session.gc_maxlifetime', (string)SESSION_IDLE); ini_set('session.gc_probability', '1'); ini_set('session.gc_divisor', '200'); }
   session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => !empty($_SERVER['HTTPS']) || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https']);
   session_start();
+}
+/* Phones (owner's rule): a sign-in on a phone before office end time lasts until office end time (Settings > Attendance, 6 pm),
+   even when the app is closed in between - the cookie is kept until then and the no-activity sign-out waits. Returns that time
+   (unix seconds), or 0 when it does not apply (not a phone, or signed in after office hours: the normal rules). */
+function sec_stay_until() {
+  $end = function_exists('hr_cfg') ? (string)(hr_cfg()['end'] ?? '18:00') : '18:00';
+  if (!preg_match('/^\d{1,2}:\d{2}$/', $end)) $end = '18:00';
+  $t = strtotime(date('Y-m-d') . ' ' . $end . ':00');
+  return $t && $t - time() > 60 ? $t : 0;
+}
+function sec_stay_cookie($until) {
+  setcookie(session_name(), session_id(), ['expires' => (int)$until, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => !empty($_SERVER['HTTPS']) || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https']);
 }
 // every request: the user must still exist, be active, and not have changed password since this session began
 function sec_session_check($soft = false) {
   if (empty($_SESSION['uid'])) return;
   $end = function ($msg) use ($soft) { session_unset(); session_destroy(); if (!$soft) fail($msg, 401); };
   if (!empty($_SESSION['seen']) && time() - (int)$_SESSION['seen'] > SESSION_IDLE) return $end('Your session expired — please sign in again');
+  if (!empty($_SESSION['stay']) && time() >= (int)$_SESSION['stay']) return $end('Office hours are over — please sign in again'); /* a phone's day sign-in ends at office end time */
   $u = row('SELECT id,name,username,role,active,sess_ver FROM users WHERE id=?', [(int)$_SESSION['uid']]);
   if (!$u || !(int)$u['active'] || (int)$u['sess_ver'] !== (int)($_SESSION['sv'] ?? 0)) return $end('Please sign in again');
   $_SESSION['role'] = $u['role']; $_SESSION['name'] = $u['name']; $_SESSION['username'] = $u['username'];

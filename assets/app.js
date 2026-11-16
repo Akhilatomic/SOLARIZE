@@ -19,7 +19,28 @@ function lazyMore(tb, more, pending) {
   watch();
 }
 const app = $('#app');
-let ME = null, S = {}, CACHE = {}, TAB = {};
+let ME = null, S = {}, CACHE = {}, TAB = {}, STAY = 0;
+/* a phone: touch screen and a narrow window, or the CRM installed as an app on a touch device */
+const isPhone = () => { try { const touch = matchMedia('(pointer: coarse)').matches; return touch && (matchMedia('(max-width:820px)').matches || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true); } catch (e) { return false; } };
+/* Phones have no `new Notification()` (Android throws, iPhone has it only in the installed app): there the service worker shows
+   the notification. PhoneNote stands in for Notification on touch devices, so every alert in the CRM reaches the phone's
+   notification shade without changing the places that raise them. A tap brings the CRM to the front and runs the alert's onclick. */
+const PHONE_NOTES = {};
+(() => {
+  if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) return;
+  let touch = false; try { touch = matchMedia('(pointer: coarse)').matches; } catch (e) { }
+  if (!touch) return;
+  const N = window.Notification;
+  function PhoneNote(title, opts) {
+    const id = 'n' + Date.now() + Math.random().toString(36).slice(2, 8); this.onclick = null; this.close = () => { };
+    PHONE_NOTES[id] = this;
+    navigator.serviceWorker.ready.then(r => r.showNotification(title, Object.assign({ icon: 'assets/icon-192.png', badge: 'assets/icon-192.png' }, opts || {}, { data: { id } }))).catch(() => { });
+  }
+  Object.defineProperty(PhoneNote, 'permission', { get: () => N.permission });
+  PhoneNote.requestPermission = (...a) => N.requestPermission(...a);
+  window.Notification = PhoneNote;
+  navigator.serviceWorker.addEventListener('message', e => { const id = e.data && e.data.solNote, n = id && PHONE_NOTES[id]; if (!n) return; delete PHONE_NOTES[id]; try { if (typeof n.onclick === 'function') n.onclick(); } catch (x) { } });
+})();
 /* Menu tabs (app43.js): true inside a tab's page-frame. The outer window keeps the side menu, the top bar and every alert. */
 let FRAME = false; try { FRAME = window !== window.parent && !!window.frameElement && window.frameElement.classList.contains('mt-f') && !!window.parent.TABS; } catch (e) { }
 const SUB_STATUS = ['Not applied', 'Applied', 'Under review', 'Approved', 'Released'];
@@ -58,6 +79,7 @@ async function boot() {
   if (!s.auth) { if (FRAME) { try { parent.TABS.signedOut(); } catch (e) { } return; } /* signed out while a tab was open: the whole window goes to the sign-in page */
     loginView(s.setup, s.brand || {}); if (typeof idleSignedOut === 'function') idleSignedOut(); return; }
   ME = s.user; S = s.settings || await api('settings', 'get');
+  STAY = (+s.stay || 0) * 1000; /* a phone signed in for the day: no sign-out for inactivity before this time (app38.js) */
   if (FRAME) return bootFrame();
   if (typeof startIdle === 'function' && startIdle()) return; /* not used for too long: signing out */
   shell(); mountBell(); if (typeof startSideFeed === 'function') startSideFeed(); if (typeof startPresence === 'function') startPresence(); if (typeof startFeas === 'function') startFeas(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
@@ -73,7 +95,7 @@ function loginView(setup, brand) {
     <div class="err" id="e"></div><button class="btn lg-go" id="go" type="submit">${setup ? 'Create admin account' : 'Sign in'}</button>
     <p class="lg-foot">Jasper Solar Solutions</p></form></div>`;
   $('#eye').onclick = () => { const p = $('#pw'); p.type = p.type === 'password' ? 'text' : 'password'; };
-  $('#lf').onsubmit = async e => { e.preventDefault(); const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value }); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
+  $('#lf').onsubmit = async e => { e.preventDefault(); const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value, phone: isPhone() ? 1 : 0 }); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
 }
 function shell() {
   const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : m[0] === 'fees' ? feesNavItems().length > 0 : canR(m[3]));

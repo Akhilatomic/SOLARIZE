@@ -6,7 +6,7 @@ function handle_auth($a) {
   $count = (int)row('SELECT COUNT(*) c FROM users')['c'];
   $old = dirname(__DIR__) . '/data/config.php'; // v1 single-password install -> first admin
   if ($count === 0 && is_file($old)) { $cfg = include $old; q('INSERT INTO users(name,username,hash,role) VALUES(?,?,?,?)', ['Admin', 'admin', $cfg['hash'], 'admin']); $count = 1; }
-  if ($a === 'status') out(['setup' => $count === 0, 'auth' => !empty($_SESSION['uid']), 'user' => me(), 'brand' => branding()] + (!empty($_SESSION['uid']) && !empty($_GET['boot']) ? ['settings' => settings_out()] : [])); /* boot=1: the settings come along, one request less at every start */
+  if ($a === 'status') out(['setup' => $count === 0, 'auth' => !empty($_SESSION['uid']), 'user' => me(), 'brand' => branding(), 'stay' => !empty($_SESSION['uid']) ? (int)($_SESSION['stay'] ?? 0) : 0] + (!empty($_SESSION['uid']) && !empty($_GET['boot']) ? ['settings' => settings_out()] : [])); /* boot=1: the settings come along, one request less at every start */
   if ($a === 'setup') {
     if ($count) fail('Already set up', 403);
     $u = trim($in['username'] ?? ''); $pw = $in['password'] ?? ''; $n = trim($in['name'] ?? '') ?: $u;
@@ -22,7 +22,10 @@ function handle_auth($a) {
     if (!$u) password_verify((string)($in['password'] ?? ''), PW_DUMMY); /* same work for an unknown username, so the answer time does not tell which usernames exist */
     if ($u && password_verify((string)($in['password'] ?? ''), $u['hash'])) {
       if (pw_stale($u['hash'])) q('UPDATE users SET hash=? WHERE id=?', [pw_hash($in['password']), $u['id']]);
-      login_guard_ok($un); login_as($u); audit('login', 'users', $u['id'], 'from ' . client_ip()); out(['ok' => true]); }
+      login_guard_ok($un); login_as($u);
+      $stay = !empty($in['phone']) ? sec_stay_until() : 0; /* a phone: signed in until office end time */
+      if ($stay) { $_SESSION['stay'] = $stay; sec_stay_cookie($stay); }
+      audit('login', 'users', $u['id'], 'from ' . client_ip() . ($stay ? ' · phone, until ' . date('H:i', $stay) : '')); out(['ok' => true, 'stay' => $stay]); }
     login_guard_fail($un);
     fail('Wrong username or password', 401);
   }
