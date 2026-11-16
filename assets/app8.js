@@ -175,7 +175,7 @@ function drawPunch() {
 }
 // every 20 s: running time on the button, the card opens 10 minutes before office end time, and the server is asked again at end time
 function pnWatch() {
-  if (HR.pnT) return;
+  if (HR.pnT || FRAME) return; /* the attendance button lives in the outer window, not in a menu tab */
   HR.pnT = setInterval(() => {
     const t = HR.me && HR.me.today; if (!t || !t.check_in || t.check_out || !$('#punch')) return;
     const left = pnLeft(), day = HR.me.date;
@@ -191,7 +191,7 @@ function hrBadge() {
   b.textContent = n || ''; b.style.display = n ? '' : 'none';
 }
 // one timer only, even when boot() runs again after a sign-in
-function startHr() { if (canR('attendance') || canR('leaves')) hrMe(); clearInterval(HR.poll); HR.poll = setInterval(() => { if (canR('attendance') || canR('leaves')) { if (!document.hidden) hrMe(); else if (HR.me && HR.me.manage_lv) hrPending(); } }, 60000); }
+function startHr() { if (canR('attendance') || canR('leaves')) hrMe(); clearInterval(HR.poll); HR.poll = setInterval(() => { if (canR('attendance') || canR('leaves')) { if (!document.hidden) hrMe(); else if (!FRAME && HR.me && HR.me.manage_lv) hrPending(); } }, 60000); }
 
 // ---------- Attendance page ----------
 // managers: show one person in the weekly / monthly lists (HR.attUser, 0 = all staff). Returns the full staff list for the picker.

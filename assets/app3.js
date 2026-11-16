@@ -9,7 +9,9 @@ const clock = ts => ts ? new Date(ts * 1000).toLocaleTimeString('en-IN', { hour:
 function startMeta() {
   clearInterval(FEEDTIMER); clearInterval(SYNCTIMER); clearInterval(REMINDTIMER); KNOWN = null;
   if (!canR('leads')) return;
-  refreshFeed(true); autoSync();
+  refreshFeed(true);
+  if (FRAME) { FEEDTIMER = setInterval(() => { if (!document.hidden) refreshFeed(); }, 45000); document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshFeed(); }); return; } /* a menu tab only reads the feed; syncing, reminders and alerts belong to the outer window */
+  autoSync();
   FEEDTIMER = setInterval(() => { if (!document.hidden) refreshFeed(); }, 45000);          // pick up new leads quickly
   SYNCTIMER = setInterval(autoSync, 30 * 60 * 1000);                                       // refresh from Meta every 30 minutes
   REMINDTIMER = setInterval(leadRemind, 60000);                                            // checks each minute; reminds every 15 minutes
@@ -60,6 +62,7 @@ function leadPop(fresh) {
   p.onclick = e => { if (e.target.closest('[data-claim],[data-ack],[data-open],[data-done],[data-wa]')) setTimeout(leadPopClose, 0); };
 }
 function alertNew(fresh) {
+  if (FRAME) return; /* menu tabs: the outer window shows the pop-up once */
   remindMark();
   if (document.body && $('#shell')) leadPop(fresh); else toast(fresh.length === 1 ? 'New lead: ' + fresh[0].name + (fresh[0].phone ? ' · ' + fresh[0].phone : '') : fresh.length + ' new leads from Meta', false, true);
   leadBeep();

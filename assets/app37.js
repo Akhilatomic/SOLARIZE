@@ -53,4 +53,4 @@ const A2H = {
   }
 };
 if (typeof module !== 'undefined') module.exports = A2H;
-else if (typeof window !== 'undefined') A2H.start();
+else if (typeof window !== 'undefined' && !(typeof FRAME !== 'undefined' && FRAME)) A2H.start(); /* not inside a menu tab's page-frame */

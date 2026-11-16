@@ -5,6 +5,7 @@ const discT = t => (t && typeof t === 'object') ? (t.lead_id ? { lead_id: +t.lea
 const discRank = id => { const x = DISC.sum[id]; return x ? (+x.unread ? 2 : 1) : 0; };
 // desktop notifications: ask once on the first click (browsers only allow the prompt after a user action)
 function discDesk(title, body, tgt) {
+  if (FRAME) return; /* menu tabs: the outer window alerts once */
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   try { const n = new Notification(title, { body, tag: 'disc-' + Date.now(), icon: 'assets/logo.png' }); n.onclick = () => { window.focus(); n.close(); if (typeof tgt === 'string') location.hash = tgt; else if (typeof tgt === 'function') tgt(); else if (tgt) discOpen(tgt); }; } catch (e) { }
 }
@@ -117,8 +118,8 @@ async function refreshNotifs() {
   try { const r = await api('disc', 'notifs'); DISC.notifs = r.rows; DISC.count = r.count; } catch (e) { return; }
   const ids = DISC.notifs.map(n => n.id);
   if (DISC.seen) { const fresh = DISC.notifs.filter(n => !DISC.seen.includes(n.id));
-    fresh.slice(0, 3).forEach(n => toast(n.kind === 'feas' ? n.text : n.kind === 'mention' ? `${n.from_name} tagged you · ${n.customer_name}` : n.text));
-    if (fresh.length && typeof SOUND !== 'undefined' && SOUND) try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 990; g.gain.setValueAtTime(.0001, a.currentTime); g.gain.exponentialRampToValueAtTime(.12, a.currentTime + .02); g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + .4); o.start(); o.stop(a.currentTime + .4); } catch (e) { }
+    if (!FRAME) fresh.slice(0, 3).forEach(n => toast(n.kind === 'feas' ? n.text : n.kind === 'mention' ? `${n.from_name} tagged you · ${n.customer_name}` : n.text));
+    if (fresh.length && !FRAME && typeof SOUND !== 'undefined' && SOUND) try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 990; g.gain.setValueAtTime(.0001, a.currentTime); g.gain.exponentialRampToValueAtTime(.12, a.currentTime + .02); g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + .4); o.start(); o.stop(a.currentTime + .4); } catch (e) { }
     fresh.filter(n => n.kind === 'feas').slice(0, 3).forEach(n => discDesk('Feasibility expiry', n.text, '#/fees/feasibility'));
     fresh.filter(n => n.kind === 'callback').slice(0, 3).forEach(n => discDesk('Call back · ' + (n.customer_name || 'lead'), n.text, () => leadModal(n.lead_id)));
     fresh.filter(n => n.kind === 'assign').slice(0, 3).forEach(n => discDesk('New ' + (n.lead_id ? 'lead' : 'customer') + ' for you · ' + (n.customer_name || ''), n.text, n.lead_id ? () => leadModal(n.lead_id) : '#/customers/' + n.customer_id));
@@ -147,6 +148,6 @@ function startDisc() {
   // every 20 s while the tab is in view, 30 s in a background tab (the old setInterval picked one delay at start-up and kept it);
   // one timer only, even when boot() runs again after a sign-in
   clearTimeout(DISC.poll);
-  const next = () => { DISC.poll = setTimeout(() => { refreshNotifs(); discSummary(); next(); }, document.hidden ? 30000 : 20000); };
+  const next = () => { DISC.poll = setTimeout(() => { if (!FRAME || !document.hidden) { refreshNotifs(); discSummary(); } next(); }, document.hidden ? 30000 : 20000); };
   next();
 }

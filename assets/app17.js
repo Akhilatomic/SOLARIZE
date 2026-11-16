@@ -52,6 +52,7 @@ function presPaint() {
     if (el.title !== lb) el.title = lb; });
 }
 async function presBeat() {
+  if (FRAME && document.hidden) return; /* a menu tab that is not in front: the outer window keeps the heartbeat */
   /* team=1 while the dashboard is open: names, roles and pictures come too, for its Who's online strip */
   try { const team = document.getElementById('dteam') ? 1 : 0;
     const r = await fetch(`api.php?m=user&a=presence&act=${Date.now() - PRES.used < 3e5 ? 1 : 0}&team=${team}`, { credentials: 'same-origin' }); if (!r.ok) return;

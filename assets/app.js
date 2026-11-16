@@ -20,6 +20,8 @@ function lazyMore(tb, more, pending) {
 }
 const app = $('#app');
 let ME = null, S = {}, CACHE = {}, TAB = {};
+/* Menu tabs (app43.js): true inside a tab's page-frame. The outer window keeps the side menu, the top bar and every alert. */
+let FRAME = false; try { FRAME = window !== window.parent && !!window.frameElement && window.frameElement.classList.contains('mt-f') && !!window.parent.TABS; } catch (e) { }
 const SUB_STATUS = ['Not applied', 'Applied', 'Under review', 'Approved', 'Released'];
 const MODS = [ // id, label, icon, perm
   ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['calendar', 'Calendar', '<i class="i i-calendar"></i>', 'calendar'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['survey', 'Site survey', '<i class="i i-pin"></i>', 'survey'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
@@ -53,8 +55,10 @@ const stageCls = s => ({ Won: 'g', Commissioned: 'g', Closed: 'g', Released: 'g'
 
 async function boot() {
   const s = await api('auth', 'status', undefined, '&boot=1');
-  if (!s.auth) { loginView(s.setup, s.brand || {}); if (typeof idleSignedOut === 'function') idleSignedOut(); return; }
+  if (!s.auth) { if (FRAME) { try { parent.TABS.signedOut(); } catch (e) { } return; } /* signed out while a tab was open: the whole window goes to the sign-in page */
+    loginView(s.setup, s.brand || {}); if (typeof idleSignedOut === 'function') idleSignedOut(); return; }
   ME = s.user; S = s.settings || await api('settings', 'get');
+  if (FRAME) return bootFrame();
   if (typeof startIdle === 'function' && startIdle()) return; /* not used for too long: signing out */
   shell(); mountBell(); if (typeof startSideFeed === 'function') startSideFeed(); if (typeof startPresence === 'function') startPresence(); if (typeof startFeas === 'function') startFeas(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
 }
@@ -77,7 +81,7 @@ function shell() {
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}${m[0] === 'fees' ? feesNav() : `<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}"><span class="ft t-${m[0]}">${m[2]}</span><span class="lbl">${m[1]}</span></a>`}`).join('')}
    </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2>
    <div id="pwb" class="acctw"><button class="acct" id="acct" title="Account"><span class="acav" data-pres="${ME.id}">${avImg(ME.id, ME.avatar, ME.name)}</span><span class="acn">${esc(ME.name)}<small>${esc(ME.role_name || ME.role)}</small></span></button>
-    <div class="card menu acm hide" id="acm"><div class="acmh"><span class="acav big">${avImg(ME.id, ME.avatar, ME.name)}</span><div><b>${esc(ME.name)}</b><small class="mut">${esc(ME.role_name || ME.role)} · @${esc(ME.username || '')}</small></div></div><button id="pdp"><i class="i i-user"></i>Change photo</button><button id="pdr" ${ME.avatar ? '' : 'hidden'}><i class="i i-x"></i>Remove photo</button><button id="pwc"><i class="i i-lock"></i>Change password</button><button id="lo"><i class="i i-x"></i>Sign out</button></div></div></div><main id="main"></main></div><div id="scrim"></div></div>`;
+    <div class="card menu acm hide" id="acm"><div class="acmh"><span class="acav big">${avImg(ME.id, ME.avatar, ME.name)}</span><div><b>${esc(ME.name)}</b><small class="mut">${esc(ME.role_name || ME.role)} · @${esc(ME.username || '')}</small></div></div><button id="pdp"><i class="i i-user"></i>Change photo</button><button id="pdr" ${ME.avatar ? '' : 'hidden'}><i class="i i-x"></i>Remove photo</button><button id="pwc"><i class="i i-lock"></i>Change password</button><button id="mtsw" class="mt-sw"><i class="i i-file"></i>Open menus in tabs: ${TABS.off() ? 'Off' : 'On'}</button><button id="lo"><i class="i i-x"></i>Sign out</button></div></div></div><main id="main"></main></div><div id="scrim"></div></div>`;
   $('#bg').onclick = () => { $('#side').classList.toggle('open'); document.body.classList.toggle('drawer', $('#side').classList.contains('open')); };
   $('#scrim').onclick = () => { $('#side').classList.remove('open'); document.body.classList.remove('drawer'); };
   $('#acct').onclick = e => { e.stopPropagation(); $('#acm').classList.toggle('hide'); };
@@ -87,6 +91,9 @@ function shell() {
   $('#pdp').onclick = () => { $('#acm').classList.add('hide'); pickAvatar(0, ME.name, setMyAvatar); };
   $('#pdr').onclick = () => { $('#acm').classList.add('hide'); removeAvatar(0, setMyAvatar); };
   $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
+  $('#mtsw').onclick = () => TABS.setOff(!TABS.off());
+  if (FRAME) return; /* a tab's page-frame: its own menu and top bar stay hidden */
+  TABS.mount();
   sideAuto();
 }
 /* Desktop sidebar: shrinks to an icon rail 2 seconds after it was last used and opens over the page
@@ -122,8 +129,10 @@ function sideAuto() {
 window.onhashchange = () => ME && route();
 let ROUTE_N = 0; // each navigation gets a number, so a slow page you already left can't paint its error over the page you are on
 async function route() {
-  const nav = ++ROUTE_N;
+  if (TABS.live) return TABS.route(); /* the outer window only shows tabs; each tab's frame draws its own page */
   const [, mod = 'dashboard', id] = location.hash.split('/');
+  if (FRAME) tabFrameRoute(); /* the outer window follows: tab name, address bar, side menu mark */
+  const nav = ++ROUTE_N;
   $$('aside a').forEach(a => a.classList.toggle('on', a.dataset.m === mod));
   $('#side')?.classList.remove('open'); document.body.classList.remove('drawer');
   const t = MODS.find(m => m[0] === mod);
