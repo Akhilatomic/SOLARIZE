@@ -32,7 +32,7 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
     static final String HOME = "https://solarize.jasper.solar/";
     static final String HOST = "solarize.jasper.solar";
-    static final String VERSION = "1.1";
+    static final String VERSION = "1.2";
     static final String EXTRA_LEAD = "lead";
     private static final int PICK = 41;
 
@@ -66,6 +66,8 @@ public class MainActivity extends Activity {
         s.setUserAgentString(s.getUserAgentString() + " SolarizeLeads/" + VERSION);
         CookieManager.getInstance().setAcceptCookie(true);
 
+        /* a new version of the app starts with a clean page store, so it never shows an older copy of the CRM */
+        if (!VERSION.equals(Notes.prefs(this).getString("ver", ""))) { web.clearCache(true); Notes.prefs(this).edit().putString("ver", VERSION).apply(); }
         web.addJavascriptInterface(new Bridge(), "SolarizeApp");
         web.setWebViewClient(new WebViewClient() {
             @Override

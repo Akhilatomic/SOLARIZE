@@ -1086,3 +1086,21 @@ async function refreshShow(btn, what) {
   const t = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
   if (typeof toast === 'function') toast(`${what} updated · ${t}`);
 }
+
+/* Android app: pull the Leads page down from its top to refresh (the same show as the Refresh button). A hint follows the
+   finger; letting go past the mark refreshes. Only when nothing is open on top and the page is at its very top. */
+if (APPLITE) (() => {
+  const NEED = 90; let y0 = 0, on = false, hint = null, far = false;
+  const top = () => (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
+  const idle = () => /^#\/leads\/?$/.test(location.hash) && !document.querySelector('.modal,#lmenu,#rfpill') && !!document.querySelector('#lref');
+  const end = () => { on = false; far = false; if (hint) { hint.remove(); hint = null; } };
+  addEventListener('touchstart', e => { end(); if (e.touches.length === 1 && top() && idle() && !e.target.closest('input,textarea,select,.fitbox .qe')) { y0 = e.touches[0].clientY; on = true; } }, { passive: true });
+  addEventListener('touchmove', e => { if (!on) return; const d = e.touches[0].clientY - y0;
+    if (d < 0 || !top()) return end();
+    if (d < 24) return;
+    if (!hint) { hint = document.createElement('div'); hint.className = 'rf-pull'; hint.innerHTML = '<i class="i i-refresh"></i><span></span>'; document.body.appendChild(hint); }
+    far = d >= NEED; hint.classList.toggle('go', far); hint.lastChild.textContent = far ? 'Release to refresh' : 'Pull down to refresh';
+    hint.style.transform = `translate(-50%, ${Math.min(d, NEED + 30) * .5}px)`; hint.firstChild.style.transform = `rotate(${Math.min(d, NEED) * 3}deg)`; }, { passive: true });
+  addEventListener('touchend', () => { const go = on && far; end(); if (go) refreshShow(document.querySelector('#lref'), 'Leads'); }, { passive: true });
+  addEventListener('touchcancel', end, { passive: true });
+})();
