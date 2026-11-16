@@ -133,7 +133,11 @@ chk($s['_code'] === 200 && $s['agreed'] == 150000, 'admin enters the cost for a 
 $fid = (int)$one("SELECT id FROM files WHERE customer_id=? AND kind='approved'", [$c1]);
 chk(call($sales, 'files', 'delete', ['id' => $fid])['_code'] === 403 && (bool)$one('SELECT 1 FROM files WHERE id=?', [$fid]), 'staff cannot delete the approved quotation');
 $r = call($sales, 'files', 'upload', ['customer_id' => $c1, 'kind' => 'approved', 'file' => pdfFile()], '', true);
-chk($r['_code'] === 403 && (int)$one("SELECT COUNT(*) FROM files WHERE customer_id=? AND kind='approved'", [$c1]) === 1, 'nor add another one');
+$sf = $rowOf('SELECT * FROM files WHERE id=?', [(int)($r['id'] ?? 0)]);
+chk($r['_code'] === 200 && $sf['item'] === 'Approved quotation' && (string)$sf['life'] === '0' && $sf['user'] === 'onbsales', 'but staff who make quotations may add one from the customer profile, under their name');
+$g = call($sales, 'customers', 'get', null, '&id=' . $c1); $gf = array_values(array_filter($g['files'], fn($f) => (int)$f['id'] === (int)$sf['id']));
+chk(($gf[0]['by_name'] ?? '') === 'Onb Seller', 'the profile says who uploaded it');
+chk(call($sales, 'files', 'delete', ['id' => (int)$sf['id']])['_code'] === 403, 'and still cannot delete it');
 $r = call($admin, 'files', 'upload', ['customer_id' => $c1, 'kind' => 'approved', 'item' => 'something else', 'file' => pdfFile(null, 'Revised quote.pdf')], '', true);
 $nf = $rowOf('SELECT * FROM files WHERE id=?', [(int)($r['id'] ?? 0)]);
 chk($r['_code'] === 200 && $nf['item'] === 'Approved quotation' && (string)$nf['life'] === '0', 'an admin adds a revised one, kept until deleted');

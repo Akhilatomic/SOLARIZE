@@ -233,9 +233,9 @@ function handle_qm($a) {
         $json = json_encode($doc, JSON_UNESCAPED_UNICODE);
         if ($json === false || strlen($json) > 500000) { $db->exec('ROLLBACK'); $tx = false; fail('That quotation is too large'); }
         if ($cur) {
-          q('UPDATE quotes SET customer_id=?,lead_id=?,date=?,status=?,total=?,subsidy=?,doc=?,updated=CURRENT_TIMESTAMP WHERE id=?', [$cust, $lead, $date, $status, (float)$price, $subsidy, $json, $id]);
+          q('UPDATE quotes SET customer_id=?,lead_id=?,date=?,status=?,total=?,subsidy=?,doc=?,edit_by=?,updated=CURRENT_TIMESTAMP WHERE id=?', [$cust, $lead, $date, $status, (float)$price, $subsidy, $json, uid(), $id]);
         } else {
-          q("INSERT INTO quotes(customer_id,lead_id,number,date,items,gst_rate,subsidy,terms,status,total,doc) VALUES(?,?,?,?,'[]',0,?,'',?,?,?)", [$cust, $lead, $number, $date, $subsidy, $status, (float)$price, $json]);
+          q("INSERT INTO quotes(customer_id,lead_id,number,date,items,gst_rate,subsidy,terms,status,total,doc,made_by,edit_by) VALUES(?,?,?,?,'[]',0,?,'',?,?,?,?,?)", [$cust, $lead, $number, $date, $subsidy, $status, (float)$price, $json, uid(), uid()]);
           $id = (int)$db->lastInsertId();
         }
         $db->exec('COMMIT'); $tx = false;

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 68; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 69; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -248,6 +248,12 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS qm_templates(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, data TEXT, created_by INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP)");
   $qc = array_column($db->query('PRAGMA table_info(quotes)')->fetchAll(), 'name');
   if (!in_array('doc', $qc)) { try { $db->exec("ALTER TABLE quotes ADD COLUMN doc TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  /* v69: who made a quotation and who changed it last (user ids). Older quotations are filled once from the audit log. */
+  if (!in_array('made_by', $qc)) {
+    foreach (['made_by', 'edit_by'] as $col) { try { $db->exec("ALTER TABLE quotes ADD COLUMN $col INTEGER"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+    $db->exec("UPDATE quotes SET made_by=(SELECT u.id FROM audit_log a JOIN users u ON u.username=a.user WHERE a.entity='quotes' AND a.entity_id=quotes.id ORDER BY a.id ASC LIMIT 1),
+      edit_by=(SELECT u.id FROM audit_log a JOIN users u ON u.username=a.user WHERE a.entity='quotes' AND a.entity_id=quotes.id AND a.action IN ('quote_save','create','update') ORDER BY a.id DESC LIMIT 1) WHERE made_by IS NULL");
+  }
   $db->exec("INSERT OR IGNORE INTO settings(k,v) VALUES('qm_next','144')");
   /* v27: call-back reminders on leads. Changed only through leads/callback (not the lead save), so saving a lead
      from an older copy can't wipe one. callback_at is local time 'Y-m-d H:i'; callback_sent = bell notification sent. */

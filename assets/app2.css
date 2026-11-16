@@ -1137,6 +1137,8 @@ html.mt-on #title,html.mt-on #main{display:none}
 .mt-x:hover{background:rgba(0,0,0,.09);color:#1d1d1f}
 .mt-x .i{width:11px;height:11px}
 html.touch .mt-x{opacity:1;width:28px;height:28px}
+/* customer profile: Quotations card */
+.pfq{display:flex;align-items:center;gap:10px}.pfq-m{flex:1;min-width:0}.pfq .btn{flex:none}.pfq-h{flex-wrap:wrap}.pfq-h .btn{margin:0}
 .mt-cm{position:fixed;z-index:90;min-width:190px;padding:5px}
 @media(max-width:820px){.mt-sw{display:none!important}}
 html.mt-frame aside,html.mt-frame .top,html.mt-frame #scrim{display:none!important}

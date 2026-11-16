@@ -99,6 +99,7 @@ function handle_crud($t, $a) {
         q("UPDATE $t SET $set, updated=CURRENT_TIMESTAMP WHERE id=:id", $v);
         if ($t === 'leads') q('UPDATE leads SET notify=0 WHERE id=? AND notify=1', [$id]); // edited → no longer a "new lead to contact"
         audit('update', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
+        if ($t === 'quotes') q('UPDATE quotes SET edit_by=? WHERE id=?', [uid(), $id]);
       } else {
         if ($t === 'customers') $v['added_by'] = $_SESSION['name'] ?? '';
         if ($t === 'leads') { $v['added_by'] = $_SESSION['name'] ?? ''; $v['notify'] = 0;
@@ -110,6 +111,7 @@ function handle_crud($t, $a) {
         if ($t === 'customers') onboard_store($id, $onb);
         if ($t === 'projects') { step_log($id, 'Customer', 'Project created'); sv_on_pipeline($v['customer_id'], $id); /* on the pipeline → on the site survey list */ }
         if ($t === 'projects') cust_cost_to_project($v['customer_id'], $id); /* no value typed: the plant cost agreed with the customer */
+        if ($t === 'quotes') q('UPDATE quotes SET made_by=?, edit_by=? WHERE id=?', [uid(), uid(), $id]);
         if ($t === 'quotes' && $v['number'] === '') {
           $c = settings()['company'];
           q('UPDATE quotes SET number=? WHERE id=?', [($c['quote_prefix'] ?: 'Q') . '-' . date('y') . '-' . str_pad($id, 4, '0', STR_PAD_LEFT), $id]);
@@ -221,8 +223,8 @@ function detail($t, $r) {
   if ($t === 'customers') {
     $r['notes_log'] = $notes();
     $r['projects'] = rows('SELECT p.*, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p WHERE customer_id=? ORDER BY id DESC', [$id]);
-    $r['quotes'] = rows('SELECT id,number,date,total,status FROM quotes WHERE customer_id=? ORDER BY id DESC', [$id]);
-    $r['files'] = rows('SELECT id,name,kind,item,size,created,life,gen FROM files WHERE customer_id=? AND ' . DOCS_NO_PAPERS . ' ORDER BY id DESC', [$id]); /* KSEB / bank papers: on the project's KSEB documents tab */
+    $r['quotes'] = rows('SELECT q.id,q.number,q.date,q.total,q.status,q.created,q.updated, m.name made_name, e.name edit_name FROM quotes q LEFT JOIN users m ON m.id=q.made_by LEFT JOIN users e ON e.id=q.edit_by WHERE q.customer_id=? ORDER BY q.id DESC', [$id]); /* with who made it and who changed it last */
+    $r['files'] = rows('SELECT id,name,kind,item,size,created,life,gen,(SELECT name FROM users WHERE username=files.user) by_name FROM files WHERE customer_id=? AND ' . DOCS_NO_PAPERS . ' ORDER BY id DESC', [$id]); /* KSEB / bank papers: on the project's KSEB documents tab */
     $r['messages'] = is_ba() ? [] : rows('SELECT * FROM messages WHERE customer_id=? ORDER BY id DESC', [$id]); // BA: no WhatsApp history
   }
   if ($t === 'projects') {
@@ -341,7 +343,7 @@ function handle_files($a) {
     $name = bin2hex(random_bytes(12)) . '.' . $ext;
     if (!move_uploaded_file($fl['tmp_name'], "$dir/$name")) fail('Could not save file', 500);
     $kind = (string)($_POST['kind'] ?? ''); $item = $kind === 'approved' ? 'Approved quotation' : (string)($_POST['item'] ?? '');
-    if ($kind === 'approved' && !is_admin()) { @unlink("$dir/$name"); fail('Only an admin can add another approved quotation', 403); }
+    if ($kind === 'approved' && !is_admin() && !can('quotes', true)) { @unlink("$dir/$name"); fail('Your role cannot add an approved quotation', 403); } /* staff who make quotations may add one (customer profile); only an admin deletes */
     $pid = (int)($_POST['project_id'] ?? 0) ?: null; $cid = (int)($_POST['customer_id'] ?? 0) ?: null;
     if ($pid && !$cid) $cid = (row('SELECT customer_id FROM projects WHERE id=?', [$pid])['customer_id'] ?? null);
     q('INSERT INTO files(customer_id,project_id,kind,item,name,path,size,user,life) VALUES(?,?,?,?,?,?,?,?,?)', [$cid, $pid, $kind, $item, basename($fl['name']), $name, $fl['size'], $_SESSION['username'], in_array($kind, ['warranty', 'approved'], true) ? 0 : null]); /* warranty cards and approved quotations are kept until deleted */

@@ -43,7 +43,7 @@ function tabMenu(x, y, open) {
   m.innerHTML = '<button type="button"><i class="i i-plus"></i>Open in new tab</button>';
   document.body.appendChild(m);
   m.style.left = Math.max(4, Math.min(x, innerWidth - m.offsetWidth - 6)) + 'px'; m.style.top = Math.max(4, Math.min(y, innerHeight - m.offsetHeight - 6)) + 'px';
-  const gone = e => { if (e && e.type === 'keydown' && e.key !== 'Escape') return; if (e && e.type !== 'keydown' && m.contains(e.target)) return;
+  const gone = e => { if (e && e.type === 'keydown' && e.key !== 'Escape') return; if (e && e.type !== 'keydown' && e.target instanceof Node && m.contains(e.target)) return;
     m.remove(); ['pointerdown', 'click', 'keydown', 'scroll', 'blur'].forEach(ev => removeEventListener(ev, gone, true)); };
   setTimeout(() => ['pointerdown', 'click', 'keydown', 'scroll', 'blur'].forEach(ev => addEventListener(ev, gone, true)), 0);
   m.firstChild.onclick = () => { gone(); open(); };
@@ -202,13 +202,15 @@ function tabFrameInit() {
       route(); },
   };
   addEventListener('pointerdown', () => { try { parent.TABS.tap(); } catch (e) { } }, true);
+  /* a page that changes its own address without a hashchange (a new quotation gets its number): the outer window follows */
+  const rs = history.replaceState; history.replaceState = function () { const r = rs.apply(this, arguments); if (TABF.ready) tabFrameRoute(); return r; };
   addEventListener('contextmenu', e => { const h = tabLink(e); if (!h) return; e.preventDefault(); tabMenu(e.clientX, e.clientY, () => { try { parent.TABS.open(h); } catch (x) { } }); });
 }
 /* route() of a page-frame: the outer window is told which page this tab shows now */
 function tabFrameRoute() { try { parent.TABS.note(TABF.id, location.hash || '#/dashboard'); } catch (e) { } }
 /* boot() of a page-frame: the page and the feeds it reads. Alerts, reminders, badges and the attendance button belong to the outer window. */
 function bootFrame() {
-  shell();
+  TABF.ready = true; shell();
   /* the tab is named after the page: "Finance › Registration fee" is shown as "Registration fee" */
   const tl = $('#title'), say = () => { const sub = tl.querySelector('.ttls'), name = (sub ? sub.textContent.replace(/^[\s›>]+/, '') : tl.textContent).replace(/\s+/g, ' ').trim();
     try { parent.TABS.note(TABF.id, '', name); } catch (e) { } };

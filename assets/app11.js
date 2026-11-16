@@ -71,7 +71,7 @@ async function pgCustomer(id) {
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
     <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut" style="margin:0">No project yet.</p></div>`}
      <div class="pfcols"><div class="card pfc"><div class="pfch"><i class="i i-clipboard"></i><h3>Details by page</h3></div><div id="ppsum">${sumHtml(cnt0)}</div></div>${locCard}
-     <div class="card pfc"><div class="pfch"><i class="i i-receipt"></i><h3>Quotations</h3><span class="sp"></span>${canW('quotes') ? '<button class="btn sec sm" id="nq">+ New</button>' : ''}</div>${c.quotes.map(q => `<div class="pfdoc"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${q.total != null ? inr(q.total) : ''}<br><small class="mut">${q.date}</small></div>`).join('') || '<p class="mut" style="margin:0;font-size:13px">No quotations</p>'}</div>
+     ${pfQuoteCard(c)}
      ${c.notes ? `<div class="card pfc"><div class="pfch"><i class="i i-note"></i><h3>Notes</h3></div><div style="font-size:14px;white-space:pre-wrap">${esc(c.notes)}</div></div>` : ''}</div></div>
     <div class="pfright"><div class="card pftl"><div class="pfch"><i class="i i-clock"></i><h3>Timeline</h3><span class="sp"></span><small class="mut">${tl.events.length} events</small></div>
       <div class="tladd"><input id="tln" placeholder="Add an update or note… (Enter to save)"><button class="btn sm" id="tlnb">Add</button></div>
@@ -95,6 +95,10 @@ async function pgCustomer(id) {
   if ($('#pfexp')) $('#pfexp').onclick = () => { const j = (c.projects || [])[0]; if (j && +j.id) location.hash = '#/accounts/cost/' + +j.id; else toast('Start a project for this customer first', true); };
   if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
   if ($('#nq')) $('#nq').onclick = () => { sessionStorage.lead2quote = JSON.stringify({ customer_id: id, name: c.name }); location.hash = '#/quotes/new'; };
+  /* the approved quotation (the copy the customer agreed to): kept in Documents until an admin deletes it */
+  if ($('#nqu')) $('#nqu').onclick = async () => { const f = await pickFile('application/pdf,image/jpeg,image/png,image/webp'); if (!f) return;
+    const fd = new FormData(); fd.append('customer_id', id); fd.append('kind', 'approved'); fd.append('file', f);
+    try { await api('files', 'upload', fd); toast('Approved quotation saved in Documents'); if (typeof DOC_STALE !== 'undefined') DOC_STALE.add(+id); route(); } catch (e) { } };
   if ($('#up')) $('#up').onclick = () => docUploadModal(c, id);
   const addNote = async () => { const t = $('#tln').value.trim(); if (!t) return; await api('notes', 'add', { entity: 'customers', entity_id: id, text: t }); route(); };
   $('#tlnb').onclick = addNote; $('#tln').onkeydown = e => { if (e.key === 'Enter') addNote(); };
@@ -225,4 +229,15 @@ async function payTab(box, c, id) {
   $('#pczup', box).onclick = async () => { const f = await pickFile('application/pdf,image/jpeg,image/png,image/webp'); if (!f) return;
     const fd = new FormData(); fd.append('customer_id', id); fd.append('kind', 'approved'); fd.append('file', f);
     try { await api('files', 'upload', fd); toast('Approved quotation saved in Documents'); if (typeof DOC_STALE !== 'undefined') DOC_STALE.add(+id); redraw(); } catch (e) { } };
+}
+
+/* Customer profile > Overview > Quotations: the approved quotations that were uploaded and the quotations made in the CRM,
+   each with who uploaded / made / changed it. Upload and Create need the Quotations edit right. */
+function pfQuoteCard(c) {
+  const w = canW('quotes'), ap = (c.files || []).filter(f => f.kind === 'approved');
+  const who = (word, name, when) => word + (name ? ' by ' + esc(name) : '') + (when ? ' · ' + dmy(when) : '');
+  const A = ap.map(f => `<div class="pfdoc pfq"><div class="pfq-m"><a href="api.php?m=files&a=get&id=${+f.id}&v=1" target="_blank" rel="noopener"><b>${esc(f.name)}</b></a> ${pill('Approved', 'g')}<br><small class="mut">${who('Uploaded', f.by_name, f.created)} · in Documents</small></div></div>`);
+  const Q = c.quotes.map(q => { const ch = q.updated && q.created && q.updated.slice(0, 16) !== q.created.slice(0, 16);
+    return `<div class="pfdoc pfq"><div class="pfq-m"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${q.total != null ? inr(q.total) : ''}<br><small class="mut">${who('Created', q.made_name, q.created || q.date)}${ch ? ' · ' + who('Modified', q.edit_name, q.updated) : ''}</small></div>${w ? `<a class="btn sec sm" href="#/quotes/${q.id}" title="Open this quotation and change it. When it is saved, the new PDF replaces the copy in Documents."><i class="i i-pencil"></i> Modify</a>` : ''}</div>`; });
+  return `<div class="card pfc"><div class="pfch pfq-h"><i class="i i-receipt"></i><h3>Quotations</h3><span class="sp"></span>${w ? '<button class="btn sec sm" id="nqu" title="Upload the quotation the customer approved (PDF or photo). It is kept in Documents."><i class="i i-upload"></i> Upload approved quotation</button><button class="btn sm" id="nq"><i class="i i-plus"></i> Create quotation</button>' : ''}</div>${A.join('') + Q.join('') || '<p class="mut" style="margin:0;font-size:13px">No quotations</p>'}</div>`;
 }

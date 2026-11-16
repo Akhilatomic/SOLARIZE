@@ -463,7 +463,7 @@ async function qmkSave() {
     const h = '#/quotes/' + r.id; if (location.hash !== h) history.replaceState(null, '', h); QMK.hash = h;
     qmkHead(); if (QMK.tab === 'customer') qmkTab('customer');
     toast('Saved · ' + r.number); qmkRender();
-    if (QMK.status === 'Accepted' && QMK.cust.customer_id) qmKeepNote(r.id); /* an accepted quotation: its PDF goes to the customer's Documents */
+    if (QMK.cust.customer_id) qmKeepNote(r.id, QMK.status === 'Accepted'); /* every save of a customer's quotation: the PDF in the customer's Documents is replaced by this version */
     return true;
   } catch (e) { if (!e || !e.error) { console.error(e); toast((e && e.message) || String(e), true); } return false; }
   finally { QMK.busy = false; if (b) { b.disabled = false; b.textContent = 'Save'; } }
@@ -544,9 +544,10 @@ async function qmKeepQuote(id) {
   } finally { box.remove(); }
 }
 /* the same, with the messages (used by the Quotations list and by Save in the maker) */
-async function qmKeepNote(id) {
+async function qmKeepNote(id, accepted = true) {
   try {
     const r = await qmKeepQuote(id);
+    if (!accepted) { if (r.kept) toast('Quotation PDF saved in the customer’s Documents'); else if (r.why !== 'lead' && r.why !== 'old') toast('Saved, but the PDF could not be put in Documents', true); return r; } /* a plain save */
     if (r.kept) toast('Accepted quotation saved in the customer’s Documents');
     else if (r.why === 'lead') toast('Accepted. The PDF is not saved yet: this quotation is for a lead, which has no Documents page until it becomes a customer.');
     else if (r.why === 'old') toast('Accepted. This older quotation has no PDF to save — open it and use Print / PDF.');
