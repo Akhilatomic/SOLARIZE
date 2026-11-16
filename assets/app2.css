@@ -1137,6 +1137,8 @@ html.mt-on #title,html.mt-on #main{display:none}
 .mt-x:hover{background:rgba(0,0,0,.09);color:#1d1d1f}
 .mt-x .i{width:11px;height:11px}
 html.touch .mt-x{opacity:1;width:28px;height:28px}
+/* Android app (Leads only): no attendance button, no install card, no menu pin */
+html.applite #pnw,html.applite .a2h,html.applite .sbpin,html.applite #mtsw,html.applite #sbfeed{display:none!important}
 /* leads: remark history */
 .rmh-c{display:flex;align-items:flex-start;gap:6px}.rmh-c .clamp{flex:1;min-width:0}
 .rmh-b{flex:none;width:24px;height:24px;border:0;border-radius:7px;background:none;color:#8e8e93;display:grid;place-items:center;cursor:pointer;padding:0;margin:-2px -4px 0 0}.rmh-b:hover{background:rgba(0,122,255,.12);color:#007aff}.rmh-b .i{width:14px;height:14px}

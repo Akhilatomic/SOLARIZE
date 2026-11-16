@@ -117,6 +117,7 @@ async function discOpen(tgt) {
 async function refreshNotifs() {
   try { const r = await api('disc', 'notifs'); DISC.notifs = r.rows; DISC.count = r.count; } catch (e) { return; }
   const ids = DISC.notifs.map(n => n.id);
+  if (APPLITE && ids.length) appCall('seenAlert', String(Math.max(...ids.map(Number)))); /* Android app: no second announcement by its background check */
   if (DISC.seen) { const fresh = DISC.notifs.filter(n => !DISC.seen.includes(n.id));
     if (!FRAME) fresh.slice(0, 3).forEach(n => toast(n.kind === 'feas' ? n.text : n.kind === 'mention' ? `${n.from_name} tagged you · ${n.customer_name}` : n.text));
     if (fresh.length && !FRAME && typeof SOUND !== 'undefined' && SOUND) try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 990; g.gain.setValueAtTime(.0001, a.currentTime); g.gain.exponentialRampToValueAtTime(.12, a.currentTime + .02); g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + .4); o.start(); o.stop(a.currentTime + .4); } catch (e) { }

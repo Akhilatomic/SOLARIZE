@@ -32,7 +32,8 @@ async function idleOut(auto) {
   if (IDLE.busy) return; IDLE.busy = true; clearInterval(IDLE.t);
   try { if (auto) sessionStorage.setItem(IDLE.SAID, String(idleMin())); } catch (e) { }
   idleSet(IDLE.KEY, null); idleSet(IDLE.OUT, String(Date.now())); /* the other tabs go back to the sign-in page too */
-  try { await api('auth', 'logout', {}); } catch (e) { }
+  try { await api('auth', 'logout', typeof APPLITE !== 'undefined' && APPLITE ? { app_token: appCall('getToken') } : {}); } catch (e) { }
+  if (typeof APPLITE !== 'undefined' && APPLITE) appCall('clear'); /* the Android app forgets its device token and stops checking for leads */
   location.hash = ''; location.reload();
 }
 /* a phone signed in for the day (STAY, set in boot()): nothing is signed out for inactivity before office end time; at that time the day is over */

@@ -20,6 +20,13 @@ function lazyMore(tb, more, pending) {
 }
 const app = $('#app');
 let ME = null, S = {}, CACHE = {}, TAB = {}, STAY = 0;
+/* Android app "Solarize Leads" (android/): the CRM runs inside the app, which offers window.SolarizeApp. There the CRM shows the
+   Leads page only, stays signed in with a device token kept by the app, and hands its alerts to the phone's notifications. */
+const APPLITE = typeof window !== 'undefined' && !!window.SolarizeApp;
+const appCall = (fn, ...a) => { try { return window.SolarizeApp[fn](...a); } catch (e) { return ''; } };
+if (APPLITE) { document.documentElement.classList.add('applite');
+  function AppNote(title, opts) { this.onclick = null; this.close = () => { }; appCall('notify', String(title || ''), String((opts && opts.body) || '')); }
+  AppNote.permission = 'granted'; AppNote.requestPermission = () => Promise.resolve('granted'); window.Notification = AppNote; }
 /* a phone: touch screen and a narrow window, or the CRM installed as an app on a touch device */
 const isPhone = () => { try { const touch = matchMedia('(pointer: coarse)').matches; return touch && (matchMedia('(max-width:820px)').matches || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true); } catch (e) { return false; } };
 /* Phones have no `new Notification()` (Android throws, iPhone has it only in the installed app): there the service worker shows
@@ -27,7 +34,7 @@ const isPhone = () => { try { const touch = matchMedia('(pointer: coarse)').matc
    notification shade without changing the places that raise them. A tap brings the CRM to the front and runs the alert's onclick. */
 const PHONE_NOTES = {};
 (() => {
-  if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) return;
+  if (APPLITE || typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) return; /* the Android app has its own (above) */
   let touch = false; try { touch = matchMedia('(pointer: coarse)').matches; } catch (e) { }
   if (!touch) return;
   const N = window.Notification;
@@ -76,10 +83,15 @@ const stageCls = s => ({ Won: 'g', Commissioned: 'g', Closed: 'g', Released: 'g'
 
 async function boot() {
   const s = await api('auth', 'status', undefined, '&boot=1');
+  if (!s.auth && APPLITE && !s.setup) { const t = appCall('getToken'); /* the app's device token signs in again without the password */
+    if (t) { let ok = false; try { const r = await fetch('api.php?m=auth&a=app_login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: t }) }); ok = r.ok; } catch (e) { return appOffline(); }
+      if (ok) return boot(); appCall('clear'); } }
   if (!s.auth) { if (FRAME) { try { parent.TABS.signedOut(); } catch (e) { } return; } /* signed out while a tab was open: the whole window goes to the sign-in page */
     loginView(s.setup, s.brand || {}); if (typeof idleSignedOut === 'function') idleSignedOut(); return; }
   ME = s.user; S = s.settings || await api('settings', 'get');
   STAY = (+s.stay || 0) * 1000; /* a phone signed in for the day: no sign-out for inactivity before this time (app38.js) */
+  if (APPLITE) { STAY = Date.now() + 3650 * 864e5; /* the app stays signed in until Sign out */
+    if (typeof startIdle === 'function') startIdle(); shell(); mountBell(); startMeta(); startDisc(); if (typeof startPresence === 'function') startPresence(); route(); return; }
   if (FRAME) return bootFrame();
   if (typeof startIdle === 'function' && startIdle()) return; /* not used for too long: signing out */
   shell(); mountBell(); if (typeof startSideFeed === 'function') startSideFeed(); if (typeof startPresence === 'function') startPresence(); if (typeof startFeas === 'function') startFeas(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
@@ -95,10 +107,10 @@ function loginView(setup, brand) {
     <div class="err" id="e"></div><button class="btn lg-go" id="go" type="submit">${setup ? 'Create admin account' : 'Sign in'}</button>
     <p class="lg-foot">Jasper Solar Solutions</p></form></div>`;
   $('#eye').onclick = () => { const p = $('#pw'); p.type = p.type === 'password' ? 'text' : 'password'; };
-  $('#lf').onsubmit = async e => { e.preventDefault(); const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value, phone: isPhone() ? 1 : 0 }); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
+  $('#lf').onsubmit = async e => { e.preventDefault(); const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value, phone: isPhone() ? 1 : 0, app: APPLITE ? 1 : 0, device: APPLITE ? appCall('device') : '' }); if (APPLITE && r.app_token) appCall('setToken', r.app_token); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
 }
 function shell() {
-  const items = MODS.filter(m => m[0] === 'admin' ? ME.role === 'admin' : m[0] === 'fees' ? feesNavItems().length > 0 : canR(m[3]));
+  const items = MODS.filter(m => APPLITE ? m[0] === 'leads' : m[0] === 'admin' ? ME.role === 'admin' : m[0] === 'fees' ? feesNavItems().length > 0 : canR(m[3]));
   app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span><button type="button" class="sbpin" id="sbpin" aria-pressed="false"><i class="i i-pin"></i></button></h1>
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}${m[0] === 'fees' ? feesNav() : `<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}"><span class="ft t-${m[0]}">${m[2]}</span><span class="lbl">${m[1]}</span></a>`}`).join('')}
    </aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2>
@@ -152,6 +164,7 @@ window.onhashchange = () => ME && route();
 let ROUTE_N = 0; // each navigation gets a number, so a slow page you already left can't paint its error over the page you are on
 async function route() {
   if (TABS.live) return TABS.route(); /* the outer window only shows tabs; each tab's frame draws its own page */
+  if (APPLITE && !/^#\/leads(\/|$)/.test(location.hash)) { const other = /^#\/[a-z]/.test(location.hash) && !/^#\/dashboard/.test(location.hash); history.replaceState(null, '', '#/leads'); if (other && typeof toast === 'function') toast('The app has Leads only. Open the CRM in a browser for the other pages.'); } /* Android app: Leads only */
   const [, mod = 'dashboard', id] = location.hash.split('/');
   if (FRAME) tabFrameRoute(); /* the outer window follows: tab name, address bar, side menu mark */
   const nav = ++ROUTE_N;
@@ -1030,3 +1043,6 @@ async function remarkHist(l) {
      <small class="mut">${+r.old ? 'Written before history was kept' : esc(r.user || 'Unknown')} · ${when(r.created)}${i ? '' : ' · current'}</small></div>`).join('')}</div>`
     : '<p class="mut" style="margin:0">No remarks yet. Each remark saved from now on is listed here with the person and the time.</p>';
 }
+
+/* Android app: the CRM could not be reached (no network) */
+function appOffline() { app.innerHTML = '<div class="lg"><div class="lg-card" style="text-align:center"><img src="assets/logo.png" alt="Jasper" class="lg-logo"><h2>No connection</h2><p class="lg-sub">The CRM could not be reached. Check the internet and try again.</p><button class="btn lg-go" id="aprt" type="button">Try again</button></div></div>'; document.getElementById('aprt').onclick = () => location.reload(); }

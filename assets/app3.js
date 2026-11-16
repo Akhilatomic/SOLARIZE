@@ -32,6 +32,7 @@ async function refreshFeed(first) {
   const ids = new Set(f.leads.map(l => l.id));
   if (KNOWN === null) KNOWN = ids;
   else { const fresh = f.leads.filter(l => !KNOWN.has(l.id)); if (fresh.length) alertNew(fresh); ids.forEach(i => KNOWN.add(i)); }
+  if (APPLITE && f.leads.length) appCall('seenLead', String(Math.max(...f.leads.map(l => +l.id || 0)))); /* Android app: shown here, so its background check does not announce them again */
   FEED = f; drawBell(); renderNewLeads(); if (location.hash.startsWith('#/ads') && $('#metasync')) renderMetaCard(true);
 }
 function leadBeep() {

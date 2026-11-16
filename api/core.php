@@ -14,6 +14,11 @@ function handle_auth($a) {
     q('INSERT INTO users(name,username,hash,role) VALUES(?,?,?,?)', [$n, $u, pw_hash($pw), 'admin']);
     login_as(row('SELECT * FROM users WHERE username=?', [$u])); audit('setup', 'users'); out(['ok' => true]);
   }
+  if ($a === 'app_login') { /* the Android app opens: its device token signs the user in again without the password */
+    $u = app_token_user($in['token'] ?? '');
+    if ($u) { login_as($u); out(['ok' => true]); }
+    fail('Please sign in again', 401);
+  }
   if ($a === 'login') {
     $un = mb_substr(trim((string)($in['username'] ?? '')), 0, 60);
     login_guard_check($un);
@@ -23,13 +28,13 @@ function handle_auth($a) {
     if ($u && password_verify((string)($in['password'] ?? ''), $u['hash'])) {
       if (pw_stale($u['hash'])) q('UPDATE users SET hash=? WHERE id=?', [pw_hash($in['password']), $u['id']]);
       login_guard_ok($un); login_as($u);
-      $stay = !empty($in['phone']) ? sec_stay_until() : 0; /* a phone: signed in until office end time */
+      $stay = !empty($in['phone']) && empty($in['app']) ? sec_stay_until() : 0; /* a phone: signed in until office end time (the Android app has its own device token) */
       if ($stay) { $_SESSION['stay'] = $stay; sec_stay_cookie($stay); }
-      audit('login', 'users', $u['id'], 'from ' . client_ip() . ($stay ? ' · phone, until ' . date('H:i', $stay) : '')); out(['ok' => true, 'stay' => $stay]); }
+      audit('login', 'users', $u['id'], 'from ' . client_ip() . ($stay ? ' · phone, until ' . date('H:i', $stay) : '')); out(['ok' => true, 'stay' => $stay] + (!empty($in['app']) ? ['app_token' => app_token_issue($u['id'], (string)($in['device'] ?? ''))] : [])); }
     login_guard_fail($un);
     fail('Wrong username or password', 401);
   }
-  if ($a === 'logout') { session_unset(); session_destroy(); setcookie(session_name(), '', ['expires' => 1, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => !empty($_SERVER['HTTPS'])]); out(['ok' => true]); }
+  if ($a === 'logout') { if (!empty($in['app_token'])) app_token_drop($in['app_token']); session_unset(); session_destroy(); setcookie(session_name(), '', ['expires' => 1, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => !empty($_SERVER['HTTPS'])]); out(['ok' => true]); }
   if (empty($_SESSION['uid'])) fail('Unauthorized', 401);
   if ($a === 'password') {
     $u = row('SELECT * FROM users WHERE id=?', [$_SESSION['uid']]);
