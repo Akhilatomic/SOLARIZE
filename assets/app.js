@@ -481,10 +481,10 @@ function callbackBox(l, after) {
   $('#cbn', m).oninput = custom; $('#cbu', m).onchange = custom; D.onchange = T.onchange = () => mark('');
   const send = async (at, done) => {
     const note = at ? $('#cbnote', m).value.trim() : '';
-    await api('leads', 'callback', { id: l.id, at, note, done: done ? 1 : 0 });
-    l.callback_at = at; l.callback_note = note; m.remove();
+    const r = await api('leads', 'callback', { id: l.id, at, note, done: done ? 1 : 0 });
+    l.callback_at = at; l.callback_note = note; claimSaved(l, r); m.remove();
     toast(at ? 'Call back reminder set — ' + cbWhen(at) : done ? 'Call back done' : 'Call back reminder removed');
-    if (LEADCB) LEADCB(l.id, at, note); if (after) after();
+    if (LEADCB) LEADCB(l.id, at, note, r); if (after) after();
   };
   $('#cbs', m).onclick = () => { if (!D.value || !T.value) return alert('Pick a date and a time'); const at = D.value + ' ' + T.value;
     if (at <= cbNow()) return alert('That time has already passed — pick a later time.'); send(at); };
@@ -499,10 +499,13 @@ const isAdm = () => ME.role === 'admin';
 /* Claim clock: a claimed lead unlocks for everyone when it is not a customer by l.unlock_at (unix seconds, from the server) */
 const claimLeft = l => { const at = +l.unlock_at || 0; if (!at) return null; const m = Math.floor((at * 1000 - Date.now()) / 60000);
   return { m, soon: m < 360, text: m <= 0 ? 'Unlocking' : m < 60 ? m + 'm left' : m < 2880 ? Math.floor(m / 60) + 'h left' : Math.floor(m / 1440) + 'd left', when: dfmt(DF.dmy, new Date(at * 1000)) + ', ' + new Date(at * 1000).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) }; };
+/* An appointment or a call back keeps the lead locked until that date + 24 hours (l.hold = 'appt' | 'cb' while that is what
+   holds it). Saving a lead or a call back answers with the new unlock_at / hold: claimSaved() puts them on the row. */
+const claimSaved = (l, r) => { if (l && r && r.unlock_at !== undefined) { l.unlock_at = r.unlock_at; l.hold = r.hold || ''; } };
 /* Grace period: whoever holds the lead (or the admin) can add 12 hours to the claim, 3 times per claim (leads/extend). Hovering or
    tapping the time-left chip shows "Add more time" (claimGraceTip below); the chip carries what it needs in data- attributes. */
 const claimChip = l => { const c = claimLeft(l); if (!c) return ''; const used = +l.grace_used || 0, max = +l.grace_max || 3, mine = l.assigned_to == ME.id || isAdm();
-  const tip = esc(`Unlocks for everyone on ${c.when} unless the lead becomes a customer` + (used ? ` · grace period ${used} of ${max} used` : ''));
+  const tip = esc((l.hold ? `Locked until ${c.when} — 24 hours after the ${l.hold === 'appt' ? 'appointment' : 'call back'}. Then it unlocks for everyone unless the lead becomes a customer` : `Unlocks for everyone on ${c.when} unless the lead becomes a customer`) + (used ? ` · grace period ${used} of ${max} used` : ''));
   return `<span class="clmt${c.soon ? ' soon' : ''}${mine ? ' can' : ''}" ${mine ? `data-grace="${l.id}" data-left="${max - used}" data-max="${max}" data-name="${esc(l.name || '')}" tabindex="0"` : `title="${tip}"`} aria-label="${tip}"><i class="i i-clock"></i>${c.text}${used ? `<b class="clmg" title="Grace periods used">+${used}</b>` : ''}</span>`; };
 let CLM_T = 0;
 function claimGraceHide() { const p = $('#clmpop'); if (p) p.remove(); }
@@ -519,7 +522,7 @@ function claimGraceTip(chip) {
   const b = $('#clmadd', p); if (b) b.onclick = async e => { e.stopPropagation(); b.disabled = true;
     try { const id = +chip.dataset.grace, name = chip.dataset.name, x = await api('leads', 'extend', { id }); claimGraceHide();
       /* the new time shows at once, on every chip of this lead (the list and the lead window), before the pop-up is answered */
-      $$('.clmt[data-grace="' + id + '"]').forEach(el => { el.outerHTML = claimChip({ id, name, assigned_to: ME.id, unlock_at: x.unlock_at, grace_used: x.used, grace_max: x.max }); });
+      $$('.clmt[data-grace="' + id + '"]').forEach(el => { el.outerHTML = claimChip({ id, name, assigned_to: ME.id, unlock_at: x.unlock_at, hold: x.hold, grace_used: x.used, grace_max: x.max }); });
       $$('.clmt[data-grace="' + id + '"]').forEach(el => { el.classList.add('fresh'); setTimeout(() => el.classList.remove('fresh'), 2200); });
       claimGraceDone(name, x, id); } catch (er) { b.disabled = false; } };
 }
@@ -651,7 +654,7 @@ async function pgLeads() {
     $('#rmhs', m).onclick = () => remarkHist(l);
     const t = $('#rmt', m); t.focus(); t.setSelectionRange(t.value.length, t.value.length);
     $('#rmc', m).onclick = () => m.remove();
-    $('#rms', m).onclick = async () => { if (t.value !== (l.remark || '')) { l.remark = t.value; await api('leads', 'save', { ...l }); } m.remove(); draw(); };
+    $('#rms', m).onclick = async () => { if (t.value !== (l.remark || '')) { l.remark = t.value; claimSaved(l, await api('leads', 'save', { ...l })); } m.remove(); draw(); };
     t.onkeydown = e => { if (e.key === 'Escape') m.remove(); if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('#rms', m).click(); };
   };
   const closeMenu = () => { const m = $('#lmenu'); if (m) m.remove(); };
@@ -676,12 +679,12 @@ async function pgLeads() {
     else if (f === 'remark') { el = spellOn(document.createElement('textarea')); el.rows = 3; el.value = l.remark || ''; }
     else { el = document.createElement('input'); el.type = f === 'appt' ? 'date' : f === 'phone' ? 'tel' : 'text'; el.value = (f === 'location' ? (l.location || l.address) : l[f]) || ''; }
     td.innerHTML = ''; td.appendChild(el); el.focus(); if (f === 'remark') el.setSelectionRange(el.value.length, el.value.length); let fin = false;
-    const done = async save => { if (fin) return; fin = true; if (save && el.value !== (l[f] || '')) { if (f === 'name' && !el.value.trim()) { draw(); return; } l[f] = el.value; await api('leads', 'save', { ...l }); } draw(); };
+    const done = async save => { if (fin) return; fin = true; if (save && el.value !== (l[f] || '')) { if (f === 'name' && !el.value.trim()) { draw(); return; } l[f] = el.value; claimSaved(l, await api('leads', 'save', { ...l })); } draw(); };
     /* Enter saves; in the remark box Shift+Enter starts a new line. Not while a phone keyboard is still composing a word. */
     el.onblur = () => done(true); el.onchange = () => done(true); el.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing && !(f === 'remark' && e.shiftKey)) { e.preventDefault(); done(true); } if (e.key === 'Escape') done(false); };
   };
   const drawSoon = debounce(() => draw(true), 120);
-  LEADCB = (id, at, note) => { const x = leads.find(y => y.id == id); if (x) { x.callback_at = at; x.callback_note = note; } if ($('#ltb')) draw(); };
+  LEADCB = (id, at, note, r) => { const x = leads.find(y => y.id == id); if (x) { x.callback_at = at; x.callback_note = note; claimSaved(x, r); } if ($('#ltb')) draw(); };
   $('#lq').oninput = e => { LF.q = e.target.value; drawSoon(); };
   [['ls', 'status'], ['la', 'active'], ['lc', 'city'], ['lap', 'appt'], ['lown', 'own']].forEach(([id, k]) => $('#' + id).onchange = e => { LF[k] = e.target.value; draw(true); });
   /* Me / All and the owner list stay in step: Me = "My leads"; any other owner choice is part of All */

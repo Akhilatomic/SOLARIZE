@@ -133,7 +133,7 @@ function handle_crud($t, $a) {
         if ($an !== (string)($pd['application_no'] ?? '')) plant_patch((int)$v['customer_id'], ['application_no' => $an]);
       }
       if ($t === 'projects') cap_from_project($id); /* the system size is the customer's plant capacity, shown everywhere */
-      out(['id' => $id]);
+      out(['id' => $id] + ($t === 'leads' ? claim_state($id) : [])); /* leads: the claim clock may have moved with the appointment */
     case 'delete':
       $id = (int)($in['id'] ?? 0);
       trash_crud($t, $id); // snapshot into the Recycle bin first (restorable for 72 hours)

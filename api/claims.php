@@ -151,8 +151,33 @@ function claim_from() {
   if ($f === null) { $r = row("SELECT v FROM settings WHERE k='claim_unlock_from'"); $f = $r ? (int)json_decode((string)$r['v'], true) : 0; if ($f < 1) { $f = time(); kv_set('claim_unlock_from', $f); } }
   return $f;
 }
-/* when this lead's claim ends (unix seconds); 0 = no clock. Needs assigned_to, customer_id, claimed_at, added_by and owner_name. */
-function claim_unlock_at($l) {
+/* Owner's rule (2026-11-16): a lead with an appointment or a call back set stays locked to its holder until that date
+   + CLAIM_HOLD_HOURS, however old the claim is. The appointment has no time of day, so it counts to the end of that day;
+   the call back counts from its date and time. Whichever is later wins, and the claim clock still applies when it ends later.
+   A call back marked done keeps its 24 hours (leads.claim_hold, for the claim that began at claim_hold_for), so finishing
+   the call does not unlock the lead at once. Returns [unix seconds or 0, 'appt' | 'cb' | '']. */
+const CLAIM_HOLD_HOURS = 24;
+function claim_hold($l) {
+  $tz = new DateTimeZone('Asia/Kolkata'); $at = 0; $why = '';
+  $a = DateTime::createFromFormat('!Y-m-d', (string)($l['appt'] ?? ''), $tz);
+  if ($a) { $at = $a->getTimestamp() + 86400 + CLAIM_HOLD_HOURS * 3600; $why = 'appt'; }
+  $c = DateTime::createFromFormat('!Y-m-d H:i', (string)($l['callback_at'] ?? ''), $tz);
+  if ($c && $c->getTimestamp() + CLAIM_HOLD_HOURS * 3600 > $at) { $at = $c->getTimestamp() + CLAIM_HOLD_HOURS * 3600; $why = 'cb'; }
+  $k = (string)($l['claimed_at'] ?? '') !== '' && (string)($l['claim_hold_for'] ?? '') === (string)$l['claimed_at'] ? (int)($l['claim_hold'] ?? 0) : 0;
+  if ($k > $at) { $at = $k; $why = 'cb'; }
+  return [$at, $why];
+}
+/* when this lead's claim ends (unix seconds); 0 = no clock. Needs assigned_to, customer_id, claimed_at, added_by, owner_name,
+   and appt, callback_at, claim_hold, claim_hold_for for the appointment / call-back hold. */
+function claim_unlock_at($l) { $b = claim_base_at($l); return $b ? max($b, claim_hold($l)[0]) : 0; }
+/* 'appt' or 'cb' when the appointment / call back is what keeps the lead locked now, else '' */
+function claim_held_by($l) { $b = claim_base_at($l); [$h, $why] = claim_hold($l); return $b && $h > $b ? $why : ''; }
+/* what the lead save and the call-back save hand back, so the time chip is right without reading the list again */
+function claim_state($id) {
+  $l = row('SELECT l.*, u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE l.id=?', [(int)$id]);
+  return $l ? ['unlock_at' => claim_unlock_at($l), 'hold' => claim_held_by($l)] : [];
+}
+function claim_base_at($l) {
   if (empty($l['assigned_to']) || !empty($l['customer_id'])) return 0;
   $by = mb_strtolower(trim((string)($l['added_by'] ?? ''))); if ($by !== '' && $by === mb_strtolower(trim((string)($l['owner_name'] ?? '')))) return 0;
   $t = ($l['claimed_at'] ?? '') !== '' ? (int)strtotime($l['claimed_at'] . ' UTC') : 0;
@@ -161,14 +186,15 @@ function claim_unlock_at($l) {
 /* Runs when the Leads list is read and from the hourly housekeeping: one indexed lookup, writes only when a claim has run out. */
 function claim_release() {
   $now = time(); $h = rule('claim_hours'); $n = 0;
-  $rs = rows("SELECT l.id,l.name,l.assigned_to,l.customer_id,l.claimed_at,l.added_by,l.claim_ext,l.claim_ext_for,u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to
+  $rs = rows("SELECT l.id,l.name,l.assigned_to,l.customer_id,l.claimed_at,l.added_by,l.claim_ext,l.claim_ext_for,l.appt,l.callback_at,l.claim_hold,l.claim_hold_for,u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to
     WHERE l.assigned_to>0 AND (l.customer_id IS NULL OR l.customer_id=0) AND COALESCE(l.claimed_at,'')<=?", [gmdate('Y-m-d H:i:s', $now - $h * 3600)]);
   foreach ($rs as $l) {
     $at = claim_unlock_at($l); if (!$at || $at > $now) continue;
     if (!q("UPDATE leads SET assigned_to=NULL, claimed_at='', updated=CURRENT_TIMESTAMP WHERE id=? AND assigned_to=?", [$l['id'], $l['assigned_to']])->rowCount()) continue; /* another request got it */
     $who = (string)($l['owner_name'] ?? '') !== '' ? $l['owner_name'] : 'its holder';
-    q("INSERT INTO notes(entity,entity_id,text,user) VALUES('leads',?,?,'System')", [$l['id'], "Not converted to a customer within $h hours of being claimed by $who (automatic) — unlocked for everyone"]);
-    q("INSERT INTO notifs(user_id,kind,lead_id,from_id,text) VALUES(?,'assign',?,NULL,?)", [(int)$l['assigned_to'], $l['id'], mb_substr("Your claim on {$l['name']} ended after $h hours — the lead is open to everyone again", 0, 200)]);
+    $held = claim_held_by($l); $what = $held === 'appt' ? 'the appointment' : 'the call back'; $hh = CLAIM_HOLD_HOURS;
+    q("INSERT INTO notes(entity,entity_id,text,user) VALUES('leads',?,?,'System')", [$l['id'], $held ? "Not converted to a customer within $hh hours after $what (claimed by $who) (automatic) — unlocked for everyone" : "Not converted to a customer within $h hours of being claimed by $who (automatic) — unlocked for everyone"]);
+    q("INSERT INTO notifs(user_id,kind,lead_id,from_id,text) VALUES(?,'assign',?,NULL,?)", [(int)$l['assigned_to'], $l['id'], mb_substr($held ? "Your claim on {$l['name']} ended $hh hours after $what — the lead is open to everyone again" : "Your claim on {$l['name']} ended after $h hours — the lead is open to everyone again", 0, 200)]);
     $n++;
   }
   if ($n) audit('leads_unlocked', 'leads', null, "$n claimed lead(s) not converted within $h hours unlocked");
@@ -190,13 +216,13 @@ function lead_guard($a, $in) {
     case 'list':
       need('leads');
       try { claim_release(); } catch (Throwable $e) { } /* claims that ran out are open again before the list is read */
-      out(array_map(fn($x) => strip_fin(lead_mask($x + ['unlock_at' => claim_unlock_at($x), 'grace_used' => claim_ext_used($x), 'grace_max' => CLAIM_GRACE_MAX])), rows('SELECT l.*, u.name owner_name, u.avatar owner_av FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC')));
+      out(array_map(fn($x) => strip_fin(lead_mask($x + ['unlock_at' => claim_unlock_at($x), 'hold' => claim_held_by($x), 'grace_used' => claim_ext_used($x), 'grace_max' => CLAIM_GRACE_MAX])), rows('SELECT l.*, u.name owner_name, u.avatar owner_av FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC')));
     case 'get':
       need('leads');
       $l = lead_or_404($_GET['id'] ?? 0);
       if ((int)$l['notify'] && lead_can_write($l)) { q('UPDATE leads SET notify=0 WHERE id=?', [$l['id']]); $l['notify'] = 0; audit('ack', 'leads', $l['id'], 'viewed'); } // opened by its owner / admin → off the dashboard's "new leads"
       $r = strip_fin(lead_mask(detail('leads', $l))); $r['owner_name'] = owner_name($l['assigned_to']);
-      $r['unlock_at'] = claim_unlock_at(['owner_name' => $r['owner_name']] + $l); $r['grace_used'] = claim_ext_used($l); $r['grace_max'] = CLAIM_GRACE_MAX;
+      $r['unlock_at'] = claim_unlock_at(['owner_name' => $r['owner_name']] + $l); $r['hold'] = claim_held_by(['owner_name' => $r['owner_name']] + $l); $r['grace_used'] = claim_ext_used($l); $r['grace_max'] = CLAIM_GRACE_MAX;
       if (!empty($r['masked'])) $r['messages'] = [];
       out($r);
     case 'claim':
@@ -206,8 +232,8 @@ function lead_guard($a, $in) {
       $n = q("UPDATE leads SET assigned_to=?, claimed_at=?, updated=CURRENT_TIMESTAMP WHERE id=? AND (assigned_to IS NULL OR assigned_to=0)", [uid(), gmdate('Y-m-d H:i:s'), $id])->rowCount();
       if (!$n) { $l = row('SELECT assigned_to FROM leads WHERE id=?', [$id]); if (!$l) fail('Not found', 404); fail('Already claimed by ' . owner_name($l['assigned_to']), 409); }
       audit('claim', 'leads', $id, $_SESSION['name'] ?? '');
-      $l = row('SELECT assigned_to,customer_id,claimed_at,added_by FROM leads WHERE id=?', [$id]);
-      out(['ok' => true, 'unlock_at' => claim_unlock_at($l + ['owner_name' => $_SESSION['name'] ?? '']), 'hours' => rule('claim_hours')]);
+      $l = row('SELECT assigned_to,customer_id,claimed_at,added_by,appt,callback_at,claim_hold,claim_hold_for FROM leads WHERE id=?', [$id]) + ['owner_name' => $_SESSION['name'] ?? ''];
+      out(['ok' => true, 'unlock_at' => claim_unlock_at($l), 'hold' => claim_held_by($l), 'hours' => rule('claim_hours')]);
     case 'extend': // grace period: whoever holds the lead adds CLAIM_GRACE_HOURS to its running claim (CLAIM_GRACE_MAX times per claim)
       need('leads');
       $l = lead_or_404($in['id'] ?? 0);
@@ -220,7 +246,7 @@ function lead_guard($a, $in) {
       $l['claim_ext'] = $used + 1; $l['claim_ext_for'] = (string)$l['claimed_at'];
       q("INSERT INTO notes(entity,entity_id,text,user) VALUES('leads',?,?,?)", [$l['id'], 'Grace period ' . ($used + 1) . ' of ' . CLAIM_GRACE_MAX . ' activated: ' . CLAIM_GRACE_HOURS . ' more hours on the claim', $_SESSION['name'] ?? '']);
       audit('claim_grace', 'leads', $l['id'], ($used + 1) . ' of ' . CLAIM_GRACE_MAX . ' · +' . CLAIM_GRACE_HOURS . ' h');
-      out(['ok' => true, 'unlock_at' => claim_unlock_at($l), 'used' => $used + 1, 'left' => CLAIM_GRACE_MAX - $used - 1, 'max' => CLAIM_GRACE_MAX, 'hours' => CLAIM_GRACE_HOURS]);
+      out(['ok' => true, 'unlock_at' => claim_unlock_at($l), 'hold' => claim_held_by($l), 'used' => $used + 1, 'left' => CLAIM_GRACE_MAX - $used - 1, 'max' => CLAIM_GRACE_MAX, 'hours' => CLAIM_GRACE_HOURS]);
     case 'unlock': case 'unclaim':
       // the owner can release their own lead; the admin can release any lead
       $l = lead_or_404($in['id'] ?? 0); $id = (int)$l['id'];
@@ -248,8 +274,12 @@ function lead_guard($a, $in) {
       if ($at !== '') { $d = DateTime::createFromFormat('!Y-m-d H:i', $at); if (!$d || $d->format('Y-m-d H:i') !== $at) fail('Pick a valid date and time'); }
       $note = $at === '' ? '' : mb_substr(trim((string)($in['note'] ?? '')), 0, 300);
       q('UPDATE leads SET callback_at=?, callback_note=?, callback_by=?, callback_sent=0, updated=CURRENT_TIMESTAMP WHERE id=?', [$at, $note, $at === '' ? null : uid(), $l['id']]);
+      /* call back done: its 24 hours of lock stay (from the call-back time, or from now when it was done early) */
+      $was = DateTime::createFromFormat('!Y-m-d H:i', (string)$l['callback_at'], new DateTimeZone('Asia/Kolkata'));
+      if ($at === '' && !empty($in['done']) && $was && !empty($l['assigned_to']) && (string)$l['claimed_at'] !== '')
+        q('UPDATE leads SET claim_hold=?, claim_hold_for=? WHERE id=?', [min($was->getTimestamp(), time()) + CLAIM_HOLD_HOURS * 3600, (string)$l['claimed_at'], $l['id']]);
       audit('callback', 'leads', $l['id'], $at === '' ? (!empty($in['done']) ? 'call back done' : 'call back removed') : 'call back ' . $at . ($note !== '' ? ' — ' . $note : ''));
-      out(['ok' => true, 'callback_at' => $at, 'callback_note' => $note]);
+      out(['ok' => true, 'callback_at' => $at, 'callback_note' => $note] + claim_state($l['id']));
     case 'save':
       if (!empty($in['id'])) lead_need_write(lead_or_404($in['id']));
       return; // generic save continues (assigned_to / claimed_at are protected there)

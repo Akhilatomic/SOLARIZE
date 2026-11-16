@@ -110,6 +110,51 @@ call($admin, 'leads', 'list'); chk(empty($get($g)['assigned_to']), 'once the gra
 call($s2, 'leads', 'claim', ['id' => $g]);
 $r2 = $rowOf($s2, $g); chk((int)$r2['grace_used'] === 0 && abs((int)$r2['unlock_at'] - (time() + 36 * 3600)) < 120, 'a new claim starts with no grace period used');
 chk(call($s2, 'leads', 'extend', ['id' => $own])['_code'] !== 200 && call($s1, 'leads', 'extend', ['id' => $own])['_code'] === 400, 'a lead with no clock (added by its holder) has nothing to extend');
+/* appointment / call back: the lead stays locked until that date + 24 hours, however old the claim is */
+$from(time() - 400 * 3600);
+$ist = new DateTimeZone('Asia/Kolkata');
+$day = fn($n) => (new DateTime('now', $ist))->modify(($n >= 0 ? '+' : '') . $n . ' day')->format('Y-m-d');
+$min = fn($h) => (new DateTime('@' . (time() + (int)round($h * 3600))))->setTimezone($ist)->format('Y-m-d H:i');
+$dayEnd = fn($d) => (new DateTime($d . ' 00:00:00', $ist))->getTimestamp() + 86400;
+$set = fn($id, $appt, $cb) => $db->prepare('UPDATE leads SET appt=?, callback_at=? WHERE id=?')->execute([$appt, $cb, $id]);
+$ha = $mk('Appt Hold Test', 100, $u1); $set($ha, $day(3), '');
+$r = $rowOf($s1, $ha);
+chk((int)$get($ha)['assigned_to'] === $u1 && $r && (int)$r['unlock_at'] === $dayEnd($day(3)) + 24 * 3600 && $r['hold'] === 'appt', 'an appointment keeps an old claim locked until the end of that day + 24 hours');
+$hb = $mk('Call Back Hold Test', 100, $u1); $cbAt = $min(5); $set($hb, '', $cbAt);
+$r = $rowOf($s1, $hb);
+chk((int)$get($hb)['assigned_to'] === $u1 && $r && (int)$r['unlock_at'] === (new DateTime($cbAt, $ist))->getTimestamp() + 24 * 3600 && $r['hold'] === 'cb', 'a call back keeps it locked until its time + 24 hours');
+$hc = $mk('Both Hold Test', 100, $u1); $set($hc, $day(1), $min(100));
+chk($rowOf($s1, $hc)['hold'] === 'cb', 'with both set, the later one counts');
+$hd = $mk('Short Hold Test', 1, $u1); $set($hd, $day(-1), '');
+$r = $rowOf($s1, $hd); chk($r['hold'] === '' && abs((int)$r['unlock_at'] - (time() + 35 * 3600)) < 120, 'the 36 hour clock still applies when it ends later');
+$he = $mk('Past Appt Test', 100, $u1); $set($he, $day(-3), $min(-30));
+call($admin, 'leads', 'list');
+chk(empty($get($he)['assigned_to']), 'once the date + 24 hours has passed, the lead unlocks');
+$n = $db->query("SELECT text FROM notes WHERE entity='leads' AND entity_id=$he ORDER BY id DESC")->fetchColumn();
+chk(strpos((string)$n, 'within 24 hours after the') !== false, 'the note says the appointment / call back time ran out');
+$o2 = $mk('Own Appt Test', 100, $u1, 'Claim One'); $set($o2, $day(2), '');
+chk((int)$rowOf($s1, $o2)['unlock_at'] === 0, 'a lead its holder added still has no clock');
+/* set through the CRM: the answer carries the new time */
+$hf = $mk('Api Hold Test', 30, $u1);
+$sv = call($s1, 'leads', 'save', ['id' => $hf, 'name' => 'Api Hold Test', 'phone' => '9000000881', 'status' => 'Contacted', 'appt' => $day(4)]);
+chk($sv['_code'] === 200 && (int)($sv['unlock_at'] ?? 0) === $dayEnd($day(4)) + 24 * 3600 && ($sv['hold'] ?? '') === 'appt', 'saving an appointment answers with the new unlock time');
+$sv = call($s1, 'leads', 'save', ['id' => $hf, 'name' => 'Api Hold Test', 'phone' => '9000000881', 'status' => 'Contacted', 'appt' => '']);
+chk(($sv['hold'] ?? 'x') === '' && abs((int)$sv['unlock_at'] - (time() + 6 * 3600)) < 120, 'removing the appointment puts the 36 hour clock back');
+$cbAt = $min(48); $cb = call($s1, 'leads', 'callback', ['id' => $hf, 'at' => $cbAt, 'note' => 'ring again']);
+chk($cb['_code'] === 200 && (int)$cb['unlock_at'] === (new DateTime($cbAt, $ist))->getTimestamp() + 24 * 3600 && $cb['hold'] === 'cb', 'setting a call back answers with the new unlock time');
+/* a call back marked done keeps its 24 hours */
+$hg = $mk('Done Hold Test', 100, $u1); $set($hg, '', $min(-2));
+$dn = call($s1, 'leads', 'callback', ['id' => $hg, 'at' => '', 'done' => 1]);
+chk($dn['_code'] === 200 && abs((int)$dn['unlock_at'] - (time() + 22 * 3600)) < 120 && $dn['hold'] === 'cb', 'call back done: the lead stays locked 24 hours from the call-back time');
+call($admin, 'leads', 'list'); chk((int)$get($hg)['assigned_to'] === $u1, 'and it is not unlocked meanwhile');
+$hh = $mk('Removed Hold Test', 100, $u1); $set($hh, '', $min(50));
+call($s1, 'leads', 'callback', ['id' => $hh, 'at' => '']);
+call($admin, 'leads', 'list'); chk(empty($get($hh)['assigned_to']), 'a call back that is removed (not done) holds nothing');
+/* a new claim does not inherit the last holder's kept time */
+$db->exec("UPDATE leads SET assigned_to=NULL, claimed_at='' WHERE id=$hg");
+$c = call($s2, 'leads', 'claim', ['id' => $hg]);
+chk(($c['hold'] ?? 'x') === '' && abs((int)$c['unlock_at'] - (time() + 36 * 3600)) < 120, 'a new claim starts on the plain 36 hour clock');
+$db->exec("UPDATE leads SET appt='', callback_at='' WHERE id IN ($ha,$hb,$hc,$hd,$o2,$hf)");
 /* Admin › Users › Edit › Delete: the login goes, the history stays, the work is handed on */
 $u3 = (int)(call($admin, 'admin', 'user_save', ['name' => 'Delete Me', 'username' => 'deleteme', 'role' => 'sales', 'active' => 1, 'can_claim' => 1, 'password' => $pw])['id'] ?? 0);
 $s3 = actor('s3'); call($s3, 'auth', 'login', ['username' => 'deleteme', 'password' => $pw]);

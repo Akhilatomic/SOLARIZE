@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 71; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 72; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -267,7 +267,7 @@ function migrate($db) {
      from an older copy can't wipe one. callback_at is local time 'Y-m-d H:i'; callback_sent = bell notification sent. */
   $lc = array_column($db->query('PRAGMA table_info(leads)')->fetchAll(), 'name');
   /* v63: grace periods on a claim — how many were used (claim_ext) on the claim that started at claim_ext_for (= that claim's claimed_at) */
-  foreach (['callback_at' => "TEXT DEFAULT ''", 'callback_note' => "TEXT DEFAULT ''", 'callback_by' => 'INTEGER', 'callback_sent' => 'INTEGER DEFAULT 0', 'claim_ext' => 'INTEGER DEFAULT 0', 'claim_ext_for' => "TEXT DEFAULT ''"] as $c => $ty)
+  foreach (['callback_at' => "TEXT DEFAULT ''", 'callback_note' => "TEXT DEFAULT ''", 'callback_by' => 'INTEGER', 'callback_sent' => 'INTEGER DEFAULT 0', 'claim_ext' => 'INTEGER DEFAULT 0', 'claim_ext_for' => "TEXT DEFAULT ''", /* v72: lock kept after a call back is marked done */ 'claim_hold' => 'INTEGER DEFAULT 0', 'claim_hold_for' => "TEXT DEFAULT ''"] as $c => $ty)
     if (!in_array($c, $lc)) { try { $db->exec("ALTER TABLE leads ADD COLUMN $c $ty"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
   $db->exec('CREATE INDEX IF NOT EXISTS lead_callback ON leads(callback_sent, callback_at)');
   /* v30: payment receipts — a payment gets its receipt number (PREFIX/RCPT/FY/NNN) the first time its receipt is made, and keeps it.
