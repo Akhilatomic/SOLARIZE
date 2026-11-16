@@ -557,7 +557,7 @@ async function pgLeads() {
   const cities = [...new Set(leads.map(l => l.city).filter(Boolean))].sort();
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Leads</h2><div class="mut" id="lcount"></div></div><span class="sp"></span>
    <button class="btn sec" id="lref"><i class="i i-refresh"></i> Refresh</button>${w ? `<button class="btn sec" id="ledit"><i class="i i-pencil"></i> Edit ${LF.edit ? 'ON' : 'OFF'}</button><button class="btn" id="lnew"><i class="i i-plus"></i> Add Lead</button>` : ''}</div>
-   <div class="bar lbar" style="margin-top:12px">${ownSwitch('leads', LF.own === 'me' ? 'me' : 'all')}<input id="lq" placeholder="Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">
+   <div class="bar lbar${APPLITE && appFiltersOpen() ? ' fopen' : ''}" style="margin-top:12px">${ownSwitch('leads', LF.own === 'me' ? 'me' : 'all')}<input id="lq" placeholder="Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">${APPLITE ? `<button class="btn sec apflt${LF.status || LF.city || LF.appt || LF.active !== 'active' ? ' has' : ''}" id="lflt" type="button"><i class="i i-menu"></i> Filters</button>` : ''}
    <select id="ls" title="Status"><option value="">All status</option>${S.lead_statuses.map(s => `<option ${LF.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
    <select id="la">${[['active', 'Active'], ['all', 'All leads'], ['won', 'Won'], ['lost', 'Lost']].map(([v, l]) => `<option value="${v}" ${LF.active === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
    <select id="lc" title="City"><option value="">All cities</option>${cities.map(c => `<option ${LF.city === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
@@ -598,7 +598,7 @@ async function pgLeads() {
       appt: l => ed(l, 'appt', apptBadge(l)),
       cb: l => `<td data-cb="1" class="cbc${w && l.can_edit ? ' qe' : ''}">${cbBadge(l)}</td>` };
     const acts = l => !l.can_edit ? `<button class="ib" title="View" data-a="vw"><i class="i i-eye"></i></button>`
-      : `${discBtn(l.id, 1)}${l.phone ? '<a class="ib" title="Call" href="tel:' + esc(l.phone) + '"><i class="i i-phone"></i></a>' : ''}<button class="ib" title="View / edit" data-a="vw"><i class="i i-eye"></i></button><button class="ib" title="More actions" data-a="more"><i class="i i-dots"></i></button>`;
+      : `${discBtn(l.id, 1)}${l.phone ? '<a class="ib apcall" title="Call" href="tel:' + esc(l.phone) + '"><i class="i i-phone"></i></a>' : ''}${APPLITE && l.phone && !BA() ? '<a class="ib apwa" title="WhatsApp" href="https://wa.me/' + waNum(l.phone) + '"><i class="i i-whatsapp"></i></a>' : ''}<button class="ib" title="View / edit" data-a="vw"><i class="i i-eye"></i></button><button class="ib" title="More actions" data-a="more"><i class="i i-dots"></i></button>`;
     const rowHtml = l => `<tr data-id="${l.id}">${show.map(([k]) => cell[k](l)).join('')}<td class="lact">${acts(l)}</td></tr>`;
     const tb = $('#ltb'); let n = Math.min(rows.length, Math.max(LAZY_FIRST, reset === true ? 0 : shown));
     tb.innerHTML = `<colgroup>${show.map(([k]) => `<col${LW[k] ? ` style="width:${LW[k] + (k === 'owner' && TOUCH() ? 34 : 0)}px"` : ''}>`).join('')}<col style="width:${TOUCH() ? 4 * IBW() + 16 : isAdm() ? 136 : 128}px"></colgroup>
@@ -1046,3 +1046,23 @@ async function remarkHist(l) {
 
 /* Android app: the CRM could not be reached (no network) */
 function appOffline() { app.innerHTML = '<div class="lg"><div class="lg-card" style="text-align:center"><img src="assets/logo.png" alt="Jasper" class="lg-logo"><h2>No connection</h2><p class="lg-sub">The CRM could not be reached. Check the internet and try again.</p><button class="btn lg-go" id="aprt" type="button">Try again</button></div></div>'; document.getElementById('aprt').onclick = () => location.reload(); }
+
+/* ---- Android app: helpers the app's own buttons use ---- */
+const appFiltersOpen = () => { try { return sessionStorage.apFlt === '1'; } catch (e) { return false; } };
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('#lflt'); if (!b) return;
+  const bar = b.closest('.lbar'), on = !bar.classList.contains('fopen'); bar.classList.toggle('fopen', on); try { sessionStorage.apFlt = on ? '1' : '0'; } catch (x) { } });
+/* The phone's Back button (called by the app): closes what is open on top - a window, a menu, the side menu - and says so.
+   'no' = nothing was open, the app may leave the page. */
+function appBack() {
+  const q = s => document.querySelector(s);
+  const top = [...document.querySelectorAll('.modal')].pop(); if (top) { top.remove(); return 'yes'; }
+  for (const s of ['#lmenu', '#mtcm', '#clmpop', '#nlp']) { const m = q(s); if (m) { m.remove(); return 'yes'; } }
+  for (const s of ['#bellp', '#acm', '#lcm']) { const m = q(s); if (m && !m.classList.contains('hide')) { m.classList.add('hide'); return 'yes'; } }
+  const side = q('#side'); if (side && side.classList.contains('open')) { side.classList.remove('open'); document.body.classList.remove('drawer'); return 'yes'; }
+  return 'no';
+}
+/* A tap on a lead's notification (called by the app): the lead's window opens once the CRM is ready. */
+function appOpenLead(id, n = 0) {
+  if (ME && typeof leadModal === 'function' && document.querySelector('#main')) { if (!document.querySelector('.modal')) leadModal(+id); return; }
+  if (n < 60) setTimeout(() => appOpenLead(id, n + 1), 250);
+}

@@ -5,9 +5,12 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.Gravity;
+import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -17,6 +20,8 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 /**
@@ -27,16 +32,28 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
     static final String HOME = "https://solarize.jasper.solar/";
     static final String HOST = "solarize.jasper.solar";
+    static final String VERSION = "1.1";
+    static final String EXTRA_LEAD = "lead";
     private static final int PICK = 41;
 
     private WebView web;
+    private ProgressBar bar;
     private ValueCallback<Uri[]> picking;
+    private long pendingLead; /* a lead's notification was tapped: its window opens when the page is ready */
+    private long backAt;      /* Back pressed once on the Leads page: a second press within 2 s leaves the app */
 
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        FrameLayout root = new FrameLayout(this);
         web = new WebView(this);
-        setContentView(web);
+        root.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        /* a thin blue line at the top while a page loads, so the screen is never just blank */
+        bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(100);
+        bar.setProgressTintList(ColorStateList.valueOf(0xFF007AFF));
+        root.addView(bar, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, Math.round(3 * getResources().getDisplayMetrics().density), Gravity.TOP));
+        setContentView(root);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -46,7 +63,7 @@ public class MainActivity extends Activity {
         s.setSupportMultipleWindows(false);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(true); /* files picked for an upload */
-        s.setUserAgentString(s.getUserAgentString() + " SolarizeLeads/1.0");
+        s.setUserAgentString(s.getUserAgentString() + " SolarizeLeads/" + VERSION);
         CookieManager.getInstance().setAcceptCookie(true);
 
         web.addJavascriptInterface(new Bridge(), "SolarizeApp");
@@ -61,11 +78,22 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onPageFinished(WebView v, String url) {
+                if (pendingLead > 0 && url != null && url.startsWith(HOME)) { openLead(pendingLead); pendingLead = 0; }
+            }
+
+            @Override
             public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
                 if (r.isForMainFrame()) v.loadDataWithBaseURL(null, OFFLINE, "text/html", "utf-8", null);
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onProgressChanged(WebView v, int p) {
+                bar.setProgress(p);
+                bar.setVisibility(p >= 100 ? View.GONE : View.VISIBLE);
+            }
+
             @Override
             public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
                 if (picking != null) picking.onReceiveValue(null);
@@ -83,14 +111,22 @@ public class MainActivity extends Activity {
         Notes.channel(this);
         if (!Notes.token(this).isEmpty()) LeadJob.schedule(this);
 
+        pendingLead = getIntent() == null ? 0 : getIntent().getLongExtra(EXTRA_LEAD, 0);
         if (saved != null) web.restoreState(saved); else web.loadUrl(HOME + "#/leads");
     }
 
-    /** Opened again from a notification: show the Leads page as it is now. */
+    /** Opened again from a notification: the Leads page as it is now, and the lead's window when the notification was about one lead. */
     @Override
     protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
+        setIntent(i);
+        long lead = i == null ? 0 : i.getLongExtra(EXTRA_LEAD, 0);
         web.evaluateJavascript("if(location.hash!=='#/leads')location.hash='#/leads';else if(typeof route==='function'&&!document.querySelector('.modal'))route();", null);
+        if (lead > 0) openLead(lead);
+    }
+
+    private void openLead(long id) {
+        web.evaluateJavascript("if(typeof appOpenLead==='function')appOpenLead(" + id + ");", null);
     }
 
     @Override
@@ -104,9 +140,16 @@ public class MainActivity extends Activity {
         picking = null;
     }
 
+    /** Back closes what is open on top (a lead's window, a menu); on the plain Leads page a second press leaves the app. */
     @Override
     public void onBackPressed() {
-        if (web.canGoBack()) web.goBack(); else super.onBackPressed();
+        web.evaluateJavascript("(typeof appBack==='function')?appBack():'no'", v -> {
+            if (v != null && v.contains("yes")) return;
+            long now = System.currentTimeMillis();
+            if (now - backAt < 2000) { moveTaskToBack(true); return; }
+            backAt = now;
+            Toast.makeText(this, "Press Back again to leave the app", Toast.LENGTH_SHORT).show();
+        });
     }
 
     @Override
@@ -134,14 +177,14 @@ public class MainActivity extends Activity {
 
         /** An alert raised by the open CRM page (new lead, reminder, call back, discussion). */
         @JavascriptInterface public void notify(String title, String body) {
-            Notes.show(MainActivity.this, 500000 + (int) (System.currentTimeMillis() % 100000), title == null || title.isEmpty() ? "Solarize" : title, body == null ? "" : body);
+            Notes.show(MainActivity.this, 500000 + (int) (System.currentTimeMillis() % 100000), title == null || title.isEmpty() ? "Solarize" : title, body == null ? "" : body, 0, "");
         }
 
         /** The open page has already shown these: the background check must not announce them again. */
         @JavascriptInterface public void seenLead(String id) { try { Notes.seen(MainActivity.this, "lead", Long.parseLong(id)); } catch (NumberFormatException e) { } }
         @JavascriptInterface public void seenAlert(String id) { try { Notes.seen(MainActivity.this, "notif", Long.parseLong(id)); } catch (NumberFormatException e) { } }
 
-        @JavascriptInterface public String version() { return "1.0"; }
+        @JavascriptInterface public String version() { return VERSION; }
     }
 
     private static final String OFFLINE = "<!doctype html><meta name=viewport content='width=device-width,initial-scale=1'>"

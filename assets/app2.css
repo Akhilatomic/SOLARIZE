@@ -1139,6 +1139,25 @@ html.mt-on #title,html.mt-on #main{display:none}
 html.touch .mt-x{opacity:1;width:28px;height:28px}
 /* Android app (Leads only): no attendance button, no install card, no menu pin */
 html.applite #pnw,html.applite .a2h,html.applite .sbpin,html.applite #mtsw,html.applite #sbfeed{display:none!important}
+/* Android app: the Leads screen on a phone - search and one Filters button, the list scrolls with the page,
+   big call / WhatsApp buttons on every lead, Add lead floats at the bottom */
+html.applite main.pg-leads #ledit,html.applite main.pg-leads #lex,html.applite main.pg-leads #lim,html.applite main.pg-leads>p.mut,html.applite main.pg-leads .lbar>div:not(.tabs),html.applite main.pg-leads .lbar>.sp{display:none!important}
+html.applite main.pg-leads .lbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+html.applite main.pg-leads .lbar #lq{flex:1 1 140px;min-width:0;max-width:none!important}
+html.applite main.pg-leads .lbar select{display:none;flex:1 1 44%;min-width:0;max-width:none}
+html.applite main.pg-leads .lbar.fopen select{display:block}
+html.applite .apflt{position:relative;flex:none}html.applite .apflt.has::after{content:"";position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:#ff3b30}
+html.applite main.pg-leads .lbar.fopen .apflt{background:rgba(0,122,255,.12);color:#007aff}
+html.applite main.pg-leads .fitbox{max-height:none!important;overflow:visible!important}
+html.applite main.pg-leads{padding-bottom:96px}
+html.applite main.pg-leads #lnew{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:8;height:52px;padding:0 20px;border-radius:26px;box-shadow:0 6px 20px rgba(0,122,255,.38),0 2px 6px rgba(0,0,0,.16);font-size:15.5px}
+html.applite #ltb.stack td.lact{display:flex;gap:8px;padding-top:10px}
+html.applite #ltb.stack td.lact::before{display:none}
+html.applite #ltb.stack td.lact .ib{flex:1;min-width:0;height:44px;border-radius:12px;background:#f2f2f7;display:flex;align-items:center;justify-content:center}
+html.applite #ltb.stack td.lact .ib .i{width:19px;height:19px}
+html.applite #ltb.stack td.lact .apcall{background:#007aff;color:#fff}html.applite #ltb.stack td.lact .apcall .i{background:#fff!important}
+html.applite #ltb.stack td.lact .apwa{background:#25d366;color:#fff}html.applite #ltb.stack td.lact .apwa .i{background:#fff!important}
+html.applite .top{padding-left:12px;padding-right:12px}
 /* leads: remark history */
 .rmh-c{display:flex;align-items:flex-start;gap:6px}.rmh-c .clamp{flex:1;min-width:0}
 .rmh-b{flex:none;width:24px;height:24px;border:0;border-radius:7px;background:none;color:#8e8e93;display:grid;place-items:center;cursor:pointer;padding:0;margin:-2px -4px 0 0}.rmh-b:hover{background:rgba(0,122,255,.12);color:#007aff}.rmh-b .i{width:14px;height:14px}

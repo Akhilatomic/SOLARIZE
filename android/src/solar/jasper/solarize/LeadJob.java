@@ -67,7 +67,7 @@ public class LeadJob extends JobService {
         int code = h.getResponseCode();
         if (code == 401) { /* signed out elsewhere, password changed, or the account was closed */
             p.edit().remove("token").apply(); cancel(c);
-            Notes.show(c, 1, "Solarize Leads", "You are signed out. Open the app and sign in to keep getting lead notifications.");
+            Notes.show(c, 1, "Solarize Leads", "You are signed out. Open the app and sign in to keep getting lead notifications.", 0, "");
             return;
         }
         if (code != 200) return;
@@ -78,15 +78,21 @@ public class LeadJob extends JobService {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < n && i < 6; i++) { if (i > 0) sb.append('\n'); sb.append(line(leads.getJSONObject(i))); }
             if (n > 6) sb.append("\n+ ").append(n - 6).append(" more");
-            Notes.show(c, 2, n + " new leads", sb.toString());
+            Notes.show(c, 2, n + " new leads", sb.toString(), 0, "");
         } else for (int i = n - 1; i >= 0; i--) {
             JSONObject l = leads.getJSONObject(i);
-            Notes.show(c, 100000 + (int) (l.optLong("id") % 100000), "New lead", line(l));
+            Notes.show(c, 100000 + (int) (l.optLong("id") % 100000), "New lead", line(l), l.optLong("id"), l.optString("phone"));
         }
         for (int i = alerts == null ? -1 : alerts.length() - 1; i >= 0; i--) {
             JSONObject a = alerts.getJSONObject(i);
-            Notes.show(c, 300000 + (int) (a.optLong("id") % 100000), "callback".equals(a.optString("kind")) ? "Call back reminder" : "Lead for you", a.optString("text"));
+            Notes.show(c, 300000 + (int) (a.optLong("id") % 100000), "callback".equals(a.optString("kind")) ? "Call back reminder" : "Lead for you", a.optString("text"), a.optLong("lead_id"), "");
         }
+        /* Owner's rule in the CRM: while new leads wait unattended, remind every 15 minutes. The app does the same at each
+           check during the day (8 am - 8 pm on the phone's clock), unless this check has just announced a new lead. */
+        int waiting = j.optInt("waiting", 0), hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+        if (waiting > 0 && n == 0 && lead >= 0 && hour >= 8 && hour < 20)
+            Notes.show(c, 3, waiting == 1 ? "1 lead is waiting" : waiting + " leads are waiting", "Not attended yet. Tap to open the leads.", 0, "");
+        else if (waiting == 0) ((android.app.NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE)).cancel(3);
         p.edit().putLong("lead", Math.max(lead, j.optLong("lead", lead))).putLong("notif", Math.max(notif, j.optLong("notif", notif))).apply();
     }
 

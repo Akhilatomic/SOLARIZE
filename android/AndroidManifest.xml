@@ -2,8 +2,8 @@
 <!-- Solarize Leads: the CRM's Leads page in an app, with phone notifications for new leads (checked every 15 minutes). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="solar.jasper.solarize"
-    android:versionCode="1"
-    android:versionName="1.0">
+    android:versionCode="2"
+    android:versionName="1.1">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
 
