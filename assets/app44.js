@@ -9,6 +9,13 @@ const OCR_TEXT = {
   /* the size to read a picture at: phone photos are brought down to `max` px on the long side (faster, and reads as well) */
   fit: (w, h, max) => { const m = Math.max(w, h); if (!(m > 0)) return [0, 0]; const k = m > max ? max / m : 1; return [Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))]; },
   langs: v => v === 'eng+mal' ? ['eng', 'mal'] : ['eng'],
+  /* the lines the engine found, in reading order, each with its place on the picture as fractions of the picture (0..1) -
+     so the text can be laid over the picture where it stands. Empty lines and ones the engine is not sure of (< minConf) are left out. */
+  lines: (blocks, w, h, minConf) => { const out = []; if (!(w > 0 && h > 0)) return out;
+    (blocks || []).forEach(b => (b && b.paragraphs || []).forEach(p => (p && p.lines || []).forEach(l => { const t = String(l && l.text || '').replace(/\s+/g, ' ').trim(), bb = l && l.bbox;
+      if (!t || !bb || !(bb.x1 > bb.x0 && bb.y1 > bb.y0) || (+l.confidence || 0) < (minConf || 0)) return;
+      out.push({ text: t, x: bb.x0 / w, y: bb.y0 / h, w: (bb.x1 - bb.x0) / w, h: (bb.y1 - bb.y0) / h }); })));
+    return out; },
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = OCR_TEXT;
 
@@ -35,18 +42,29 @@ const ocrLang = () => { try { return localStorage.getItem('ocrLang') === 'eng+ma
 function docOcr(f) {
   const m = modal(`<div class="ocw"><div class="och"><h3>Copy text from picture</h3><span class="mut ocn" title="${esc(f.name || '')}">${esc(f.item || f.name || '')}</span><span class="sp"></span>
       <select id="ocl" title="Language of the text in the picture"><option value="eng">English</option><option value="eng+mal"${ocrLang() === 'eng+mal' ? ' selected' : ''}>English + Malayalam</option></select></div>
-    <div class="ocb"><div class="oci"><img src="${fileUrl(f)}" alt=""></div>
+    <div class="ocb"><div class="oci"><div class="ociw"><img src="${fileUrl(f)}" alt=""><div class="ocov" id="ocov"></div></div></div>
       <div class="oct"><div class="ocs" id="ocs"><div class="ocp"><i id="ocpb"></i></div><span id="ocst">Starting…</span></div>
         <textarea id="octx" spellcheck="false" placeholder="The text read from the picture shows here. You can correct it before copying." readonly></textarea></div></div>
-    <div class="bar ocf"><small class="mut">Read in this browser — the picture is not sent anywhere. Check numbers before using them.</small><span class="sp"></span>
-      <button class="btn" id="occp" disabled><i class="i i-copy"></i> Copy text</button><button class="btn sec" id="ocag" disabled>Read again</button><button class="btn sec" id="occl">Close</button></div></div>`, 1);
+    <div class="bar ocf"><small class="mut">Select text on the picture, or click a line to copy it. Read in this browser — the picture is not sent anywhere. Check numbers before using them.</small><span class="sp"></span>
+      <button class="btn" id="occp" disabled><i class="i i-copy"></i> Copy text</button><button class="btn sec" id="octg" hidden>Hide text on picture</button><button class="btn sec" id="ocag" disabled>Read again</button><button class="btn sec" id="occl">Close</button></div></div>`, 1);
   m.classList.add('ocmod');
   const tx = $('#octx', m), st = $('#ocst', m), bar = $('#ocpb', m), box = $('#ocs', m), cp = $('#occp', m), ag = $('#ocag', m), sel = $('#ocl', m);
-  let run = 0, worker = null;
+  const ov = $('#ocov', m), tg = $('#octg', m);
+  let run = 0, worker = null, LN = [];
+  /* each line is laid over the picture where it was found; its letters are sized to the line's height, and made smaller if they would run past its width */
+  const fitOv = () => { const H = ov.clientHeight, W = ov.clientWidth; if (!H || !W) return;
+    [...ov.children].forEach((el, i) => { const l = LN[i]; if (!l) return; const bw = l.w * W; let fs = Math.max(5, l.h * H * 0.74); el.style.fontSize = fs + 'px';
+      const sw = el.scrollWidth; if (sw > bw + 1) el.style.fontSize = Math.max(5, fs * bw / sw) + 'px'; }); };
+  const drawOv = lines => { LN = lines || []; const p = v => (v * 100).toFixed(3) + '%';
+    ov.innerHTML = LN.map(l => `<div class="ocl" style="left:${p(l.x)};top:${p(l.y)};width:${p(l.w)};height:${p(l.h)}">${esc(l.text)}</div>`).join('');
+    ov.classList.toggle('on', !!LN.length); tg.hidden = !LN.length; tg.textContent = 'Hide text on picture'; ov.hidden = false; fitOv(); };
+  ov.onclick = e => { const el = e.target.closest('.ocl'), s = window.getSelection && window.getSelection(); if (!el || (s && !s.isCollapsed)) return; copyText(el.textContent, 'line'); };
+  tg.onclick = () => { ov.hidden = !ov.hidden; tg.textContent = ov.hidden ? 'Show text on picture' : 'Hide text on picture'; if (!ov.hidden) fitOv(); };
+  const ro = window.ResizeObserver ? new ResizeObserver(fitOv) : null; if (ro) ro.observe(ov);
   const stop = () => { run++; const w = worker; worker = null; if (w) { try { w.terminate(); } catch (e) { } } };
   const say = (t, p, bad) => { st.textContent = t; bar.style.width = Math.round(Math.max(0, Math.min(1, p || 0)) * 100) + '%'; box.classList.toggle('bad', !!bad); box.hidden = false; };
   const read = async () => {
-    stop(); const my = run; cp.disabled = ag.disabled = true; tx.readOnly = true; tx.value = ''; say('Getting the text reader ready…', 0.03);
+    stop(); const my = run; cp.disabled = ag.disabled = true; tx.readOnly = true; tx.value = ''; drawOv([]); say('Getting the text reader ready…', 0.03);
     try {
       const T = await ocrLib(); if (my !== run) return;
       const base = new URL(OCR_DIR, location.href).href, langs = OCR_TEXT.langs(sel.value);
@@ -58,14 +76,15 @@ function docOcr(f) {
         errorHandler: () => { } });
       if (my !== run) { try { w.terminate(); } catch (e) { } return; }
       worker = w;
-      const r = await w.recognize(cv); if (my !== run) return;
+      const r = await w.recognize(cv, {}, { text: true, blocks: true }); if (my !== run) return;
       stop(); run = my; /* the engine's memory is given back; this result stays */
       const text = OCR_TEXT.tidy(r && r.data && r.data.text);
+      drawOv(OCR_TEXT.lines(r && r.data && r.data.blocks, cv.width, cv.height, 30));
       tx.value = text; tx.readOnly = false; ag.disabled = false; cp.disabled = !text;
-      if (text) { box.hidden = true; tx.focus(); tx.select(); } else say('No text was found in this picture. Try the other language, or a sharper photo.', 1, true);
+      if (text) { box.hidden = true; } else say('No text was found in this picture. Try the other language, or a sharper photo.', 1, true);
     } catch (e) { if (my !== run) return; stop(); run = my; ag.disabled = false; say((e && e.message && e.message.length < 90 ? e.message : 'The picture could not be read') + '. Check the connection and press Read again.', 1, true); }
   };
-  const close = () => { stop(); document.removeEventListener('keydown', key); m.remove(); };
+  const close = () => { stop(); if (ro) ro.disconnect(); document.removeEventListener('keydown', key); m.remove(); };
   const key = e => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', key);
   new MutationObserver((_, o) => { if (!document.body.contains(m)) { o.disconnect(); stop(); document.removeEventListener('keydown', key); } }).observe(document.body, { childList: true }); /* closed by a click outside */
