@@ -108,7 +108,7 @@ function meta_sync($minGap) {
 }
 
 function meta_ingest($L, $form) {
-  $mid = (string)($L['id'] ?? ''); if ($mid === '' || row('SELECT 1 FROM leads WHERE meta_id=?', [$mid])) return 0;
+  $mid = (string)($L['id'] ?? ''); if ($mid === '' || row('SELECT 1 FROM leads WHERE meta_id=?', [$mid]) || row('SELECT 1 FROM meta_gone WHERE meta_id=?', [$mid])) return 0; /* already here, or deleted by someone (trash.php meta_gone_add) */
   $f = []; $extra = [];
   foreach ($L['field_data'] ?? [] as $fd) {
     $k = strtolower($fd['name'] ?? ''); $v = trim(implode(', ', $fd['values'] ?? []));

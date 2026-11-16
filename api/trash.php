@@ -16,6 +16,9 @@ const GEN_KEEP = ['kseb' => ['checklist', GEN_LIFE_DAYS], 'bank' => ['loans', GE
   'tax' => ['finance', 0], 'warranty' => ['customers', 0]];
 const TRASH_FILE_COLS = ['files' => 'path', 'datasheets' => 'path', 'survey_files' => 'path', 'wa_msgs' => 'file_path'];
 
+/* Meta lead forms: the ids of leads somebody deleted. The sync reads the same leads from Meta again and again, so without this list a
+   deleted lead came back as a new lead (with its alert) at the next sync - and for good once the Recycle bin had emptied. */
+function meta_gone_add($mid) { $mid = trim((string)$mid); if ($mid !== '') q('INSERT OR IGNORE INTO meta_gone(meta_id) VALUES(?)', [$mid]); }
 function trash_dir() { $d = dirname(__DIR__) . '/data/trash'; if (!is_dir($d)) mkdir($d, 0750, true); return $d; }
 function up_dir() { $d = dirname(__DIR__) . '/data/uploads'; if (!is_dir($d)) mkdir($d, 0750, true); return $d; }
 
@@ -26,6 +29,7 @@ function trash_put($kind, $label, array $spec, array $needs = [], array $relink 
   foreach ($spec as [$t, $w, $p]) {
     $rs = rows("SELECT * FROM $t WHERE $w", $p); if (!$rs) continue;
     $data['rows'][] = [$t, $rs];
+    if ($t === 'leads') foreach ($rs as $r) meta_gone_add($r['meta_id'] ?? ''); /* a deleted Meta lead must not come in again with the next sync */
     if (isset(TRASH_FILE_COLS[$t])) foreach ($rs as $r) { $f = basename((string)($r[TRASH_FILE_COLS[$t]] ?? '')); if ($f === '') continue;
       if (is_file(up_dir() . "/$f") && @rename(up_dir() . "/$f", trash_dir() . "/$f")) $data['files'][] = $f; }
   }

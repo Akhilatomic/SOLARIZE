@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 73; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 74; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -381,6 +381,14 @@ function migrate($db) {
         ON CONFLICT(project_id,kind,item) DO UPDATE SET status='Ready', date=excluded.date, notes=CASE WHEN COALESCE(notes,'')='' THEN excluded.notes ELSE notes END WHERE checklist.status='Pending'")->execute([$item, $gen]); } catch (PDOException $e) { }
     }
     $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('chk_ready_v63','1')");
+  }
+  /* v74: Meta leads somebody deleted are remembered, so the sync does not bring them in again; the ones in the Recycle bin now are added once */
+  $db->exec("CREATE TABLE IF NOT EXISTS meta_gone(meta_id TEXT PRIMARY KEY, at TEXT DEFAULT CURRENT_TIMESTAMP)");
+  if (!$db->query("SELECT 1 FROM settings WHERE k='meta_gone_v74'")->fetch()) {
+    try { $ins = $db->prepare('INSERT OR IGNORE INTO meta_gone(meta_id) VALUES(?)');
+      foreach ($db->query("SELECT data FROM trash WHERE data LIKE '%meta_id%'")->fetchAll() as $t) { $d = json_decode((string)$t['data'], true);
+        foreach (($d['rows'] ?? []) as $tr) if (($tr[0] ?? '') === 'leads') foreach (($tr[1] ?? []) as $r) if (trim((string)($r['meta_id'] ?? '')) !== '') $ins->execute([trim((string)$r['meta_id'])]); }
+      $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('meta_gone_v74','1')"); } catch (Throwable $e) { }
   }
   /* v73: leads typed in by hand no longer unlock; the ones the claim clock had already unlocked go back to their holders, once */
   if (!$db->query("SELECT 1 FROM settings WHERE k='claim_hand_restored'")->fetch()) {

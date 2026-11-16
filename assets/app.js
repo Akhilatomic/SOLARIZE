@@ -746,6 +746,7 @@ const ONB_HINT = 'PDF or photo, up to 10 MB';
 const onbNum = v => +String(v == null ? '' : v).replace(/[,\s₹]/g, '') || 0;
 const onbHtml = () => `<div class="onb"><h3>Approved quotation and plant cost</h3>
    <div class="onb-file"><button type="button" class="btn sec" data-onb="pick"><i class="i i-upload"></i> Upload approved quotation</button><span class="mut" data-onb="name">${ONB_HINT}</span><input type="file" data-onb="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden></div>
+   <label class="onb-skip"><input type="checkbox" data-onb="skip"> No quotation to upload now — add it later from the customer’s profile</label>
    <div class="two"><div><label>Total plant cost (₹)</label><input data-onb="cost" inputmode="numeric" autocomplete="off" placeholder="e.g. 2,50,000"></div>
     <div><label>KSEB charges</label><select data-onb="extra"><option value="0">Included in the plant cost</option><option value="1">Additional (paid on top)</option></select></div>
     <div class="full" data-onb="amtbox" hidden><label>KSEB charges amount (₹) — leave empty if it is not known yet</label><input data-onb="amt" inputmode="numeric" autocomplete="off"></div></div>
@@ -753,19 +754,21 @@ const onbHtml = () => `<div class="onb"><h3>Approved quotation and plant cost</h
 function onbBind(m) {
   const f = $('[data-onb="file"]', m), nm = $('[data-onb="name"]', m), money = e => { const n = onbNum(e.target.value); if (n > 0) e.target.value = n.toLocaleString('en-IN'); };
   $('[data-onb="pick"]', m).onclick = () => f.click();
+  $('[data-onb="skip"]', m).onchange = e => { $('[data-onb="pick"]', m).disabled = e.target.checked; if (e.target.checked) { f.value = ''; f.onchange(); } }; /* the quotation is left for later */
   f.onchange = () => { const x = f.files[0]; nm.textContent = x ? `${x.name} · ${x.size < 1048576 ? Math.max(1, Math.round(x.size / 1024)) + ' KB' : (x.size / 1048576).toFixed(1) + ' MB'}` : ONB_HINT; nm.classList.toggle('mut', !x); };
   $('[data-onb="extra"]', m).onchange = e => { $('[data-onb="amtbox"]', m).hidden = e.target.value !== '1'; };
   $('[data-onb="cost"]', m).onblur = money; $('[data-onb="amt"]', m).onblur = money;
 }
 function onbForm(m, fields) {
   const f = $('[data-onb="file"]', m).files[0], cost = onbNum($('[data-onb="cost"]', m).value), extra = $('[data-onb="extra"]', m).value === '1';
-  if (!f) { toast('Upload the approved quotation', true); return null; }
-  if (f.size > 10 * 1048576) { toast('The quotation file is larger than 10 MB', true); return null; }
+  const skip = $('[data-onb="skip"]', m).checked;
+  if (!f && !skip) { toast('Upload the approved quotation, or tick “No quotation to upload now”', true); return null; }
+  if (f && f.size > 10 * 1048576) { toast('The quotation file is larger than 10 MB', true); return null; }
   if (!(cost > 0)) { toast('Enter the total plant cost', true); $('[data-onb="cost"]', m).focus(); return null; }
   const fd = new FormData();
   Object.entries(fields).forEach(([k, v]) => { if (v != null && typeof v !== 'object') fd.append(k, v); });
   fd.append('plant_cost', cost); fd.append('kseb_extra', extra ? '1' : '0'); if (extra) fd.append('kseb_extra_amt', onbNum($('[data-onb="amt"]', m).value));
-  fd.append('quote', f); return fd;
+  if (f) fd.append('quote', f); else fd.append('no_quote', '1'); return fd;
 }
 /* Convert a lead to a customer: asks for the approved quotation and the total plant cost, then done({customer_id}) */
 function convertBox(l, done) {

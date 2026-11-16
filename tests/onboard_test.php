@@ -89,6 +89,19 @@ chk($r['_code'] === 200 && $c4 && (float)$cc['plant_cost'] === 275000.0 && (int)
 chk($one('SELECT status FROM leads WHERE id=?', [$l1]) === 'Won' && (int)$one("SELECT COUNT(*) FROM files WHERE customer_id=? AND kind='approved'", [$c4]) === 1, 'the lead is Won and the quotation is with the new customer');
 $r = onb($sales, 'leads', 'convert', ['id' => $l1], 999);
 chk(($r['customer_id'] ?? 0) == $c4 && (float)$one('SELECT plant_cost FROM cust_cost WHERE customer_id=?', [$c4]) === 275000.0 && (int)$one("SELECT COUNT(*) FROM files WHERE customer_id=? AND kind='approved'", [$c4]) === 1, 'converting the same lead again changes nothing');
+/* owner's rule (2026-11-16): the quotation can be left for later with a tick; the plant cost is still asked */
+$l5 = $lead('Onb Lead Skip', '9000000335');
+$r = call($sales, 'leads', 'convert', ['id' => $l5, 'no_quote' => 1, 'plant_cost' => '']);
+chk($r['_code'] === 400 && $r['error'] === 'Enter the total plant cost', 'no quotation ticked, no plant cost: refused');
+$r = call($sales, 'leads', 'convert', ['id' => $l5, 'no_quote' => 1, 'plant_cost' => '2,10,000']); $c5 = (int)($r['customer_id'] ?? 0);
+chk($r['_code'] === 200 && $c5 && (float)$one('SELECT plant_cost FROM cust_cost WHERE customer_id=?', [$c5]) === 210000.0 && (int)$one("SELECT COUNT(*) FROM files WHERE customer_id=? AND kind='approved'", [$c5]) === 0, 'a lead converts without the quotation when "No quotation to upload now" is ticked');
+chk(strpos((string)$one("SELECT detail FROM audit_log WHERE action='approved_quote' AND entity_id=? ORDER BY id DESC LIMIT 1", [$c5]), 'No quotation uploaded') !== false, 'the audit log says the quotation was left for later');
+$r = call($sales, 'customers', 'save', ['name' => 'Onb Skip Direct', 'phone' => '9000000336', 'lead_type' => 'own', 'no_quote' => 1, 'plant_cost' => 150000]);
+chk($r['_code'] === 200 && (int)$one("SELECT COUNT(*) FROM files WHERE customer_id=? AND kind='approved'", [(int)$r['id']]) === 0, 'a customer is added the same way');
+/* a Meta lead somebody deleted is remembered, so the sync does not bring it in again */
+$db->exec("INSERT INTO leads(name,phone,source,status,added_by,meta_id,notify,lead_type) VALUES('Onb Meta Gone','9000000337','Meta Ads','New','Meta Ads','MG-778899',1,'meta')"); $mg = (int)$db->lastInsertId();
+$r = call($admin, 'leads', 'delete', ['id' => $mg]);
+chk($r['_code'] === 200 && !$one('SELECT 1 FROM leads WHERE id=?', [$mg]) && (bool)$one("SELECT 1 FROM meta_gone WHERE meta_id='MG-778899'"), 'deleting a Meta lead remembers its Meta id');
 $r = call($sales, 'pipeline', 'start', ['lead_id' => $l2, 'kw' => 3]);
 chk($r['_code'] === 400 && !$one('SELECT customer_id FROM leads WHERE id=?', [$l2]), 'starting a project straight from a lead needs the papers too');
 $r = onb($sales, 'pipeline', 'start', ['lead_id' => $l2, 'kw' => 3], 195000);

@@ -765,6 +765,7 @@ a.fm-cpath:hover{color:var(--pri)}
 .onb h3{margin:0 0 10px;font-size:15px;font-weight:600}
 .onb-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}
 .onb-file span{min-width:0;overflow-wrap:anywhere}
+.onb-skip{display:flex;align-items:center;gap:8px;margin:8px 0 2px;font-size:13px;color:var(--tx);cursor:pointer}.onb-skip input{width:auto;margin:0;flex:none}
 .onb-n{margin:10px 0 0;font-size:12px}
 .pcz .pfch .pill{font-size:11px}
 .pcz-sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:2px 0 12px}

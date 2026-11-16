@@ -16,11 +16,14 @@ function onboard_check($in) {
   $cost = (float)preg_replace(ONB_NUM, '', (string)($in['plant_cost'] ?? ''));
   if (!($cost > 0)) fail('Enter the total plant cost');
   if ($cost > 1e9) fail('The total plant cost is too large');
-  if (!$has) fail('Upload the approved quotation');
-  $ext = sec_upload($fl, ['image', 'pdf'], 10);
+  /* owner's rule (2026-11-16): the quotation can be left for later with a tick ("No quotation to upload now"); the plant cost is still asked */
+  $skip = !$has && in_array(strtolower((string)($in['no_quote'] ?? '')), ['1', 'true', 'on', 'yes'], true);
+  if (!$has && !$skip) fail('Upload the approved quotation');
+  $ext = $skip ? '' : sec_upload($fl, ['image', 'pdf'], 10);
   $extra = in_array(strtolower((string)($in['kseb_extra'] ?? '')), ['1', 'true', 'on', 'yes'], true) ? 1 : 0;
   $amt = $extra ? max(0, min(1e7, (float)preg_replace(ONB_NUM, '', (string)($in['kseb_extra_amt'] ?? '')))) : 0;
   /* the file is put in place before the customer is made: if it cannot be saved, nothing is created */
+  if ($skip) return ['cost' => round($cost, 2), 'extra' => $extra, 'amt' => round($amt, 2), 'path' => '', 'name' => '', 'size' => 0];
   $name = bin2hex(random_bytes(12)) . '.' . $ext;
   if (!move_uploaded_file($fl['tmp_name'], up_dir() . "/$name")) fail('Could not save the quotation', 500);
   return ['cost' => round($cost, 2), 'extra' => $extra, 'amt' => round($amt, 2), 'path' => $name, 'name' => mb_substr(basename((string)$fl['name']), -190), 'size' => (int)$fl['size']];
@@ -28,8 +31,8 @@ function onboard_check($in) {
 function onboard_store($cid, $o) {
   if (!$o) return;
   cust_cost_set($cid, $o['cost'], $o['extra'], $o['amt']);
-  approved_quote_add($cid, $o['path'], $o['name'], $o['size']);
-  audit('approved_quote', 'customers', $cid, 'Approved quotation · plant cost ₹' . number_format($o['cost']) . ($o['extra'] ? ' · KSEB charges additional' . ($o['amt'] > 0 ? ' ₹' . number_format($o['amt']) : '') : ''));
+  if ($o['path'] !== '') approved_quote_add($cid, $o['path'], $o['name'], $o['size']);
+  audit('approved_quote', 'customers', $cid, ($o['path'] !== '' ? 'Approved quotation' : 'No quotation uploaded (left for later)') . ' · plant cost ₹' . number_format($o['cost']) . ($o['extra'] ? ' · KSEB charges additional' . ($o['amt'] > 0 ? ' ₹' . number_format($o['amt']) : '') : ''));
 }
 /* the approved quotation is a document that stays until someone deletes it (files.life 0); only an admin can delete it (files/delete) */
 function approved_quote_add($cid, $path, $name, $size) {
