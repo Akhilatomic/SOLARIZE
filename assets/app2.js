@@ -240,7 +240,7 @@ function stgPanes(adm) {
     users: () => `<div id="stgusers"><p class="mut">Loading…</p></div>`,
     rules: () => `<div class="stg-cards stg-one"><div class="card" id="stg-rules"><div class="stg-grp">
        <div><h4>Documents</h4>${rn('doc_days', 'Uploaded documents are kept (days)')}${rn('gen_days', 'Papers made in the CRM are kept (days)')}${rn('trash_hours', 'Deleted items stay in the Recycle bin (hours)')}</div>
-       <div><h4>New leads</h4>${rn('lead_lost_hours', 'Marked Lost if nobody attends within (hours)')}${rn('lead_remind_min', 'Reminder while leads wait, every (minutes)')}${rn('claim_hours', 'A claimed lead unlocks if not converted within (hours)')}</div>
+       <div><h4>New leads</h4>${rn('lead_lost_hours', 'Marked Lost if nobody attends within (hours)')}${rn('lead_remind_min', 'Reminder while leads wait, every (minutes)')}${rn('claim_hours', 'A claimed Meta / WhatsApp lead unlocks if not converted within (hours)')}</div>
        <div><h4>KSEB feasibility</h4>${rn('feas_valid_days', 'A feasibility payment is valid for (days)')}${rn('feas_alert_days', 'Warn this many days before it runs out')}</div>
        <div><h4>Sign-in</h4>${rn('idle_min', 'Sign out after no activity for (minutes)')}</div></div>
        <p class="stg-hint" style="margin:14px 0 0">Tax bills, warranty cards and the approved quotation are always kept until someone deletes them. A new keeping time applies to documents already uploaded; a paper made in the CRM keeps the time it was saved with.</p>

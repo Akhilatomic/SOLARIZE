@@ -139,7 +139,7 @@ function lead_autolost() {
 // Owner's rule (2026-11-14): a claim lasts rule('claim_hours') hours (36). A lead that is still not a customer by then
 // is unlocked, so anyone who can claim may take it. The clock starts when the lead is claimed or handed to someone
 // (claimed_at); claims made before this rule went live count from the moment it went live, so nothing unlocks at once.
-// A lead its holder added themself is not on the clock (it was never taken from the shared list).
+// A lead typed in by hand is not on the clock (lead_by_hand below): only Meta and WhatsApp leads are.
 // Grace period (owner's rule, 2026-11-14): whoever holds the lead can add CLAIM_GRACE_HOURS to a running claim, up to
 // CLAIM_GRACE_MAX times per claim. leads.claim_ext counts them for the claim that began at leads.claim_ext_for (that claim's
 // claimed_at) — a new claim, a reassignment or an unlock changes claimed_at, so the count starts again without touching it.
@@ -177,16 +177,39 @@ function claim_state($id) {
   $l = row('SELECT l.*, u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE l.id=?', [(int)$id]);
   return $l ? ['unlock_at' => claim_unlock_at($l), 'hold' => claim_held_by($l)] : [];
 }
+/* Owner's rule (2026-11-16): a lead somebody typed in by hand never unlocks - it stays with its holder until it becomes a customer,
+   is unclaimed or is reassigned, whoever typed it (the admin for a salesperson, or the holder). Only leads that came into the shared
+   pool by themselves run the claim clock: Meta lead forms (meta_id) and WhatsApp chats. leads.added_by is not editable. */
+const LEAD_POOL_BY = ['', 'meta', 'meta ads', 'whatsapp'];
+function lead_by_hand($l) { return (string)($l['meta_id'] ?? '') === '' && !in_array(mb_strtolower(trim((string)($l['added_by'] ?? ''))), LEAD_POOL_BY, true); }
+/* Once, when that rule came in (migrate, flag claim_hand_restored): typed-in leads the clock had already unlocked go back to whoever
+   held them (the user the unlock notice went to), unless someone has claimed them since or that user is no longer active. */
+function claim_hand_restore($db) {
+  $n = 0;
+  foreach ($db->query("SELECT id,name,added_by,meta_id FROM leads WHERE (assigned_to IS NULL OR assigned_to=0) AND (customer_id IS NULL OR customer_id=0)")->fetchAll() as $l) {
+    if (!lead_by_hand($l)) continue;
+    $s = $db->prepare("SELECT n.user_id, u.name FROM notifs n JOIN users u ON u.id=n.user_id AND u.active=1 AND COALESCE(u.deleted,0)=0
+      WHERE n.lead_id=? AND n.kind='assign' AND n.from_id IS NULL AND n.text LIKE 'Your claim on %' ORDER BY n.id DESC LIMIT 1"); $s->execute([$l['id']]); $u = $s->fetch();
+    if (!$u) continue;
+    $s = $db->prepare("UPDATE leads SET assigned_to=?, claimed_at=? WHERE id=? AND (assigned_to IS NULL OR assigned_to=0)"); $s->execute([(int)$u['user_id'], gmdate('Y-m-d H:i:s'), $l['id']]);
+    if (!$s->rowCount()) continue;
+    $db->prepare("INSERT INTO notes(entity,entity_id,text,user) VALUES('leads',?,?,'System')")->execute([$l['id'], 'Given back to ' . $u['name'] . ': a lead added by hand no longer unlocks (automatic)']);
+    $db->prepare("INSERT INTO notifs(user_id,kind,lead_id,from_id,text) VALUES(?,'assign',?,NULL,?)")->execute([(int)$u['user_id'], $l['id'], mb_substr($l['name'] . ' is back with you — leads added by hand no longer unlock', 0, 200)]);
+    $n++;
+  }
+  if ($n) $db->prepare("INSERT INTO audit_log(user,action,entity,entity_id,detail) VALUES('System','leads_given_back','leads',NULL,?)")->execute(["$n typed-in lead(s) the claim clock had unlocked given back to their holders"]);
+  return $n;
+}
 function claim_base_at($l) {
   if (empty($l['assigned_to']) || !empty($l['customer_id'])) return 0;
-  $by = mb_strtolower(trim((string)($l['added_by'] ?? ''))); if ($by !== '' && $by === mb_strtolower(trim((string)($l['owner_name'] ?? '')))) return 0;
+  if (lead_by_hand($l)) return 0;
   $t = ($l['claimed_at'] ?? '') !== '' ? (int)strtotime($l['claimed_at'] . ' UTC') : 0;
   return max($t, claim_from()) + rule('claim_hours') * 3600 + claim_ext_used($l) * CLAIM_GRACE_HOURS * 3600;
 }
 /* Runs when the Leads list is read and from the hourly housekeeping: one indexed lookup, writes only when a claim has run out. */
 function claim_release() {
   $now = time(); $h = rule('claim_hours'); $n = 0;
-  $rs = rows("SELECT l.id,l.name,l.assigned_to,l.customer_id,l.claimed_at,l.added_by,l.claim_ext,l.claim_ext_for,l.appt,l.callback_at,l.claim_hold,l.claim_hold_for,u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to
+  $rs = rows("SELECT l.id,l.name,l.assigned_to,l.customer_id,l.claimed_at,l.added_by,l.meta_id,l.claim_ext,l.claim_ext_for,l.appt,l.callback_at,l.claim_hold,l.claim_hold_for,u.name owner_name FROM leads l LEFT JOIN users u ON u.id=l.assigned_to
     WHERE l.assigned_to>0 AND (l.customer_id IS NULL OR l.customer_id=0) AND COALESCE(l.claimed_at,'')<=?", [gmdate('Y-m-d H:i:s', $now - $h * 3600)]);
   foreach ($rs as $l) {
     $at = claim_unlock_at($l); if (!$at || $at > $now) continue;
@@ -232,7 +255,7 @@ function lead_guard($a, $in) {
       $n = q("UPDATE leads SET assigned_to=?, claimed_at=?, updated=CURRENT_TIMESTAMP WHERE id=? AND (assigned_to IS NULL OR assigned_to=0)", [uid(), gmdate('Y-m-d H:i:s'), $id])->rowCount();
       if (!$n) { $l = row('SELECT assigned_to FROM leads WHERE id=?', [$id]); if (!$l) fail('Not found', 404); fail('Already claimed by ' . owner_name($l['assigned_to']), 409); }
       audit('claim', 'leads', $id, $_SESSION['name'] ?? '');
-      $l = row('SELECT assigned_to,customer_id,claimed_at,added_by,appt,callback_at,claim_hold,claim_hold_for FROM leads WHERE id=?', [$id]) + ['owner_name' => $_SESSION['name'] ?? ''];
+      $l = row('SELECT assigned_to,customer_id,claimed_at,added_by,meta_id,appt,callback_at,claim_hold,claim_hold_for FROM leads WHERE id=?', [$id]) + ['owner_name' => $_SESSION['name'] ?? ''];
       out(['ok' => true, 'unlock_at' => claim_unlock_at($l), 'hold' => claim_held_by($l), 'hours' => rule('claim_hours')]);
     case 'extend': // grace period: whoever holds the lead adds CLAIM_GRACE_HOURS to its running claim (CLAIM_GRACE_MAX times per claim)
       need('leads');

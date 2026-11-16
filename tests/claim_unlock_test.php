@@ -63,6 +63,29 @@ chk((int)$get($conv)['assigned_to'] === $u1, 'a lead already converted to a cust
 $o = $rowOf($s1, $own);
 chk((int)$get($own)['assigned_to'] === $u1 && $o && (int)$o['unlock_at'] === 0, 'a lead its holder added themself is not on the clock');
 $x = $rowOf($s1, $free); chk($x && (int)$x['unlock_at'] === 0, 'an unclaimed lead has no clock');
+/* owner's rule (2026-11-16): a lead typed in by hand never unlocks, whoever typed it; only leads from the shared pool (Meta, WhatsApp) run the clock */
+$given = $mk('Given Lead Test', 40, $u1, 'Boss'); $renamed = $mk('Renamed Adder Test', 40, $u1, 'Claim One Old Name');
+$wa = $mk('WhatsApp Pool Test', 40, $u1, 'WhatsApp'); $ma = $mk('Meta Ads Pool Test', 40, $u1, 'Meta Ads');
+$g = $rowOf($s1, $given);
+chk((int)$get($given)['assigned_to'] === $u1 && $g && (int)$g['unlock_at'] === 0, 'a lead the admin typed in and gave to someone stays with them (no clock)');
+chk((int)$get($renamed)['assigned_to'] === $u1, 'a typed-in lead stays although the name of who added it is no longer a user name');
+chk(empty($get($wa)['assigned_to']) && empty($get($ma)['assigned_to']), 'WhatsApp and Meta leads still unlock after 36 hours');
+$typed = (int)(call($s2, 'leads', 'save', ['name' => 'Typed By Two Test', 'phone' => '9000000771', 'status' => 'New'])['id'] ?? 0);
+$db->exec("UPDATE leads SET claimed_at='" . $ago(60) . "' WHERE id=$typed"); call($admin, 'leads', 'assign', ['id' => $typed, 'user_id' => $u1]);
+$db->exec("UPDATE leads SET claimed_at='" . $ago(60) . "' WHERE id=$typed"); call($admin, 'leads', 'list');
+chk((int)$get($typed)['assigned_to'] === $u1, 'a typed-in lead handed to someone else stays with the new holder');
+/* once, when the rule came in: typed-in leads the clock had already unlocked go back to who held them */
+$mkFreed = function ($name, $by, $to) use ($db, $mk) { $id = $mk($name, 0, null, $by);
+  $db->exec("INSERT INTO notifs(user_id,kind,lead_id,from_id,text) VALUES($to,'assign',$id,NULL,'Your claim on $name ended after 36 hours — the lead is open to everyone again')"); return $id; };
+$back = $mkFreed('Freed Hand Test', 'Boss', $u1); $pool = $mkFreed('Freed Meta Test', 'Meta Ads', $u1); $taken = $mkFreed('Freed Then Claimed Test', 'Boss', $u1);
+$db->exec("UPDATE leads SET assigned_to=$u2, claimed_at='" . $ago(1) . "' WHERE id=$taken");
+$db->exec("DELETE FROM settings WHERE k='claim_hand_restored'"); $db->exec('PRAGMA user_version=72'); call($admin, 'leads', 'list');
+chk((int)$get($back)['assigned_to'] === $u1 && $get($back)['claimed_at'] !== '', 'an unlocked typed-in lead goes back to the person who held it');
+chk((bool)$db->query("SELECT 1 FROM notes WHERE entity='leads' AND entity_id=$back AND user='System' AND text LIKE '%Given back to Claim One%'")->fetchColumn(), 'a note on the lead says so');
+chk(empty($get($pool)['assigned_to']), 'an unlocked Meta lead stays open');
+chk((int)$get($taken)['assigned_to'] === $u2, 'a lead someone else has claimed since is not taken away');
+$db->exec("UPDATE leads SET assigned_to=NULL, claimed_at='' WHERE id=$back"); $db->exec('PRAGMA user_version=72'); call($admin, 'leads', 'list');
+chk(empty($get($back)['assigned_to']), 'the give-back runs once only');
 
 /* the unlocked lead is open to the others */
 $l2 = $rowOf($s2, $late); chk($l2 && empty($l2['assigned_to']), 'another user now sees the unlocked lead');
