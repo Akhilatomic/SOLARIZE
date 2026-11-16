@@ -14,12 +14,26 @@ test('fit: large photos come down to the limit, small ones stay', () => {
 test('langs: English unless English + Malayalam is chosen', () => {
   assert.deepStrictEqual(O.langs('eng'), ['eng']); assert.deepStrictEqual(O.langs('eng+mal'), ['eng', 'mal']); assert.deepStrictEqual(O.langs('x'), ['eng']);
 });
-test('lines: each found line with its place on the picture; empty and unsure lines are left out', () => {
-  const B = [{ paragraphs: [{ lines: [
-    { text: 'Akhil  S T\n', confidence: 91, bbox: { x0: 100, y0: 50, x1: 300, y1: 90 } },
-    { text: '  \n', confidence: 95, bbox: { x0: 0, y0: 0, x1: 10, y1: 10 } },
-    { text: '|;~', confidence: 12, bbox: { x0: 0, y0: 0, x1: 10, y1: 10 } },
-    { text: 'no box', confidence: 90 }] }] }, { paragraphs: [{ lines: [{ text: '4203 8422', confidence: 60, bbox: { x0: 0, y0: 100, x1: 500, y1: 200 } }] }] }];
-  assert.deepStrictEqual(O.lines(B, 1000, 200, 30), [{ text: 'Akhil S T', x: 0.1, y: 0.25, w: 0.2, h: 0.2 }, { text: '4203 8422', x: 0, y: 0.5, w: 0.5, h: 0.5 }]);
-  assert.deepStrictEqual(O.lines(null, 1000, 200, 30), []); assert.deepStrictEqual(O.lines(B, 0, 0, 30), []);
+const W = (t, c, x0, y0, x1, y1) => ({ text: t, confidence: c, bbox: { x0, y0, x1, y1 } });
+const L = (...w) => ({ words: w }), BL = (...l) => [{ paragraphs: [{ lines: l }] }];
+test('lines: sure words are kept with the box around them; unsure words and stray marks go', () => {
+  const B = BL(
+    L(W('=', 87, 10, 50, 30, 90), W('Akhil', 91, 100, 50, 200, 90), W('ST', 93, 220, 52, 300, 88), W('xq', 12, 320, 50, 400, 90), W('|', 80, 420, 50, 430, 90)),
+    L(W('gl', 64, 0, 0, 10, 10)),                      // a lone mark off the photo
+    L(W('INE', 62, 0, 0, 10, 10)),                     // nothing in the line is sure
+    L(W('WER', 76, 0, 0, 10, 10)),                     // one short word, not sure enough
+    L(W('MALE', 96, 0, 100, 100, 120)),
+    L(W('S/O', 50, 0, 140, 50, 160), W('Sundaresan,', 93, 60, 140, 400, 160), W('zz', 49, 410, 140, 500, 160)));
+  assert.deepStrictEqual(O.lines(B, 1000, 200, 60), [
+    { text: 'Akhil ST', x: 0.1, y: 0.25, w: 0.2, h: 0.2 },
+    { text: 'MALE', x: 0, y: 0.5, w: 0.1, h: 0.1 },
+    { text: 'S/O Sundaresan,', x: 0, y: 0.7, w: 0.4, h: 0.1 }]);
+  assert.deepStrictEqual(O.lines(null, 1000, 200, 60), []); assert.deepStrictEqual(O.lines(B, 0, 0, 60), []);
+});
+test('rows / text: top to bottom, side-by-side pieces on one text line; score counts letters and digits', () => {
+  const B = BL(L(W('4203 8422', 96, 300, 300, 600, 340)), L(W('Kerala', 92, 500, 100, 700, 130)), L(W('Address:', 96, 10, 102, 200, 132)));
+  const ls = O.lines(B, 1000, 400, 60);
+  assert.deepStrictEqual(ls.map(l => l.text), ['Address:', 'Kerala', '4203 8422']);
+  assert.strictEqual(O.text(ls), 'Address:    Kerala\n4203 8422'); assert.strictEqual(O.score(ls), 21); assert.strictEqual(O.text([]), '');
+  assert.strictEqual(O.alnum('S/O: 12 -'), 4); assert.ok(O.alnum('അഖിൽ') >= 2); assert.strictEqual(O.alnum('|=~ @'), 0);
 });
