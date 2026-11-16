@@ -29,8 +29,10 @@ function handle_auth($a) {
       if (pw_stale($u['hash'])) q('UPDATE users SET hash=? WHERE id=?', [pw_hash($in['password']), $u['id']]);
       login_guard_ok($un); login_as($u);
       $stay = !empty($in['phone']) && empty($in['app']) ? sec_stay_until() : 0; /* a phone: signed in until office end time (the Android app has its own device token) */
+      $rem = !empty($in['remember']) && empty($in['app']); /* "Remember this device": signed in for REMEMBER_DAYS on this browser, phone or computer, closed or not */
+      if ($rem) { $stay = time() + REMEMBER_DAYS * 86400; $_SESSION['rem'] = 1; }
       if ($stay) { $_SESSION['stay'] = $stay; sec_stay_cookie($stay); }
-      audit('login', 'users', $u['id'], 'from ' . client_ip() . ($stay ? ' · phone, until ' . date('H:i', $stay) : '')); out(['ok' => true, 'stay' => $stay] + (!empty($in['app']) ? ['app_token' => app_token_issue($u['id'], (string)($in['device'] ?? ''))] : [])); }
+      audit('login', 'users', $u['id'], 'from ' . client_ip() . ($rem ? ' · device remembered until ' . date('d M H:i', $stay) : ($stay ? ' · phone, until ' . date('H:i', $stay) : ''))); out(['ok' => true, 'stay' => $stay] + (!empty($in['app']) ? ['app_token' => app_token_issue($u['id'], (string)($in['device'] ?? ''))] : [])); }
     login_guard_fail($un);
     fail('Wrong username or password', 401);
   }

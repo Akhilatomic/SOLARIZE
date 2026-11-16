@@ -23,6 +23,8 @@ let ME = null, S = {}, CACHE = {}, TAB = {}, STAY = 0;
 /* Android app "Solarize Leads" (android/): the CRM runs inside the app, which offers window.SolarizeApp. There the CRM shows the
    Leads page only, stays signed in with a device token kept by the app, and hands its alerts to the phone's notifications. */
 const APPLITE = typeof window !== 'undefined' && !!window.SolarizeApp;
+/* sign-in page: "Remember this device for 7 days" is ticked unless it was unticked here the last time */
+const lgRem = () => { try { return localStorage.getItem('lgRem') !== '0'; } catch (e) { return true; } };
 let APP_INFO = {}; /* newest app version and its download address (auth/status) */
 const appCall = (fn, ...a) => { try { return window.SolarizeApp[fn](...a); } catch (e) { return ''; } };
 if (APPLITE) { document.documentElement.classList.add('applite');
@@ -90,7 +92,7 @@ async function boot() {
   if (!s.auth) { if (FRAME) { try { parent.TABS.signedOut(); } catch (e) { } return; } /* signed out while a tab was open: the whole window goes to the sign-in page */
     loginView(s.setup, s.brand || {}); if (typeof idleSignedOut === 'function') idleSignedOut(); return; }
   ME = s.user; S = s.settings || await api('settings', 'get');
-  STAY = (+s.stay || 0) * 1000; /* a phone signed in for the day: no sign-out for inactivity before this time (app38.js) */
+  STAY = (+s.stay || 0) * 1000; /* a remembered device (7 days) or a phone signed in for the day: no sign-out for inactivity before this time (app38.js) */
   APP_INFO = s.app || {};
   if (APPLITE) { STAY = Date.now() + 3650 * 864e5; /* the app stays signed in until Sign out */
     if (typeof startIdle === 'function') startIdle(); shell(); mountBell(); startMeta(); startDisc(); if (typeof startPresence === 'function') startPresence(); route(); appCall('ready'); /* the app's opening screen may go */ return; }
@@ -107,10 +109,11 @@ function loginView(setup, brand) {
     ${setup ? '<p class="lg-note">First run: create the administrator account.</p><div class="lg-f"><i class="i i-user"></i><input id="nm" placeholder="Your name" autocomplete="name"></div>' : ''}
     <div class="lg-f"><i class="i i-user"></i><input id="un" placeholder="Username" autocomplete="username" autofocus></div>
     <div class="lg-f"><i class="i i-lock"></i><input id="pw" type="password" placeholder="Password${setup ? ' (min 8 characters)' : ''}" autocomplete="${setup ? 'new-password' : 'current-password'}"><button type="button" class="lg-eye" id="eye" title="Show password" tabindex="-1"><i class="i i-eye"></i></button></div>
+    ${setup || APPLITE ? '' : `<label class="lg-rem"><input type="checkbox" id="rem"${lgRem() ? ' checked' : ''}> Remember this device for 7 days</label>`}
     <div class="err" id="e"></div><button class="btn lg-go" id="go" type="submit">${setup ? 'Create admin account' : 'Sign in'}</button>
     <p class="lg-foot">Jasper Solar Solutions</p></form></div>`;
   $('#eye').onclick = () => { const p = $('#pw'); p.type = p.type === 'password' ? 'text' : 'password'; };
-  $('#lf').onsubmit = async e => { e.preventDefault(); const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value, phone: isPhone() ? 1 : 0, app: APPLITE ? 1 : 0, device: APPLITE ? appCall('device') : '' }); if (APPLITE && r.app_token) appCall('setToken', r.app_token); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
+  $('#lf').onsubmit = async e => { e.preventDefault(); if ($('#rem')) { try { localStorage.setItem('lgRem', $('#rem').checked ? '1' : '0'); } catch (x) { } } const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value, phone: isPhone() ? 1 : 0, remember: $('#rem') && $('#rem').checked ? 1 : 0, app: APPLITE ? 1 : 0, device: APPLITE ? appCall('device') : '' }); if (APPLITE && r.app_token) appCall('setToken', r.app_token); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
 }
 function shell() {
   const items = MODS.filter(m => APPLITE ? m[0] === 'leads' : m[0] === 'admin' ? ME.role === 'admin' : m[0] === 'fees' ? feesNavItems().length > 0 : canR(m[3]));

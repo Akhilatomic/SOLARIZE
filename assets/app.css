@@ -141,6 +141,7 @@ aside h1.brand{display:flex;align-items:center;gap:8px;margin:0 2px 16px}aside h
 .lg-go{width:100%;padding:13px;border-radius:14px;font-size:16px;font-weight:600;margin-top:6px}.lg-go:disabled{opacity:.6;cursor:wait}
 .lg-card .err{text-align:left;padding-left:4px;margin-top:-4px}
 .lg-foot{margin:20px 0 0;font-size:12px;color:#8e8e93}
+.lg-rem{display:flex;align-items:center;gap:8px;margin:2px 2px 12px;font-size:13.5px;color:#3a3a3c;cursor:pointer;text-align:left}.lg-rem input{width:16px;height:16px;margin:0;accent-color:#0a84ff;flex:none}
 @media(max-width:480px){.lg-card{padding:28px 20px 20px;border-radius:22px}}
 
 .i-bell{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'1.8'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M6%208a6%206%200%200%201%2012%200c0%207%203%209%203%209H3s3-2%203-9'%2F%3E%3Cpath%20d%3D'M10.3%2021a1.94%201.94%200%200%200%203.4%200'%2F%3E%3C%2Fsvg%3E")}
