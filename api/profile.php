@@ -80,6 +80,7 @@ function handle_profile($a) {
   need('customers');
   if (in_array($a, ['kl_get', 'kl_pw', 'kl_save'], true)) kseb_login_handle($a);
   if ($a === 'cost_get' || $a === 'cost_save') handle_cust_cost($a); /* Overview › Plant cost and payments, admin only (api/onboard.php) */
+  if ($a === 'kyc_log') { $kc = (int)(body()['customer_id'] ?? 0); if (!row('SELECT 1 FROM customers WHERE id=?', [$kc])) fail('Customer not found', 404); audit('kyc_pdf', 'customers', $kc, 'Jasper Solar KYC Doc downloaded'); out(['ok' => true]); } /* who took a customer's details out as a PDF */
   if ($a === 'page_save') { $pcid = (int)(body()['customer_id'] ?? 0); $po = row('SELECT * FROM customers WHERE id=?', [$pcid]); if (!$po) fail('Customer not found', 404); profile_page_save($pcid, $po); }
   $cid = (int)($_GET['customer_id'] ?? 0);
   $c = row('SELECT * FROM customers WHERE id=?', [$cid]); if (!$c) fail('Customer not found', 404);
