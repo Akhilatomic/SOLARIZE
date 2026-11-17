@@ -26,6 +26,7 @@ const OCR_TEXT = {
       const top = Math.max(0, ...ws.filter(x => A(x.t)).map(x => x.c));
       if (top < mc + 15) { /* a line with no word the engine is sure of is a mark, not text - unless it is digits standing beside sure digits (looked at below) */
         if (top >= OCR_TEXT.WEAK && ws.length && ws.every(x => DG.test(x.t) && x.c >= OCR_TEXT.WEAK)) weak.push({ text: ws.map(x => x.t).join(' '), ...box(ws) });
+        else if (ws.length === 1 && ws[0].c >= OCR_TEXT.WEAK && /^[A-Z]{4}[0O][A-Z0-9]{6}$/.test(ws[0].t) && OCR_BANK.BANKS[ws[0].t.slice(0, 4)]) out.push({ text: ws[0].t, ...box(ws) }); /* a bank code (IFSC): its first letters prove it */
         return; }
       const sureDg = ws.some(x => DG.test(x.t) && x.c >= mc);
       ws = ws.filter(x => x.c >= (top >= mc + 20 ? mc - 10 : mc) || (sureDg && DG.test(x.t) && x.c >= OCR_TEXT.WEAK)); /* beside a sure word, a slightly unsure one is still text (S/O, a date) */
@@ -101,7 +102,70 @@ const OCR_ID = {
   /* the same person? letters only, any order of the name parts and initials */
   sameName: (a, b) => { const k = s => String(s || '').toUpperCase().replace(/[^A-Z ]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' '); return !!k(a) && k(a) === k(b); },
 };
-if (typeof module !== 'undefined' && module.exports) { module.exports = OCR_TEXT; module.exports.ID = OCR_ID; }
+/* Bank passbook / cancelled cheque (pure; Node-tested): account number, IFSC, bank, branch and account holder from the text read. */
+const OCR_BANK = {
+  /* the first four letters of an IFSC name the bank */
+  BANKS: { SBIN: 'State Bank of India', FDRL: 'Federal Bank', CNRB: 'Canara Bank', UBIN: 'Union Bank of India', BARB: 'Bank of Baroda', IOBA: 'Indian Overseas Bank', HDFC: 'HDFC Bank', ICIC: 'ICICI Bank', UTIB: 'Axis Bank',
+    KVBL: 'Karur Vysya Bank', SIBL: 'South Indian Bank', KLGB: 'Kerala Gramin Bank', PUNB: 'Punjab National Bank', IDIB: 'Indian Bank', CSBK: 'CSB Bank', IBKL: 'IDBI Bank', YESB: 'Yes Bank', BKID: 'Bank of India',
+    MAHB: 'Bank of Maharashtra', CBIN: 'Central Bank of India', UCBA: 'UCO Bank', DLXB: 'Dhanlaxmi Bank', ESFB: 'Equitas Small Finance Bank', IPOS: 'India Post Payments Bank', KARB: 'Karnataka Bank', KKBK: 'Kotak Mahindra Bank',
+    PSIB: 'Punjab & Sind Bank', TMBL: 'Tamilnad Mercantile Bank', IDFB: 'IDFC First Bank', FINO: 'Fino Payments Bank', AIRP: 'Airtel Payments Bank', JSFB: 'Jana Small Finance Bank', SURY: 'Suryoday Small Finance Bank', ESAF: 'ESAF Small Finance Bank', RATN: 'RBL Bank', SCBL: 'Standard Chartered Bank', KSCB: 'Kerala State Co-operative Bank' },
+  NAMES: [[/State Bank of India|\bS\.?B\.?I\b/i, 'State Bank of India'], [/Federal Bank/i, 'Federal Bank'], [/Canara Bank/i, 'Canara Bank'], [/Union Bank/i, 'Union Bank of India'], [/Bank of Baroda/i, 'Bank of Baroda'], [/Indian Overseas/i, 'Indian Overseas Bank'],
+    [/HDFC/i, 'HDFC Bank'], [/ICICI/i, 'ICICI Bank'], [/Axis Bank/i, 'Axis Bank'], [/Karur Vysya/i, 'Karur Vysya Bank'], [/South Indian Bank/i, 'South Indian Bank'], [/Kerala Gramin/i, 'Kerala Gramin Bank'], [/Punjab National/i, 'Punjab National Bank'],
+    [/Indian Bank/i, 'Indian Bank'], [/CSB Bank|Catholic Syrian/i, 'CSB Bank'], [/IDBI/i, 'IDBI Bank'], [/Bank of India/i, 'Bank of India'], [/Central Bank/i, 'Central Bank of India'], [/UCO Bank/i, 'UCO Bank'], [/Dhanlaxmi/i, 'Dhanlaxmi Bank'],
+    [/Kerala Bank|Kerala State Co/i, 'Kerala Bank'], [/Kotak/i, 'Kotak Mahindra Bank'], [/India Post/i, 'India Post Payments Bank'], [/Karnataka Bank/i, 'Karnataka Bank']],
+  /* an IFSC: four letters, a zero, six letters or digits (the engine often reads the zero as O, or puts a space in). A code is taken when its bank is known or the line says IFSC. */
+  ifsc: t => { for (const l of String(t || '').toUpperCase().split('\n')) { const lab = /IFS/.test(l);
+      for (const m of l.matchAll(/\b([A-Z]{4})\s?[0O]((?:\s?[A-Z0-9]){6})\b/g)) if (lab || OCR_BANK.BANKS[m[1]]) return m[1] + '0' + m[2].replace(/\s/g, '').replace(/O/g, '0'); }
+    return ''; },
+  bank: (t, ifsc) => { if (ifsc && OCR_BANK.BANKS[ifsc.slice(0, 4)]) return OCR_BANK.BANKS[ifsc.slice(0, 4)]; const hit = OCR_BANK.NAMES.find(n => n[0].test(String(t || ''))); return hit ? hit[1] : ''; },
+  /* the account number: after an "A/c No." label (same line, or the next one), else a lone 9-18 digit number on a line that is not a MICR / CIF / customer id / phone line */
+  account: rows => { const lab = /(?:A\/?C|ACC(?:OU)?NT|ACCT)\.?\s*(?:NO|NUMBER|NUM)?\.?\s*[:\-.#]*\s*([0-9][0-9 \-]{7,24}[0-9])/i, ok = d => d.length >= 9 && d.length <= 18;
+    for (let i = 0; i < rows.length; i++) { let m = rows[i].match(lab); if (m && ok(m[1].replace(/\D/g, ''))) return m[1].replace(/\D/g, '');
+      if (/(?:A\/?C|ACCOUNT|ACCT)\.?\s*(?:NO|NUMBER)?\.?\s*[:\-.#]*$/i.test(rows[i]) && rows[i + 1]) { m = rows[i + 1].match(/^([0-9][0-9 \-]{7,24}[0-9])\b/); if (m && ok(m[1].replace(/\D/g, ''))) return m[1].replace(/\D/g, ''); } }
+    const skip = /MICR|CIF|CUSTOMER\s*(?:ID|NO)|CRN|MOBILE|PHONE|\bPH\b|AADHAAR|\bPAN\b|\bPIN\b|CARD|IFS|BRANCH\s*CODE|\bSOL\b|DATE/i;
+    for (const l of rows) { if (skip.test(l)) continue; const m = l.match(/(?<![\d.])(\d{9,18})(?![\d])/); if (m && !(m[1].length === 10 && /^[6-9]/.test(m[1])) && !(m[1].length === 12 && OCR_ID.verhoeff(m[1]) && /^[2-9]/.test(m[1]))) return m[1]; }
+    return ''; },
+  name: rows => { const lab = /^(?:A\/?C\s*Holder(?:'s)?(?:\s*Name)?|Account\s*Holder(?:'s)?(?:\s*Name)?|Customer\s*Name|Name\s*of\s*(?:the\s*)?(?:Account\s*)?(?:Holder|Customer)|Holder(?:'s)?\s*Name|Name)\s*[:\-.]*\s*/i;
+    const clean = s => String(s || '').split(' : ')[0].replace(/\s+(?:A\/?C|ACCOUNT|IFSC|CIF|CUSTOMER|BRANCH|DATE|CODE)\b.*$/i, '').replace(/^(?:MR|MRS|MS|SMT|SHRI|SRI|KUM|DR)\.?\s+/i, '').replace(/[^A-Za-z .']+$/, '').replace(/\s+/g, ' ').trim();
+    const ok = s => /^[A-Za-z][A-Za-z .']{2,58}$/.test(s) && !/BANK|BRANCH|ACCOUNT|SAVINGS|ADDRESS|STATEMENT|PASSBOOK|NOMINEE|DATE|IFSC|CIF|MICR|MOBILE|PHONE|CUSTOMER\s*ID/i.test(s);
+    for (let i = 0; i < rows.length; i++) { const m = rows[i].match(lab); if (!m) continue; let v = clean(rows[i].slice(m[0].length)); if (!v && rows[i + 1] && !/[:\d]/.test(rows[i + 1])) v = clean(rows[i + 1]); if (ok(v)) return v; }
+    return ''; },
+  branch: rows => { for (const l of rows) { const m = l.match(/^(?:Branch(?:\s*Name)?|Br\.?)\s*[:\-.]+\s*(.+)$/i); if (m) { const v = m[1].split(' : ')[0].replace(/\s+(?:Code|IFSC|MICR|Phone|Tel|Date|SOL)\b.*$/i, '').replace(/[^A-Za-z .,&\-]+$/, '').replace(/\s+/g, ' ').trim(); if (/^[A-Za-z]/.test(v) && v.length >= 3 && !/^(code|no)\b/i.test(v)) return v; } }
+    for (const l of rows) { if (/bank/i.test(l)) continue; const m = l.match(/\b([A-Z][A-Za-z.]+(?: [A-Z][A-Za-z.]+){0,3}) Branch\b/); if (m) return m[1]; }
+    return ''; },
+  parse: t => { const text = String(t || ''), rows = text.split('\n').map(l => l.replace(/ {4,}/g, ' : ').trim()).filter(Boolean), o = { kind: '', bank_account: '', bank_ifsc: '', bank_name: '', bank_branch: '', bank_holder: '' };
+    o.bank_ifsc = OCR_BANK.ifsc(text); o.bank_account = OCR_BANK.account(rows); o.bank_name = OCR_BANK.bank(text, o.bank_ifsc);
+    if (!(o.bank_ifsc || (o.bank_account && (o.bank_name || /passbook|savings|cheque|current\s+account/i.test(text))))) return o;
+    o.kind = 'bank'; o.bank_holder = OCR_BANK.name(rows); o.bank_branch = OCR_BANK.branch(rows); return o; },
+};
+/* Geo-tagged photo (pure; Node-tested): the place the photo was taken - from the location data the camera stored in the file (EXIF), else
+   from the latitude / longitude printed on the picture by a geo-tag camera app. Only places in India are taken (a misread digit that lands
+   outside is refused). */
+const OCR_GEO = {
+  inIndia: (la, lo) => la >= 6 && la <= 38 && lo >= 68 && lo <= 98,
+  fmt: n => (Math.round(n * 1e6) / 1e6).toFixed(6),
+  /* the text printed on a geo-tag photo: "Lat 8.605427 Long 77.003901", degrees-minutes-seconds, or a bare "8.605427, 77.003901" pair */
+  fromText: t => { t = String(t || '').replace(/[,;|]+\s*(?=\S)/g, m => m); const G = OCR_GEO, D = '[°º*˚o^]?', ok = (la, lo, how) => G.inIndia(la, lo) ? { lat: G.fmt(la), lng: G.fmt(lo), how } : null;
+    let m = t.match(new RegExp(`(\\d{1,2})\\s*[°º*˚]\\s*(\\d{1,2})\\s*['′’]\\s*(\\d{1,2}(?:\\.\\d+)?)\\s*["″”']{0,2}\\s*([NS])[\\s,;]*(\\d{1,3})\\s*[°º*˚]\\s*(\\d{1,2})\\s*['′’]\\s*(\\d{1,2}(?:\\.\\d+)?)\\s*["″”']{0,2}\\s*([EW])`, 'i'));
+    if (m) { const a = (+m[1] + m[2] / 60 + m[3] / 3600) * (/s/i.test(m[4]) ? -1 : 1), b = (+m[5] + m[6] / 60 + m[7] / 3600) * (/w/i.test(m[8]) ? -1 : 1), r = ok(a, b, 'text'); if (r) return r; }
+    m = t.match(new RegExp(`Lat(?:itude)?\\.?\\s*[:=]?\\s*(-?\\d{1,2}\\.\\d{3,})\\s*${D}\\s*([NS])?[\\s,;|]*Lo?n(?:g|gitude)?\\.?\\s*[:=]?\\s*(-?\\d{1,3}\\.\\d{3,})`, 'i'));
+    if (m) { const r = ok(+m[1] * (/s/i.test(m[2] || '') ? -1 : 1), +m[3], 'text'); if (r) return r; }
+    m = t.match(new RegExp(`(-?\\d{1,2}\\.\\d{4,})\\s*${D}\\s*[NS]?[\\s,;]+(-?\\d{2,3}\\.\\d{4,})\\s*${D}\\s*[EW]?`, 'i'));
+    if (m) { const r = ok(+m[1], +m[2], 'text'); if (r) return r; }
+    return null; },
+  /* the location data in a JPEG's EXIF (the first bytes of the file are enough). Returns {lat, lng, how:'exif'} or null. */
+  exif: u8 => { try { if (!u8 || u8.length < 20 || u8[0] !== 0xFF || u8[1] !== 0xD8) return null; const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength); let p = 2;
+      while (p + 4 < u8.length) { if (u8[p] !== 0xFF) { p++; continue; } const mk = u8[p + 1], len = dv.getUint16(p + 2); if (mk === 0xDA) break;
+        if (mk === 0xE1 && u8[p + 4] === 0x45 && u8[p + 5] === 0x78 && u8[p + 6] === 0x69 && u8[p + 7] === 0x66) { const t0 = p + 10, le = u8[t0] === 0x49; if (!le && u8[t0] !== 0x4D) return null;
+          const g16 = o => dv.getUint16(o, le), g32 = o => dv.getUint32(o, le), ifd = off => { const n = g16(t0 + off), e = []; for (let i = 0; i < n; i++) { const q = t0 + off + 2 + i * 12; e.push({ tag: g16(q), type: g16(q + 2), cnt: g32(q + 4), at: q + 8 }); } return e; };
+          const top = ifd(g32(t0 + 4)), gp = top.find(e => e.tag === 0x8825); if (!gp) return null; const E = ifd(g32(gp.at)), by = k => E.find(e => e.tag === k); if (!by(2) || !by(4)) return null;
+          const rat = e => { const o = t0 + g32(e.at); let v = 0; for (let i = 0; i < 3; i++) { const nu = g32(o + i * 8), de = g32(o + i * 8 + 4); v += (de ? nu / de : 0) / Math.pow(60, i); } return v; };
+          const ch = e => e ? String.fromCharCode(u8[e.at]) : '', la = rat(by(2)) * (ch(by(1)) === 'S' ? -1 : 1), lo = rat(by(4)) * (ch(by(3)) === 'W' ? -1 : 1);
+          if (!(Math.abs(la) <= 90 && Math.abs(lo) <= 180) || (la === 0 && lo === 0)) return null; return { lat: OCR_GEO.fmt(la), lng: OCR_GEO.fmt(lo), how: 'exif' }; }
+        p += 2 + len; }
+    } catch (e) { } return null; },
+};
+if (typeof module !== 'undefined' && module.exports) { module.exports = OCR_TEXT; module.exports.ID = OCR_ID; module.exports.BANK = OCR_BANK; module.exports.GEO = OCR_GEO; }
 
 // ---- browser only below ----
 var OCR_DIR = 'assets/vendor/tesseract-7.0.0/', OCR_SRI = 'sha384-2BQ3U3OdKOb0Uczxqr41I9UvZkzr4V9Hv8uSzMMZAlmhsFClvdZX5wi5fDCzG+tM', OCR_MAX = 2600, OCR_SMALL = 1800, OCR_LIB = null;
@@ -153,7 +217,7 @@ function docOcr(f, c, saved) { /* c = the customer the document belongs to (Aadh
   m.classList.add('ocmod');
   const tx = $('#octx', m), st = $('#ocst', m), bar = $('#ocpb', m), box = $('#ocs', m), cp = $('#occp', m), ag = $('#ocag', m), sel = $('#ocl', m);
   const ov = $('#ocov', m), tg = $('#octg', m);
-  const im = $('#ocim', m); let run = 0, worker = null, LN = [], shown = '';
+  const im = $('#ocim', m); let run = 0, worker = null, LN = [], shown = '', xtra = '', geoX = null; /* xtra = a second reading of a passbook (read for the details only); geoX = location data stored in the photo */
   const show = cv => new Promise(res => cv.toBlob(b => { if (b) { const u = URL.createObjectURL(b); im.onload = () => { fitOv(); res(); }; im.onerror = () => res(); im.src = u; if (shown) URL.revokeObjectURL(shown); shown = u; } else res(); }, 'image/jpeg', 0.9));
   /* each line is laid over the picture where it was found, its letters sized to fill the line's box (width first, never taller than the box) */
   const mg = document.createElement('canvas').getContext('2d');
@@ -166,36 +230,46 @@ function docOcr(f, c, saved) { /* c = the customer the document belongs to (Aadh
   ov.onclick = e => { const el = e.target.closest('.ocl'), s = window.getSelection && window.getSelection(); if (!el || (s && !s.isCollapsed)) return; copyText(el.textContent, 'line'); };
   tg.onclick = () => { ov.hidden = !ov.hidden; tg.textContent = ov.hidden ? 'Show text on picture' : 'Hide text on picture'; if (!ov.hidden) fitOv(); };
   const ro = window.ResizeObserver ? new ResizeObserver(fitOv) : null; if (ro) ro.observe(ov);
-  /* Aadhaar / PAN card: the details found, each with a tick; "Save to customer" writes the ticked ones (profile pages 1 and 2) */
+  /* What the picture holds (Aadhaar / PAN card, bank passbook, geo-tagged photo): the details found, each with a tick; "Save to customer" writes the
+     ticked ones - numbers and address to profile pages 1-2, bank details to page 4, the pin to the location. Nothing is saved without the click. */
   const idb = $('#ocid', m), dig = v => String(v || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
   const same = (card, have) => { have = String(have || ''); return have.includes('•') ? dig(card).slice(-4) === have.slice(-4) : !!dig(have) && dig(card) === dig(have); };
-  const idShow = () => { const d = OCR_ID.parse(tx.value); if (!d.kind) { idb.hidden = true; idb.innerHTML = ''; return; }
-    const can = c && c.id && canW('customers'), rows = [];
-    const add = (k, label, val, have, note) => rows.push({ k, label, val, done: same(val, have), note: note || (String(have || '').trim() && !same(val, have) ? 'replaces ' + have : '') });
-    if (d.aadhaar_no) add('aadhaar_no', 'Aadhaar no.', d.aadhaar_no, c && c.aadhaar_no);
-    if (d.pan_no) add('pan_no', 'PAN no.', d.pan_no, c && c.pan_no);
-    if (d.address) add('address', 'Address', d.address, c && c.address);
-    if (d.pincode) add('pincode', 'PIN code', d.pincode, c && c.pincode);
-    const nm = d.name ? `<div class="ocidn ${c && OCR_ID.sameName(d.name, c.name) ? 'ok' : c ? 'warn' : ''}">Name on the card: <b>${esc(d.name)}</b>${c ? (OCR_ID.sameName(d.name, c.name) ? ' — matches the customer' : ` — the customer is <b>${esc(c.name || '')}</b>`) : ''}${d.dob ? ` · Born ${esc(d.dob)}` : ''}${d.gender ? ` · ${esc(d.gender)}` : ''}</div>` : '';
-    idb.innerHTML = `<div class="ocidh"><i class="i i-user"></i><b>${d.kind === 'pan' ? 'PAN card' : 'Aadhaar card'}</b><span class="sp"></span>${can && rows.some(r => !r.done) ? '<button class="btn sm" id="ocidsv">Save to customer</button>' : ''}</div>${nm}
-      ${rows.map(r => `<label class="ocidr${r.done ? ' done' : ''}">${can && !r.done ? `<input type="checkbox" data-idk="${r.k}" ${r.k === 'address' || r.k === 'pincode' ? (r.note ? '' : 'checked') : 'checked'}>` : r.done ? '<i class="i i-check"></i>' : '<i></i>'}<span>${esc(r.label)}</span><b>${esc(r.val)}</b>${r.done ? '<small>saved on the customer</small>' : r.note ? `<small>${esc(r.note)}</small>` : ''}</label>`).join('')}
-      ${can ? '' : c ? '' : '<small class="mut">Open the picture from a customer’s Documents to save these.</small>'}`;
+  const near = (la, lo, c0) => c0 && c0.lat && c0.lng && Math.abs(+c0.lat - +la) < 1e-4 && Math.abs(+c0.lng - +lo) < 1e-4;
+  const PAGE_OF = k => k === 'aadhaar_no' || k === 'pan_no' ? 'contact' : /^bank_/.test(k) ? 'bank' : k === 'gps' ? 'loc' : 'kseb';
+  const idShow = () => { const txt = tx.value + '\n' + xtra, bk = OCR_BANK.parse(txt), d = bk.kind ? { kind: '' } : OCR_ID.parse(txt), gx = geoX || OCR_GEO.fromText(txt), what = (f.item || '') + ' ' + (f.name || '');
+    const blocks = [], can = c && c.id && canW('customers');
+    const add = (rows, k, label, val, have, note) => { if (val) rows.push({ k, label, val, done: same(val, have), note: note || (String(have || '').trim() && !same(val, have) ? 'replaces ' + have : '') }); };
+    if (bk.kind) { const rows = [], cb = canR('loans') || can; add(rows, 'bank_account', 'Account no.', bk.bank_account, c && c.bank_account); add(rows, 'bank_ifsc', 'IFSC', bk.bank_ifsc, c && c.bank_ifsc); add(rows, 'bank_name', 'Bank', bk.bank_name, c && c.bank_name);
+      add(rows, 'bank_branch', 'Branch', bk.bank_branch, c && c.bank_branch); add(rows, 'bank_holder', 'Account holder', bk.bank_holder, c && c.bank_holder);
+      const nm = bk.bank_holder && c ? `<div class="ocidn ${OCR_ID.sameName(bk.bank_holder, c.name) ? 'ok' : 'warn'}">${OCR_ID.sameName(bk.bank_holder, c.name) ? 'The account holder matches the customer' : `The account holder is not the customer (<b>${esc(c.name || '')}</b>) - check before saving`}</div>` : '';
+      if (rows.length) blocks.push({ title: 'Bank passbook', rows, nm }); }
+    else if (d.kind) { const rows = []; if (d.aadhaar_no) add(rows, 'aadhaar_no', 'Aadhaar no.', d.aadhaar_no, c && c.aadhaar_no); if (d.pan_no) add(rows, 'pan_no', 'PAN no.', d.pan_no, c && c.pan_no);
+      add(rows, 'address', 'Address', d.address, c && c.address); add(rows, 'pincode', 'PIN code', d.pincode, c && c.pincode);
+      const nm = d.name ? `<div class="ocidn ${c && OCR_ID.sameName(d.name, c.name) ? 'ok' : c ? 'warn' : ''}">Name on the card: <b>${esc(d.name)}</b>${c ? (OCR_ID.sameName(d.name, c.name) ? ' — matches the customer' : ` — the customer is <b>${esc(c.name || '')}</b>`) : ''}${d.dob ? ` · Born ${esc(d.dob)}` : ''}${d.gender ? ` · ${esc(d.gender)}` : ''}</div>` : '';
+      blocks.push({ title: d.kind === 'pan' ? 'PAN card' : 'Aadhaar card', rows, nm }); }
+    if (gx && (!blocks.length || /geo|site|location|house|roof|photo/i.test(what))) { const rows = [], v = gx.lat + ', ' + gx.lng, have = c && c.lat && c.lng ? c.lat + ', ' + c.lng : '';
+      rows.push({ k: 'gps', label: 'GPS location', val: v, done: near(gx.lat, gx.lng, c), note: have && !near(gx.lat, gx.lng, c) ? 'replaces ' + have : gx.how === 'exif' ? 'from the location data stored in the photo' : 'read from the text printed on the photo', link: `https://www.google.com/maps?q=${gx.lat},${gx.lng}` });
+      blocks.push({ title: 'Geo-tagged photo', rows, nm: '' }); }
+    if (!blocks.length) { idb.hidden = true; idb.innerHTML = ''; return; }
+    idb.innerHTML = blocks.map((bl, n) => `<div class="ocidb"><div class="ocidh"><i class="i i-${/Bank/.test(bl.title) ? 'bank' : /Geo/.test(bl.title) ? 'target' : 'user'}"></i><b>${esc(bl.title)}</b><span class="sp"></span>${can && bl.rows.some(r => !r.done) ? `<button class="btn sm" data-idsv="${n}">Save to customer</button>` : ''}</div>${bl.nm}
+      ${bl.rows.map(r => `<label class="ocidr${r.done ? ' done' : ''}">${can && !r.done ? `<input type="checkbox" data-idk="${r.k}" ${(r.k === 'address' || r.k === 'pincode') && r.note ? '' : 'checked'}>` : r.done ? '<i class="i i-check"></i>' : '<i></i>'}<span>${esc(r.label)}</span><b>${esc(r.val)}${r.link ? ` <a href="${r.link}" target="_blank" rel="noopener" title="Open in Maps">map</a>` : ''}</b>${r.done ? '<small>saved on the customer</small>' : r.note ? `<small>${esc(r.note)}</small>` : ''}</label>`).join('')}</div>`).join('')
+      + (can || !c ? '' : '') + (!c ? '<small class="mut">Open the picture from a customer’s Documents to save these.</small>' : '');
     idb.hidden = false;
-    const sv = $('#ocidsv', idb); if (sv) sv.onclick = async () => { const pick = $$('[data-idk]:checked', idb).map(x => x.dataset.idk); if (!pick.length) return toast('Tick what to save', true);
-      const val = k => rows.find(r => r.k === k).val, p2 = {}, p1 = {}; pick.forEach(k => { (k === 'aadhaar_no' || k === 'pan_no' ? p2 : p1)[k] = val(k); });
+    $$('[data-idsv]', idb).forEach(sv => sv.onclick = async () => { const bl = blocks[+sv.dataset.idsv], pick = $$('[data-idk]:checked', sv.closest('.ocidb')).map(x => x.dataset.idk); if (!pick.length) return toast('Tick what to save', true);
+      const val = k => bl.rows.find(r => r.k === k).val, by = {}; pick.forEach(k => { const pg = PAGE_OF(k); by[pg] = by[pg] || {}; if (k === 'gps') { const [la, lo] = val(k).split(', '); by[pg].lat = la; by[pg].lng = lo; } else by[pg][k] = val(k); });
       sv.disabled = true;
-      try { let r; if (Object.keys(p2).length) r = await api('profile', 'page_save', { customer_id: c.id, page: 'contact', data: p2 });
-        if (Object.keys(p1).length) r = await api('profile', 'page_save', { customer_id: c.id, page: 'kseb', data: p1 });
-        if (r && r.customer) Object.assign(c, r.customer); else pick.forEach(k => { c[k] = val(k); });
-        toast('Saved to ' + (c.name || 'the customer')); idShow(); if (saved) saved(c); } catch (e) { sv.disabled = false; } }; };
+      try { let r; for (const pg of Object.keys(by)) r = await api('profile', 'page_save', { customer_id: c.id, page: pg, data: by[pg] });
+        if (r && r.customer) Object.assign(c, r.customer); else Object.keys(by).forEach(pg => Object.assign(c, by[pg]));
+        toast('Saved to ' + (c.name || 'the customer')); idShow(); if (saved) saved(c); } catch (e) { sv.disabled = false; } }); };
   const stop = () => { run++; const w = worker; worker = null; if (w) { try { w.terminate(); } catch (e) { } } };
   const say = (t, p, bad) => { st.textContent = t; bar.style.width = Math.round(Math.max(0, Math.min(1, p || 0)) * 100) + '%'; box.classList.toggle('bad', !!bad); box.hidden = false; };
   const read = async () => {
-    stop(); const my = run; cp.disabled = ag.disabled = true; tx.readOnly = true; tx.value = ''; idb.hidden = true; drawOv([]); if (shown) { im.src = fileUrl(f); URL.revokeObjectURL(shown); shown = ''; } say('Getting the text reader ready…', 0.03);
+    stop(); const my = run; cp.disabled = ag.disabled = true; tx.readOnly = true; tx.value = ''; xtra = ''; geoX = null; idb.hidden = true; drawOv([]); if (shown) { im.src = fileUrl(f); URL.revokeObjectURL(shown); shown = ''; } say('Getting the text reader ready…', 0.03);
     try {
       const T = await ocrLib(); if (my !== run) return;
       const base = new URL(OCR_DIR, location.href).href, langs = OCR_TEXT.langs(sel.value);
       const blob = await (await fetch(fileUrl(f), { credentials: 'same-origin' })).blob(); if (my !== run) return;
+      try { geoX = OCR_GEO.exif(new Uint8Array(await blob.slice(0, 262144).arrayBuffer())); } catch (e) { geoX = null; } /* the canvas below drops it, so it is read from the file itself */
       const cv = await ocrCanvas(blob); if (my !== run) return;
       say(langs.length > 1 ? 'Loading English and Malayalam…' : 'Loading the language…', 0.08);
       const w = await T.createWorker(langs, 1, { workerPath: base + 'worker.min.js', corePath: base.replace(/\/$/, ''), langPath: base + 'lang', gzip: false, workerBlobURL: false,
@@ -210,12 +284,14 @@ function docOcr(f, c, saved) { /* c = the customer the document belongs to (Aadh
         let sc = OCR_TEXT.score(lines);
         for (const d of [90, 270, 180]) { say('Trying the picture turned…', 0.5); const c = ocrTurn(cv, d), ls = await pass(c); if (my !== run) return; const s2 = OCR_TEXT.score(ls);
           if (s2 >= 20 && s2 > sc * 1.5) { sc = s2; best = c; lines = ls; if (sc >= OCR_POOR * 2) break; } } }
+      if (/passbook|cheque|bank|statement/i.test((f.item || '') + ' ' + (f.name || ''))) { /* a passbook page is a table: read it a second way (one block of text) and keep it for the details only */
+        say('Reading the passbook table…', 0.9); await w.setParameters({ tessedit_pageseg_mode: '6' }); if (my !== run) return; const l2 = await pass(best); if (my !== run) return; xtra = OCR_TEXT.text(l2); }
       stop(); run = my; /* the engine's memory is given back; this result stays */
       await show(best); if (my !== run) return; /* the picture shown is the very one that was read (turned upright), so the text sits exactly on it */
       const text = OCR_TEXT.tidy(OCR_TEXT.text(lines));
       drawOv(lines);
       tx.value = text; tx.readOnly = false; ag.disabled = false; cp.disabled = !text; idShow();
-      if (text) { box.hidden = true; } else say('No text was found in this picture. Try the other language, or a sharper photo.', 1, true);
+      if (text || geoX) { box.hidden = true; } else say('No text was found in this picture. Try the other language, or a sharper photo.', 1, true);
     } catch (e) { if (my !== run) return; stop(); run = my; ag.disabled = false; say((e && e.message && e.message.length < 90 ? e.message : 'The picture could not be read') + '. Check the connection and press Read again.', 1, true); }
   };
   const close = () => { stop(); if (ro) ro.disconnect(); if (shown) URL.revokeObjectURL(shown); document.removeEventListener('keydown', key); m.remove(); };

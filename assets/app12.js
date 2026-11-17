@@ -206,6 +206,7 @@ document.addEventListener('click', e => {
 // big phone photos are shrunk before upload (faster, smaller) — max 2200 px, JPEG
 async function shrinkImage(f) {
   if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size < 1.2e6) return f;
+  try { if (f.type === 'image/jpeg' && f.size < 9.5e6 && typeof OCR_GEO !== 'undefined' && OCR_GEO.exif(new Uint8Array(await f.slice(0, 262144).arrayBuffer()))) return f; } catch (e) { } /* a geo-tagged photo is kept as it is: shrinking drops the location data stored in it */
   try { const img = await createImageBitmap(f), k = Math.min(1, 2200 / Math.max(img.width, img.height)); const cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
     cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); const b = await new Promise(r => cv.toBlob(r, 'image/jpeg', .85));
     return b && b.size < f.size ? new File([b], f.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : f; } catch (e) { return f; }

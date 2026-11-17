@@ -75,3 +75,40 @@ test('ID: parse reads an Aadhaar card (front and back) and a PAN card', () => {
   assert.strictEqual(I.parse('KSEB bill 1157 0000 1234').kind, '');
   assert.ok(I.sameName('Varghese Meera', 'MEERA VARGHESE')); assert.ok(!I.sameName('Meera V', 'Meera Varghese')); assert.ok(!I.sameName('', ''));
 });
+test('BANK: a passbook page gives account no., IFSC, bank, branch and holder', () => {
+  const B = O.BANK, page = ['STATE BANK OF INDIA', 'Branch: NEDUMANGAD    Branch Code: 70123', 'Name    Mrs MEERA VARGHESE', 'CIF No: 91234567890', 'Account No    4455 6677 8899 0', 'IFSC: SBIN 000 7O12', 'MICR: 695002012', 'Mobile: 9000000001'].join('\n');
+  assert.strictEqual(B.ifsc('IFSC: SBIN 000 7O12'), 'SBIN0007012'); assert.strictEqual(B.ifsc('Ref ABCD0123456'), ''); assert.strictEqual(B.ifsc('IFS Code ABCD0123456'), 'ABCD0123456');
+  const r = B.parse(page);
+  assert.deepStrictEqual(r, { kind: 'bank', bank_account: '4455667788990', bank_ifsc: 'SBIN0007012', bank_name: 'State Bank of India', bank_branch: 'NEDUMANGAD', bank_holder: 'MEERA VARGHESE' });
+  const f = B.parse('FEDERAL BANK\nA/c Holder Name\nTHOMAS VARGHESE\nA/C No.\n12345678901234\nNedumangad Branch\nIFSC Code: FDRL0001234');
+  assert.deepStrictEqual([f.bank_account, f.bank_ifsc, f.bank_name, f.bank_holder, f.bank_branch], ['12345678901234', 'FDRL0001234', 'Federal Bank', 'THOMAS VARGHESE', 'Nedumangad']);
+  const lone = B.parse('Savings Account Passbook\nCanara Bank\n1234567890123\nMobile 9000000001');
+  assert.deepStrictEqual([lone.kind, lone.bank_account, lone.bank_name], ['bank', '1234567890123', 'Canara Bank']);
+  assert.strictEqual(B.parse('KSEB bill 1157000000001 consumer').kind, ''); assert.strictEqual(B.parse('Unique Identification Authority of India\n3987 6543 2109').kind, '');
+  assert.strictEqual(B.parse('Phone 9000000001\nBank of Baroda').bank_account, '');
+  assert.strictEqual(B.parse('Name    CIF No\nAccount No    12345678901234\nIFSC    FDRL0001234').bank_holder, '');
+  const wk = O.lines(BL(L(W('IFSC', 95, 40, 10, 100, 30)), L(W('FDRL0001234', 41, 200, 10, 330, 30)), L(W('ABCD0001234', 45, 200, 50, 330, 70))), 1000, 400, 60).map(l => l.text);
+  assert.ok(wk.includes('FDRL0001234') && !wk.includes('ABCD0001234'));
+});
+test('GEO: latitude / longitude printed on a photo (decimal, degrees-minutes-seconds, pair); places outside India refused', () => {
+  const G = O.GEO;
+  assert.deepStrictEqual(G.fromText('Thiruvananthapuram, Kerala, India\nLat 8.605427° Long 77.003901°\n17/11/2026 12:10 PM GMT +05:30'), { lat: '8.605427', lng: '77.003901', how: 'text' });
+  assert.deepStrictEqual(G.fromText('Latitude: 8.6054 N  Longitude: 77.0039 E'), { lat: '8.605400', lng: '77.003900', how: 'text' });
+  assert.deepStrictEqual(G.fromText('8°36\'19.5"N 77°00\'14.1"E'), { lat: '8.605417', lng: '77.003917', how: 'text' });
+  assert.deepStrictEqual(G.fromText('Location 8.605427, 77.003901'), { lat: '8.605427', lng: '77.003901', how: 'text' });
+  assert.strictEqual(G.fromText('Lat 48.605427 Long 7.003901'), null); assert.strictEqual(G.fromText('Date 17.11.2026 12.10'), null); assert.strictEqual(G.fromText(''), null);
+});
+test('GEO: the location data stored in a JPEG (EXIF), north/east and south/west', () => {
+  const mk = (la, ns, lo, ew, le = true) => { /* a minimal JPEG: SOI + APP1(Exif: IFD0 -> GPS IFD) */
+    const b = new Uint8Array(200), dv = new DataView(b.buffer); let p = 0; b[p++] = 0xFF; b[p++] = 0xD8; b[p++] = 0xFF; b[p++] = 0xE1; dv.setUint16(p, 180); p += 2; 'Exif\0\0'.split('').forEach(ch => { b[p++] = ch.charCodeAt(0); });
+    const t0 = p, w16 = (o, v) => dv.setUint16(t0 + o, v, le), w32 = (o, v) => dv.setUint32(t0 + o, v, le); b[t0] = b[t0 + 1] = le ? 0x49 : 0x4D; w16(2, 42); w32(4, 8);
+    w16(8, 1); w16(10, 0x8825); w16(12, 4); w32(14, 1); w32(18, 26); w32(22, 0);          // IFD0: GPSInfo -> offset 26
+    w16(26, 4); const ent = (i, tag, type, cnt, val) => { w16(28 + i * 12, tag); w16(30 + i * 12, type); w32(32 + i * 12, cnt); w32(36 + i * 12, val); };
+    ent(0, 1, 2, 2, 0); b[t0 + 36] = ns.charCodeAt(0); ent(1, 2, 5, 3, 80); ent(2, 3, 2, 2, 0); b[t0 + 60] = ew.charCodeAt(0); ent(3, 4, 5, 3, 104); w32(76, 0);
+    [[80, la], [104, lo]].forEach(([o, v]) => v.forEach((x, i) => { w32(o + i * 8, x[0]); w32(o + i * 8 + 4, x[1]); }));
+    b[p + 150] = 0xFF; b[p + 151] = 0xDA; return b; };
+  assert.deepStrictEqual(O.GEO.exif(mk([[8, 1], [36, 1], [195, 10]], 'N', [[77, 1], [0, 1], [141, 10]], 'E')), { lat: '8.605417', lng: '77.003917', how: 'exif' });
+  assert.deepStrictEqual(O.GEO.exif(mk([[8, 1], [36, 1], [195, 10]], 'N', [[77, 1], [0, 1], [141, 10]], 'E', false)), { lat: '8.605417', lng: '77.003917', how: 'exif' });
+  assert.strictEqual(O.GEO.exif(mk([[8, 1], [0, 1], [0, 1]], 'S', [[77, 1], [0, 1], [0, 1]], 'W')).lat, '-8.000000');
+  assert.strictEqual(O.GEO.exif(new Uint8Array([1, 2, 3])), null); assert.strictEqual(O.GEO.exif(new Uint8Array(64).fill(0xFF)), null);
+});
