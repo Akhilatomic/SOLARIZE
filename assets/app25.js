@@ -8,12 +8,12 @@
 const KDS = { book: 'kseb', tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
 const KD_TABS = [['cov', 'Cover page'], ['req', 'Request letter'], ['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['doi', 'Details of installation'], ['almm', 'ALMM declaration'], ['dcr', 'DCR declaration'], ['agr', 'Agreement'], ['chk', 'Checklist sheet'], ['mnre', 'MNRE warranty card']];
 const BK_TABS = [['bfr', 'Feasibility report'], ['bag', 'Vendor–customer agreement']];
-const MN_TABS = [['mag', 'MNRE Agreement']];
+const MN_TABS = [['mas', 'Stamp paper (₹50)'], ['mag', 'Plain paper']];
 const KD_BOOKS = {
   kseb: { tabs: KD_TABS, def: 'wcr', api: 'kseb', perm: 'checklist', hash: '#/kseb/', what: 'profile and plant details' },
   bank: { tabs: BK_TABS, def: 'bfr', api: 'bank', perm: 'loans', hash: '#/bank/', what: 'profile, plant details and tax bill' },
   /* MNRE Agreement (Compliance menu): one paper, saved through the bank API; its PDF copy is kept as 'bank:mag' on the project's KSEB documents tab */
-  mnre: { tabs: MN_TABS, def: 'mag', api: 'bank', perm: 'loans', hash: '#/mnre/', what: 'profile, plant details and tax bill', gen: 'bank', label: 'MNRE', badge: 'MNRE' }
+  mnre: { tabs: MN_TABS, def: 'mas', api: 'bank', perm: 'loans', hash: '#/mnre/', what: 'profile, plant details and tax bill', gen: 'bank', label: 'MNRE', badge: 'MNRE' }
 };
 const kdGen = book => (KD_BOOKS[book] || {}).gen || book;
 const kdLabel = book => (KD_BOOKS[book] || {}).label || (book === 'bank' ? 'Bank' : 'KSEB');

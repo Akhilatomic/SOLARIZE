@@ -455,11 +455,10 @@ var KD = (function () {
   };
 
   /* MNRE Agreement (Compliance menu, #/mnre): the same agreement as the bank page's vendor-customer agreement (same wording K.AGR, same fields),
-     as the owner's own "50RS AGREEMENT" PDF: plain A4, page 1 from the top (Whereas on page 1). "Printed on" switches to the Rs.50 e-Stamp paper layout
-     of the bank page (page 1 below the stamp). */
-  K.PAPER_PLAIN = 'Plain A4 paper'; K.PAPER_STAMP = '\u20b950 e-Stamp paper (page 1 starts below the stamp)';
-  K.DOCS.mag = JSON.parse(JSON.stringify(K.DOCS.bag)); K.DOCS.mag.key = 'mag'; K.DOCS.mag.tab = 'MNRE Agreement'; K.DOCS.mag.file = 'MNRE Agreement';
-  K.DOCS.mag.groups[0].fields.push({ k: 'paper', l: 'Printed on', t: 'opts', opts: [K.PAPER_PLAIN, K.PAPER_STAMP] });
+     in two versions (owner's rule, 2026-11-17): mas = for the Rs.50 e-Stamp paper - the stamp part of page 1 is left empty, the text starts below it;
+     mag = for plain A4 paper - page 1 from the top, as the owner's own "50RS AGREEMENT" PDF (five pages, Whereas on page 1). */
+  K.DOCS.mas = JSON.parse(JSON.stringify(K.DOCS.bag)); K.DOCS.mas.key = 'mas'; K.DOCS.mas.tab = 'Stamp paper (\u20b950)'; K.DOCS.mas.file = 'MNRE Agreement - Stamp paper';
+  K.DOCS.mag = JSON.parse(JSON.stringify(K.DOCS.bag)); K.DOCS.mag.key = 'mag'; K.DOCS.mag.tab = 'Plain paper'; K.DOCS.mag.file = 'MNRE Agreement - Plain paper';
 
   var fieldsOf = function (docKey) {
     var d = K.DOCS[docKey], out = [];
@@ -555,7 +554,7 @@ var KD = (function () {
         inv_serial: serials,
         sign_name: str(sd.sign_name), sign_designation: str(sd.sign_designation), sign_phone: str(sd.sign_phone)
       };
-    } else if (docKey === 'bfr' || docKey === 'bag' || docKey === 'mag') {
+    } else if (docKey === 'bfr' || docKey === 'bag' || docKey === 'mag' || docKey === 'mas') {
       /* bank papers: plant cost = the tax bill total, else the project cost; the company and its bank from the quotation maker */
       var co = ctx.company || {}, bk = co.bank || {}, bill = ctx.bill || {};
       var kwN = trim(p.capacity) && !zero(p.capacity) ? trim(p.capacity) : (+pr.kw > 0 ? String(pr.kw) : '');
@@ -581,7 +580,6 @@ var KD = (function () {
           inv_make: trim(p.inverter_make), inv_kw: ikw > 0 ? String(Math.round(ikw * 1000) / 1000) : '',
           cost: amt ? 'Rs.' + inrS(amt) + ' + KSEB Charges.' : '', pay1: '60', pay2: '30', pay3: '10'
         };
-        if (docKey === 'mag') v.paper = K.PAPER_PLAIN;
       }
     } else if (docKey === 'almm') {
       var apan = Array.isArray(p.panels) ? p.panels : [];
@@ -1942,7 +1940,8 @@ var KD = (function () {
     values = values || {};
     if (docKey === 'bfr') return layoutBfr(values, measure);
     if (docKey === 'bag') return layoutBag(values, measure);
-    if (docKey === 'mag') return layoutBag(values, measure, !/stamp/i.test(str(values.paper)));
+    if (docKey === 'mas') return layoutBag(values, measure); /* stamp paper: the stamp part of page 1 stays empty */
+    if (docKey === 'mag') return layoutBag(values, measure, true); /* plain paper */
     if (docKey === 'agr') return layoutAgr(values, measure);
     if (docKey === 'cov') return layoutCov(values, measure);
     if (docKey === 'doi') return layoutDoi(values, measure);
