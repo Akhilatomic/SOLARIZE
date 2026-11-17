@@ -8,7 +8,7 @@ const APP_TOKEN_DAYS = 30;
    copy it to app/Jasper.apk and raise this number - every older app then shows "New version available" in its side menu. */
 const APP_LATEST = '1.4';
 const APP_URL = 'app/Jasper.apk';
-const APP_ALERT_TITLES = ['callback' => 'Call back reminder', 'assign' => 'Lead for you', 'mention' => 'You were tagged in a team discussion', 'reply' => 'Team discussion', 'end' => 'Team discussion ended'];
+const APP_ALERT_TITLES = ['callback' => 'Call back reminder', 'assign' => 'Lead for you', 'mention' => 'You were tagged in a team discussion', 'reply' => 'Team discussion', 'end' => 'Team discussion ended', 'remind' => 'Unattended team discussion'];
 
 function app_token_issue($uid, $device = '') {
   $u = row('SELECT sess_ver FROM users WHERE id=?', [(int)$uid]);
@@ -51,7 +51,7 @@ function handle_app($a) {
       array_map('lead_mask', rows("SELECT l.* FROM leads l WHERE l.notify=1 AND l.id>? AND $sc ORDER BY l.id DESC LIMIT 20", [$ld])));
     /* lead alerts (call back, assigned) and every team-discussion alert (tagged, reply, ended) - on a lead or a customer */
     if ($nf >= 0) $alerts = array_map(fn($x) => ['id' => (int)$x['id'], 'kind' => (string)$x['kind'], 'title' => APP_ALERT_TITLES[$x['kind']] ?? 'Jasper', 'text' => (string)$x['text'], 'lead_id' => (int)$x['lead_id'], 'customer_id' => (int)$x['customer_id']],
-      rows("SELECT id,kind,text,lead_id,customer_id FROM notifs WHERE user_id=? AND id>? AND ((lead_id IS NOT NULL AND kind IN ('callback','assign')) OR kind IN ('mention','reply','end')) ORDER BY id DESC LIMIT 20", [uid(), $nf]));
+      rows("SELECT id,kind,text,lead_id,customer_id FROM notifs WHERE user_id=? AND id>? AND ((lead_id IS NOT NULL AND kind IN ('callback','assign')) OR kind IN ('mention','reply','end','remind')) ORDER BY id DESC LIMIT 20", [uid(), $nf]));
     out(['lead' => $maxL, 'notif' => $maxN, 'leads' => $leads, 'alerts' => $alerts,
       'waiting' => (int)row("SELECT COUNT(*) c FROM leads l WHERE l.notify=1 AND $sc")['c'], 'name' => (string)($_SESSION['name'] ?? '')]);
   }

@@ -122,6 +122,7 @@ function housekeeping($force = false) {
   /* once: duplicate projects made before "Start a project" reused the automatic one are merged (api/pipeline.php proj_dupes) */
   if (!row("SELECT 1 FROM settings WHERE k='proj_dupes_v1'")) { try { proj_dupes(); } catch (Throwable $e) { error_log('duplicate projects: ' . $e->getMessage()); } q("INSERT OR REPLACE INTO settings(k,v) VALUES('proj_dupes_v1','1')"); }
   try { callback_alerts(); } catch (Throwable $e) { } /* also when nobody has the CRM open */
+  try { disc_reminders(true); } catch (Throwable $e) { }
   try { claim_release(); } catch (Throwable $e) { } /* claimed leads not converted in time → unlocked */
   try { lead_autolost(); } catch (Throwable $e) { } /* new leads nobody attended within 24 hours → Lost */
   foreach (rows("SELECT id,data FROM trash WHERE deleted_at < datetime('now', ?)", ['-' . rule('trash_hours') . ' hours']) as $t) trash_purge_row($t);

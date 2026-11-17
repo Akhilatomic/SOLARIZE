@@ -40,6 +40,39 @@ function disc_target($src) {
   return ['kind' => 'customer', 'id' => (int)$c['id'], 'name' => $c['name'], 'col' => 'customer_id'];
 }
 
+/* Unattended team discussions (owner's rule, 2026-11-17): an open discussion with messages a taking-part person has not read yet is
+   an unattended one for them. While office is open (Settings > attendance: start to end, not on a weekly off or a holiday) they get
+   a reminder - bell, desktop and app alert, kind 'remind' - every rule('disc_remind_min') minutes (60), counted from their oldest
+   unread message and from their last reminder, until they open the discussion or it ends. Nothing after office end time; what
+   is still waiting is reminded about again when office opens. The earlier reminder is marked read, so the bell holds one per discussion. */
+function disc_since($created) { $t = strtotime((string)$created . ' UTC'); return $t ?: 0; }
+function disc_wait_txt($sec) { $m = (int)floor(max(0, $sec) / 60); return $m >= 60 ? floor($m / 60) . ' h ' . str_pad((string)($m % 60), 2, '0', STR_PAD_LEFT) . ' m' : $m . ' min'; }
+function disc_reminders($force = false) {
+  $cfg = hr_cfg(); [$d, $t] = hr_now();
+  if ($t < ($cfg['start'] ?: '09:00') || $t >= ($cfg['end'] ?: '18:00')) return 0;
+  if (in_array((int)date('w'), array_map('intval', (array)$cfg['week_off']), true) || isset(hr_hol($cfg)[$d])) return 0;
+  $last = (int)(row("SELECT v FROM settings WHERE k='disc_rem_last'")['v'] ?? 0);
+  if (!$force && time() - $last < 60) return 0; /* looked at once a minute at most, whoever asks */
+  kv_set('disc_rem_last', time());
+  $now = time(); $every = rule('disc_remind_min') * 60; $sent = 0;
+  $active = array_column(rows('SELECT id FROM users WHERE active=1'), 'id', 'id');
+  foreach (rows("SELECT d.id, d.customer_id, d.lead_id, COALESCE(c.name, l.name) subject FROM discussions d LEFT JOIN customers c ON c.id=d.customer_id LEFT JOIN leads l ON l.id=d.lead_id WHERE d.status='Open'") as $dz) {
+    foreach (disc_participants($dz['id']) as $u) { $u = (int)$u; if (!$u || !isset($active[$u])) continue;
+      $un = row("SELECT COUNT(*) n, MIN(created) first, MAX(id) mid FROM disc_msgs WHERE discussion_id=? AND user_id<>? AND kind='msg' AND id > COALESCE((SELECT last_id FROM disc_reads WHERE user_id=? AND discussion_id=?), 0)", [$dz['id'], $u, $u, $dz['id']]);
+      if (!$un || (int)$un['n'] < 1) continue;
+      $prev = row("SELECT MAX(created) c FROM notifs WHERE user_id=? AND discussion_id=? AND kind='remind'", [$u, $dz['id']]);
+      $due = max(disc_since($un['first']), $prev && $prev['c'] ? disc_since($prev['c']) : 0) + $every;
+      if ($now < $due) continue;
+      $lm = row('SELECT m.user_id, u.name FROM disc_msgs m LEFT JOIN users u ON u.id=m.user_id WHERE m.id=?', [(int)$un['mid']]);
+      $text = 'Unattended discussion on ' . ($dz['lead_id'] ? 'lead ' : '') . $dz['subject'] . ': ' . (int)$un['n'] . ' unread message' . ((int)$un['n'] === 1 ? '' : 's') . ', waiting ' . disc_wait_txt($now - disc_since($un['first'])) . ($lm && $lm['name'] ? ' (last from ' . $lm['name'] . ')' : '');
+      q("UPDATE notifs SET seen=1 WHERE user_id=? AND discussion_id=? AND kind='remind' AND seen=0", [$u, $dz['id']]);
+      q("INSERT INTO notifs(user_id,kind,discussion_id,customer_id,lead_id,from_id,text) VALUES(?,'remind',?,?,?,?,?)", [$u, $dz['id'], $dz['customer_id'] ?: null, $dz['lead_id'] ?: null, $lm ? (int)$lm['user_id'] : null, mb_substr($text, 0, 200)]);
+      $sent++;
+    }
+  }
+  return $sent;
+}
+
 function handle_disc($a) {
   $in = body(); $uid = uid();
   switch ($a) {
@@ -98,6 +131,7 @@ function handle_disc($a) {
 
     case 'notifs': // my unseen notifications (bell)
       try { callback_alerts(); } catch (Throwable $e) { }
+      try { disc_reminders(); } catch (Throwable $e) { error_log('discussion reminders: ' . $e->getMessage()); } /* hourly reminders about unread discussions while office is open */
       $r = rows('SELECT n.*, COALESCE(c.name, l.name) customer_name, u.name from_name, u.avatar from_av FROM notifs n LEFT JOIN customers c ON c.id=n.customer_id LEFT JOIN leads l ON l.id=n.lead_id LEFT JOIN users u ON u.id=n.from_id WHERE n.user_id=? AND n.seen=0 ORDER BY n.id DESC LIMIT 30', [$uid]);
       out(['rows' => $r, 'count' => (int)row('SELECT COUNT(*) c FROM notifs WHERE user_id=? AND seen=0', [$uid])['c']]);
 
