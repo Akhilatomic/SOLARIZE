@@ -8,10 +8,15 @@
 const KDS = { book: 'kseb', tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
 const KD_TABS = [['cov', 'Cover page'], ['req', 'Request letter'], ['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['doi', 'Details of installation'], ['almm', 'ALMM declaration'], ['dcr', 'DCR declaration'], ['agr', 'Agreement'], ['chk', 'Checklist sheet'], ['mnre', 'MNRE warranty card']];
 const BK_TABS = [['bfr', 'Feasibility report'], ['bag', 'Vendor–customer agreement']];
+const MN_TABS = [['mag', 'MNRE Agreement']];
 const KD_BOOKS = {
   kseb: { tabs: KD_TABS, def: 'wcr', api: 'kseb', perm: 'checklist', hash: '#/kseb/', what: 'profile and plant details' },
-  bank: { tabs: BK_TABS, def: 'bfr', api: 'bank', perm: 'loans', hash: '#/bank/', what: 'profile, plant details and tax bill' }
+  bank: { tabs: BK_TABS, def: 'bfr', api: 'bank', perm: 'loans', hash: '#/bank/', what: 'profile, plant details and tax bill' },
+  /* MNRE Agreement (Compliance menu): one paper, saved through the bank API; its PDF copy is kept as 'bank:mag' on the project's KSEB documents tab */
+  mnre: { tabs: MN_TABS, def: 'mag', api: 'bank', perm: 'loans', hash: '#/mnre/', what: 'profile, plant details and tax bill', gen: 'bank', label: 'MNRE', badge: 'MNRE' }
 };
+const kdGen = book => (KD_BOOKS[book] || {}).gen || book;
+const kdLabel = book => (KD_BOOKS[book] || {}).label || (book === 'bank' ? 'Bank' : 'KSEB');
 const KB = () => KD_BOOKS[KDS.book] || KD_BOOKS.kseb;
 const KD_FONT = { T: "'Times New Roman',Times,serif", TB: "'Times New Roman',Times,serif", H: 'Arial,Helvetica,sans-serif', HB: 'Arial,Helvetica,sans-serif' };
 const kdT = v => String(v ?? '').trim();
@@ -36,6 +41,7 @@ const kdTpl = page => KD_TPL[page] = KD_TPL[page] || fetch(KD.PAGES[page].pdf, {
 
 const pgKseb = id => kdOpen('kseb', id);
 const pgBank = id => kdOpen('bank', id);
+const pgMnre = id => kdOpen('mnre', id);
 async function kdOpen(book, id) {
   /* each load gets a token: the answer for a customer you already switched away from (or a page you left) is dropped */
   const nav = ROUTE_N, tok = ++KDS.tok, within = KDS.nav === nav - 1 && KDS.book === book; /* within: the last navigation was this page too (a customer switch) */
@@ -327,7 +333,7 @@ async function kdSaveAll() {
       try {
         const bytes = await kdBuild(d, s.vals);
         if (w && kdFields(d).some(f => kdT(s.vals[f.k]) !== kdT((KDS.base[d] || {})[f.k]))) await kdSaveDoc(s); /* typed changes are kept with the paper */
-        if (await docKeep(s.id, book + ':' + d, (book === 'bank' ? 'Bank' : 'KSEB') + ' · ' + KD.DOCS[d].file, name, bytes)) done.push(d); else skipped.push(KD.DOCS[d].tab);
+        if (await docKeep(s.id, kdGen(book) + ':' + d, kdLabel(book) + ' · ' + KD.DOCS[d].file, name, bytes)) done.push(d); else skipped.push(KD.DOCS[d].tab);
       } catch (e) { skipped.push(KD.DOCS[d].tab); if (!e || !e.error) console.error(e); }
     }
     toast(`${done.length} of ${docs.length} papers saved to the project’s KSEB documents` + (skipped.length ? ' · not saved: ' + skipped.join(', ') : ''), !done.length);
@@ -356,7 +362,7 @@ async function kdPdf() {
     const bytes = await kdBuild(doc, s.vals); /* build first (it refuses overflow): a failed template fetch or build stores nothing */
     const r = canW(KB().perm) ? await kdSaveDoc(s) : null;
     kdSaveFile(bytes, name);
-    const kept = await docKeep(s.id, KDS.book + ':' + doc, (KDS.book === 'bank' ? 'Bank' : 'KSEB') + ' · ' + KD.DOCS[doc].file, name, bytes); /* a copy for the project's KSEB documents tab (not the customer's Documents page) */
+    const kept = await docKeep(s.id, kdGen(KDS.book) + ':' + doc, kdLabel(KDS.book) + ' · ' + KD.DOCS[doc].file, name, bytes); /* a copy for the project's KSEB documents tab (not the customer's Documents page) */
     toast(name + ' downloaded' + (kept ? ' · copy kept on the project’s KSEB documents tab' : '') + kdFilledNote(doc, r));
   } catch (e) { kdErr(e); }
   finally { KDS.busy = false; b.innerHTML = old; b.disabled = !!(KDS.lay[doc] || {}).overflow; }
@@ -398,10 +404,10 @@ function ksebDocsTab(p, wc) {
   (p.kseb_papers || []).forEach(f => { const g = String(f.gen || ''); if (g && !papers[g]) papers[g] = f; }); /* newest first */
   /* bank papers (loan projects): listed when the project has a loan or a bank paper is already saved */
   const bankOn = canR('loans') && (p.loan === 'Yes' || Object.keys(papers).some(g => g.indexOf('bank:') === 0));
-  const list = KD_TABS.filter(t => KD.DOCS[t[0]]).map(t => ['kseb', t[0], t[1]]).concat(bankOn ? BK_TABS.filter(t => KD.DOCS[t[0]]).map(t => ['bank', t[0], t[1]]) : []);
-  const nSaved = list.filter(t => papers[t[0] + ':' + t[1]]).length, files = p.files || [], nUp = files.filter(f => f.kind === 'kseb').length;
-  const card = ([book, k, name]) => { const f = papers[book + ':' + k], left = f ? docLeft(f) : 0, keep = f ? docDays(f) : 0, canMake = canR(KD_BOOKS[book].perm);
-    return `<div class="ksd-p ${f ? 'on' : ''}"><span class="ksd-ic"><i class="i i-${f ? 'file' : 'clock'}"></i></span><div class="ksd-t"><b>${esc(name)}${book === 'bank' ? ' <span class="ksd-bk">Bank</span>' : ''}</b>
+  const list = KD_TABS.filter(t => KD.DOCS[t[0]]).map(t => ['kseb', t[0], t[1]]).concat(bankOn ? BK_TABS.filter(t => KD.DOCS[t[0]]).map(t => ['bank', t[0], t[1]]) : []).concat(canR('loans') ? MN_TABS.filter(t => KD.DOCS[t[0]]).map(t => ['mnre', t[0], t[1]]) : []);
+  const nSaved = list.filter(t => papers[kdGen(t[0]) + ':' + t[1]]).length, files = p.files || [], nUp = files.filter(f => f.kind === 'kseb').length;
+  const card = ([book, k, name]) => { const f = papers[kdGen(book) + ':' + k], left = f ? docLeft(f) : 0, keep = f ? docDays(f) : 0, canMake = canR(KD_BOOKS[book].perm);
+    return `<div class="ksd-p ${f ? 'on' : ''}"><span class="ksd-ic"><i class="i i-${f ? 'file' : 'clock'}"></i></span><div class="ksd-t"><b>${esc(name)}${book === 'bank' ? ' <span class="ksd-bk">Bank</span>' : book === 'mnre' ? ' <span class="ksd-bk">MNRE</span>' : ''}</b>
       ${f ? `<small>Saved ${dmy(f.created)}${f.user ? ' · ' + esc(f.user) : ''}</small><small class="${left <= 30 ? 'dexp' : 'mut'}" title="Kept ${keep} days from the day it was saved, then moved to the Recycle bin. Making the paper again starts a new ${keep} days.">${left > 0 ? left + ' days left' : 'Due for deletion'}</small>` : '<small class="mut">Not made yet</small>'}</div>
       <div class="ksd-a">${f ? `<a class="ib" href="api.php?m=files&a=get&id=${f.id}&v=1" target="_blank" rel="noopener" title="View the saved PDF" aria-label="View ${esc(name)}"><i class="i i-eye"></i></a><a class="ib" href="api.php?m=files&a=get&id=${f.id}&dl=1" title="Download the saved PDF" aria-label="Download ${esc(name)}"><i class="i i-download"></i></a>` : ''}
         ${canMake ? (f ? `<button type="button" class="ib" data-kdgo="${k}" data-kdbook="${book}" title="Modify — open the paper, change it and save it again" aria-label="Modify ${esc(name)}"><i class="i i-pencil"></i></button>` : `<button type="button" class="btn sm sec" data-kdgo="${k}" data-kdbook="${book}">Make</button>`) : ''}
@@ -428,4 +434,4 @@ function ksebDocsBind(p) {
   $$('[data-kddel]').forEach(b => b.onclick = async () => {
     if (!confirm(`Delete the saved copy of “${b.dataset.kdname}”?\n\nIt goes to the Recycle bin. The paper itself is not lost: it can be made again from KSEB documentation.`)) return;
     b.disabled = true; try { await api('files', 'delete', { id: +b.dataset.kddel }); toast(b.dataset.kdname + ' — saved copy deleted'); route(); } catch (e) { b.disabled = false; } });
-  $$('[data-kdgo]').forEach(b => b.onclick = () => { const book = b.dataset.kdbook === 'bank' ? 'bank' : 'kseb'; TAB[book] = b.dataset.kdgo; location.hash = KD_BOOKS[book].hash + p.customer_id; }); }
+  $$('[data-kdgo]').forEach(b => b.onclick = () => { const book = KD_BOOKS[b.dataset.kdbook] ? b.dataset.kdbook : 'kseb'; TAB[book] = b.dataset.kdgo; location.hash = KD_BOOKS[book].hash + p.customer_id; }); }

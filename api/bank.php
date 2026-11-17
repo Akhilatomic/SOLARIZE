@@ -4,7 +4,7 @@
 // like the KSEB documentation page, this keeps only what was changed per customer (gen_docs kind 'bank_<doc>').
 // Permission area 'loans' (Settings → User access): the papers carry the plant cost and the company's bank account.
 
-const BANK_DOCS = ['bfr', 'bag'];
+const BANK_DOCS = ['bfr', 'bag', 'mag']; /* mag = MNRE Agreement (Compliance menu); same permission and 'bank:' copies */
 
 function bank_saved($cid, $doc) {
   $r = row('SELECT data, issued_on, updated, updated_by FROM gen_docs WHERE customer_id=? AND kind=?', [$cid, 'bank_' . $doc]);

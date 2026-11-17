@@ -454,6 +454,13 @@ var KD = (function () {
     }
   };
 
+  /* MNRE Agreement (Compliance menu, #/mnre): the same agreement as the bank page's vendor-customer agreement (same wording K.AGR, same fields),
+     as the owner's own "50RS AGREEMENT" PDF: plain A4, page 1 from the top (Whereas on page 1). "Printed on" switches to the Rs.50 e-Stamp paper layout
+     of the bank page (page 1 below the stamp). */
+  K.PAPER_PLAIN = 'Plain A4 paper'; K.PAPER_STAMP = '\u20b950 e-Stamp paper (page 1 starts below the stamp)';
+  K.DOCS.mag = JSON.parse(JSON.stringify(K.DOCS.bag)); K.DOCS.mag.key = 'mag'; K.DOCS.mag.tab = 'MNRE Agreement'; K.DOCS.mag.file = 'MNRE Agreement';
+  K.DOCS.mag.groups[0].fields.push({ k: 'paper', l: 'Printed on', t: 'opts', opts: [K.PAPER_PLAIN, K.PAPER_STAMP] });
+
   var fieldsOf = function (docKey) {
     var d = K.DOCS[docKey], out = [];
     if (!d) return out;
@@ -548,7 +555,7 @@ var KD = (function () {
         inv_serial: serials,
         sign_name: str(sd.sign_name), sign_designation: str(sd.sign_designation), sign_phone: str(sd.sign_phone)
       };
-    } else if (docKey === 'bfr' || docKey === 'bag') {
+    } else if (docKey === 'bfr' || docKey === 'bag' || docKey === 'mag') {
       /* bank papers: plant cost = the tax bill total, else the project cost; the company and its bank from the quotation maker */
       var co = ctx.company || {}, bk = co.bank || {}, bill = ctx.bill || {};
       var kwN = trim(p.capacity) && !zero(p.capacity) ? trim(p.capacity) : (+pr.kw > 0 ? String(pr.kw) : '');
@@ -574,6 +581,7 @@ var KD = (function () {
           inv_make: trim(p.inverter_make), inv_kw: ikw > 0 ? String(Math.round(ikw * 1000) / 1000) : '',
           cost: amt ? 'Rs.' + inrS(amt) + ' + KSEB Charges.' : '', pay1: '60', pay2: '30', pay3: '10'
         };
+        if (docKey === 'mag') v.paper = K.PAPER_PLAIN;
       }
     } else if (docKey === 'almm') {
       var apan = Array.isArray(p.panels) ? p.panels : [];
@@ -1438,11 +1446,11 @@ var KD = (function () {
      the two parties) inside y 500-706, at the largest size from 10.5 down to 8 pt that fits; "Whereas" starts page 2,
      which is plain A4 like the rest. */
   var FLOW = { x0: 66, x1: 529, top: 64, bottom: 780, first: 500, firstBottom: 706, num: 30, sub: 26, maxPages: 10 };
-  var layoutBag = function (v, measure) {
+  var layoutBag = function (v, measure, plain) { /* plain: no stamp paper - the whole agreement flows from the top of page 1 (MNRE Agreement page) */
     var D = FLOW, w = D.x1 - D.x0, ops = [], p = 0, y = D.first, s = 10.5, lh = 1.3 * s, ok = true;
-    var bottom = function () { return p === 0 ? D.firstBottom : D.bottom; };
+    var bottom = function () { return p === 0 && !plain ? D.firstBottom : D.bottom; };
     var fill = function (t) { return t.replace(/\{(\w+)\}/g, function (m, k) { return clean(v[k] === undefined ? '' : (k === 'date' ? (K.dmy(v.date) || v.date) : v[k])).replace(/\n+/g, ', ') || '__________'; }); };
-    var room = function (h) { if (y + h > bottom()) { if (p === 0) ok = false; p++; y = D.top; } };
+    var room = function (h) { if (y + h > bottom()) { if (p === 0 && !plain) ok = false; p++; y = D.top; } };
     var put = function (t, x, f, ws) { if (t) ops.push(Object.assign(op(t, x, y, f || 'T', s), p ? { p: p } : {}, ws ? { ws: ws } : {})); };
     var para = function (text, x, f, label, lx, center) {
       var lines = K.wrap(fill(text), D.x1 - x, f || 'T', s, measure);
@@ -1474,6 +1482,11 @@ var KD = (function () {
         y += 0.05 * lh; put('1.', D.x0); put('2.', col);
       }
     };
+    if (plain) { /* the largest size (11 down to 10 pt) that keeps the agreement within 5 pages, as the owner's own copy */
+      var sizes = [11, 10.75, 10.5, 10.25, 10], si;
+      for (si = 0; si < sizes.length; si++) { ops = []; p = 0; y = 72; s = sizes[si]; lh = 1.3 * s; K.AGR.forEach(block); if (p + 1 <= 5) break; }
+      return { ops: ops, size: s, overflow: p + 1 > D.maxPages, pages: p + 1 };
+    }
     var cut = K.AGR.findIndex(function (b) { return b[0] === 'h' && b[2] === 'Whereas'; });
     /* page 1: the opening at the largest size that stays inside the stamp paper's writing band */
     var s1;
@@ -1929,6 +1942,7 @@ var KD = (function () {
     values = values || {};
     if (docKey === 'bfr') return layoutBfr(values, measure);
     if (docKey === 'bag') return layoutBag(values, measure);
+    if (docKey === 'mag') return layoutBag(values, measure, !/stamp/i.test(str(values.paper)));
     if (docKey === 'agr') return layoutAgr(values, measure);
     if (docKey === 'cov') return layoutCov(values, measure);
     if (docKey === 'doi') return layoutDoi(values, measure);

@@ -575,6 +575,26 @@ test('agreement: the MNRE wording filled in, below the stamp, signatures togethe
   assert.equal((await PDFLib.PDFDocument.load(out)).getPageCount(), r.pages);
 });
 
+test('MNRE Agreement: the same wording and fields as the bank agreement, plain A4 from the top, or on the stamp paper', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const v = KD.values('mag', LOAN, {}), b = KD.values('bag', LOAN, {});
+  assert.equal(v.paper, KD.PAPER_PLAIN); assert.deepEqual(Object.assign({}, v, { paper: undefined }), Object.assign({}, b, { paper: undefined }), 'prefilled exactly like the bank agreement');
+  assert.deepEqual(KD.DOCS.mag.groups.slice(1), KD.DOCS.bag.groups.slice(1)); assert.equal(KD.DOCS.mag.file, 'MNRE Agreement');
+  const r = KD.layout('mag', v, measure), text = r.ops.filter(o => o.t), all = text.map(o => o.t).join(' ');
+  assert.equal(r.overflow, false); assert.ok(r.pages >= 4 && r.pages <= 5, r.pages + ' pages (the owner\'s copy has 5)');
+  assert.ok(text.filter(o => !o.p).some(o => o.y < 120), 'page 1 starts at the top of the sheet');
+  assert.equal(text.find(o => o.t === 'Whereas').p || 0, 0, 'Whereas is on page 1, as in the owner\'s copy');
+  for (const o of text) assert.ok(o.x >= 66 && o.x + measure(o.t, o.f, o.s) <= 529.5 && o.y <= 780, o.t);
+  for (const t of ['executed on 10-11-2026', 'Sreelatha K having residential electricity connection with consumer number 1146530000001', 'minimum 3kWp', 'ReNew make, RPS2MH72BD550 model, 550Wp capacity each and 21.29% efficiency', 'Solar Edge make, 3 kW', 'Rs.2,22,223 + KSEB Charges.', '60% as an advance', '30% against Proforma Invoice', '10% after installation']) assert.ok(all.includes(t), t);
+  const last = Math.max(...r.ops.map(o => o.p || 0));
+  for (const t of ['(Applicant)', '(Vendor)', 'Witness', 'For JASPER SOLAR SOLUTIONS']) assert.equal((text.find(o => o.t === t) || {}).p || 0, last, t + ' on the last page');
+  const st = KD.layout('mag', Object.assign({}, v, { paper: KD.PAPER_STAMP }), measure), bg = KD.layout('bag', b, measure);
+  assert.deepEqual(st.ops, bg.ops, 'on the stamp paper it is the bank page\'s layout');
+  assert.ok(st.ops.filter(o => o.t && !o.p).every(o => o.y >= 500 && o.y <= 706));
+  const out = await KD.buildPdf(PDFLib, fs.readFileSync(path.join(ROOT, 'assets/kseb/blank.pdf')), r.ops);
+  assert.equal((await PDFLib.PDFDocument.load(out)).getPageCount(), r.pages);
+});
+
 /* ---- KSEB Net Metering Agreement (Agreement tab): ₹200 e-Stamp paper, strike-outs, Schedule, profile fill ---- */
 const NET = {
   customer: { name: 'SUMA DEVI R', consumer_no: '1146530000002', address: 'Sreekovil, Pandarakonam, Anad P O', district: 'Thiruvananthapuram', pincode: '695541',
