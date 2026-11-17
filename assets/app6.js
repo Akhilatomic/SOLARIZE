@@ -61,7 +61,7 @@ const rcBadges = p => [['feas_pay', 'Feasibility'], ['reg_pay', 'Registration']]
 function pcard(p, key, gate) {
   const need = gate === 'receipt' && !p.receipts[key];
   return `<div class="pk" data-id="${p.id}" draggable="${canW('projects')}"><b>${esc(p.customer || '—')}</b><small>${esc(p.title)} · ${p.kw} kW</small>
-   <div class="pkm">${p.loan === 'Yes' ? '<span class="pill">Loan</span>' : ''}${gate === 'receipt' ? (need ? '<span class="pill r"><i class="i i-alert"></i> Receipt needed</span>' : '<span class="pill g"><i class="i i-check"></i> Receipt</span>') : ''}${pendPill(p)}${feasSpot(p.customer_id)}<span class="mut" title="Days in this stage">${daysSince(p.since)}d</span></div>
+   <div class="pkm">${p.loan === 'Yes' ? '<span class="pill">Loan</span>' : ''}${gate === 'receipt' ? (need ? '<span class="pill r"><i class="i i-alert"></i> Receipt needed</span>' : '<span class="pill g" title="Receipt uploaded, or the fee is marked paid in Finance"><i class="i i-check"></i> Paid</span>') : ''}${pendPill(p)}${feasSpot(p.customer_id)}<span class="mut" title="Days in this stage">${daysSince(p.since)}d</span></div>
    ${canW('projects') ? nextBtn(p) : ''}</div>`;
 }
 function nextBtn(p) {
@@ -115,8 +115,9 @@ async function startModal({ customer_id }) {
   const skwFill = () => { const c = cs.find(x => x.id == $('#sfrom', m).value), k = $('#skw', m); if (c && +c.kw > 0 && (!k.value || k.dataset.auto)) { k.value = c.kw; k.dataset.auto = '1'; } }; $('#sfrom', m).onchange = skwFill; $('#skw', m).oninput = e => { delete e.target.dataset.auto; }; skwFill();
   $('#scx', m).onclick = () => m.remove(); $('#sgoc', m).onclick = () => m.remove();
   $('#ssv', m).onclick = async () => { const v = $('#sfrom', m).value; if (!v) return toast('Choose a customer', true);
-    const r = await api('pipeline', 'start', { customer_id: +v, kw: $('#skw', m).value, cost: $('#scost', m)?.value || 0, loan: $('#sloan', m).value, engineer: $('#seng', m).value, title: $('#stitle', m).value });
-    m.remove(); toast('Project started'); location.hash = '#/projects/' + r.id; };
+    $('#ssv', m).disabled = true; /* one click = one project */
+    let r; try { r = await api('pipeline', 'start', { customer_id: +v, kw: $('#skw', m).value, cost: $('#scost', m)?.value || 0, loan: $('#sloan', m).value, engineer: $('#seng', m).value, title: $('#stitle', m).value }); } catch (e) { $('#ssv', m).disabled = false; return; }
+    m.remove(); toast(r.reused ? 'This customer is already on the pipeline - details saved on that project' : 'Project started'); location.hash = '#/projects/' + r.id; };
 }
 
 // ---------- Step 4: AMC & service ----------

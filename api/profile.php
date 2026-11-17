@@ -102,6 +102,7 @@ function handle_profile($a) {
   // projects and pipeline
   $S = settings(); $labels = function_exists('pipe_labels') ? pipe_labels() : ($S['project_stages'] ?? []);
   $progress = []; $refs = [];
+  $feeOn = []; if (defined('PIPE_FEE')) foreach (PIPE_FEE as $k => $kind) $feeOn[$k] = pipe_fee_on($cid, $k); /* fee paid in Finance = the payment step is paid */
   foreach (rows('SELECT * FROM projects WHERE customer_id=? ORDER BY id', [$cid]) as $p) {
     $add($p['created'], 'project', 'Project created', trim(($p['title'] ?: '') . ($p['kw'] ? " · {$p['kw']} kW" : '') . $money($p['cost']), ' ·'), '', ['link' => '#/projects/' . $p['id']]);
     $steps = rows('SELECT * FROM project_steps WHERE project_id=? ORDER BY id', [$p['id']]);
@@ -116,7 +117,7 @@ function handle_profile($a) {
     $idx = array_search($p['stage'], $labels, true);
     $done = []; foreach ($steps as $s) $done[$s['stage']] = $s['created'];
     $progress[] = ['id' => (int)$p['id'], 'title' => $p['title'], 'kw' => $p['kw'], 'stage' => $p['stage'], 'idx' => $idx === false ? -1 : $idx, 'key' => $idx === false ? '' : (PIPE[$idx][0] ?? ''), 'loan' => (string)($p['loan'] ?? ''), 'total' => count($labels),
-      'stages' => array_map(fn($lb, $i) => ['label' => $lb, 'step' => defined('PIPE') ? PIPE[$i][2] : 0, 'at' => $done[$lb] ?? null], $labels, array_keys($labels))];
+      'stages' => array_map(fn($lb, $i) => ['label' => $lb, 'step' => defined('PIPE') ? PIPE[$i][2] : 0, 'at' => $done[$lb] ?? null, 'paid' => defined('PIPE') ? ($feeOn[PIPE[$i][0]] ?? '') : ''], $labels, array_keys($labels))];
   }
   foreach (rows('SELECT * FROM quotes WHERE customer_id=? ORDER BY id', [$cid]) as $q) $add($q['created'], 'quote', 'Quotation ' . $q['number'], $q['status'] . $money($q['total']), '', ['link' => '#/quotes/' . $q['id']]);
   foreach (rows('SELECT f.* FROM files f WHERE f.customer_id=? ORDER BY id', [$cid]) as $f) $add($f['created'], 'file', ($f['gen'] ?? '') !== '' ? 'Document generated' : 'Document uploaded', $f['name'] . ($f['item'] ? ' · ' . $f['item'] : ''), $f['user'], ['file' => (int)$f['id']]);

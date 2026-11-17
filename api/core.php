@@ -92,6 +92,8 @@ function handle_crud($t, $a) {
       if ($t === 'projects' && !$v['customer_id']) fail('Select a customer');
       if ($t === 'quotes') { $v = prep_quote($v, $in); }
       if ($t === 'projects') $v['stage'] = 'Customer';
+      /* a project nobody has worked on yet is already there for this customer: New project fills that one in (no duplicate; api/pipeline.php) */
+      $reuse = false; if ($t === 'projects' && empty($in['id']) && ($bl = proj_blank((int)$v['customer_id']))) { $in['id'] = $bl; $reuse = true; }
       if ($t === 'leads' && $v['status'] === '') $v['status'] = 'New';
       if ($t === 'leads') { $v['site'] = lead_json_clean($in['site'] ?? '', LEAD_SITE_KEYS); $v['plant'] = lead_json_clean($in['plant'] ?? '', LEAD_PLANT_KEYS);
         [$v['kw'], $v['plant']] = cap_lead_sync($v['kw'], $v['plant'], !empty($in['id']) ? row('SELECT kw FROM leads WHERE id=?', [(int)$in['id']]) : null); } /* Interested kW and Proposed capacity are one figure */
@@ -111,6 +113,7 @@ function handle_crud($t, $a) {
         if ($t === 'leads' && array_key_exists('remark', $v)) lead_remark_log($id, $oldRm, (string)$v['remark']); /* remark history */
         if ($t === 'leads') q('UPDATE leads SET notify=0 WHERE id=? AND notify=1', [$id]); // edited → no longer a "new lead to contact"
         audit('update', $t, $id, $v['name'] ?? ($v['title'] ?? ''));
+        if ($reuse) { sv_on_pipeline($v['customer_id'], $id); cust_cost_to_project($v['customer_id'], $id); }
         if ($t === 'quotes') q('UPDATE quotes SET edit_by=? WHERE id=?', [uid(), $id]);
       } else {
         if ($t === 'customers') $v['added_by'] = $_SESSION['name'] ?? '';

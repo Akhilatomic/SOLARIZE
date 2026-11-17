@@ -96,6 +96,7 @@ function handle_fees($a) {
       $set = implode(',', array_map(fn($k) => "$k=?", array_keys($u)));
       q("UPDATE fees SET $set, updated=CURRENT_TIMESTAMP WHERE id=?", [...array_values($u), $f['id']]);
       if (isset($u['paid']) || ((int)$f['paid'] && (isset($u['amount']) || isset($u['ref'])))) fee_sync_expense($f['customer_id'], $f['kind']); /* paid / purchased → Project cost sheet */
+      if (isset($u['paid'])) { try { pipe_fee_sync((int)$f['customer_id'], $f['kind']); } catch (Throwable $e) { error_log('fee → pipeline sync: ' . $e->getMessage()); } } /* paid / not paid → the pipeline step */
       audit('fees_' . (isset($u['paid']) ? ($u['paid'] ? 'paid' : 'unpaid') : (isset($u['demanded']) ? 'demanded' : 'edit')), 'customers', $f['customer_id'], FEE_KINDS[$f['kind']] . (isset($u['paid_on']) && $u['paid_on'] ? ' · ' . $u['paid_on'] : '') . (isset($u['amount']) ? ' · ₹' . $u['amount'] : ''));
       out(['ok' => true]);
 
@@ -103,7 +104,7 @@ function handle_fees($a) {
       need('fees', true);
       $f = row('SELECT f.*, c.name FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.id=?', [(int)($in['id'] ?? 0)]); if (!$f) fail('Not found', 404);
       trash_put('Finance entry', FEE_KINDS[$f['kind']] . ' · ' . $f['name'], [['fees', 'id=?', [$f['id']]]], [['customers', $f['customer_id'], 'the customer']]);
-      q('DELETE FROM fees WHERE id=?', [$f['id']]); audit('fees_remove', 'customers', $f['customer_id'], FEE_KINDS[$f['kind']]); out(['ok' => true]);
+      q('DELETE FROM fees WHERE id=?', [$f['id']]); try { pipe_fee_sync((int)$f['customer_id'], $f['kind']); } catch (Throwable $e) { } audit('fees_remove', 'customers', $f['customer_id'], FEE_KINDS[$f['kind']]); out(['ok' => true]);
   }
   fail('Unknown action', 404);
 }

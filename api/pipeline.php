@@ -20,6 +20,79 @@ function pipe_idx($label) { $i = array_search($label, pipe_labels(), true); retu
 function pipe_key($label) { $i = pipe_idx($label); return $i < 0 ? '' : PIPE[$i][0]; }
 function has_receipt($pid, $key) { return (bool)row('SELECT 1 FROM stage_data WHERE project_id=? AND stage=? AND file_id IS NOT NULL', [$pid, $key]); }
 function receipts($pid) { $r = []; foreach (PIPE as $s) if ($s[3] === 'receipt') $r[$s[0]] = has_receipt($pid, $s[0]); return $r; }
+/* A payment step and its fee in Finance are one thing (2026-11-17): the step is paid once its receipt is uploaded OR the fee is marked
+   paid in Finance › Feasibility fee / Registration fee. */
+const PIPE_FEE = ['feas_pay' => 'feasibility', 'reg_pay' => 'registration'];
+function pipe_fee_on($cid, $key) { /* '' = not paid in Finance, else the payment date */
+  if (!isset(PIPE_FEE[$key])) return '';
+  $f = row('SELECT paid_on FROM fees WHERE customer_id=? AND kind=? AND paid=1', [(int)$cid, PIPE_FEE[$key]]);
+  return $f ? (trim((string)$f['paid_on']) ?: date('Y-m-d')) : '';
+}
+function pipe_paid($p, $key) { return has_receipt($p['id'], $key) || pipe_fee_on($p['customer_id'] ?? 0, $key) !== ''; }
+/* Finance marked a fee paid / not paid: the customer's projects follow. Paid → the step is no longer "still to do".
+   Not paid (and no receipt) on a project already past the step → it is still to do again. The stage itself never moves. */
+function pipe_fee_sync($cid, $kind) {
+  $key = array_search($kind, PIPE_FEE, true); if ($key === false) return;
+  $keys = array_column(PIPE, 0); $label = array_column(PIPE, 1, 0)[$key];
+  foreach (rows("SELECT * FROM projects WHERE customer_id=? AND stage<>'Project completed'", [(int)$cid]) as $p) {
+    $pend = pipe_pending($p); $in = in_array($key, $pend, true);
+    if (pipe_paid($p, $key)) { if ($in) { pipe_pending_set($p['id'], array_diff($pend, [$key])); step_log($p['id'], $label, 'Paid - marked in Finance'); } }
+    elseif (!$in && array_search($key, $keys, true) < pipe_idx($p['stage'])) { pipe_pending_set($p['id'], array_merge($pend, [$key])); step_log($p['id'], $label, 'Marked not paid in Finance'); }
+  }
+}
+
+/* ---- no duplicate of the project the CRM made by itself ----
+   The first payment (pipeline/ensure) and the tax bill (gen/cost) put a customer on the pipeline with a project of their own
+   ("3 kWp solar plant"). "Start a project" / "New project" then added a second one - the duplicate on the customer profile.
+   Such an automatic project nobody has worked on yet (still at "Customer", nothing left for later, no step after its creation,
+   no receipt) is now filled in instead. A second project started by hand stays a second project. */
+const PROJ_AUTO_NOTES = ['Added to the pipeline with the first payment', 'Project created from the tax bill'];
+function proj_blanks($cid) {
+  return rows("SELECT p.* FROM projects p WHERE p.customer_id=? AND p.stage='Customer' AND COALESCE(p.pending,'') IN ('','[]')
+    AND (SELECT COUNT(*) FROM project_steps s WHERE s.project_id=p.id) = 1
+    AND EXISTS(SELECT 1 FROM project_steps s WHERE s.project_id=p.id AND s.note IN ('" . implode("','", PROJ_AUTO_NOTES) . "'))
+    AND NOT EXISTS(SELECT 1 FROM stage_data d WHERE d.project_id=p.id) ORDER BY p.id", [(int)$cid]);
+}
+function proj_blank($cid) { $b = proj_blanks($cid); return $b ? (int)end($b)['id'] : 0; }
+/* Duplicates already made: an untouched automatic project with a project started after it is merged into that later project (the
+   latest one that has been worked on, else the latest). Payments, documents, service visits, notes, calendar entries, cost lines
+   and checklist ticks move over; values the kept project lacks are copied; the empty duplicate goes to the Recycle bin.
+   $dry = only list. Projects started by hand are never merged. */
+function proj_dupes($dry = false) {
+  $out = [];
+  foreach (rows('SELECT customer_id FROM projects WHERE customer_id>0 GROUP BY customer_id HAVING COUNT(*)>1') as $c) {
+    $cid = (int)$c['customer_id']; $blank = array_map('intval', array_column(proj_blanks($cid), 'id')); if (!$blank) continue;
+    $all = rows('SELECT * FROM projects WHERE customer_id=? ORDER BY id', [$cid]);
+    $name = (string)(row('SELECT name FROM customers WHERE id=?', [$cid])['name'] ?? '');
+    foreach ($all as $p) { if (!in_array((int)$p['id'], $blank, true)) continue;
+      $later = array_values(array_filter($all, fn($x) => (int)$x['id'] > (int)$p['id'])); if (!$later) continue; /* nothing started after it: not a duplicate */
+      $real = array_values(array_filter($later, fn($x) => !in_array((int)$x['id'], $blank, true)));
+      $keep = row('SELECT * FROM projects WHERE id=?', [(int)($real ? end($real) : end($later))['id']]);
+      $out[] = ['customer_id' => $cid, 'customer' => $name, 'from' => (int)$p['id'], 'from_title' => (string)$p['title'], 'into' => (int)$keep['id'], 'into_title' => (string)$keep['title']];
+      if (!$dry) proj_merge($p, $keep, $name); }
+  }
+  return $out;
+}
+function proj_merge($from, $keep, $custName = '') {
+  $f = (int)$from['id']; $k = (int)$keep['id']; if (!$f || !$k || $f === $k) return;
+  $db = db(); $db->beginTransaction();
+  try {
+    trash_put('Project (duplicate merged)', ($from['title'] ?: 'Project') . ' · ' . $custName, [['projects', 'id=?', [$f]], ['project_steps', 'project_id=?', [$f]]], [['customers', $from['customer_id'], 'the customer']]);
+    $set = [];
+    foreach (['cost', 'kw', 'subsidy_amount'] as $col) if ((float)($keep[$col] ?? 0) <= 0 && (float)($from[$col] ?? 0) > 0) $set[$col] = $from[$col];
+    foreach (['loan', 'engineer', 'panel', 'inverter', 'application_no', 'subsidy_status', 'start', 'end', 'notes'] as $col) if (trim((string)($keep[$col] ?? '')) === '' && trim((string)($from[$col] ?? '')) !== '') $set[$col] = $from[$col];
+    if ($set) q('UPDATE projects SET ' . implode(',', array_map(fn($c) => "\"$c\"=?", array_keys($set))) . ', updated=CURRENT_TIMESTAMP WHERE id=?', [...array_values($set), $k]);
+    foreach (['payments', 'files', 'services', 'acc_log', 'events'] as $t) q("UPDATE $t SET project_id=? WHERE project_id=?", [$k, $f]);
+    q("UPDATE notes SET entity_id=? WHERE entity='projects' AND entity_id=?", [$k, $f]);
+    q('UPDATE OR IGNORE checklist SET project_id=? WHERE project_id=?', [$k, $f]); q('DELETE FROM checklist WHERE project_id=?', [$f]);
+    q('UPDATE OR IGNORE stage_data SET project_id=? WHERE project_id=?', [$k, $f]); q('DELETE FROM stage_data WHERE project_id=?', [$f]);
+    q('UPDATE acc_costs SET project_id=? WHERE project_id=? AND lower(name) NOT IN (SELECT lower(name) FROM acc_costs WHERE project_id=?)', [$k, $f, $k]); q('DELETE FROM acc_costs WHERE project_id=?', [$f]);
+    q('DELETE FROM project_steps WHERE project_id=?', [$f]); q('DELETE FROM projects WHERE id=?', [$f]);
+    if (function_exists('acc_ver_bump')) acc_ver_bump($k);
+    audit('merge', 'projects', $k, 'Duplicate project “' . ($from['title'] ?: 'Project') . "” (#$f) merged into this one");
+    $db->commit();
+  } catch (Throwable $e) { if ($db->inTransaction()) $db->rollBack(); throw $e; }
+}
 function pipe_pending($p) { $keys = array_column(PIPE, 0); $v = json_decode((string)($p['pending'] ?? ''), true); return is_array($v) ? array_values(array_intersect($keys, $v)) : []; } /* in pipeline order */
 function pipe_pending_set($pid, $keys) { q('UPDATE projects SET pending=?, updated=CURRENT_TIMESTAMP WHERE id=?', [$keys ? json_encode(array_values($keys)) : '', $pid]); }
 /* The steps still to do after moving from the current stage to $to. Forward: the stage being left is done unless $skip (or it
@@ -32,7 +105,7 @@ function pipe_pending_after($p, $to, $skip) {
     for ($i = max(0, $ci); $i < $ti; $i++) { $s = PIPE[$i];
       if ($s[0] === 'loan' && ($p['loan'] ?? '') === 'No') continue;
       $rc = $s[3] === 'receipt';
-      if ($rc && has_receipt($p['id'], $s[0])) continue;
+      if ($rc && pipe_paid($p, $s[0])) continue;
       if ($i === $ci && !$skip && !$rc) continue; /* the stage being left: done */
       $pend[$s[0]] = 1;
     }
@@ -50,8 +123,9 @@ function handle_pipeline($a) {
       $ps = rows("SELECT p.id,p.title,p.kw,p.stage,p.pending,p.cost,p.loan,p.engineer,p.customer_id,p.amc_start,p.amc_end,p.amc_interval,p.updated,c.name customer,c.phone,c.district,c.owner_id,
         (SELECT MAX(created) FROM project_steps s WHERE s.project_id=p.id) since FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE " . cust_scope('c') . " ORDER BY p.updated DESC");
       $rec = []; foreach (rows("SELECT project_id,stage FROM stage_data WHERE file_id IS NOT NULL") as $r) $rec[$r['project_id']][$r['stage']] = true;
+      $fee = []; foreach (rows("SELECT customer_id, kind FROM fees WHERE paid=1 AND kind IN ('feasibility','registration')") as $r) $fee[$r['customer_id']][$r['kind']] = true; /* paid in Finance counts as paid here */
       $svc = []; foreach (rows("SELECT project_id, MAX(CASE WHEN status='Done' THEN date END) last_done, MIN(CASE WHEN status='Scheduled' THEN date END) next_sched, COUNT(*) n FROM services GROUP BY project_id") as $r) $svc[$r['project_id']] = $r;
-      foreach ($ps as &$p) { $p = strip_fin($p); $p['pending'] = pipe_pending($p); $p['receipts'] = ['feas_pay' => !empty($rec[$p['id']]['feas_pay']), 'reg_pay' => !empty($rec[$p['id']]['reg_pay'])]; $p['svc'] = $svc[$p['id']] ?? null; } unset($p);
+      foreach ($ps as &$p) { $p = strip_fin($p); $p['pending'] = pipe_pending($p); $p['receipts'] = ['feas_pay' => !empty($rec[$p['id']]['feas_pay']) || !empty($fee[$p['customer_id']]['feasibility']), 'reg_pay' => !empty($rec[$p['id']]['reg_pay']) || !empty($fee[$p['customer_id']]['registration'])]; $p['svc'] = $svc[$p['id']] ?? null; } unset($p);
       out(['stages' => PIPE, 'projects' => $ps, 'service_types' => SERVICE_TYPES]);
     case 'move':
       need('projects', true);
@@ -69,7 +143,7 @@ function handle_pipeline($a) {
       $p = row('SELECT * FROM projects WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$p) fail('Project not found', 404);
       $key = (string)($in['key'] ?? ''); $st = array_values(array_filter(PIPE, fn($s) => $s[0] === $key))[0] ?? null; if (!$st) fail('Unknown stage');
       $pend = pipe_pending($p); if (!in_array($key, $pend, true)) out(['ok' => true, 'pending' => $pend]);
-      if ($st[3] === 'receipt' && !has_receipt($p['id'], $key)) fail("Upload the receipt for “{$st[1]}” to mark it done (JPG or PDF, max 2 MB).", 409);
+      if ($st[3] === 'receipt' && !pipe_paid($p, $key)) fail("Upload the receipt for “{$st[1]}” to mark it done (JPG or PDF, max 2 MB), or mark the fee paid in Finance.", 409);
       $pend = array_values(array_diff($pend, [$key])); pipe_pending_set($p['id'], $pend);
       step_log($p['id'], $st[1], mb_substr(trim((string)($in['note'] ?? '')), 0, 300) ?: 'Done later');
       audit('stage', 'projects', $p['id'], $st[1] . ' done (was left for later)'); out(['ok' => true, 'pending' => $pend]);
@@ -91,6 +165,14 @@ function handle_pipeline($a) {
       if (!$cid || !row('SELECT 1 FROM customers WHERE id=?', [$cid])) fail('Choose a lead or customer');
       $kw = (float)($in['kw'] ?? 0); $title = trim((string)($in['title'] ?? '')) ?: (($kw ? $kw . ' kW ' : '') . 'rooftop solar');
       $loan = in_array($in['loan'] ?? '', ['Yes', 'No']) ? $in['loan'] : '';
+      if ($pid = proj_blank($cid)) { /* a project nobody has worked on yet is already there (made with the first payment / the tax bill): fill it in, no second project */
+        $u = []; if (trim((string)($in['title'] ?? '')) !== '') $u['title'] = $title; if ($kw > 0) $u['kw'] = $kw; if ($loan !== '') $u['loan'] = $loan;
+        if (trim((string)($in['engineer'] ?? '')) !== '') $u['engineer'] = trim((string)$in['engineer']); if (can('finance') && (float)($in['cost'] ?? 0) > 0) $u['cost'] = (float)$in['cost'];
+        if ($u) q('UPDATE projects SET ' . implode(',', array_map(fn($c) => "$c=?", array_keys($u))) . ', updated=CURRENT_TIMESTAMP WHERE id=?', [...array_values($u), $pid]);
+        audit('update', 'projects', $pid, ($u['title'] ?? 'Project') . ' · details filled in (already on the pipeline)'); sv_on_pipeline($cid, $pid);
+        cust_cost_to_project($cid, $pid); cap_from_project($pid); cap_reconcile($cid);
+        out(['id' => $pid, 'customer_id' => $cid, 'reused' => 1]);
+      }
       q("INSERT INTO projects(customer_id,title,kw,stage,cost,loan,engineer) VALUES(?,?,?,?,?,?,?)", [$cid, $title, $kw, 'Customer', can('finance') ? (float)($in['cost'] ?? 0) : 0, $loan, trim((string)($in['engineer'] ?? ''))]);
       $pid = (int)db()->lastInsertId(); step_log($pid, 'Customer', 'Project started'); audit('create', 'projects', $pid, $title); sv_on_pipeline($cid, $pid); /* on the pipeline → on the site survey list */
       cust_cost_to_project($cid, $pid); /* no value typed: the plant cost agreed with the customer */
@@ -109,6 +191,9 @@ function handle_pipeline($a) {
       if ($cost > 0 && can('finance')) q('UPDATE projects SET cost=? WHERE id=? AND (cost IS NULL OR cost=0)', [$cost, $pid]);
       cap_from_project($pid); cap_reconcile($cid);
       out(['id' => $pid, 'created' => 1]);
+    case 'dupes': // admin: list ({dry:1}) or merge untouched duplicate projects (proj_dupes)
+      if (!is_admin()) fail('Not allowed for your role', 403);
+      out(['merged' => proj_dupes(!empty($in['dry']))]);
     case 'receipt': // KSEB payment receipt: JPG/PDF only, max 2 MB
       need('projects', true);
       $pid = (int)($_POST['project_id'] ?? 0); $key = (string)($_POST['stage'] ?? '');

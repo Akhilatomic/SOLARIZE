@@ -119,6 +119,8 @@ function housekeeping($force = false) {
   }
   if ($n) { audit('docs_expired', 'files', null, "$n document(s) past their keeping time moved to the Recycle bin"); }
   try { fee_alerts(); } catch (Throwable $e) { }
+  /* once: duplicate projects made before "Start a project" reused the automatic one are merged (api/pipeline.php proj_dupes) */
+  if (!row("SELECT 1 FROM settings WHERE k='proj_dupes_v1'")) { try { proj_dupes(); } catch (Throwable $e) { error_log('duplicate projects: ' . $e->getMessage()); } q("INSERT OR REPLACE INTO settings(k,v) VALUES('proj_dupes_v1','1')"); }
   try { callback_alerts(); } catch (Throwable $e) { } /* also when nobody has the CRM open */
   try { claim_release(); } catch (Throwable $e) { } /* claimed leads not converted in time → unlocked */
   try { lead_autolost(); } catch (Throwable $e) { } /* new leads nobody attended within 24 hours → Lost */
