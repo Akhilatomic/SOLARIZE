@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 75; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 76; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -390,6 +390,8 @@ function migrate($db) {
         foreach (($d['rows'] ?? []) as $tr) if (($tr[0] ?? '') === 'leads') foreach (($tr[1] ?? []) as $r) if (trim((string)($r['meta_id'] ?? '')) !== '') $ins->execute([trim((string)$r['meta_id'])]); }
       $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('meta_gone_v74','1')"); } catch (Throwable $e) { }
   }
+  /* v76: active / idle time per person per day, counted from the presence heartbeat (api/user.php presence_time_add) */
+  $db->exec('CREATE TABLE IF NOT EXISTS presence_day(user_id INTEGER, day TEXT, active_s INTEGER DEFAULT 0, idle_s INTEGER DEFAULT 0, first_at INTEGER DEFAULT 0, last_at INTEGER DEFAULT 0, act_at INTEGER DEFAULT 0, PRIMARY KEY(user_id, day))');
   /* v75: duplicate projects are merged once (trash.php housekeeping, flag proj_dupes_v1) - the hourly upkeep runs with the next request */
   if (!$db->query("SELECT 1 FROM settings WHERE k='proj_dupes_v1'")->fetch()) $db->exec("DELETE FROM settings WHERE k='hk_last'");
   /* v73: leads typed in by hand no longer unlock; the ones the claim clock had already unlocked go back to their holders, once */

@@ -55,7 +55,7 @@ async function presBeat() {
   if (FRAME && document.hidden) return; /* a menu tab that is not in front: the outer window keeps the heartbeat */
   /* team=1 while the dashboard is open: names, roles and pictures come too, for its Who's online strip */
   try { const team = document.getElementById('dteam') ? 1 : 0;
-    const r = await fetch(`api.php?m=user&a=presence&act=${Date.now() - PRES.used < 3e5 ? 1 : 0}&team=${team}`, { credentials: 'same-origin' }); if (!r.ok) return;
+    const r = await fetch(`api.php?m=user&a=presence&act=${Date.now() - PRES.used < 3e5 ? 1 : 0}&ia=${Math.min(99999, Math.round((Date.now() - PRES.used) / 1000))}&team=${team}`, { credentials: 'same-origin' }); if (!r.ok) return;
     const j = await r.json(); PRES.map = Object.fromEntries((j.users || []).map(u => [u.id, u])); presPaint();
     if (typeof dashTeam === 'function') dashTeam(); } catch (e) { }
 }
@@ -79,18 +79,30 @@ function dashTeam() {
     <span class="dtt"><b>${on.length ? on.length + ' online' : 'Nobody else online'}</b>${away.length ? `<small>${away.length} away</small>` : ''}</span><i class="i i-chev"></i>`;
   el.title = on.length || away.length ? 'Who is online: ' + on.concat(away).map(u => u.name + (u.st === 'on' ? '' : ' (away)')).join(', ') : 'Who is online';
   el.onclick = teamModal; el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); teamModal(); } };
-  presPaint(); if (TEAM_M && document.body.contains(TEAM_M)) teamList(TEAM_M);
+  presPaint(); if (TEAM_M && document.body.contains(TEAM_M)) { teamList(TEAM_M); teamTimes(TEAM_M); }
 }
-let TEAM_M = null;
+let TEAM_M = null, TEAM_R = 'today', TEAM_T = null; /* TEAM_T = presence_time answer for the chosen range: active / idle seconds per person */
+const TEAM_RANGES = [['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'Last 7 days'], ['month', 'Last 30 days']];
+/* 3 h 20 m / 45 m / 0 m (pure) */
+const presDur = s => { s = Math.max(0, Math.round(+s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? h + ' h ' + String(m).padStart(2, '0') + ' m' : m + ' m'; };
+async function teamTimes(m) { try { const r = await api('user', 'presence_time', undefined, '&range=' + TEAM_R); if (m !== TEAM_M) return; TEAM_T = r; teamList(m); } catch (e) { } }
+/* the time cell of one person: active (green) and idle (grey) time in the chosen range; others' times only for an admin or assistant manager */
+function teamTime(u) { const T = TEAM_T; if (!T) return ''; const t = (T.users || {})[u.id]; if (!T.all && +u.id !== +ME.id) return '';
+  if (!t) return `<div class="tmt"><small class="mut">No time recorded</small></div>`;
+  const tot = t.a + t.i, pct = tot ? Math.round(t.a / tot * 100) : 0;
+  return `<div class="tmt" title="Active: mouse or keyboard used. Idle: the CRM was open but untouched. Active ${pct}% of the ${presDur(tot)} the CRM was open${t.d > 1 ? ', over ' + t.d + ' days' : ''}."><span class="tma"><i></i>Active <b>${presDur(t.a)}</b></span><span class="tmi"><i></i>Idle <b>${presDur(t.i)}</b></span></div>`; }
 function teamList(m) {
   const all = teamPeople();
   $('.tml', m).innerHTML = TEAM_GROUPS.map(([st, label]) => { const g = all.filter(u => u.st === st); return g.length ? `<h4 class="tmh"><span class="tmdot ${st}"></span>${label} <span class="mut">${g.length}</span></h4>
-    ${g.map(u => `<div class="tmr"><span class="dtp" data-pres="${u.id}">${avImg(u.id, u.avatar, u.name)}</span><div><b>${esc(u.name)}${+u.id === +ME.id ? ' <small class="mut">(you)</small>' : ''}</b><small class="mut">${esc(u.role_name || '')}${u.role_name ? ' · ' : ''}${esc(presLabel(u))}</small></div></div>`).join('')}` : ''; }).join('');
+    ${g.map(u => `<div class="tmr"><span class="dtp" data-pres="${u.id}">${avImg(u.id, u.avatar, u.name)}</span><div class="tmw"><b>${esc(u.name)}${+u.id === +ME.id ? ' <small class="mut">(you)</small>' : ''}</b><small class="mut">${esc(u.role_name || '')}${u.role_name ? ' · ' : ''}${esc(presLabel(u))}</small></div>${teamTime(u)}</div>`).join('')}` : ''; }).join('');
   presPaint();
 }
 function teamModal() {
-  TEAM_M = modal(`<div class="dlh"><h2>Who is online</h2><span class="sp"></span><button class="lvx" id="tmx" aria-label="Close"><i class="i i-x"></i></button></div>
-    <p class="mut" style="margin:-4px 0 10px;font-size:12px">Updated every minute. Green: using the CRM now · Yellow: CRM open but idle, or checked in for attendance · Red: offline.</p><div class="tml"></div>`);
-  $('#tmx', TEAM_M).onclick = () => { TEAM_M.remove(); TEAM_M = null; };
-  teamList(TEAM_M);
+  TEAM_T = null;
+  TEAM_M = modal(`<div class="dlh"><h2>Who is online</h2><span class="sp"></span><select id="tmrg" class="tmrg" aria-label="Time range">${TEAM_RANGES.map(r => `<option value="${r[0]}"${r[0] === TEAM_R ? ' selected' : ''}>${r[1]}</option>`).join('')}</select><button class="lvx" id="tmx" aria-label="Close"><i class="i i-x"></i></button></div>
+    <p class="mut" style="margin:-4px 0 10px;font-size:12px">Updated every minute. Green: using the CRM now · Yellow: CRM open but idle, or checked in for attendance · Red: offline. <b>Active</b> time counts the minutes the mouse or keyboard was used; <b>Idle</b> time the minutes the CRM was open but untouched.</p><div class="tml"></div>`);
+  const m = TEAM_M;
+  $('#tmx', m).onclick = () => { m.remove(); if (TEAM_M === m) TEAM_M = null; };
+  $('#tmrg', m).onchange = e => { TEAM_R = e.target.value; TEAM_T = null; teamList(m); teamTimes(m); };
+  teamList(m); teamTimes(m);
 }
