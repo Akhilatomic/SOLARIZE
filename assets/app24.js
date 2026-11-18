@@ -536,7 +536,15 @@ var KD = (function () {
     /* numeric columns store a blank field as 0, so a numeric zero counts as empty */
     var zero = function (src) { return isNum(src) && +trim(src) === 0; };
     var bare = function (src, unit) { src = trim(src); return zero(src) ? '' : isNum(src) ? src + ' ' + unit : src; };
-    var cap = function (unit) { return bare(trim(p.capacity) && !zero(p.capacity) ? p.capacity : (+pr.kw > 0 ? pr.kw : ''), unit); };
+    /* total plant capacity is ALWAYS the inverter capacity: the sizes of the listed inverters added up, else the per-inverter size x count;
+       only a plant with no inverter size yet falls back to the capacity typed on the plant / project */
+    var invTotal = function () {
+      var list = Array.isArray(p.inverters) ? p.inverters : [], sum = 0, any = false;
+      list.forEach(function (i) { var x = trim(i && i.capacity); if (isNum(x) && +x > 0) { sum += +x; any = true; } });
+      if (!any && isNum(trim(p.inverter_capacity)) && +trim(p.inverter_capacity) > 0) { sum = +trim(p.inverter_capacity) * Math.max(1, parseInt(trim(p.inverter_count), 10) || 1); any = true; }
+      return any ? String(Math.round(sum * 1000) / 1000) : '';
+    };
+    var cap = function (unit) { var t = invTotal(); return bare(t || (trim(p.capacity) && !zero(p.capacity) ? p.capacity : (+pr.kw > 0 ? pr.kw : '')), unit); };
     if (docKey === 'wcr') {
       var ph = trim(c.phase);
       var serials = (Array.isArray(p.inverters) ? p.inverters : [])

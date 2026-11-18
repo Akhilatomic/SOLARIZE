@@ -492,7 +492,9 @@ async function renderMnre(box, c, id) {
   const pn = (P.panels || []).filter(x => x.serial), iv = (P.inverters || []).filter(x => x.serial);
   const invCap = (P.inverters || []).filter(x => x.capacity).map(x => x.capacity + ' kW').join(', ') || (P.inverter_capacity ? P.inverter_capacity + ' kW' : '');
   const def = { eff: P.commissioned_on || P.installed_on || today(), years: 5, name: c.name || '', address: [c.address, [c.district, c.pincode].filter(Boolean).join(' - ')].filter(Boolean).join('\n'),
-    consumer_no: c.consumer_no || '', capacity: P.capacity ? P.capacity + ' kW' : '', phone: c.phone || '', phase: c.phase || '',
+    consumer_no: c.consumer_no || '', capacity: (() => { /* installed plant capacity is ALWAYS the inverter capacity */
+      const t = (P.inverters || []).reduce((s, x) => s + (parseFloat(x.capacity) || 0), 0) || (parseFloat(P.inverter_capacity) || 0) * Math.max(1, parseInt(P.inverter_count, 10) || 1) * (P.inverter_capacity ? 1 : 0);
+      return t ? Math.round(t * 1000) / 1000 + ' kW' : P.capacity ? P.capacity + ' kW' : ''; })(), phone: c.phone || '', phase: c.phase || '',
     mod_make: [P.panel_make, P.panel_model].filter(Boolean).join(' / '), mod_type: P.panel_type || '', mod_watts: P.panel_wattage ? P.panel_wattage + ' Wp' : '',
     inv_make: [P.inverter_make, P.inverter_model].filter(Boolean).join(' / '), inv_capacity: invCap,
     sign_name: M.sign_name || '', sign_desig: M.sign_desig || 'Proprietor', sign_phone: M.sign_phone || '' };
