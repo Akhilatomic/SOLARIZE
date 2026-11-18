@@ -1453,7 +1453,7 @@ var KD = (function () {
      which is plain A4 like the rest. */
   var FLOW = { x0: 66, x1: 529, top: 64, bottom: 780, first: 500, firstBottom: 706, num: 30, sub: 26, maxPages: 10 };
   var layoutBag = function (v, measure, plain) { /* plain: no stamp paper - the whole agreement flows from the top of page 1 (MNRE Agreement page) */
-    var D = FLOW, w = D.x1 - D.x0, ops = [], p = 0, y = D.first, s = 10.5, lh = 1.3 * s, ok = true;
+    var D = FLOW, F1 = 540 /* the MNRE stamp paper's "Please write or type below this line" sits at y ~540 (checked on a scan, 2026-11-18): the title used to print over the Vendor / Treasury code rows */, w = D.x1 - D.x0, ops = [], p = 0, y = F1, s = 10.5, lh = 1.3 * s, ok = true;
     var bottom = function () { return p === 0 && !plain ? D.firstBottom : D.bottom; };
     var fill = function (t) { return t.replace(/\{(\w+)\}/g, function (m, k) { return clean(v[k] === undefined ? '' : (k === 'date' ? (K.dmy(v.date) || v.date) : v[k])).replace(/\n+/g, ', ') || '__________'; }); };
     var room = function (h) { if (y + h > bottom()) { if (p === 0 && !plain) ok = false; p++; y = D.top; } };
@@ -1497,7 +1497,7 @@ var KD = (function () {
     /* page 1: the opening at the largest size that stays inside the stamp paper's writing band */
     var s1;
     for (s1 = 10.5; s1 >= 8; s1 -= 0.5) {
-      ops = []; p = 0; y = D.first; s = s1; lh = 1.3 * s; ok = true;
+      ops = []; p = 0; y = F1; s = s1; lh = 1.3 * s; ok = true;
       K.AGR.slice(0, cut).forEach(block);
       if (ok && p === 0) break;
     }
@@ -1611,7 +1611,7 @@ var KD = (function () {
   };
 
   var layoutAgr = function (v, measure) {
-    var D = FLOW, ops = [], p = 0, y = D.first, s = 10.5, lh = 1.3 * s, ok = true, S = agrStrike(v);
+    var D = FLOW, ops = [], p = 0, y = 540 /* below the stamp paper's "Please write or type below this line" */, s = 10.5, lh = 1.3 * s, ok = true, S = agrStrike(v);
     var bottom = function () { return p === 0 ? D.firstBottom : D.bottom; };
     var pg = function (o) { if (p) o.p = p; return o; };
     var room = function (h) { if (y + h > bottom()) { if (p === 0) ok = false; p++; y = D.top; } };
@@ -1667,7 +1667,7 @@ var KD = (function () {
     /* page 1: the opening at the largest size that stays inside the stamp paper's writing band */
     var s1;
     for (s1 = 10.5; s1 >= 8; s1 -= 0.5) {
-      ops = []; p = 0; y = D.first; s = s1; lh = 1.3 * s; ok = true;
+      ops = []; p = 0; y = 540; s = s1; lh = 1.3 * s; ok = true;
       K.KAGR.slice(0, cut).forEach(block);
       if (ok && p === 0) break;
     }

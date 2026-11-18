@@ -558,11 +558,11 @@ test('agreement: the MNRE wording filled in, below the stamp, signatures togethe
   assert.equal(r.overflow, false);
   assert.ok(r.pages >= 5 && r.pages <= 7, r.pages + ' pages');
   /* page 1 is the Kerala e-Stamp paper: text only in its writing band, below the stamp block and above the QR footer */
-  assert.ok(text.filter(o => !o.p).every(o => o.y >= 500 && o.y <= 706), 'page 1 inside the stamp paper band');
+  assert.ok(text.filter(o => !o.p).every(o => o.y >= 540 && o.y <= 706), 'page 1 inside the stamp paper band');
   assert.equal(text.find(o => o.t === 'Whereas').p, 1, 'Whereas starts page 2');
   const long = KD.layout('bag', Object.assign({}, v, { address: 'PICHIMANGALATHU VEEDU PICHIMANGALAM VENJARAMOODU PULLAMPARA THIRUVANANTHAPURAM KERALA 695607 NEAR THE OLD TEMPLE ROAD JUNCTION' }), measure);
   assert.equal(long.overflow, false);
-  assert.ok(long.ops.filter(o => o.t && !o.p).every(o => o.y >= 500 && o.y <= 706), 'a long address still fits the band (smaller text)');
+  assert.ok(long.ops.filter(o => o.t && !o.p).every(o => o.y >= 540 && o.y <= 706), 'a long address still fits the band (smaller text)');
   for (const o of text) assert.ok(o.x >= 66 && o.x + measure(o.t, o.f, o.s) <= 529.5 && o.y <= 780, o.t);
   const all = text.map(o => o.t).join(' ');
   for (const t of ['executed on 10-11-2026', 'Sreelatha K having residential electricity connection with consumer number 1146530000001', 'minimum 3kWp', 'ReNew make, RPS2MH72BD550 model, 550Wp capacity each and 21.29% efficiency', 'Solar Edge make, 3 kW', 'Rs.2,22,223 + KSEB Charges.', '60% as an advance'])
@@ -583,7 +583,7 @@ test('MNRE Agreement: two versions - stamp paper (stamp part left empty) and pla
   /* stamp paper: the top of page 1 (the stamp) stays empty, the text starts in the writing band; the same layout as the bank page's agreement */
   const st = KD.layout('mas', vs, measure), bg = KD.layout('bag', b, measure);
   assert.deepEqual(st.ops, bg.ops); assert.equal(st.overflow, false);
-  assert.ok(st.ops.filter(o => o.t && !o.p).every(o => o.y >= 500 && o.y <= 706), 'nothing on page 1 above the writing band - the stamp part is empty');
+  assert.ok(st.ops.filter(o => o.t && !o.p).every(o => o.y >= 540 && o.y <= 706), 'nothing on page 1 above the writing band - the stamp part is empty');
   assert.equal(st.ops.find(o => o.t === 'Whereas').p, 1, 'Whereas starts page 2');
   /* plain paper: from the top, as the owner's PDF */
   const r = KD.layout('mag', vp, measure), text = r.ops.filter(o => o.t), all = text.map(o => o.t).join(' ');
@@ -638,7 +638,7 @@ test('agreement: stamp paper page 1, strike-outs, Schedule table, signatures tog
   const r = KD.layout('agr', v, measure), text = r.ops.filter(o => o.t), all = text.map(o => o.t).join(' ');
   assert.equal(r.overflow, false);
   assert.ok(r.pages >= 4 && r.pages <= 6, r.pages + ' pages');
-  assert.ok(text.filter(o => !o.p).every(o => o.y >= 500 && o.y <= 706), 'page 1 inside the e-Stamp writing band');
+  assert.ok(text.filter(o => !o.p).every(o => o.y >= 540 && o.y <= 706), 'page 1 inside the e-Stamp writing band');
   assert.equal(text.find(o => /^Whereas, the consumer/.test(o.t)).p, 1, 'Whereas starts page 2');
   for (const t of ['made on this 11-11-2026 at Anad between SUMA DEVI R Consumer number 1146530000002', 'Electrical Section Chullimanoor hereinafter', 'having capacity 3 kW as per', '(SPIN) __________ as scheduled'])
     assert.ok(all.includes(t), t);
@@ -681,7 +681,7 @@ test('agreement: stamp paper page 1, strike-outs, Schedule table, signatures tog
   /* a long address shrinks page 1 but stays in the band */
   const long = KD.layout('agr', Object.assign({}, v, { address: 'PICHIMANGALATHU VEEDU PICHIMANGALAM VENJARAMOODU PULLAMPARA THIRUVANANTHAPURAM KERALA 695607 NEAR THE OLD TEMPLE ROAD JUNCTION' }), measure);
   assert.equal(long.overflow, false);
-  assert.ok(long.ops.filter(o => o.t && !o.p).every(o => o.y >= 500 && o.y <= 706));
+  assert.ok(long.ops.filter(o => o.t && !o.p).every(o => o.y >= 540 && o.y <= 706));
 });
 
 /* the agreements are justified: every line of a paragraph but its last ends exactly at the right margin (word spacing ws) */
