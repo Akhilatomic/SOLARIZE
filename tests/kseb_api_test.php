@@ -139,17 +139,17 @@ $fill = [['k' => 'transformer', 't' => 'c', 'col' => 'transformer', 'v' => 'Anad
 $data = ['date' => '2026-11-11', 'transformer' => 'Anad Jn TF', 'premises' => 'Leased', 'load' => '3', 'gps' => '8.6,77.01', 'local_body' => 'Vembayam', 'meter_make' => 'HPL', 'meter_by' => 'KSEB', 'meter_reading' => '1.5 kWh', 'party2' => 'KSEB Ltd'];
 chk(call($sales, 'kseb', 'save', ['customer_id' => $agid, 'doc' => 'agr', 'data' => $data, 'fill' => $fill])['_code'] === 403, 'sales cannot save the agreement');
 $s = call($admin, 'kseb', 'save', ['customer_id' => $agid, 'doc' => 'agr', 'data' => $data, 'fill' => $fill]);
-chk($s['_code'] === 200 && ($s['filled'] ?? []) === ['transformer', 'premises', 'load', 'gps', 'meter_by', 'meter_reading', 'net_meter_by'], 'only empty, allowed profile fields are filled');
+chk($s['_code'] === 200 && ($s['filled'] ?? []) === ['transformer', 'premises', 'load', 'gps', 'local_body', 'meter_make', 'meter_by', 'meter_reading', 'net_meter_by'], 'every allowed, valid profile field is filled or updated');
 $cg = call($admin, 'customers', 'get', null, "&id=$agid");
 chk(($cg['transformer'] ?? '') === 'Anad Jn TF' && ($cg['premises'] ?? '') === 'Leased' && (float)($cg['sanctioned_load'] ?? 0) === 3.0 && ($cg['lat'] ?? '') == '8.6' && ($cg['lng'] ?? '') == '77.01', 'customer profile now has transformer, premises, load and GPS');
-chk(($cg['local_body'] ?? '') === 'Anad' && ($cg['name'] ?? '') === 'Agreement Test', 'a filled profile field and a field outside the list stay as they were');
+chk(($cg['local_body'] ?? '') === 'Vembayam' && ($cg['name'] ?? '') === 'Agreement Test', 'a changed profile field is updated and a field outside the list stays as it was');
 $pg = call($admin, 'plant', 'get', null, "&customer_id=$agid");
-chk(($pg['data']['meter_by'] ?? '') === 'KSEB' && ($pg['data']['net_meter_by'] ?? '') === 'Consumer' && ($pg['data']['meter_reading'] ?? '') === '1.5' && ($pg['data']['meter_make'] ?? '') === 'GENUS' && ($pg['data']['capacity'] ?? '') === '3', 'plant gets meter provider and reading; its meter make stays');
+chk(($pg['data']['meter_by'] ?? '') === 'KSEB' && ($pg['data']['net_meter_by'] ?? '') === 'Consumer' && ($pg['data']['meter_reading'] ?? '') === '1.5' && ($pg['data']['meter_make'] ?? '') === 'HPL' && ($pg['data']['capacity'] ?? '') === '3', 'plant gets meter provider, reading and the changed meter make');
 $sd = $s['saved']['data'] ?? [];
-chk(!isset($sd['transformer']) && !isset($sd['gps']) && ($sd['local_body'] ?? '') === 'Vembayam' && ($sd['meter_make'] ?? '') === 'HPL' && ($sd['party2'] ?? '') === 'KSEB Ltd', 'filled fields are not kept as edits; the others are');
+chk(!isset($sd['transformer']) && !isset($sd['gps']) && !isset($sd['local_body']) && !isset($sd['meter_make']) && ($sd['party2'] ?? '') === 'KSEB Ltd', 'fields that went to the profile are not kept as edits; the others are');
 chk(($s['customer']['transformer'] ?? '') === 'Anad Jn TF' && ($s['plant']['meter_by'] ?? '') === 'KSEB', 'save returns the updated customer and plant');
 $s2 = call($admin, 'kseb', 'save', ['customer_id' => $agid, 'doc' => 'agr', 'data' => ['transformer' => 'Other TF'], 'fill' => [['k' => 'transformer', 't' => 'c', 'col' => 'transformer', 'v' => 'Other TF']]]);
-chk(empty($s2['filled']) && ($s2['saved']['data']['transformer'] ?? '') === 'Other TF' && (call($admin, 'customers', 'get', null, "&id=$agid")['transformer'] ?? '') === 'Anad Jn TF', 'a profile value is never overwritten: the agreement keeps its own copy');
+chk(($s2['filled'] ?? []) === ['transformer'] && (call($admin, 'customers', 'get', null, "&id=$agid")['transformer'] ?? '') === 'Other TF', 'a changed value replaces the profile value (entered once only)');
 
 /* every KSEB / bank document: what was typed for an EMPTY profile field fills it (made-up customer) */
 $dc = call($admin, 'customers', 'save', ['name' => 'Docs Fill Test', 'phone' => '']); $dcid = (int)($dc['id'] ?? 0);
@@ -173,9 +173,9 @@ chk(($bad['filled'] ?? []) === ['bank_ifsc'], 'a value that does not look right 
 /* bank documentation: the same, with the Jan Samarth ID (loan details) and the application no. also on the project */
 $bs = call($admin, 'bank', 'save', ['customer_id' => $dcid, 'doc' => 'bfr', 'data' => ['portal_id' => 'NP-TEST26-0077'], 'fill' => [['k' => 'portal_id', 't' => 'p', 'col' => 'application_no', 'v' => 'NP-TEST26-0077'],
   ['k' => 'jansamarth_id', 't' => 'c', 'col' => 'jansamarth_id', 'v' => 'ANS-SOLAR-77-1'], ['k' => 'pincode', 't' => 'c', 'col' => 'pincode', 'v' => '695077'], ['k' => 'consumer_no', 't' => 'c', 'col' => 'consumer_no', 'v' => '1146910000099']]]);
-chk(($bs['filled'] ?? []) === ['portal_id', 'jansamarth_id', 'pincode'], 'bank feasibility report fills empty fields; the consumer no. already filled is kept');
+chk(($bs['filled'] ?? []) === ['portal_id', 'jansamarth_id', 'pincode', 'consumer_no'], 'bank feasibility report fills empty fields and updates the changed consumer no.');
 $bg = call($admin, 'customers', 'get', null, "&id=$dcid");
-chk(($bg['jansamarth_id'] ?? '') === 'ANS-SOLAR-77-1' && ($bg['pincode'] ?? '') === '695077' && ($bg['consumer_no'] ?? '') === '1146910000077', 'bank fill saved; existing consumer no. not overwritten');
+chk(($bg['jansamarth_id'] ?? '') === 'ANS-SOLAR-77-1' && ($bg['pincode'] ?? '') === '695077' && ($bg['consumer_no'] ?? '') === '1146910000099', 'bank fill saved; the changed consumer no. is updated');
 chk((call($admin, 'plant', 'get', null, "&customer_id=$dcid")['data']['application_no'] ?? '') === 'NP-TEST26-0077' && (($bg['projects'][0]['application_no'] ?? '') === 'NP-TEST26-0077'), 'application no. filled in the plant and on the project');
 chk(isset($bs['customer'], $bs['plant']) && !isset($bs['saved']['data']['portal_id']), 'bank save returns the updated profile and keeps no copy of what went to it');
 

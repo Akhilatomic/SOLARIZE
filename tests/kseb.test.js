@@ -626,10 +626,11 @@ test('agreement: typed values for empty profile fields go to the profile', () =>
   const ctx = { customer: Object.assign({}, NET.customer, { lat: '', lng: '', sanctioned_load: 0 }), plant: { meter_make: 'VISIONTEK' } };
   const fill = KD.fill('agr', { date: '2026-11-11', transformer: 'Anad Jn TF', load: '3kw', gps: '8.6, 77.0', meter_make: 'GENUS', meter_reading: '12.5 kWh', premises: 'Leased', place: 'Anad', meter_by: '' }, ctx);
   assert.deepEqual(fill.map(f => [f.k, f.t, f.col, f.v]), [
-    ['premises', 'c', 'premises', 'Leased'], ['load', 'c', 'sanctioned_load', '3'], ['meter_reading', 'p', 'meter_reading', '12.5'],
+    ['premises', 'c', 'premises', 'Leased'], ['load', 'c', 'sanctioned_load', '3'], ['meter_make', 'p', 'meter_make', 'GENUS'], ['meter_reading', 'p', 'meter_reading', '12.5'],
     ['transformer', 'c', 'transformer', 'Anad Jn TF'], ['gps', 'c', 'gps', '8.6,77.0']]);
   assert.deepEqual(KD.fill('agr', { gps: 'near the temple', load: 'three' }, ctx), [], 'text that is not a number / position is not stored');
-  assert.deepEqual(KD.fill('agr', { gps: '8.7,77.1' }, NET), [], 'a position already in the profile is kept');
+  assert.deepEqual(KD.fill('agr', { gps: '8.7,77.1' }, NET).map(f => f.v), ['8.7,77.1'], 'a changed position goes to the profile');
+  assert.deepEqual(KD.fill('agr', { gps: '8.7,77.1' }, { customer: { lat: '8.7', lng: '77.1' }, plant: {} }), [], 'an unchanged position is not saved again');
 });
 
 test('agreement: stamp paper page 1, strike-outs, Schedule table, signatures together', async () => {
@@ -745,13 +746,14 @@ test('documents fill empty profile fields, in the form the profile keeps them', 
     [['cust_phone', 'c.phone', '9811111111'], ['consumer_no', 'c.consumer_no', '1146910000077'], ['capacity', 'p.capacity', '3.3'], ['phase', 'c.phase', 'Three phase'], ['pv_watt', 'p.panel_wattage', '550']],
     'units go, phase spelled out; a combined inverter capacity and the name are not profile fills');
   assert.deepEqual(pick('cov', { app_date: '07.08.2026', installed: '31-02-2026', load: '4.3 kW', email: 'new@example.com', bank_ifsc: 'sbin0070422' }),
-    [['load', 'c.sanctioned_load', '4.3'], ['email', 'c.email', 'new@example.com'], ['bank_ifsc', 'c.bank_ifsc', 'SBIN0070422'], ['app_date', 'p.application_date', '2026-08-07']].filter(x => x[0] !== 'email'),
-    'dates become YYYY-MM-DD (a date that does not exist is left out); an email already in the profile is kept');
+    [['load', 'c.sanctioned_load', '4.3'], ['email', 'c.email', 'new@example.com'], ['bank_ifsc', 'c.bank_ifsc', 'SBIN0070422'], ['app_date', 'p.application_date', '2026-08-07']]  ,
+    'dates become YYYY-MM-DD (a date that does not exist is left out); a changed email replaces the one in the profile');
   assert.deepEqual(pick('bfr', { portal_id: 'NP - KLSEB26 - 1000001', jansamarth_id: 'ANS-SOLAR-1-2', pincode: '695 001', cap_actual: '3' }).map(x => x[1] + '=' + x[2]),
     ['p.application_no=NP-KLSEB26-1000001', 'c.jansamarth_id=ANS-SOLAR-1-2', 'c.pincode=695001', 'p.capacity=3']);
   assert.deepEqual(pick('bag', { module_wp: '550', module_eff: '21.29 %', capacity: '3.3' }).map(x => x[1]), ['p.capacity', 'p.panel_wattage', 'p.panel_efficiency'], 'the agreement for the bank fills the plant');
   assert.deepEqual(pick('doi', { phone: '12345', dc_voltage: 'abc' }), [], 'something that is not a phone / a number is not put in the profile');
-  assert.deepEqual(KD.fill('wcr', { capacity: '3 KW' }, { customer: {}, plant: { capacity: '5' } }), [], 'a field already in the profile is never changed');
+  assert.deepEqual(KD.fill('wcr', { capacity: '3 KW' }, { customer: {}, plant: { capacity: '5' } }).map(f => f.v), ['3'], 'a changed value replaces the one in the profile');
+  assert.deepEqual(KD.fill('wcr', { capacity: '5 KW' }, { customer: {}, plant: { capacity: '5' } }), [], 'the same value is not saved again');
   assert.deepEqual(pick('an1', { phone: '9800000001', load: '3', capacity: '3 kWp' }).map(x => x[1]), ['c.phone', 'c.sanctioned_load', 'p.capacity'], 'annexures too');
 });
 

@@ -823,13 +823,13 @@ var KD = (function () {
       if (col === 'gps') {
         m = /^(-?\d{1,2}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)$/.exec(val);
         var has = function (x) { return trim(x) !== '' && !(isNum(x) && +x === 0); };
-        if (m && !has(c.lat) && !has(c.lng)) { out.push({ k: f.k, t: 'c', col: 'gps', v: m[1] + ',' + m[2] }); seen[f.src] = 1; }
+        if (m && !(+trim(c.lat) === +m[1] && +trim(c.lng) === +m[2])) { out.push({ k: f.k, t: 'c', col: 'gps', v: m[1] + ',' + m[2] }); seen[f.src] = 1; }
         return;
       }
       var cur = trim((t === 'c' ? c : p)[col]);
-      if (cur && !(NUMCOL.indexOf(col) >= 0 && isNum(cur) && +cur === 0)) return; /* filled (masked ones too): never replaced */
       val = K.fillValue(col, val);
       if (!val) return;
+      if (cur && (cur === val || (isNum(cur) && isNum(val) && +cur === +val))) return; /* the profile already has it */
       out.push({ k: f.k, t: t, col: col, v: val }); seen[f.src] = 1;
     });
     return out;

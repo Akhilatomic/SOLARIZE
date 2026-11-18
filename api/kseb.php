@@ -1,10 +1,11 @@
 <?php
 // KSEB documents (Work Completion Report, Annexures 1-3): customer data for the page, per-customer edits, company defaults.
 // Edits live in gen_docs (kind 'kseb_wcr', 'kseb_an1' … 'kseb_an3', 'kseb_agr', 'kseb_chk'); the PDF itself is built in the browser.
-// Any KSEB or bank document may also fill EMPTY customer profile / plant fields with what was typed in it (kseb_fill).
+// What is typed in any KSEB or bank document also goes into the customer profile / plant details (kseb_fill): empty fields are filled and
+// changed ones are updated, so a detail is entered once only (owner's rule, 2026-11-18).
 
 const KSEB_DOCS = ['cov', 'req', 'wcr', 'an1', 'an2', 'an3', 'doi', 'almm', 'dcr', 'agr', 'chk'];
-/* profile fields a document may fill when they are still empty (the fields with src in assets/app24.js; KD.fill picks them) */
+/* profile fields a document may fill or update (the fields with src in assets/app24.js; KD.fill picks them) */
 const KSEB_FILL = ['c' => ['consumer_no', 'kseb_section', 'premises', 'transformer', 'local_body', 'village_survey', 'sanctioned_load', 'gps',
     'phone', 'alt_phone', 'email', 'address', 'district', 'pincode', 'phase', 'bank_name', 'bank_ifsc', 'jansamarth_id'],
   'p' => ['meter_by', 'net_meter_by', 'meter_serial', 'meter_make', 'meter_reading', 'spin', 'capacity', 'panel_make', 'panel_type', 'panel_wattage', 'panel_count',
@@ -48,12 +49,14 @@ function kseb_saved($cid, $doc) {
   return $r ? ['data' => json_decode($r['data'], true) ?: [], 'issued_on' => $r['issued_on'], 'updated' => $r['updated'], 'updated_by' => $r['updated_by']] : null;
 }
 
-/* fill the customer's / plant's EMPTY profile fields from a document; a field that already has a value is never changed.
+/* put what was typed in a document into the customer's / plant's profile: an empty field is filled, a different value replaces the old one
+   (a value that does not look right for its field is left out; the one already stored is kept).
    $list = [{k: document field, t: 'c'|'p', col, v}]. Returns the document field keys that went into the profile. */
 function kseb_fill($cid, array $list): array {
   $c = row('SELECT * FROM customers WHERE id=?', [$cid]); if (!$c) return [];
   [$pl] = plant_get($cid);
   $empty = fn($x) => trim((string)$x) === '' || (is_numeric($x) && (float)$x == 0);
+  $same = fn($a, $b) => is_numeric($a) && is_numeric($b) ? (float)$a == (float)$b : trim((string)$a) === trim((string)$b);
   $cu = []; $pu = []; $done = [];
   foreach (array_slice($list, 0, 40) as $f) {
     if (!is_array($f)) continue;
@@ -63,13 +66,13 @@ function kseb_fill($cid, array $list): array {
     if (in_array($col, LOAN_COLS, true) && !can('loans', true)) continue; /* the Jan Samarth ID belongs to the loan details */
     if ($col === 'gps') {
       if (!preg_match('/^(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)$/', $v, $m) || abs((float)$m[1]) > 90 || abs((float)$m[2]) > 180) continue;
-      if (!$empty($c['lat'] ?? '') || !$empty($c['lng'] ?? '') || isset($cu['lat'])) continue;
+      if (isset($cu['lat']) || ($same($c['lat'] ?? '', $m[1]) && $same($c['lng'] ?? '', $m[2]))) continue;
       $cu['lat'] = $m[1]; $cu['lng'] = $m[2];
     } elseif ($t === 'c') {
-      if (!$empty($c[$col] ?? '') || isset($cu[$col]) || !kseb_fill_ok($col, $v)) continue;
+      if (isset($cu[$col]) || !kseb_fill_ok($col, $v) || $same($c[$col] ?? '', $v)) continue;
       $cu[$col] = $col === 'sanctioned_load' ? (float)$v : $v;
     } else {
-      if (!$empty($pl[$col] ?? '') || isset($pu[$col]) || !kseb_fill_ok($col, $v)) continue;
+      if (isset($pu[$col]) || !kseb_fill_ok($col, $v) || $same($pl[$col] ?? '', $v)) continue;
       $pu[$col] = $v;
     }
     $done[] = $k;
