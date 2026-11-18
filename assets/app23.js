@@ -59,11 +59,16 @@ function qmgProducts() {
     <p class="qm-hint">The star marks the product new quotations start with. Hidden products leave the maker's choices but still print on quotations and templates that use them.</p>
     ${cards || '<p class="qmg-empty">No products in this category yet.</p>'}</div></div>`;
 }
-const qmgBlank = cat => ({ id: 0, cat, label: '', name: '', line: '', details: '', title: '', unit: 'no', qty: 1, qty_note: '', wp: 0, kw: 0, kw_line: 0, needs_opt: 0, warranty: [], brands: [{ label: '', logos: [] }], picture: '', page: '', rate: 0, is_default: 0, hidden: 0 });
+/* the built-in representation pictures: every new product starts with the one for its category (changeable: pick another or upload) */
+const QMG_PICS = [['panels', 'Solar panel'], ['inverter-string', 'String inverter'], ['inverter-micro', 'Microinverter'], ['inverter-solaredge', 'SolarEdge inverter'], ['inverter-solaredge-3ph', 'SolarEdge 3-phase inverter'], ['optimiser', 'Power optimiser'], ['acdb', 'ACDB box'], ['acdb-3ph', 'ACDB box 3-phase'], ['dcdb', 'DCDB box'], ['dcdb-3ph', 'DCDB box 3-phase'], ['dccable', 'DC cable'], ['accable', 'AC cable'], ['accable-3ph', 'AC cable 3-phase'], ['isolator', 'Isolator switch'], ['meter', 'Energy meter'], ['parts', 'Electrical parts'], ['earthing', 'Earthing'], ['la', 'Lightning arrester'], ['structure', 'Mounting structure'], ['install', 'Installation']];
+const QMG_CAT_PIC = { panels: 'panels', inverter: 'inverter-string', optimiser: 'optimiser', acdb: 'acdb', dcdb: 'dcdb', dccable: 'dccable', accable: 'accable', isolator: 'isolator', meter: 'meter', parts: 'parts', earthing: 'earthing', la: 'la', structure: 'structure', install: 'install' };
+const qmgDefPic = cat => QMG_CAT_PIC[cat] ? 'assets/quote/pic-' + QMG_CAT_PIC[cat] + '.png' : '';
+const qmgBlank = cat => ({ id: 0, cat, label: '', name: '', line: '', details: '', title: '', unit: 'no', qty: 1, qty_note: '', wp: 0, kw: 0, kw_line: 0, needs_opt: 0, warranty: [], brands: [{ label: '', logos: [] }], picture: qmgDefPic(cat), page: '', rate: 0, is_default: 0, hidden: 0 });
 function qmgImgField(k, label, hint) {
   const v = QMG.E[k];
   return `<div class="qmg-up"><label>${label}</label><div class="qmg-upr">${v ? `<img src="${esc(qmImgUrl(v))}" alt="">` : '<span class="qmg-none">None</span>'}
-    <div><button type="button" class="btn sec sm" data-a="up" data-k="${k}">${qmgI('upload')} ${v ? 'Replace' : 'Upload'}</button>${v ? ` <button type="button" class="btn sec sm" data-a="clr" data-k="${k}">${qmgI('x')} Remove</button>` : ''}</div></div>${hint ? `<small class="qm-hint">${hint}</small>` : ''}</div>`;
+    <div><button type="button" class="btn sec sm" data-a="up" data-k="${k}">${qmgI('upload')} ${v ? 'Replace' : 'Upload'}</button>${v ? ` <button type="button" class="btn sec sm" data-a="clr" data-k="${k}">${qmgI('x')} Remove</button>` : ''}
+    ${k === 'picture' ? `<select data-ppick aria-label="Use a built-in representation picture"><option value="">Use a built-in picture…</option>${QMG_PICS.map(([n, l]) => `<option value="assets/quote/pic-${n}.png" ${v === 'assets/quote/pic-' + n + '.png' ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}</div></div>${hint ? `<small class="qm-hint">${hint}</small>` : ''}</div>`;
 }
 function qmgForm(body) {
   const E = QMG.E, b = QMG.b, fin = !!b.finance, t = (k, l, extra = '') => `<div><label>${l}</label><input data-e="${k}" value="${esc(E[k])}" ${extra}></div>`;
@@ -198,7 +203,9 @@ function qmgRead(t) {
 function qmgInput(e) { qmgRead(e.target); }
 function qmgChange(e) {
   const t = e.target, k = qmgRead(t);
-  if (k === 'cat') qmgCatVis();
+  if (k === 'cat') { qmgCatVis(); const E = QMG.E; /* a new product follows its category's picture until the picture is changed by hand */
+    if (E && !E.id && !QMG.picTouched) { E.picture = qmgDefPic(E.cat); qmgForm($('#qmgbody', QMG.m)); } }
+  if (t.dataset.ppick !== undefined && QMG.E && t.value) { QMG.E.picture = t.value; QMG.picTouched = true; QMG.dirty = true; qmgForm($('#qmgbody', QMG.m)); }
   if (t.dataset.pick !== undefined && t.value && QMG.E) { QMG.E.brands[+t.dataset.pick].logos.push(t.value); QMG.dirty = true; qmgForm($('#qmgbody', QMG.m)); }
 }
 async function qmgClick(e) {
@@ -208,14 +215,14 @@ async function qmgClick(e) {
   if (a === 'tab') { if (QMG.E && QMG.dirty && !confirm('Discard this unsaved product?')) return; QMG.E = null; QMG.tab = k; return qmgShell(); }
   if (a === 'cat') { QMG.cat = k; return qmgProducts(); }
   if (a === 'kseb') { QMG.tab = 'set'; QMG.open = 'kseb'; qmgShell(); const s = $('#qmgs-kseb', QMG.m); if (s) s.scrollIntoView({ block: 'nearest' }); return; }
-  if (a === 'add') { QMG.E = qmgBlank(QMG.cat); QMG.dirty = false; return qmgProducts(); }
+  if (a === 'add') { QMG.picTouched = false; QMG.E = qmgBlank(QMG.cat); QMG.dirty = false; return qmgProducts(); }
   if (a === 'edit') { const p = QMG.b.products.find(x => x.id == k); if (!p) return; QMG.E = Object.assign(qmgBlank(p.cat), qmgClone(p)); QMG.E.brands.forEach(br => { br.logos = br.logos || []; }); if (!QMG.E.brands.length) QMG.E.brands.push({ label: '', logos: [] }); QMG.dirty = false; return qmgProducts(); }
   if (a === 'def') { const p = QMG.b.products.find(x => x.id == k); if (!p) return; try { await api('qm', 'product_save', { id: p.id, is_default: p.is_default ? 0 : 1 }); } catch (x) { return; } await qmgReload(); return qmgProducts(); }
   if (a === 'hide') { const p = QMG.b.products.find(x => x.id == k); if (!p) return; try { await api('qm', 'product_save', { id: p.id, hidden: p.hidden ? 0 : 1 }); } catch (x) { return; } await qmgReload(); toast(p.hidden ? 'Shown in the maker' : 'Hidden from the maker'); return qmgProducts(); }
   if (a === 'pcancel') { if (QMG.dirty && !confirm('Discard your changes to this product?')) return; QMG.E = null; QMG.dirty = false; return qmgProducts(); }
   if (a === 'psave') return qmgSaveProduct();
-  if (a === 'up') { const r = await qmgPick(); if (r) { E[k] = r; QMG.dirty = true; qmgForm($('#qmgbody', QMG.m)); } return; }
-  if (a === 'clr') { E[k] = ''; QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
+  if (a === 'up') { const r = await qmgPick(); if (r) { E[k] = r; if (k === 'picture') QMG.picTouched = true; QMG.dirty = true; qmgForm($('#qmgbody', QMG.m)); } return; }
+  if (a === 'clr') { E[k] = ''; if (k === 'picture') QMG.picTouched = true; QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
   if (a === 'wadd') { E.warranty.push({ years: '', label: '' }); return qmgForm($('#qmgbody', QMG.m)); }
   if (a === 'wdel') { E.warranty.splice(+k, 1); QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
   if (a === 'bradd') { E.brands.push({ label: '', logos: [] }); return qmgForm($('#qmgbody', QMG.m)); }
