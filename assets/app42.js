@@ -28,11 +28,13 @@ async function pgSurveys() {
   const d = await api('survey', 'list'), rows = d.rows, open = rows.filter(r => r.status !== 'Done'), mine = open.filter(r => r.assigned_to == ME.id);
   const show = SV.tab === 'done' ? rows.filter(r => r.status === 'Done') : SV.tab === 'mine' ? mine : SV.tab === 'all' ? rows : open;
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:10px"><div><h2 style="margin:0;font-size:26px">Site survey</h2><div class="mut">First stage of a project: site photos, products and structure, site plan. Add a lead or customer from its action menu.</div></div><span class="sp"></span>
+    <button class="btn sec" id="svblank" title="A blank site survey form to print: fill it on paper at the site, then enter the details here"><i class="i i-download"></i> Blank form (PDF)</button>
     <div class="tabs" style="margin:0">${[['open', `To do (${open.length})`], ...(d.all ? [['mine', `Mine (${mine.length})`]] : []), ['done', 'Done'], ['all', 'All']].map(([k, l]) => `<button data-svt="${k}" class="${SV.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
    <div class="card tw" style="padding:0"><table id="svt"><thead><tr><th>Name</th><th>Place</th><th>Survey by</th><th>Visit</th><th>Status</th><th class="num">Files</th></tr></thead><tbody>
    ${show.map(r => `<tr data-sv="${r.id}" style="cursor:pointer"><td><b>${esc(r.name || '—')}</b> ${r.lead_id ? '<span class="pill b">Lead</span>' : ''}${r.stage ? ` <span class="pill" title="Pipeline stage">${esc(r.stage)}</span>` : ''}<br><small class="mut">${esc(r.phone || '')}</small></td><td>${esc(r.place || '—')}${r.note ? `<br><small class="mut">${esc(r.note)}</small>` : ''}</td>
      <td>${esc(r.assigned_name || '—')}</td><td>${r.visit_date ? `<span class="${r.status !== 'Done' && r.visit_date < today() ? 'over' : ''}">${svDate(r.visit_date)}</span>` : '<span class="mut">Not set</span>'}</td><td>${pill(r.status, SV_ST[r.status])}</td><td class="num">${r.files || ''}</td></tr>`).join('') || `<tr><td colspan="6" class="mut">${SV.tab === 'done' ? 'No finished surveys yet' : 'Nothing to survey. Open a lead or customer’s action menu and choose “Add to site survey”.'}</td></tr>`}</tbody></table></div>`;
   $$('[data-svt]').forEach(b => b.onclick = () => { SV.tab = b.dataset.svt; pgSurveys(); });
+  $('#svblank').onclick = e => svFormDownload(null, e.currentTarget);
   $$('[data-sv]').forEach(tr => tr.onclick = () => location.hash = '#/survey/' + tr.dataset.sv);
 }
 
@@ -56,6 +58,7 @@ async function pgSurvey(id) {
   $('#main').innerHTML = `<div class="sv-top"><a class="btn sec sm" href="#/survey"><i class="i i-chev" style="transform:rotate(180deg)"></i> Site survey</a>
      <div class="sv-who"><h2>${esc(t.name)} ${pill(s.status, SV_ST[s.status])}</h2><div class="mut">${t.kind === 'lead' ? 'Lead' : 'Customer'}${t.phone ? ' · ' + esc(t.phone) : ''}${t.place ? ' · ' + esc(t.place) : ''}${d.project ? ` · Pipeline: <a href="#/projects/${+d.project.id}">${esc(d.project.stage)}</a>` : ''} · <a href="#/${t.kind === 'lead' ? 'leads' : 'customers/' + t.id}">${t.kind === 'lead' ? 'Leads' : 'Open customer'}</a></div>${s.note ? `<div class="sv-note">${esc(s.note)}</div>` : ''}</div>
      <span class="sp"></span>
+     <button class="btn sec sm" id="svpdf" title="This survey as a paper form: name, place and what is already entered are printed in, the rest is filled by hand at the site"><i class="i i-download"></i> Paper form (PDF)</button>
      <div class="sv-ctl"><div><label>Survey by</label>${d.can_assign && !done ? `<select id="svby">${d.users.map(u => `<option value="${u.id}" ${u.id == s.assigned_to ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select>` : `<b>${esc(s.assigned_name || '—')}</b>`}</div>
       <div><label>Visit date</label><input type="date" id="svvd" value="${esc(s.visit_date || '')}" ${ed ? '' : 'disabled'}></div></div></div>
    ${done ? `<div class="sv-done"><i class="i i-check"></i> Survey marked done${s.done_at ? ' on ' + dmy(s.done_at.slice(0, 10)) : ''}.${d.can_edit ? ' <button class="btn sec sm" id="svre">Reopen</button>' : ''}</div>` : ''}
@@ -79,6 +82,8 @@ async function pgSurvey(id) {
    ${d.can_edit && !done ? `<div class="sv-bar"><span class="mut" id="svmsg"></span><span class="sp"></span><button class="btn sec" id="svsave">Save</button><button class="btn ok" id="svdone"><i class="i i-check"></i> Save and mark survey done</button></div>` : ''}`;
 
   const grab = g => Object.fromEntries($$(`[data-g="${g}"]`).map(i => [i.dataset.k, i.value]));
+  /* the paper form takes what is on the screen now (typed but not saved yet too) */
+  $('#svpdf').onclick = e => svFormDownload({ ...d, site: grab('site'), plant: grab('plant'), plan: grab('plan'), survey: { ...s, visit_date: $('#svvd').value, confirmed: $('#svok').checked ? 1 : 0, assigned_name: $('#svby') ? $('#svby').selectedOptions[0].textContent : s.assigned_name } }, e.currentTarget);
   let dirty = false; $$('#main [data-g], #svok').forEach(i => i.addEventListener('input', () => { dirty = true; if ($('#svmsg')) $('#svmsg').textContent = 'Not saved yet'; }));
   const save = async extra => { await api('survey', 'save', { id: s.id, site: grab('site'), plant: grab('plant'), plan: grab('plan'), confirmed: $('#svok').checked ? 1 : 0, visit_date: $('#svvd').value, ...(extra || {}) }); dirty = false; };
   const keep = async () => { if (dirty && ed) { try { await save(); } catch (e) { return false; } } return true; }; /* typed values are saved before the page redraws */
