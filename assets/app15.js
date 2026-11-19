@@ -62,7 +62,7 @@ async function pgFees() {
       <div class="bar" style="margin-top:12px"><button class="btn" id="fps">Save</button><button class="btn sec" id="fpc">Cancel</button></div>`);
     const upx = () => { if ($('#fpx', m)) { const x = new Date($('#fpo', m).value + 'T00:00:00'); x.setDate(x.getDate() + d.valid_days); $('#fpx', m).textContent = isNaN(x) ? '—' : x.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } };
     $('#fpo', m).oninput = upx; upx(); $('#fpc', m).onclick = () => m.remove();
-    $('#fps', m).onclick = async () => { await api('fees', 'set', { id: r.id, paid: 1, paid_on: $('#fpo', m).value, amount: $('#fpa', m).value, ref: $('#fpr', m).value }); m.remove(); toast(`${K.title}: ${r.name} marked ${K.paid.toLowerCase()}`); reload(); }; };
+    $('#fps', m).onclick = async () => { await api('fees', 'set', { id: r.id, paid: 1, paid_on: $('#fpo', m).value, amount: $('#fpa', m).value, ref: $('#fpr', m).value }); m.remove(); toast(`${K.title}: ${r.name} marked ${K.paid.toLowerCase()}`); reload(); if (typeof pipeOffer === 'function' && (kind === 'feasibility' || kind === 'registration')) pipeOffer({ customer_id: r.customer_id }, kind === 'feasibility' ? 'feas_pay' : 'reg_pay'); }; };
   const bind = () => {
     $$('[data-dem]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.dem); await api('fees', 'set', { id: r.id, demanded: +r.demanded ? 0 : 1, demanded_on: today() }); reload(); });
     $$('[data-paid]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.paid);

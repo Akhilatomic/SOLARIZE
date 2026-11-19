@@ -394,7 +394,7 @@ async function renderTax(box, c, id) {
   const issue = async early => { const v = val(), k = calc(); if (!k.rows.length) return toast(PT ? 'Enter the total amount (incl. GST)' : 'Add at least one item', true);
     v.grand = k.grand; v.taxable = Math.round(k.tx * 100) / 100; v.tax = Math.round(k.tt * 100) / 100; const b = $('#tsv', box); if (b) b.disabled = true;
     try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: !g.doc && noAuto ? '' : $('#tno', box).value.trim(), data: v, ...(early ? { early: 1 } : {}) });
-      toast(`Tax bill ${r.number} saved`); TAX_KEEP = id; renderTax(box, c, id); } catch (e) { accReload().catch(() => { if (b) b.disabled = false; }); } };
+      toast(`Tax bill ${r.number} saved`); TAX_KEEP = id; renderTax(box, c, id); if (typeof pipeOffer === 'function') pipeOffer({ customer_id: id }, 'tax_bill'); } catch (e) { accReload().catch(() => { if (b) b.disabled = false; }); } };
   function drawIssue() { const el = $('#tiss', box), n = $('#tlkn', box), L = g.lock || {}, locked = !g.doc && !!L.locked;
     if (n) n.textContent = !g.doc && !L.locked && L.why === 'bank_left' ? `${L.msg}. The bill can be issued now; the bank releases its part after it gets the bill.` : '';
     if (!el) return;

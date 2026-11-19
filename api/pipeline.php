@@ -127,6 +127,17 @@ function handle_pipeline($a) {
       $svc = []; foreach (rows("SELECT project_id, MAX(CASE WHEN status='Done' THEN date END) last_done, MIN(CASE WHEN status='Scheduled' THEN date END) next_sched, COUNT(*) n FROM services GROUP BY project_id") as $r) $svc[$r['project_id']] = $r;
       foreach ($ps as &$p) { $p = strip_fin($p); $p['pending'] = pipe_pending($p); $p['receipts'] = ['feas_pay' => !empty($rec[$p['id']]['feas_pay']) || !empty($fee[$p['customer_id']]['feasibility']), 'reg_pay' => !empty($rec[$p['id']]['reg_pay']) || !empty($fee[$p['customer_id']]['registration'])]; $p['svc'] = $svc[$p['id']] ?? null; } unset($p);
       out(['stages' => PIPE, 'projects' => $ps, 'service_types' => SERVICE_TYPES]);
+    case 'next': /* GET pipeline/next&customer_id= (or &project_id=)&key=<step key>: the step was just recorded (receipt, fee paid in Finance, tax bill) -
+      the customer's project that is AT that step, and the step after it, so the CRM can offer "Move to ...". Nothing is moved here:
+      the stage never moves by itself (owner's rule); the person says yes with pipeline/move. Empty when there is nothing to offer. */
+      need('projects'); if (!can('projects', true)) out([]);
+      $key = (string)($_GET['key'] ?? ''); $keys = array_column(PIPE, 0); $i = array_search($key, $keys, true);
+      if ($i === false || $i >= count(PIPE) - 1) out([]);
+      $byP = (int)($_GET['project_id'] ?? 0) > 0; /* the project itself, or the customer's project that is at this step */
+      $p = row('SELECT p.*, c.name customer FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE ' . ($byP ? 'p.id' : 'p.customer_id') . '=? AND p.stage=? AND ' . cust_scope('c') . ' ORDER BY p.id DESC LIMIT 1', [(int)($_GET[$byP ? 'project_id' : 'customer_id'] ?? 0), PIPE[$i][1]]);
+      if (!$p || (PIPE[$i][3] === 'receipt' && !pipe_paid($p, $key))) out([]);
+      $n = $i + 1; if (PIPE[$n][0] === 'loan' && ($p['loan'] ?? '') === 'No') $n++;
+      out(['id' => (int)$p['id'], 'customer' => (string)$p['customer'], 'title' => (string)$p['title'], 'from' => PIPE[$i][1], 'to' => PIPE[$n][1]]);
     case 'move':
       need('projects', true);
       $p = row('SELECT * FROM projects WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$p) fail('Project not found', 404);

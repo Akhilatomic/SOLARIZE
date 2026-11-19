@@ -101,7 +101,7 @@ function receiptModal(pid, key, done) {
   dz.ondragover = e => { e.preventDefault(); dz.classList.add('hov'); }; dz.ondragleave = () => dz.classList.remove('hov'); dz.ondrop = e => { e.preventDefault(); dz.classList.remove('hov'); e.dataTransfer.files[0] && pick(e.dataTransfer.files[0]); };
   $('#rcx', m).onclick = () => m.remove();
   $('#rsv', m).onclick = async () => { const fd = new FormData(); fd.append('file', file); fd.append('project_id', pid); fd.append('stage', key); fd.append('amount', $('#ra', m).value); fd.append('date', $('#rd', m).value); fd.append('ref', $('#rr', m).value);
-    $('#rsv', m).disabled = true; try { await api('pipeline', 'receipt', fd); toast('Receipt uploaded'); if (typeof feasLoad === 'function') feasLoad(true); m.remove(); done && done(); } catch (e) { $('#rsv', m).disabled = false; } };
+    $('#rsv', m).disabled = true; try { await api('pipeline', 'receipt', fd); toast('Receipt uploaded'); if (typeof feasLoad === 'function') feasLoad(true); m.remove(); done && done(); pipeOffer({ project_id: pid }, key); } catch (e) { $('#rsv', m).disabled = false; } };
 }
 async function startModal({ customer_id }) {
   const cs = canR('customers') ? await api('customers', 'list') : [];
@@ -197,4 +197,19 @@ async function amcTab(p, box) {
   if ($('#tamc', box)) $('#tamc', box).onclick = () => amcModal(pp, () => route());
   if ($('#tsvc', box)) $('#tsvc', box).onclick = () => serviceModal(p.id, {}, types, () => route(), { ...pp, next: nx, district: '' });
   $$('[data-s]', box).forEach(el => el.onclick = () => w && serviceModal(p.id, p.services.find(s => s.id == el.dataset.s), types, () => route(), pp));
+}
+
+/* A step was just recorded somewhere (receipt uploaded, fee marked paid in Finance, tax bill issued): if the customer's project is at
+   that very step, offer the next one - a note with a "Move to ..." button for 20 seconds. Nothing moves unless it is pressed. */
+async function pipeOffer(of, key) {
+  const qs = of && +of.project_id ? '&project_id=' + +of.project_id : of && +of.customer_id ? '&customer_id=' + +of.customer_id : '';
+  if (!qs || typeof canW !== 'function' || !canW('projects')) return;
+  let o; try { o = await fetch(`api.php?m=pipeline&a=next${qs}&key=${encodeURIComponent(key)}`).then(r => r.json()); } catch (e) { return; }
+  if (!o || !o.id || o.error) return;
+  let box = $('#toasts'); if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
+  const t = document.createElement('div'); t.className = 'toast pipo';
+  t.innerHTML = `<i class="i i-bell"></i><span><b>${esc(o.customer || o.title || 'Project')}</b>: ${esc(o.from)} is done.</span><button type="button" class="btn sm" data-go>Move to ${esc(o.to)}</button><button type="button" class="ib" data-no title="Not now" aria-label="Not now"><i class="i i-x"></i></button>`;
+  box.appendChild(t); const tm = setTimeout(() => t.remove(), 20000);
+  $('[data-no]', t).onclick = () => { clearTimeout(tm); t.remove(); };
+  $('[data-go]', t).onclick = async () => { clearTimeout(tm); t.remove(); await moveTo({ id: o.id, stage: o.from, customer: o.customer }, o.to); };
 }

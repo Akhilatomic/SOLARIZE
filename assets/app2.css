@@ -1214,3 +1214,9 @@ html.touch .rmh-b{width:34px;height:34px}
 html.mt-frame aside,html.mt-frame .top,html.mt-frame #scrim{display:none!important}
 html.mt-frame #shell{padding-left:0!important}
 html.mt-frame body{padding:0}
+/* same phone already in the CRM (lead / customer form, phoneSameWatch in app.js) */
+.phsame{display:flex;gap:10px;align-items:flex-start;background:#fff4e0;color:#7a4500;border-radius:10px;padding:9px 12px;font-size:13px;line-height:1.4;margin:2px 0 6px;grid-column:1/-1}
+.phsame[hidden]{display:none}.phsame>.i{flex:none;margin-top:2px}.phsame>div{flex:1;min-width:0}
+.phsame .phs-r{display:flex;gap:10px;align-items:center;justify-content:space-between}.phsame .phs-r+.phs-r{margin-top:6px}.phsame .phs-r .btn{flex:none}
+/* "Move to the next step?" note (pipeOffer in app6.js) */
+.toast.pipo{max-width:440px;flex-wrap:wrap}.toast.pipo>span{flex:1 1 180px}.toast.pipo .btn{flex:none}.toast.pipo .ib{flex:none}

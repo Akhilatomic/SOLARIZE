@@ -702,6 +702,24 @@ async function pgLeads() {
   if ($('#lim')) $('#lim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; const rows = csvObjs(await f.text()); let n = 0; for (const r of rows) { if (!r.name) continue; await api('leads', 'save', { ...r, status: r.status || 'New' }); n++; } alert('Imported ' + n + ' leads'); route(); };
   draw(); DISC.lredraw = draw;
 }
+/* Same phone already in the CRM: while a number is typed into the lead or customer form, a note above the fields names the lead
+   or customer that has it and who it is with, with an Open button (api/claims.php phone_same). A warning only - saving still works. */
+function phoneSameWatch(m, skip = {}) {
+  const inp = $('[data-k="phone"]', m); if (!inp || inp.disabled) return;
+  const box = document.createElement('div'); box.className = 'phsame full'; box.hidden = true; (inp.closest('.two') || inp).before(box); /* above the fields: a note inside the grid would push the next fields to a new row */
+  let t = 0, seq = 0;
+  const check = async () => {
+    const d = inp.value.replace(/\D/g, ''), n = ++seq; if (d.length < 10) { box.hidden = true; return; }
+    let r; try { r = await fetch('api.php?m=' + (skip.mod || 'leads') + '&a=same', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: d, skip_lead: skip.lead || 0, skip_customer: skip.customer || 0 }) }).then(x => x.json()); } catch (e) { return; }
+    if (n !== seq || !document.body.contains(m)) return;
+    const rows = (r && r.rows) || []; if (!rows.length) { box.hidden = true; return; }
+    box.innerHTML = '<i class="i i-alert"></i><div>' + rows.map((x, i) => `<div class="phs-r"><span>This number is already a <b>${x.type}</b>${x.name ? ': <b>' + esc(x.name) + '</b>' : ' in the CRM'}${x.status ? ' (' + esc(x.status) + ')' : ''}${x.owner ? ' · with ' + esc(x.owner) : x.name && x.type === 'lead' ? ' · not claimed yet' : ''}</span>${x.open ? `<button type="button" class="btn sm sec" data-phs="${i}">Open</button>` : ''}</div>`).join('') + '</div>';
+    box.hidden = false;
+    $$('[data-phs]', box).forEach(b => b.onclick = () => { const x = rows[+b.dataset.phs]; m.remove(); if (x.type === 'lead') leadModal(x.id); else location.hash = '#/customers/' + x.id; });
+  };
+  inp.addEventListener('input', () => { clearTimeout(t); t = setTimeout(check, 450); });
+  if (inp.value) check();
+}
 async function leadModal(id) {
   const l = id ? await api('leads', 'get', undefined, '&id=' + id) : { status: 'New', source: S.lead_sources[0] };
   if (id && typeof refreshFeed === 'function' && (FEED.leads || []).some(x => x.id == id)) refreshFeed(); // viewed → drops off the dashboard list
@@ -723,6 +741,7 @@ async function leadModal(id) {
   const esc2 = e => { if (e.key === 'Escape' && document.body.contains(m) && !document.querySelector('.modal:not(.lmod)')) { m.remove(); document.removeEventListener('keydown', esc2); } }; document.addEventListener('keydown', esc2);
   $('#cx', m).onclick = () => m.remove();
   if (id && !w) $$('[data-k]', m).forEach(e => e.disabled = true);
+  if (!id || w) phoneSameWatch(m, { mod: 'leads', lead: id || 0 });
   bindLeadTabs(m, l, w);
   const cl = $('.lockbar .claim', m); if (cl) cl.onclick = async () => { if (await claimLead(id, l.name)) { m.remove(); leadModal(id); if (location.hash.startsWith('#/leads')) route(); } };
   if ($('#mul', m)) $('#mul', m).onclick = async () => { if (await unlockLead(id, l.assigned_to == ME.id)) { m.remove(); route(); } };
@@ -903,6 +922,7 @@ function customerModal(id, c = {}) {
   const m = modal(`<h2 style="margin-top:0">New customer</h2><div class="two">${cf.map(f => fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>${id ? '' : onbHtml()}
    <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
   $('#cx', m).onclick = () => m.remove(); if (!id) onbBind(m);
+  phoneSameWatch(m, { mod: 'customers', customer: id || 0 });
   const lt = $('[data-k="lead_type"]', m);
   $('#sv', m).onclick = async () => { const o = { ...c, id, ...collect(m) }; if (!o.name) return alert('Name required'); if (BA()) o.lead_type = 'own';
     if (!o.lead_type) { if (lt) lt.focus(); return alert('Choose the lead type: Own lead or Office'); }

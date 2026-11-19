@@ -90,8 +90,26 @@ function owner_notify($to, $col, $id, $text) {
   if ((int)$to && (int)$to !== uid()) q("INSERT INTO notifs(user_id,kind,$col,from_id,text) VALUES(?,'assign',?,?,?)", [(int)$to, (int)$id, uid(), mb_substr($text, 0, 200)]);
 }
 // Runs before the generic CRUD for customers: owner list and reassign. Owning a customer does not hide it from anyone.
+/* The same phone number already in the CRM (asked by the lead and customer forms while a number is typed in by hand, so the
+   same contact is not entered twice or worked by two people). POST leads/same or customers/same {phone, skip_lead, skip_customer}.
+   Numbers are compared by their last 10 digits, whatever spaces, dashes or +91 they were typed with. The answer names the record
+   and who has it - nothing more; a Business Associate (an outside partner) is only told that the number is already with the
+   company. `open` = this person may open that record. A warning only: saving is never refused. */
+function phone_same($in) {
+  $d = preg_replace('/\D/', '', (string)($in['phone'] ?? '')); if (strlen($d) < 10) out(['rows' => []]);
+  $d = substr($d, -10); $like = '%' . $d;
+  $clean = fn($col) => "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE($col,''),' ',''),'-',''),'+',''),'(',''),')','')";
+  $out = [];
+  foreach (rows('SELECT c.id, c.name, c.owner_id, u.name owner FROM customers c LEFT JOIN users u ON u.id=c.owner_id WHERE c.id<>? AND (' . $clean('c.phone') . ' LIKE ? OR ' . $clean('c.alt_phone') . ' LIKE ?) ORDER BY c.id DESC LIMIT 5', [(int)($in['skip_customer'] ?? 0), $like, $like]) as $c)
+    $out[] = ['type' => 'customer', 'id' => (int)$c['id'], 'name' => $c['name'], 'owner' => (string)($c['owner'] ?? ''), 'open' => can('customers') && (!is_ba() || (int)$c['owner_id'] === uid()) ? 1 : 0];
+  foreach (rows('SELECT l.id, l.name, l.status, l.assigned_to, u.name owner FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE l.id<>? AND COALESCE(l.customer_id,0)=0 AND ' . $clean('l.phone') . ' LIKE ? ORDER BY l.id DESC LIMIT 5', [(int)($in['skip_lead'] ?? 0), $like]) as $l)
+    $out[] = ['type' => 'lead', 'id' => (int)$l['id'], 'name' => $l['name'], 'status' => (string)$l['status'], 'owner' => (string)($l['owner'] ?? ''), 'open' => can('leads') && lead_can_read($l) ? 1 : 0];
+  if (is_ba()) $out = array_map(fn($r) => $r['open'] ? $r : ['type' => $r['type'], 'id' => 0, 'name' => '', 'owner' => '', 'open' => 0], $out);
+  out(['rows' => $out]);
+}
 function cust_guard($a, $in) {
   switch ($a) {
+    case 'same': phone_same($in);
     case 'owners':
       out(owner_candidates('customers'));
     case 'reassign':
@@ -232,6 +250,7 @@ function lead_remark_log($lid, $old, $new) {
 }
 function lead_guard($a, $in) {
   switch ($a) {
+    case 'same': phone_same($in);
     case 'remarks': /* GET leads/remarks&id= : newest first; only for a lead this person may see */
       need('leads'); $lid = (int)($_GET['id'] ?? 0);
       if (!row('SELECT l.id FROM leads l WHERE l.id=? AND ' . lead_scope(), [$lid])) fail('Not found', 404);
