@@ -86,7 +86,7 @@ const TEAM_RANGES = [['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'L
 /* 3 h 20 m / 45 m / 0 m (pure) */
 const presDur = s => { s = Math.max(0, Math.round(+s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? h + ' h ' + String(m).padStart(2, '0') + ' m' : m + ' m'; };
 async function teamTimes(m) { try { const r = await api('user', 'presence_time', undefined, '&range=' + TEAM_R); if (m !== TEAM_M) return; TEAM_T = r; teamList(m); } catch (e) { } }
-/* the time cell of one person: active (green) and idle (grey) time in the chosen range; others' times only for an admin or assistant manager */
+/* the time cell of one person: active (green) and idle (grey) time in the chosen range; others' times for all staff, not for a Business Associate */
 function teamTime(u) { const T = TEAM_T; if (!T) return ''; const t = (T.users || {})[u.id]; if (!T.all && +u.id !== +ME.id) return '';
   if (!t) return `<div class="tmt"><small class="mut">No time recorded</small></div>`;
   const tot = t.a + t.i, pct = tot ? Math.round(t.a / tot * 100) : 0;

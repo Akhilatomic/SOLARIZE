@@ -14,7 +14,9 @@ function presence_time_add($uid, $now, $prev, $isAct) {
   q('INSERT INTO presence_day(user_id,day,active_s,idle_s,first_at,last_at,act_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id,day) DO UPDATE SET active_s=active_s+?, idle_s=idle_s+?, last_at=?' . ($isAct ? ', act_at=' . (int)$now : ''),
     [$uid, $day, $a, $i, $now, $now, $isAct ? $now : 0, $a, $i, $now]);
 }
-function presence_time_all() { return is_admin() || ($_SESSION['role'] ?? '') === 'assistant_manager'; }
+/* Who sees everybody's active / idle time in Who is online: all the staff (owner's rule, 2026-11-19; before: admin and assistant manager).
+   A Business Associate is an outside partner and sees only their own time. */
+function presence_time_all() { return !is_ba(); }
 
 function handle_user($a) {
   switch ($a) {
@@ -35,7 +37,7 @@ function handle_user($a) {
       q('UPDATE users SET avatar=? WHERE id=?', [$name, $uid]);
       audit('avatar', 'users', $uid, $uid === uid() ? 'own photo' : 'photo for ' . $u['name']); out(['ok' => true, 'avatar' => $name]);
 
-    case 'presence_time': // GET: active / idle seconds per person for today / yesterday / week / month (everyone for an admin or assistant manager, else only your own)
+    case 'presence_time': // GET: active / idle seconds per person for today / yesterday / week / month (everyone's for staff; a Business Associate only their own)
       $rg = (string)($_GET['range'] ?? 'today'); $t0 = time(); $td = date('Y-m-d', $t0);
       [$from, $to] = ['yesterday' => [date('Y-m-d', $t0 - 86400), date('Y-m-d', $t0 - 86400)], 'week' => [date('Y-m-d', $t0 - 6 * 86400), $td], 'month' => [date('Y-m-d', $t0 - 29 * 86400), $td]][$rg] ?? [$td, $td];
       $all = presence_time_all(); $res = [];

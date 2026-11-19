@@ -64,7 +64,11 @@ chk((int)($yd['users'][$sid]['a'] ?? 0) === 7200 && (int)($yd['users'][$sid]['i'
 $wk = call($admin, 'user', 'presence_time', null, '&range=week');
 chk((int)($wk['users'][$sid]['a'] ?? 0) >= 7200 + $a0 - 2 && (int)($wk['users'][$sid]['d'] ?? 0) === 2, 'the last 7 days add the days up');
 $own = call($staff, 'user', 'presence_time', null, '&range=week');
-chk($own['_code'] === 200 && (int)$own['all'] === 0 && array_keys((array)$own['users']) === [(string)$sid] || array_map('intval', array_keys((array)$own['users'])) === [$sid], 'other staff see only their own time');
+chk($own['_code'] === 200 && (int)$own['all'] === 1 && (int)($own['users'][$sid]['a'] ?? 0) === (int)($wk['users'][$sid]['a'] ?? -1) && count((array)$own['users']) === count((array)$wk['users']), 'other staff get everyone’s time too, the same list as the admin');
+$ba = actor('ba'); $bid = (int)(call($admin, 'admin', 'user_save', ['name' => 'Tara Partner', 'username' => 'tarapartner', 'role' => 'ba', 'active' => 1, 'password' => $pw])['id'] ?? 0);
+call($ba, 'auth', 'login', ['username' => 'tarapartner', 'password' => $pw]); $beat($ba, 5);
+$bo = call($ba, 'user', 'presence_time', null, '&range=week');
+chk($bid && $bo['_code'] === 200 && (int)$bo['all'] === 0 && array_map('intval', array_keys((array)$bo['users'])) === [$bid], 'a Business Associate sees only their own time');
 chk(call(actor('nobody'), 'user', 'presence_time')['_code'] === 401, 'the time list needs sign-in');
 chk(call($admin, 'user', 'presence_time', null, '&range=bogus')['range'] === 'today', 'an unknown range means today');
 /* the beat without the new idle figure (an older open tab) still counts by its active flag */
