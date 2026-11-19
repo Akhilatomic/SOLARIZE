@@ -31,9 +31,7 @@ function fitPage(win) {
   return z;
 }
 function printDoc(title, inner, fit) {
-  const w = window.open('', '_blank'); if (!w) return toast('Allow pop-ups to print or save the PDF', true);
-  w.document.write(printHtml(title, inner, fit));
-  w.document.close(); setTimeout(() => { if (fit) fitPage(w); w.focus(); w.print(); }, 350);
+  printWin(printHtml(title, inner, fit), { delay: 350, before: w => { if (fit) fitPage(w); } });
 }
 /* tax bill layout (header with the title on the right, Bill to / Ship to, item table with CGST/SGST % and amount, totals beside the words) */
 const TAXDOC_CSS = `.dhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:2px solid #1d1d1f;padding-bottom:10px}
@@ -479,11 +477,7 @@ function mnrePage(v, ref, date, pn, iv) {
    </div></div>`;
 }
 function printLetter(title, page) {
-  const w = window.open('', '_blank'); if (!w) return toast('Allow pop-ups to print or save the PDF', true);
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4;margin:0}html,body{margin:0;background:#fff}${MNRE_CSS}</style></head><body>${page}</body></html>`);
-  w.document.close();
-  const im = w.document.querySelector('img'), go = () => setTimeout(() => { w.focus(); w.print(); }, 250);
-  if (!im || im.complete) go(); else { im.onload = go; im.onerror = go; }
+  printWin(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4;margin:0}html,body{margin:0;background:#fff}${MNRE_CSS}</style></head><body>${page}</body></html>`, { delay: 250 });
 }
 async function renderMnre(box, c, id) {
   box.innerHTML = '<p class="mut">Loading…</p>';

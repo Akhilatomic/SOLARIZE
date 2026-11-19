@@ -617,3 +617,13 @@ function strip_fin($r) {
   if (isset($r['quotes']) && is_array($r['quotes'])) foreach ($r['quotes'] as &$x) unset($x['total']);
   return $r;
 }
+
+/* An alert for one user (the bell, desktop and phone notifications): the one place that writes it. $ref = what it is about
+   (customer_id, lead_id, discussion_id - any of them); $from = who caused it (a user id), null for the CRM itself. */
+function notif_add($to, $kind, $text, array $ref = [], $from = null) {
+  $to = (int)$to; if (!$to) return;
+  $id = fn($k) => (int)($ref[$k] ?? 0) ?: null;
+  q('INSERT INTO notifs(user_id,kind,discussion_id,customer_id,lead_id,from_id,text) VALUES(?,?,?,?,?,?,?)', [$to, (string)$kind, $id('discussion_id'), $id('customer_id'), $id('lead_id'), $from === null ? null : (int)$from, (string)$text]);
+}
+/* ...from the signed-in person to somebody else (never to themself), cut to 200 characters */
+function notif_from_me($to, $kind, $text, array $ref = []) { if ((int)$to && (int)$to !== uid()) notif_add($to, $kind, mb_substr((string)$text, 0, 200), $ref, uid()); }

@@ -21,10 +21,7 @@ function handle_user($a) {
     case 'avatar': // GET id → image (URL carries a version, so it can be cached)
       $u = row('SELECT avatar FROM users WHERE id=?', [(int)($_GET['id'] ?? 0)]);
       $p = $u && $u['avatar'] ? avatar_path($u['avatar']) : ''; if (!$p || !is_file($p)) { http_response_code(404); exit; }
-      $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION)); $mime = ['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'][$ext] ?? 'image/jpeg';
-      header_remove('Content-Type'); header('Content-Type: ' . $mime); header('Cache-Control: private, max-age=604800');
-      header("Content-Security-Policy: sandbox; default-src 'none'; img-src 'self'"); header('Content-Length: ' . filesize($p));
-      readfile($p); exit;
+      serve_file($p, basename($p), ['mime' => FILE_MIME[strtolower(pathinfo($p, PATHINFO_EXTENSION))] ?? 'image/jpeg', 'inline' => true, 'cache' => 'private, max-age=604800', 'csp' => "sandbox; default-src 'none'; img-src 'self'"]);
 
     case 'avatar_set': // POST file [+ user_id for admins]
       $uid = (int)($_POST['user_id'] ?? 0) ?: uid();

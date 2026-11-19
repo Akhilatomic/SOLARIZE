@@ -47,7 +47,7 @@ function hr_mgr($m) { return can($m, true); }
 /* "20 Nov" or "20 Nov – 22 Nov" (+ half) for messages */
 function hr_lv_when($l) { $f = date('j M', strtotime($l['from_date'])); $t = date('j M', strtotime($l['to_date'])); return ($l['from_date'] === $l['to_date'] ? $f : "$f – $t") . ($l['half'] !== '' ? " ({$l['half']} half)" : ''); }
 /* bell message about a leave (kind 'leave'; opens the Leaves page) */
-function hr_lv_notify($to, $text) { $to = (int)$to; if ($to && $to !== uid()) q("INSERT INTO notifs(user_id,kind,from_id,text) VALUES(?,'leave',?,?)", [$to, uid(), mb_substr($text, 0, 200)]); }
+function hr_lv_notify($to, $text) { notif_from_me($to, 'leave', $text); }
 /* Approve a leave and bring attendance in line: a full-day leave removes the attendance entries on those days (the days then show
    as leave everywhere: Today, weekly, monthly, the person's own button); a half-day leave keeps the entry for the half worked. */
 function hr_lv_approve($l, $note = '') {

@@ -67,6 +67,18 @@ const LT_NAMES = { own: 'Own lead', office: 'Office', meta: 'Meta' }, LT_OPTS = 
 const ltBadge = t => LT_NAMES[t] ? `<span class="pill ltp lt-${t}" title="Lead type">${LT_NAMES[t]}</span>` : '';
 const BA = () => !!ME && ME.role === 'ba'; // Business Associate: own leads & customers only, no money, no WhatsApp, cannot delete or revert customers
 
+/* One way to open a print window (tax bill, receipts, warranty letter, fee lists, old-style quotation): the page is written into a
+   new tab, and once its pictures have loaded the print box opens - started from here, because the CRM's content rules do not let
+   a script inside the new tab run. o.before(win) runs just before printing (fitting a page); o.blocked = what to say when the
+   browser refused the new tab. Returns the window, or null. */
+function printWin(html, o = {}) {
+  const w = window.open('', '_blank'); if (!w) { sayBad(o.blocked || 'Allow pop-ups to print or save the PDF'); return null; }
+  w.document.write(html); w.document.close();
+  const go = () => setTimeout(() => { try { if (o.before) o.before(w); w.focus(); w.print(); } catch (e) { } }, o.delay || 300);
+  const wait = [...w.document.images].filter(i => !i.complete); let n = wait.length;
+  if (!n) go(); else { const one = () => { if (--n === 0) go(); }; wait.forEach(i => { i.addEventListener('load', one); i.addEventListener('error', one); }); }
+  return w;
+}
 /* Messages are shown inside the CRM (a red note, bottom right), not as a browser pop-up: a pop-up stops the whole page until it is
    pressed and, on a phone, covers the form. Before the notes exist (the very first moments) the browser's own box is the fallback. */
 const sayBad = msg => { if (typeof toast === 'function') toast(msg, true); else alert(msg); };
@@ -623,7 +635,10 @@ async function pgLeads() {
       status: l => ed(l, 'status', pill(l.status, stageCls(l.status))),
       city: l => ed(l, 'city', `<span class="clip">${esc(loc(l))}</span>`, loc(l)),
       owner: l => `<td class="ownc">${ownerCellRow(l)}</td>`,
-      remark: l => ed(l, 'remark', l.remark ? `<span class="rmh-c"><span class="clamp">${esc(l.remark)}</span><button type="button" class="rmh-b" data-rmh aria-label="Remark history" title="Remark history: every remark, who wrote it and when"><i class="i i-clock"></i></button></span>` : (l.can_edit ? '<span class="mut"><i>Add remark</i></span>' : ''), l.remark),
+      /* the history button carries the number of entries in the history; it stays when the remark was removed but a history exists */
+      remark: l => { const n = +l.rm_n || 0, add = l.can_edit ? '<span class="mut"><i>Add remark</i></span>' : '';
+        const hb = `<button type="button" class="rmh-b${n ? ' n' : ''}" data-rmh aria-label="Remark history${n ? ', ' + n + (n === 1 ? ' entry' : ' entries') : ''}" title="Remark history: ${n ? n + (n === 1 ? ' entry' : ' entries') + ' - ' : ''}every remark, who wrote it and when"><i class="i i-clock"></i>${n ? `<b>${n > 99 ? '99+' : n}</b>` : ''}</button>`;
+        return ed(l, 'remark', l.remark ? `<span class="rmh-c"><span class="clamp">${esc(l.remark)}</span>${hb}</span>` : (n ? `<span class="rmh-c"><span class="clamp">${add}</span>${hb}</span>` : add), l.remark); },
       appt: l => ed(l, 'appt', apptBadge(l)),
       cb: l => `<td data-cb="1" class="cbc${w && l.can_edit ? ' qe' : ''}">${cbBadge(l)}</td>` };
     const acts = l => !l.can_edit ? `<button class="ib" title="View" data-a="vw"><i class="i i-eye"></i></button>`
@@ -698,7 +713,7 @@ async function pgLeads() {
     else if (f === 'remark') { el = spellOn(document.createElement('textarea')); el.rows = 3; el.value = l.remark || ''; }
     else { el = document.createElement('input'); el.type = f === 'appt' ? 'date' : f === 'phone' ? 'tel' : 'text'; el.value = (f === 'location' ? (l.location || l.address) : l[f]) || ''; }
     td.innerHTML = ''; td.appendChild(el); el.focus(); if (f === 'remark') el.setSelectionRange(el.value.length, el.value.length); let fin = false;
-    const done = async save => { if (fin) return; fin = true; if (save && el.value !== (l[f] || '')) { if (f === 'name' && !el.value.trim()) { draw(); return; } l[f] = el.value; claimSaved(l, await api('leads', 'save', { ...l })); } draw(); };
+    const done = async save => { if (fin) return; fin = true; if (save && el.value !== (l[f] || '')) { if (f === 'name' && !el.value.trim()) { draw(); return; } const was = l[f] || ''; l[f] = el.value; claimSaved(l, await api('leads', 'save', { ...l })); if (f === 'remark' && was.trim() !== el.value.trim()) l.rm_n = (+l.rm_n || 0) + 1; /* a changed remark is one more entry in its history */ } draw(); };
     /* Enter saves; in the remark box Shift+Enter starts a new line. Not while a phone keyboard is still composing a word. */
     el.onblur = () => done(true); el.onchange = () => done(true); el.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing && !(f === 'remark' && e.shiftKey)) { e.preventDefault(); done(true); } if (e.key === 'Escape') done(false); };
   };

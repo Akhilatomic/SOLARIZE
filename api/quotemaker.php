@@ -137,12 +137,7 @@ function handle_qm($a) {
     case 'img': {
       $f = basename((string)($_GET['f'] ?? ''));
       if (!preg_match('/^qm-[0-9a-f]{24}\.(png|jpg|webp)$/', $f) || !is_file(up_dir() . '/' . $f)) fail('Not found', 404);
-      $types = ['png' => 'image/png', 'jpg' => 'image/jpeg', 'webp' => 'image/webp'];
-      header('Content-Type: ' . $types[pathinfo($f, PATHINFO_EXTENSION)]);
-      header('Cache-Control: private, max-age=604800');
-      header('Content-Length: ' . filesize(up_dir() . '/' . $f));
-      readfile(up_dir() . '/' . $f);
-      exit;
+      serve_file(up_dir() . '/' . $f, $f, ['cache' => 'private, max-age=604800']);
     }
     case 'settings_save': {
       if (!is_admin()) fail('Only an admin can change the quotation settings', 403);

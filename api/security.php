@@ -140,6 +140,24 @@ function sec_csrf() {
   if ($o !== '') { $h = parse_url($o, PHP_URL_HOST); if (!$h || strcasecmp($h, explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]) !== 0) fail('Request blocked', 403); }
 }
 
+// ---------- sending a stored file to the browser (documents, Folder files, survey photos, WhatsApp media, pictures) ----------
+// One function for every download, so each one gets the same safe headers: the real type only for the kinds a browser may show
+// (anything else is a download), no type guessing, a file name that cannot break the header.
+const FILE_MIME = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
+function file_mime($name) { return FILE_MIME[strtolower(pathinfo((string)$name, PATHINFO_EXTENSION))] ?? 'application/octet-stream'; }
+/* $o: mime (default: by the name's ending), download (true = always save to disk), inline (true/false = decide here instead),
+   cache (Cache-Control value), csp (Content-Security-Policy value), missing (message when the file is not on disk) */
+function serve_file($path, $name, array $o = []) {
+  if (!is_file($path)) fail($o['missing'] ?? 'File missing', 404);
+  $mime = (string)($o['mime'] ?? file_mime($name)) ?: 'application/octet-stream';
+  $inline = array_key_exists('inline', $o) ? (bool)$o['inline'] : (empty($o['download']) && $mime !== 'application/octet-stream');
+  header_remove('Content-Type'); header('Content-Type: ' . $mime); header('X-Content-Type-Options: nosniff'); header('Content-Length: ' . filesize($path));
+  if (!empty($o['cache'])) header('Cache-Control: ' . $o['cache']);
+  if (!empty($o['csp'])) header('Content-Security-Policy: ' . $o['csp']);
+  header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . str_replace(['"', "\r", "\n"], '', (string)$name) . '"');
+  readfile($path); exit;
+}
+
 // ---------- headers & errors ----------
 function sec_headers() {
   header('X-Content-Type-Options: nosniff');

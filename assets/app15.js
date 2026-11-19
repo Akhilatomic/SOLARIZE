@@ -88,9 +88,9 @@ async function pgFees() {
 }
 // printable list → browser "Save as PDF"
 function feesPdf(kind, K, rows, st) {
-  const co = (S.company || {}).name || 'Jasper Solar Solutions', w = window.open('', '_blank'); if (!w) return toast('Allow pop-ups to download the PDF', true);
+  const co = (S.company || {}).name || 'Jasper Solar Solutions';
   const total = rows.reduce((a, r) => a + (+r.amount || 0), 0);
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(K.title)} — ${new Date().toLocaleDateString('en-GB')}</title><style>
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(K.title)} — ${new Date().toLocaleDateString('en-GB')}</title><style>
     body{font:12px -apple-system,"Segoe UI",Arial,sans-serif;color:#1d1d1f;margin:28px}h1{font-size:20px;margin:0}.m{color:#6e6e73;margin:2px 0 14px}
     table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5ea;vertical-align:top}th{font-size:11px;color:#6e6e73;background:#f5f5f7}
     .r{color:#c4271f;font-weight:600}.g{color:#1e7a37;font-weight:600}tfoot td{font-weight:700;border-top:2px solid #1d1d1f}@page{margin:12mm}</style></head><body>
@@ -98,8 +98,8 @@ function feesPdf(kind, K, rows, st) {
     <table><thead><tr><th>#</th><th>Customer</th><th>Consumer no.</th><th>Address</th><th>Section</th><th>${kind === 'stamp' ? 'Stamp value' : 'Amount'}</th>${kind === 'stamp' ? '' : '<th>Demanded</th>'}<th>${K.paid}</th>${kind === 'feasibility' ? '<th>Expires</th>' : ''}</tr></thead><tbody>
     ${rows.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b><br>${esc(r.phone || '')}</td><td>${esc(r.consumer_no || '')}</td><td>${esc(r.address || '')}${r.district ? ', ' + esc(r.district) : ''}${r.pincode ? ' ' + esc(r.pincode) : ''}</td><td>${esc(r.kseb_section || '')}</td><td>${inr(r.amount)}</td>
       ${kind === 'stamp' ? '' : `<td>${+r.demanded ? fdate(r.demanded_on) || 'Yes' : '—'}</td>`}<td class="${+r.paid ? 'g' : ''}">${+r.paid ? fdate(r.paid_on) || 'Yes' : 'Pending'}</td>${kind === 'feasibility' ? `<td class="${st(r) === 'expired' || (r.days_left <= 3 && +r.paid) ? 'r' : ''}">${+r.paid ? fdate(r.expires) + (r.days_left < 0 ? ' (expired)' : ` (${r.days_left}d left)`) : '—'}</td>` : ''}</tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="5">Total</td><td>${inr(total)}</td><td colspan="${kind === 'feasibility' ? 3 : kind === 'stamp' ? 1 : 2}"></td></tr></tfoot></table></body></html>`);
-  w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 300);
+    <tfoot><tr><td colspan="5">Total</td><td>${inr(total)}</td><td colspan="${kind === 'feasibility' ? 3 : kind === 'stamp' ? 1 : 2}"></td></tr></tfoot></table></body></html>`;
+  printWin(html, { blocked: 'Allow pop-ups to download the PDF' });
 }
 
 // customer menus: add to / open the Finance lists

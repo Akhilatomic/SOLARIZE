@@ -34,7 +34,7 @@ function fee_alerts() {
     if ($lvl <= (int)$f['alert']) continue;
     $text = $lvl === 2 ? "Feasibility EXPIRED for {$f['name']} on " . $exp->format('d M Y') . ' — renew the feasibility payment'
       : "Feasibility for {$f['name']} expires " . ($left === 0 ? 'today' : "in $left day" . ($left === 1 ? '' : 's')) . ' (' . $exp->format('d M Y') . ')';
-    foreach ($to as $u) q("INSERT INTO notifs(user_id,kind,customer_id,from_id,text) VALUES(?,'feas',?,NULL,?)", [$u['id'], $f['customer_id'], $text]);
+    foreach ($to as $u) notif_add($u['id'], 'feas', $text, ['customer_id' => $f['customer_id']]);
     q('UPDATE fees SET alert=? WHERE id=?', [$lvl, $f['id']]);
   }
 }

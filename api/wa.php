@@ -225,10 +225,9 @@ function handle_wa($a) {
         $name = 'wa-' . bin2hex(random_bytes(8)) . '.' . $ext; file_put_contents("$dir/$name", $bytes);
         q('UPDATE wa_msgs SET file_path=?, mime=? WHERE id=?', [$name, $j['mime_type'] ?? $m['mime'], $m['id']]); $m['file_path'] = $name; $m['mime'] = $j['mime_type'] ?? $m['mime'];
       }
-      $p = "$dir/" . basename($m['file_path']); if (!$m['file_path'] || !is_file($p)) fail('Not found', 404);
-      header_remove('Content-Type'); header('Content-Type: ' . ($m['mime'] ?: 'application/octet-stream')); header('X-Content-Type-Options: nosniff');
-      header('Content-Disposition: ' . (preg_match('#^(image|audio|video)/|pdf#', (string)$m['mime']) ? 'inline' : 'attachment') . '; filename="' . str_replace('"', '', $m['filename'] ?: basename($p)) . '"');
-      readfile($p); exit;
+      if (!$m['file_path']) fail('Not found', 404);
+      $p = "$dir/" . basename($m['file_path']);
+      serve_file($p, $m['filename'] ?: basename($p), ['mime' => $m['mime'] ?: 'application/octet-stream', 'inline' => (bool)preg_match('#^(image|audio|video)/|pdf#', (string)$m['mime']), 'missing' => 'Not found']);
     case 'delete_chat':
       $c = wa_chat_get($in['chat_id'] ?? 0); trash_put('WhatsApp chat', ($c['name'] ?: '') . ' +' . $c['wa_id'], [['wa_chats', 'id=?', [$c['id']]], ['wa_msgs', 'chat_id=?', [$c['id']]]]); q('DELETE FROM wa_msgs WHERE chat_id=?', [$c['id']]); q('DELETE FROM wa_chats WHERE id=?', [$c['id']]); audit('wa_delete', 'wa_chats', $c['id'], $c['wa_id']); out(['ok' => true]);
     case 'assign':

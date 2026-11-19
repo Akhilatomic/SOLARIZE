@@ -20,7 +20,7 @@ function sv_clean($raw, array $keys) { $v = is_array($raw) ? $raw : []; $o = [];
   foreach ($keys as $k) { $x = trim((string)($v[$k] ?? '')); if ($x !== '') $o[$k] = mb_substr($x, 0, in_array($k, ['site_remarks', 'plant_remarks', 'plan_note']) ? 1000 : 120); } return $o; }
 function sv_default_user() { return (int)(row("SELECT id FROM users WHERE role='admin' AND active=1 AND COALESCE(deleted,0)=0 ORDER BY id LIMIT 1")['id'] ?? uid()); }
 function sv_users() { return rows("SELECT id, name, role FROM users WHERE active=1 AND COALESCE(deleted,0)=0 AND role<>'ba' ORDER BY name"); }
-function sv_notify($to, $s, $text) { $to = (int)$to; if ($to && $to !== uid()) q("INSERT INTO notifs(user_id,kind,customer_id,lead_id,from_id,text) VALUES(?,'survey',?,?,?,?)", [$to, $s['customer_id'] ?: null, $s['lead_id'] ?: null, uid(), mb_substr($text, 0, 200)]); }
+function sv_notify($to, $s, $text) { notif_from_me($to, 'survey', $text, ['customer_id' => $s['customer_id'], 'lead_id' => $s['lead_id']]); }
 /* the survey of a customer: its own, or the one started while the customer was still a lead */
 function sv_of_customer($cid) {
   return row('SELECT * FROM surveys WHERE customer_id=? ORDER BY id DESC LIMIT 1', [(int)$cid])
@@ -130,12 +130,7 @@ function handle_survey($a) {
       audit('survey_upload', 'surveys', $s['id'], SV_SLOTS[$slot] . ' · ' . $fl['name']); out(['id' => $fid]);
     case 'img': /* GET: show a photo / plan */
       need('survey'); $f = row('SELECT * FROM survey_files WHERE id=?', [(int)($_GET['id'] ?? 0)]); if (!$f) fail('Not found', 404); sv_row($f['survey_id']);
-      $p = "$dir/" . basename($f['path']); if (!is_file($p)) fail('File missing', 404);
-      $ext = strtolower(pathinfo($f['path'], PATHINFO_EXTENSION));
-      $mime = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'][$ext] ?? 'application/octet-stream';
-      header_remove('Content-Type'); header('Content-Type: ' . $mime); header('X-Content-Type-Options: nosniff'); header('Cache-Control: private, max-age=86400');
-      header('Content-Disposition: ' . ($mime === 'application/octet-stream' || !empty($_GET['dl']) ? 'attachment' : 'inline') . '; filename="' . str_replace('"', '', $f['name']) . '"');
-      readfile($p); exit;
+      serve_file("$dir/" . basename($f['path']), $f['name'], ['mime' => file_mime($f['path']), 'download' => !empty($_GET['dl']), 'cache' => 'private, max-age=86400']); /* the type is the stored file's, whatever it was called */
     case 'file_del':
       need('survey', true); $f = row('SELECT * FROM survey_files WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$f) fail('Not found', 404); $s = sv_row($f['survey_id']);
       trash_put('Site survey file', (SV_SLOTS[$f['slot']] ?? 'Photo') . ' · ' . $f['name'] . ' · ' . (sv_target($s)['name'] ?? ''), [['survey_files', 'id=?', [$f['id']]]], [['surveys', $s['id'], 'the site survey']]);

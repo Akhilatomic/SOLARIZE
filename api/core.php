@@ -327,13 +327,8 @@ function handle_files($a) {
   if ($a === 'get') {
     need('files'); need('customers'); $f = row('SELECT * FROM files WHERE id=?', [(int)($_GET['id'] ?? 0)]); if (!$f) fail('Not found', 404);
     if (!empty($_GET['dl']) || !empty($_GET['v'])) audit(!empty($_GET['dl']) ? 'doc_download' : 'doc_view', 'files', $f['id'], $f['name'] . ($f['item'] ? ' · ' . $f['item'] : '') . ' · customer ' . (int)$f['customer_id']);
-    $p = "$dir/" . basename($f['path']); if (!is_file($p)) fail('File missing', 404);
-    header_remove('Content-Type');
-    $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-    $mime = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'][$ext] ?? 'application/octet-stream'; header('Cache-Control: private, no-store'); header($mime === 'application/pdf' ? "Content-Security-Policy: default-src 'none'; object-src 'self'; frame-ancestors 'self'" : "Content-Security-Policy: sandbox; default-src 'none'; img-src 'self'; frame-ancestors 'self'");
-    header('Content-Type: ' . $mime); header('X-Content-Type-Options: nosniff');
-    header('Content-Disposition: ' . ($mime === 'application/octet-stream' || !empty($_GET['dl']) ? 'attachment' : 'inline') . '; filename="' . str_replace('"', '', $f['name']) . '"');
-    readfile($p); exit;
+    serve_file("$dir/" . basename($f['path']), $f['name'], ['download' => !empty($_GET['dl']), 'cache' => 'private, no-store',
+      'csp' => file_mime($f['name']) === 'application/pdf' ? "default-src 'none'; object-src 'self'; frame-ancestors 'self'" : "sandbox; default-src 'none'; img-src 'self'; frame-ancestors 'self'"]);
   }
   if ($a === 'zip') docs_zip((int)($_GET['customer_id'] ?? 0));
   /* keep: a copy of a paper the CRM made for the customer (KSEB, bank, quotation, tax bill, receipt, warranty certificate). The browser builds the PDF

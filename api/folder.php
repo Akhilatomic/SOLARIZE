@@ -2,21 +2,14 @@
 // Datasheet folder: a file manager - nested folders, files, bulk move/delete, ZIP download, public share links.
 
 const DS_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx', 'xls', 'xlsx'];
-const DS_MIME = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
+const DS_MIME = FILE_MIME; /* the kinds shown in the browser (api/security.php) */
 const DS_ZIP_MAX = 500 * 1024 * 1024;
 
 function ds_dir() { $d = dirname(__DIR__) . '/data/uploads'; if (!is_dir($d)) mkdir($d, 0750, true); return $d; }
 function ds_upload_err($code) {
   return [UPLOAD_ERR_INI_SIZE => 'File is larger than the server upload limit (raise upload_max_filesize in hPanel → PHP Configuration)', UPLOAD_ERR_FORM_SIZE => 'File too large', UPLOAD_ERR_PARTIAL => 'Upload was interrupted, try again', UPLOAD_ERR_NO_FILE => 'Choose a file first'][$code] ?? 'Upload failed';
 }
-function ds_serve($r, $download) {
-  $p = ds_dir() . '/' . basename($r['path']); if (!is_file($p)) fail('File missing', 404);
-  $ext = strtolower(pathinfo($r['file_name'], PATHINFO_EXTENSION)); $mime = DS_MIME[$ext] ?? 'application/octet-stream';
-  header_remove('Content-Type'); header('Content-Type: ' . $mime); header('X-Content-Type-Options: nosniff'); header('Content-Length: ' . filesize($p));
-  $inline = !$download && isset(DS_MIME[$ext]);
-  header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . str_replace(['"', "\r", "\n"], '', $r['file_name']) . '"');
-  readfile($p); exit;
-}
+function ds_serve($r, $download) { serve_file(ds_dir() . '/' . basename($r['path']), $r['file_name'], ['download' => $download]); }
 
 // Public, no login: api.php?m=share&t=<token>  (unguessable per-file token)
 function handle_share() {

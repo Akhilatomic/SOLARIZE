@@ -16,7 +16,7 @@ function disc_users($kind) { // who can be tagged
 function disc_notify($users, $kind, $disc, $t, $text) {
   $me = uid();
   foreach (array_unique(array_map('intval', $users)) as $u) if ($u && $u !== $me)
-    q('INSERT INTO notifs(user_id,kind,discussion_id,customer_id,lead_id,from_id,text) VALUES(?,?,?,?,?,?,?)', [$u, $kind, $disc, $t['kind'] === 'customer' ? $t['id'] : null, $t['kind'] === 'lead' ? $t['id'] : null, $me, mb_substr($text, 0, 200)]);
+    notif_add($u, $kind, mb_substr($text, 0, 200), ['discussion_id' => $disc, 'customer_id' => $t['kind'] === 'customer' ? $t['id'] : 0, 'lead_id' => $t['kind'] === 'lead' ? $t['id'] : 0], $me);
 }
 function disc_participants($disc) { // who posted, who started it, and everyone tagged in it
   $ids = array_map('intval', array_column(rows('SELECT DISTINCT user_id FROM disc_msgs WHERE discussion_id=? AND user_id>0 UNION SELECT created_by FROM discussions WHERE id=?', [$disc, $disc]), 'user_id'));
@@ -66,7 +66,7 @@ function disc_reminders($force = false) {
       $lm = row('SELECT m.user_id, u.name FROM disc_msgs m LEFT JOIN users u ON u.id=m.user_id WHERE m.id=?', [(int)$un['mid']]);
       $text = 'Unattended discussion on ' . ($dz['lead_id'] ? 'lead ' : '') . $dz['subject'] . ': ' . (int)$un['n'] . ' unread message' . ((int)$un['n'] === 1 ? '' : 's') . ', waiting ' . disc_wait_txt($now - disc_since($un['first'])) . ($lm && $lm['name'] ? ' (last from ' . $lm['name'] . ')' : '');
       q("UPDATE notifs SET seen=1 WHERE user_id=? AND discussion_id=? AND kind='remind' AND seen=0", [$u, $dz['id']]);
-      q("INSERT INTO notifs(user_id,kind,discussion_id,customer_id,lead_id,from_id,text) VALUES(?,'remind',?,?,?,?,?)", [$u, $dz['id'], $dz['customer_id'] ?: null, $dz['lead_id'] ?: null, $lm ? (int)$lm['user_id'] : null, mb_substr($text, 0, 200)]);
+      notif_add($u, 'remind', mb_substr($text, 0, 200), ['discussion_id' => $dz['id'], 'customer_id' => $dz['customer_id'], 'lead_id' => $dz['lead_id']], $lm ? (int)$lm['user_id'] : null);
       $sent++;
     }
   }

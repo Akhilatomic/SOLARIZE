@@ -70,5 +70,15 @@ chk($st() === $L['reg_pay'] && empty($next($admin, 'feas_pay')['id']), 'after sa
 call($admin, 'pipeline', 'move', ['id' => $pid, 'stage' => $L['feasibility'], 'skip' => 1]);
 chk(($next($admin, 'feasibility')['to'] ?? '') === $L['feas_pay'], 'no loan: after the feasibility check the offer skips "Loan registration"');
 
+/* --- remark history: the leads list carries the number of entries (shown on the history button) --- */
+$rl = (int)(call($s1, 'leads', 'save', ['name' => 'Wf Remark ' . $tag, 'phone' => '9000000' . random_int(100, 999), 'lead_type' => 'own'])['id'] ?? 0);
+$rmN = fn() => (int)(array_values(array_filter(call($s1, 'leads', 'list'), fn($l) => is_array($l) && (int)($l['id'] ?? 0) === $rl))[0]['rm_n'] ?? -1);
+chk($rl && $rmN() === 0, 'a lead without a remark: no history entries');
+$lead = call($s1, 'leads', 'get', null, '&id=' . $rl);
+call($s1, 'leads', 'save', ['remark' => 'Called, asked to ring back'] + $lead); call($s1, 'leads', 'save', ['remark' => 'Called, asked to ring back'] + $lead);
+chk($rmN() === 1, 'the first remark is one entry; saving it again unchanged adds none');
+call($s1, 'leads', 'save', ['remark' => 'Site visit on Friday'] + $lead); call($s1, 'leads', 'save', ['remark' => ''] + $lead);
+chk($rmN() === 3 && count(call($s1, 'leads', 'remarks', null, '&id=' . $rl)['rows'] ?? []) === 3, 'changed and then removed: three entries, the same number the history shows');
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail ? 1 : 0);

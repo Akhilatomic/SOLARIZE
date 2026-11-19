@@ -87,7 +87,7 @@ function owner_target($in, $mod) {
 }
 // bell + desktop notification for the new owner (not when you hand it to yourself)
 function owner_notify($to, $col, $id, $text) {
-  if ((int)$to && (int)$to !== uid()) q("INSERT INTO notifs(user_id,kind,$col,from_id,text) VALUES(?,'assign',?,?,?)", [(int)$to, (int)$id, uid(), mb_substr($text, 0, 200)]);
+  notif_from_me($to, 'assign', $text, [$col => $id]);
 }
 // Runs before the generic CRUD for customers: owner list and reassign. Owning a customer does not hide it from anyone.
 /* The same phone number already in the CRM (asked by the lead and customer forms while a number is typed in by hand, so the
@@ -132,7 +132,7 @@ function callback_alerts() {
     if (!q('UPDATE leads SET callback_sent=1 WHERE id=? AND callback_sent=0', [$l['id']])->rowCount()) continue; // another poll sent it already
     $text = 'Call back ' . $l['name'] . ($l['phone'] !== '' ? ' · ' . $l['phone'] : '') . ($l['callback_note'] !== '' ? ' — ' . $l['callback_note'] : '');
     foreach (array_unique(array_filter([(int)$l['callback_by'], (int)$l['assigned_to']])) as $u)
-      q("INSERT INTO notifs(user_id,kind,lead_id,from_id,text) VALUES(?,'callback',?,NULL,?)", [$u, $l['id'], $text]);
+      notif_add($u, 'callback', $text, ['lead_id' => $l['id']]);
   }
 }
 
@@ -235,7 +235,7 @@ function claim_release() {
     $who = (string)($l['owner_name'] ?? '') !== '' ? $l['owner_name'] : 'its holder';
     $held = claim_held_by($l); $what = $held === 'appt' ? 'the appointment' : 'the call back'; $hh = CLAIM_HOLD_HOURS;
     q("INSERT INTO notes(entity,entity_id,text,user) VALUES('leads',?,?,'System')", [$l['id'], $held ? "Not converted to a customer within $hh hours after $what (claimed by $who) (automatic) — unlocked for everyone" : "Not converted to a customer within $h hours of being claimed by $who (automatic) — unlocked for everyone"]);
-    q("INSERT INTO notifs(user_id,kind,lead_id,from_id,text) VALUES(?,'assign',?,NULL,?)", [(int)$l['assigned_to'], $l['id'], mb_substr($held ? "Your claim on {$l['name']} ended $hh hours after $what — the lead is open to everyone again" : "Your claim on {$l['name']} ended after $h hours — the lead is open to everyone again", 0, 200)]);
+    notif_add($l['assigned_to'], 'assign', mb_substr($held ? "Your claim on {$l['name']} ended $hh hours after $what — the lead is open to everyone again" : "Your claim on {$l['name']} ended after $h hours — the lead is open to everyone again", 0, 200), ['lead_id' => $l['id']]);
     $n++;
   }
   if ($n) audit('leads_unlocked', 'leads', null, "$n claimed lead(s) not converted within $h hours unlocked");
@@ -258,7 +258,7 @@ function lead_guard($a, $in) {
     case 'list':
       need('leads');
       try { claim_release(); } catch (Throwable $e) { } /* claims that ran out are open again before the list is read */
-      out(array_map(fn($x) => strip_fin(lead_mask($x + ['unlock_at' => claim_unlock_at($x), 'hold' => claim_held_by($x), 'grace_used' => claim_ext_used($x), 'grace_max' => CLAIM_GRACE_MAX])), rows('SELECT l.*, u.name owner_name, u.avatar owner_av FROM leads l LEFT JOIN users u ON u.id=l.assigned_to WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC')));
+      out(array_map(fn($x) => strip_fin(lead_mask($x + ['unlock_at' => claim_unlock_at($x), 'hold' => claim_held_by($x), 'grace_used' => claim_ext_used($x), 'grace_max' => CLAIM_GRACE_MAX])), rows('SELECT l.*, u.name owner_name, u.avatar owner_av, COALESCE(rc.n,0) rm_n FROM leads l LEFT JOIN users u ON u.id=l.assigned_to LEFT JOIN (SELECT lead_id, COUNT(*) n FROM lead_remarks GROUP BY lead_id) rc ON rc.lead_id=l.id WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC'))); /* rm_n: entries in the remark history (the number on the history button) */
     case 'get':
       need('leads');
       $l = lead_or_404($_GET['id'] ?? 0);
