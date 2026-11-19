@@ -168,7 +168,7 @@ async function renderMetaCard(soft) {
      <div class="full"><label>Lead form IDs (optional, comma separated)</label><input id="m-forms" value="${esc(cfg.form_ids)}"></div></div>
      <div class="bar" style="margin-top:10px"><button class="btn" id="m-save">Save</button><button class="btn sec" id="m-test">Test connection</button>${cfg.token_set ? '<button class="btn bad" id="m-clear">Disconnect</button>' : ''}</div><div id="m-res" class="mut" style="font-size:13px"></div>
      <p class="mut" style="font-size:13px;margin:14px 0 4px"><b>Keep syncing when nobody is logged in (optional):</b> in Hostinger hPanel → Advanced → Cron Jobs, add a job every 30 minutes with this command:</p>
-     <input readonly id="m-cron" style="font-family:monospace;font-size:12px" value="wget -q -O /dev/null &quot;${esc(location.origin + location.pathname.replace(/[^/]*$/, ''))}api.php?m=meta&a=cron&key=${esc(cfg.cron_key)}&quot;"></details>` : ''}</div>`;
+     <input readonly id="m-cron" style="font-family:monospace;font-size:12px" value="wget -q -O /dev/null --header=&quot;X-Cron-Key: ${esc(cfg.cron_key)}&quot; &quot;${esc(location.origin + location.pathname.replace(/[^/]*$/, ''))}api.php?m=meta&a=cron&quot;"></details>` : ''}</div>`;
   if ($('#msync')) $('#msync').onclick = e => manualSync(e.currentTarget);
   if (!adm || !cfg) return;
   $('#m-save').onclick = async () => { await api('meta', 'save', { page_id: $('#m-page').value, token: $('#m-token').value, form_ids: $('#m-forms').value }); toast('Saved'); renderMetaCard(); };

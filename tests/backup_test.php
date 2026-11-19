@@ -59,6 +59,10 @@ chk($cA && $d1 && $d2 && $d3 && $d4 && $kept && $fold && $sub && $s1 && $s2, 'a 
 /* --- 1. the backup --- */
 $info = call($admin, 'reset', 'backup_info');
 chk($info['_code'] === 200 && $info['files'] >= 7 && $info['bytes'] > 0 && $info['upload_limit'] > 0, 'backup info: how many files, how big, and the upload limit');
+/* a download asks for the admin's password again (10 minutes, this sign-in only) */
+chk(call($admin, 'reset', 'backup_zip', null, '', false, true)['_code'] === 403 && call($admin, 'admin', 'backup', null, '', false, true)['_code'] === 403 && call($admin, 'reset', 'unlock', ['check' => 1])['ok'] === false, 'a backup download is refused until the password is typed again');
+chk(call($admin, 'reset', 'unlock', ['password' => 'not-the-password1'])['_code'] === 403 && call($admin, 'reset', 'backup_zip', null, '', false, true)['_code'] === 403, 'a wrong password opens nothing');
+chk((call($admin, 'reset', 'unlock', ['password' => $pw])['ok'] ?? false) === true && call($admin, 'reset', 'unlock', ['check' => 1])['ok'] === true, 'the right password opens the downloads');
 $z0 = call($admin, 'reset', 'backup_zip', null, '', false, true); $n0 = zipNames($z0['_text']);
 chk($z0['_code'] === 200 && is_array($n0) && isset($n0['solarize-backup.json'], $n0['crm.sqlite']) && count($n0) === 2 && strpos($n0['crm.sqlite'], 'SQLite format 3') === 0, 'database-only ZIP: the note and a readable database, nothing else');
 $zf = call($admin, 'reset', 'backup_zip', null, '&files=1', false, true); $nf = zipNames($zf['_text']); $note = json_decode($nf['solarize-backup.json'] ?? '', true);

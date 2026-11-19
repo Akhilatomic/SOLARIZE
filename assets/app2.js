@@ -609,3 +609,23 @@ async function drawAccess() {
   };
   render();
 }
+
+/* Backup downloads ask for the admin's password again (api/reset.php bk_unlock): one click on an open CRM must not hand over the
+   whole database. The password opens the downloads for 10 minutes on this sign-in. */
+document.addEventListener('click', async e => {
+  const a = e.target.closest && e.target.closest('a[href^="api.php?m=reset&a=backup_"], a[href^="api.php?m=admin&a=backup"]'); if (!a) return;
+  e.preventDefault();
+  const go = () => { location.href = a.getAttribute('href'); };
+  const post = b => fetch('api.php?m=reset&a=unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json()).catch(() => ({ error: 'No connection - try again' }));
+  if ((await post({ check: 1 })).ok) return go();
+  const m = modal(`<h2 style="margin-top:0">Download backup</h2><p class="mut">A backup holds every customer's details and the staff logins. Type your password to download it.</p>
+    <div><label>Your password</label><input type="password" id="bkpw" autocomplete="current-password"></div><div class="err" id="bker"></div>
+    <div class="bar" style="margin-top:12px"><button class="btn" id="bkgo"><i class="i i-download"></i> Download</button><button class="btn sec" id="bkno">Cancel</button></div>`);
+  const run = async () => {
+    $('#bkgo', m).disabled = true; const r = await post({ password: $('#bkpw', m).value }); $('#bkgo', m).disabled = false;
+    if (r.error) { $('#bker', m).textContent = r.error; $('#bkpw', m).select(); return; }
+    m.remove(); go();
+  };
+  $('#bkgo', m).onclick = run; $('#bkno', m).onclick = () => m.remove();
+  $('#bkpw', m).addEventListener('keydown', ev => { if (ev.key === 'Enter') run(); }); $('#bkpw', m).focus();
+});

@@ -4,11 +4,27 @@
 
 function backups_dir() { $d = dirname(__DIR__) . '/data/backups'; if (!is_dir($d)) mkdir($d, 0750, true); return $d; }
 
+/* A backup holds every customer's details (Aadhaar, PAN, bank account) and the staff logins. Downloading one asks for the admin's
+   password again - a CRM left open on a desk, or a stolen session, cannot take the whole database with one click. The password
+   opens the downloads for BK_UNLOCK_SECS, for this sign-in only. Wrong tries count towards the sign-in lock. */
+const BK_UNLOCK_SECS = 600;
+function bk_unlock_ok() { $u = kv_get('bk_unlock_' . uid(), ['t' => 0, 's' => '']); return time() - (int)$u['t'] < BK_UNLOCK_SECS && session_id() !== '' && hash_equals((string)$u['s'], hash('sha256', session_id())); }
+function bk_unlock_set() { kv_set('bk_unlock_' . uid(), ['t' => time(), 's' => hash('sha256', session_id())]); }
+function bk_unlock_need() { if (!bk_unlock_ok()) out(['error' => 'Type your password to download a backup', 'unlock' => 1, 'quiet' => 1], 403); }
+function bk_unlock($in) {
+  if (!empty($in['check'])) out(['ok' => bk_unlock_ok()]);
+  $me = row('SELECT * FROM users WHERE id=?', [uid()]); if (!$me) fail('Unauthorized', 401);
+  login_guard_check($me['username']);
+  if (!password_verify((string)($in['password'] ?? ''), $me['hash'])) { login_guard_fail($me['username']); out(['error' => 'Wrong password', 'quiet' => 1], 403); }
+  bk_unlock_set(); audit('backup_unlock', 'security', null, 'from ' . client_ip()); out(['ok' => true]);
+}
+
 function handle_reset($a) {
   if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
   $in = body();
   /* full backup to download, and restoring from one (api/backup.php) */
-  if ($a === 'backup_zip') bk_download();
+  if ($a === 'unlock') bk_unlock($in);
+  if ($a === 'backup_zip') { bk_unlock_need(); bk_download(); }
   if ($a === 'backup_info') bk_info();
   if ($a === 'restore_check') bk_check();
   if ($a === 'restore_run') bk_run($in);
@@ -18,6 +34,7 @@ function handle_reset($a) {
     usort($out, fn($x, $y) => strcmp($y['name'], $x['name'])); out($out);
   }
   if ($a === 'backup_get') {
+    bk_unlock_need();
     $f = backups_dir() . '/' . basename((string)($_GET['name'] ?? ''));
     if (!preg_match('/^[\w.-]+\.(sqlite|zip)$/', basename($f)) || preg_match('/^(restore|snap)-/', basename($f)) || !is_file($f)) fail('Backup not found', 404);
     header_remove('Content-Type'); header('Content-Type: application/octet-stream'); header('Content-Disposition: attachment; filename="' . basename($f) . '"'); readfile($f); exit;
@@ -27,6 +44,7 @@ function handle_reset($a) {
   $me = row('SELECT * FROM users WHERE id=?', [uid()]);
   if (!$me || !password_verify((string)($in['password'] ?? ''), $me['hash'])) fail('Wrong admin password', 401);
   if (($in['confirm'] ?? '') !== 'RESET') fail('Type RESET to confirm');
+  bk_unlock_set(); /* the password was just given: the backup made before the reset can be downloaded straight away */
   $o = $in['opts'] ?? [];
   $db = db();
 

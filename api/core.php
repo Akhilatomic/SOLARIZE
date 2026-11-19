@@ -141,6 +141,9 @@ function handle_crud($t, $a) {
       out(['id' => $id] + ($t === 'leads' ? claim_state($id) : [])); /* leads: the claim clock may have moved with the appointment */
     case 'delete':
       $id = (int)($in['id'] ?? 0);
+      /* All or nothing: the write lock is taken before the first step, so the delete cannot stop half-way (another request holding
+         the database) and leave a record with part of its projects, papers and notes gone. An error undoes every step. */
+      db()->exec('BEGIN IMMEDIATE');
       trash_crud($t, $id); // snapshot into the Recycle bin first (restorable for 72 hours)
       if ($t === 'customers') {
         q('DELETE FROM kseb_logins WHERE customer_id=?', [$id]); q('DELETE FROM plant WHERE customer_id=?', [$id]); q('DELETE FROM fees WHERE customer_id=?', [$id]); q('DELETE FROM gen_docs WHERE customer_id=?', [$id]); q('DELETE FROM commissions WHERE customer_id=?', [$id]); q('DELETE FROM cust_cost WHERE customer_id=?', [$id]); q('DELETE FROM acc_track WHERE customer_id=?', [$id]);
@@ -153,7 +156,7 @@ function handle_crud($t, $a) {
         q("DELETE FROM discussions WHERE $col=?", [$id]); q("DELETE FROM notifs WHERE $col=?", [$id]); }
       if ($t === 'campaigns') { q('DELETE FROM ad_spend WHERE campaign_id=?', [$id]); q('UPDATE leads SET campaign_id=NULL WHERE campaign_id=?', [$id]); }
       q("DELETE FROM $t WHERE id=?", [$id]); q('DELETE FROM notes WHERE entity=? AND entity_id=?', [$t, $id]);
-      audit('delete', $t, $id); out(['ok' => true]);
+      audit('delete', $t, $id); db()->exec('COMMIT'); out(['ok' => true]);
     case 'revert': // customer → back to leads (undo a conversion)
       if ($t !== 'customers') fail('Unknown action', 404);
       need('leads', true);
@@ -170,6 +173,7 @@ function handle_crud($t, $a) {
       }
       if ((int)$pay['n'] && !is_admin()) fail('This customer has recorded payments. Only an admin can revert it to a lead.', 403);
       $linked = array_column(rows('SELECT id FROM leads WHERE customer_id=?', [$cu['id']]), 'id');
+      db()->exec('BEGIN IMMEDIATE'); /* all or nothing, as in delete */
       trash_put('Customer (reverted to lead)', $cu['name'] . ($projs ? ' · ' . count($projs) . ' project(s)' : '') . ($nf ? " · $nf document(s)" : ''), trash_spec_customer($cu['id'], false), [], [['leads', 'customer_id', $cu['id'], $linked]]);
       foreach ($pids as $pid) { purge_project($pid); q('DELETE FROM project_steps WHERE project_id=?', [$pid]); q('DELETE FROM stage_data WHERE project_id=?', [$pid]); q('DELETE FROM services WHERE project_id=?', [$pid]); q('DELETE FROM projects WHERE id=?', [$pid]); }
       foreach (rows('SELECT path FROM files WHERE customer_id=?', [$cu['id']]) as $f) @unlink(dirname(__DIR__) . '/data/uploads/' . basename($f['path']));
@@ -195,6 +199,7 @@ function handle_crud($t, $a) {
       q('UPDATE messages SET lead_id=COALESCE(lead_id, ?), customer_id=NULL WHERE customer_id=?', [$lid, $cu['id']]); // WhatsApp log stays with the lead
       q('DELETE FROM kseb_logins WHERE customer_id=?', [$cu['id']]); q('DELETE FROM plant WHERE customer_id=?', [$cu['id']]); q('DELETE FROM fees WHERE customer_id=?', [$cu['id']]); q('DELETE FROM gen_docs WHERE customer_id=?', [$cu['id']]); q('DELETE FROM commissions WHERE customer_id=?', [$cu['id']]); q('DELETE FROM cust_cost WHERE customer_id=?', [$cu['id']]); q('DELETE FROM acc_track WHERE customer_id=?', [$cu['id']]); q('DELETE FROM customers WHERE id=?', [$cu['id']]);
       audit('revert', 'customers', $cu['id'], "{$cu['name']} → lead $lid" . ($why ? " · $why" : '') . ($gone ? " · deleted $gone" : ''));
+      db()->exec('COMMIT');
       out(['lead_id' => $lid, 'reopened' => $l ? 1 : 0]);
     case 'convert':
       if ($t !== 'leads') fail('Unknown action', 404);

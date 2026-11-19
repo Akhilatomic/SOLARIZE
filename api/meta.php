@@ -4,7 +4,19 @@
 
 function kv_get($k, $def) { $r = row('SELECT v FROM settings WHERE k=?', [$k]); return $r ? (json_decode($r['v'], true) ?: []) + $def : $def; }
 function kv_set($k, $v) { q('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', [$k, json_encode($v, JSON_UNESCAPED_UNICODE)]); }
-function meta_cfg() { return kv_get('meta_cfg', ['page_id' => '', 'token' => '', 'form_ids' => '', 'cron_key' => '', 'api_base' => 'https://graph.facebook.com/v21.0']); }
+/* Access tokens and the App Secret are kept encrypted (AES-256-GCM with data/mail.key, the key that also locks the saved email
+   passwords and is never put in a backup) - a copy of the database or a backup alone does not give them away. A value saved
+   before this is read as it is and locked at that moment. On another server (other key) they read as empty: type them in again. */
+function sec_cfg_lock($v) { $v = (string)$v; return $v === '' || strncmp($v, 'enc:', 4) === 0 || !function_exists('openssl_encrypt') ? $v : 'enc:' . mail_enc($v); }
+function sec_cfg_open($v) { $v = (string)$v; return strncmp($v, 'enc:', 4) === 0 ? mail_dec(substr($v, 4)) : $v; }
+function sec_cfg_get($k, array $secret, array $def) {
+  $c = kv_get($k, $def); $plain = false;
+  foreach ($secret as $f) { $v = (string)($c[$f] ?? ''); if ($v !== '' && strncmp($v, 'enc:', 4) !== 0) $plain = true; $c[$f] = sec_cfg_open($v); }
+  if ($plain) { try { sec_cfg_set($k, $secret, $c); } catch (Throwable $e) { } }
+  return $c;
+}
+function sec_cfg_set($k, array $secret, array $c) { foreach ($secret as $f) $c[$f] = sec_cfg_lock($c[$f] ?? ''); kv_set($k, $c); }
+function meta_cfg() { return sec_cfg_get('meta_cfg', ['token'], ['page_id' => '', 'token' => '', 'form_ids' => '', 'cron_key' => '', 'api_base' => 'https://graph.facebook.com/v21.0']); }
 function meta_state() { return kv_get('meta_state', ['last_try' => 0, 'last_ok' => 0, 'last_error' => '', 'last_detail' => null, 'last_new' => 0, 'total_new' => 0, 'running' => 0]); }
 
 /* A Meta error keeps what the sync was doing and Meta's own code / subcode / trace id (Meta support asks for it),
@@ -160,7 +172,7 @@ function handle_meta($a) {
   if (($_SESSION['role'] ?? '') !== 'admin') fail('Admin only', 403);
   if ($a === 'config') {
     $c = meta_cfg();
-    if ($c['cron_key'] === '') { $c['cron_key'] = bin2hex(random_bytes(16)); kv_set('meta_cfg', $c); }
+    if ($c['cron_key'] === '') { $c['cron_key'] = bin2hex(random_bytes(16)); sec_cfg_set('meta_cfg', ['token'], $c); }
     out(['page_id' => $c['page_id'], 'form_ids' => $c['form_ids'], 'token_set' => $c['token'] !== '', 'token_hint' => $c['token'] !== '' ? '••••' . substr($c['token'], -4) : '', 'cron_key' => $c['cron_key'], 'state' => meta_public_state()]);
   }
   if ($a === 'save') {
@@ -171,7 +183,7 @@ function handle_meta($a) {
     if (!empty($in['clear_token'])) $c['token'] = '';
     if ($c['cron_key'] === '') $c['cron_key'] = bin2hex(random_bytes(16));
     if (!empty($in['regen_key'])) $c['cron_key'] = bin2hex(random_bytes(16));
-    kv_set('meta_cfg', $c); audit('meta_config', 'settings', null, 'updated'); out(['ok' => true]);
+    sec_cfg_set('meta_cfg', ['token'], $c); audit('meta_config', 'settings', null, 'updated'); out(['ok' => true]);
   }
   if ($a === 'test') {
     $c = meta_cfg(); if ($c['token'] === '' || $c['page_id'] === '') fail('Save the Page ID and access token first');
@@ -188,7 +200,9 @@ function handle_meta($a) {
 function handle_meta_cron() {
   header('Content-Type: text/plain');
   $c = meta_cfg();
-  if ($c['cron_key'] === '' || !hash_equals($c['cron_key'], (string)($_GET['key'] ?? ''))) { http_response_code(403); echo 'forbidden'; exit; }
+  /* the key comes in the X-Cron-Key header (an address with the key in it is written to the server's access log); a job set up before that still sends it in the address */
+  $key = (string)($_SERVER['HTTP_X_CRON_KEY'] ?? ($_GET['key'] ?? ''));
+  if ($c['cron_key'] === '' || $key === '' || !hash_equals($c['cron_key'], $key)) { http_response_code(403); echo 'forbidden'; exit; }
   $r = meta_sync(600);
   try { lead_autolost(); } catch (Throwable $e) { } /* the cron also runs when nobody has the CRM open */
   echo isset($r['error']) ? 'ERROR ' . $r['error'] : (isset($r['skipped']) ? 'SKIPPED ' . $r['skipped'] : 'OK ' . $r['new'] . ' new');

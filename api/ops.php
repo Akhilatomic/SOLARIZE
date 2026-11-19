@@ -214,6 +214,7 @@ function handle_admin($a) {
       $s = []; foreach (['users', 'leads', 'customers', 'projects', 'quotes', 'files', 'campaigns', 'messages', 'audit_log'] as $t) $s[$t] = (int)row("SELECT COUNT(*) c FROM $t")['c'];
       $s['db_kb'] = round(filesize(dirname(__DIR__) . '/data/crm.sqlite') / 1024); out($s);
     case 'backup':
+      bk_unlock_need(); /* the admin's password again (api/reset.php) */
       db()->exec('PRAGMA wal_checkpoint(TRUNCATE)');
       header_remove('Content-Type'); header('Content-Type: application/octet-stream');
       header('Content-Disposition: attachment; filename="solarize-backup-' . date('Y-m-d') . '.sqlite"');

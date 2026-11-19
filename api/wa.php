@@ -2,7 +2,7 @@
 // WhatsApp Business Cloud API inbox: webhook (receive + delivery status), send text / template / media / datasheets,
 // chats linked to leads & customers, assignment, 24-hour service window. Secrets live in settings 'wa_cfg' (never sent to browsers).
 
-function wa_cfg() { return kv_get('wa_cfg', ['phone_id' => '', 'waba_id' => '', 'token' => '', 'app_secret' => '', 'verify_token' => '', 'api_base' => 'https://graph.facebook.com/v21.0', 'display' => '']); }
+function wa_cfg() { return sec_cfg_get('wa_cfg', ['token', 'app_secret'], ['phone_id' => '', 'waba_id' => '', 'token' => '', 'app_secret' => '', 'verify_token' => '', 'api_base' => 'https://graph.facebook.com/v21.0', 'display' => '']); }
 function wa_on() { $c = wa_cfg(); return $c['phone_id'] !== '' && $c['token'] !== ''; }
 function wa_digits($p) {
   $raw = trim((string)$p); $d = preg_replace('/\D/', '', $raw);
@@ -89,10 +89,13 @@ function handle_wa_hook() {
     http_response_code(403); echo 'forbidden'; exit;
   }
   $raw = file_get_contents('php://input');
-  $sigOk = $c['app_secret'] === '' || hash_equals('sha256=' . hash_hmac('sha256', $raw, $c['app_secret']), $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? '');
+  $sigOk = $c['app_secret'] !== '' && hash_equals('sha256=' . hash_hmac('sha256', $raw, $c['app_secret']), $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? '');
   $pk = json_decode($raw, true) ?: []; $kind = isset($pk['entry'][0]['changes'][0]['value']['messages']) ? 'message' : (isset($pk['entry'][0]['changes'][0]['value']['statuses']) ? 'status' : 'other');
   $h = kv_get('wa_hook', ['count' => 0]); $h['count']++; $h['last_at'] = gmdate('Y-m-d H:i:s'); $h['last_ok'] = $sigOk ? 1 : 0; $h['last_kind'] = $kind; if ($sigOk && $kind === 'message') $h['last_msg_at'] = $h['last_at']; kv_set('wa_hook', $h);
-  if ($c['app_secret'] !== '') { $sig = $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? ''; if (!hash_equals('sha256=' . hash_hmac('sha256', $raw, $c['app_secret']), $sig)) { http_response_code(401); echo 'bad signature'; exit; } }
+  /* Only Meta can sign a message with the App Secret. Without a saved secret nothing can be checked, so nothing is taken in
+     (before, an unsigned post was accepted then - anybody who knew this address could put made-up messages in the inbox). */
+  if ($c['app_secret'] === '') { http_response_code(403); echo 'app secret not set'; exit; }
+  if (!$sigOk) { http_response_code(401); echo 'bad signature'; exit; }
   $p = json_decode($raw, true) ?: [];
   foreach ($p['entry'] ?? [] as $e) foreach ($e['changes'] ?? [] as $ch) {
     $v = $ch['value'] ?? []; if (($v['metadata']['phone_number_id'] ?? $c['phone_id']) !== $c['phone_id']) continue;
@@ -136,14 +139,14 @@ function handle_wa($a) {
   switch ($a) {
     case 'status': need('whatsapp'); $c = wa_cfg(); out(['connected' => wa_on(), 'display' => $c['display']]);
     case 'config':
-      $c = wa_cfg(); if ($c['verify_token'] === '') { $c['verify_token'] = bin2hex(random_bytes(12)); kv_set('wa_cfg', $c); }
+      $c = wa_cfg(); if ($c['verify_token'] === '') { $c['verify_token'] = bin2hex(random_bytes(12)); sec_cfg_set('wa_cfg', ['token', 'app_secret'], $c); }
       out(['phone_id' => $c['phone_id'], 'waba_id' => $c['waba_id'], 'token_set' => $c['token'] !== '', 'token_hint' => $c['token'] ? '••••' . substr($c['token'], -4) : '', 'secret_set' => $c['app_secret'] !== '', 'verify_token' => $c['verify_token'], 'display' => $c['display'], 'hook' => kv_get('wa_hook', ['count' => 0])]);
     case 'save':
       $c = wa_cfg(); $c['phone_id'] = preg_replace('/\D/', '', (string)($in['phone_id'] ?? '')); $c['waba_id'] = preg_replace('/\D/', '', (string)($in['waba_id'] ?? ''));
       if (!empty($in['token'])) $c['token'] = trim((string)$in['token']); if (!empty($in['app_secret'])) $c['app_secret'] = trim((string)$in['app_secret']);
       if (!empty($in['disconnect'])) { $c['token'] = ''; $c['display'] = ''; }
       if ($c['verify_token'] === '') $c['verify_token'] = bin2hex(random_bytes(12));
-      kv_set('wa_cfg', $c); audit('wa_config', 'settings', null, 'updated'); out(['ok' => true]);
+      sec_cfg_set('wa_cfg', ['token', 'app_secret'], $c); audit('wa_config', 'settings', null, 'updated'); out(['ok' => true]);
     case 'register': // activates the business number for the Cloud API (fixes error #133010)
       $c = wa_cfg(); $pin = preg_replace('/\D/', '', (string)($in['pin'] ?? '')); if (strlen($pin) !== 6) fail('Enter a 6-digit PIN');
       [$code, $j] = wa_http('POST', $c['phone_id'] . '/register', ['messaging_product' => 'whatsapp', 'pin' => $pin]);
@@ -153,7 +156,7 @@ function handle_wa($a) {
       $c = wa_cfg(); if (!wa_on()) fail('Save the Phone number ID and access token first');
       [$code, $j] = wa_http('GET', $c['phone_id'] . '?fields=display_phone_number,verified_name,quality_rating');
       if ($e = wa_err($j)) out(['ok' => false, 'error' => $e]);
-      $c['display'] = trim(($j['verified_name'] ?? '') . ' · ' . ($j['display_phone_number'] ?? ''), ' ·'); kv_set('wa_cfg', $c);
+      $c['display'] = trim(($j['verified_name'] ?? '') . ' · ' . ($j['display_phone_number'] ?? ''), ' ·'); sec_cfg_set('wa_cfg', ['token', 'app_secret'], $c);
       $sub = 'WhatsApp Business Account ID missing';
       if ($c['waba_id'] !== '') { [$sc, $sj] = wa_http('POST', $c['waba_id'] . '/subscribed_apps', []); $sub = ($e2 = wa_err($sj)) ? $e2 : 'ok'; }
       out(['ok' => true, 'subscribed' => $sub, 'name' => $j['verified_name'] ?? '', 'number' => $j['display_phone_number'] ?? '', 'quality' => $j['quality_rating'] ?? '']);
