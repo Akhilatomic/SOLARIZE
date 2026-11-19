@@ -193,7 +193,7 @@ async function pgFolder(id) {
   let order = []; /* keys of the items on screen, in screen order (for Shift+click and the arrow keys) */
   /* desktop: rows can be dragged (onto a folder to move, out of the browser to save or share) */
   const tip = fmNarrow() ? '' : ' title="Click to preview · double-click to open · drag to move or share" draggable="true"';
-  const ttip = fmNarrow() ? '' : ' title="Click to preview · double-click to open"';
+  const ttip = fmNarrow() ? '' : ' title="Click to preview · double-click to open · drag to move or share" draggable="true"';
   /* the given folders and every folder inside them */
   const subtree = ids => { const s = new Set(ids.map(Number)); let grew = true; while (grew) { grew = false; folders.forEach(f => { if (!s.has(+f.id) && s.has(+f.parent_id)) { s.add(+f.id); grew = true; } }); } return s; };
   const fname = id => id ? ((folders.find(f => +f.id === +id) || {}).name || 'folder') : 'Folder';
@@ -264,7 +264,7 @@ async function pgFolder(id) {
       const body = ext === 'pdf' ? `<iframe src="${url}#view=FitH&navpanes=0" aria-label="${esc(it.file_name)}"></iframe>`
         : ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? `<div class="fm-pvimg"><img src="${url}" alt="${esc(it.file_name)}"></div>`
         : `<div class="fm-pvnone"><span class="fm-ty fm-big">${esc(ext.toUpperCase())}</span><b>No preview for ${esc(ext.toUpperCase())} files</b><span class="mut">Use Open or Download to see it.</span></div>`;
-      pv.innerHTML = `<div class="fm-pvh">${back}<div class="fm-pvt"><span class="fm-ty">${esc(fext(it.file_name))}</span><div><b>${esc(it.file_name)}</b><small>${esc(fmPathText(folders, it.folder_id))} · ${fsize(it.size)} · ${dmy(it.updated || it.created)}</small></div>${close}</div>
+      pv.innerHTML = `<div class="fm-pvh">${back}<div class="fm-pvt${fmNarrow() ? '' : ' fm-pvdrag'}" data-k="f${it.id}"${fmNarrow() ? '' : ' draggable="true" title="Drag this file to a folder on the computer, an email or another app"'}><span class="fm-ty">${esc(fext(it.file_name))}</span><div><b>${esc(it.file_name)}</b><small>${esc(fmPathText(folders, it.folder_id))} · ${fsize(it.size)} · ${dmy(it.updated || it.created)}</small></div>${close}</div>
         <div class="fm-pva"><a class="btn sm" href="${url}" target="_blank" rel="noopener"><i class="i i-eye"></i> Open</a><button class="btn sm sec" id="fmpvdl"><i class="i i-download"></i> Download</button></div></div><div class="fm-pvb">${body}</div>`;
       $('#fmpvdl').onclick = () => fmDl(url + '&dl=1');
     } else {
@@ -372,9 +372,8 @@ async function pgFolder(id) {
      A row / card dragged onto a folder or a breadcrumb moves there (writers; the selection moves when the dragged item is part of it).
      Dragged out of the browser (Chrome / Edge) onto a computer folder, WhatsApp Desktop or an email, the file itself is saved there:
      one file as it is (through its public link), several items or a folder as one ZIP. Dropped into a text box: the public links. */
-  lbox.ondragstart = e => {
-    const el = e.target.closest && e.target.closest('#fmlist [data-k]'); if (!el) return;
-    const k = el.dataset.k, inSel = keyset(k).has(+k.slice(1));
+  const dragStart = (e, el, useSel) => {
+    const k = el.dataset.k, inSel = useSel && keyset(k).has(+k.slice(1));
     const fl = inSel ? [...FM.files] : k[0] === 'f' ? [+k.slice(1)] : [], fo = inSel ? [...FM.folders] : k[0] === 'd' ? [+k.slice(1)] : [];
     FMDRAG = { files: fl, folders: fo };
     const dt = e.dataTransfer, ds = items.filter(i => fl.includes(+i.id)), safe = s => String(s).replace(/[:\\/*?"<>|\r\n]/g, '_');
@@ -391,7 +390,11 @@ async function pgFolder(id) {
     /* fade the dragged items after the browser has taken its picture of the row */
     setTimeout(() => $$('[data-k]', lbox).forEach(x => { const xk = x.dataset.k; if ((xk[0] === 'd' ? fo : fl).includes(+xk.slice(1))) x.classList.add('fm-dragging'); }), 0);
   };
-  lbox.ondragend = () => { FMDRAG = null; fmUnmark(); $$('.fm-dragging').forEach(x => x.classList.remove('fm-dragging')); };
+  lbox.ondragstart = e => { const el = e.target.closest && e.target.closest('#fmlist [data-k]'); if (el) dragStart(e, el, true); };
+  /* the preview panel: a file or folder listed inside a previewed folder, and the previewed file itself (its header), drag out the same
+     way - always that one item, whatever is ticked in the list */
+  $('#fmpv').ondragstart = e => { const el = e.target.closest && e.target.closest('#fmpv [data-k][draggable="true"]'); if (el) dragStart(e, el, false); };
+  $('#fmpv').ondragend = lbox.ondragend = () => { FMDRAG = null; fmUnmark(); $$('.fm-dragging').forEach(x => x.classList.remove('fm-dragging')); };
   /* a move is offered only where it changes something and never into a dragged folder or one inside it */
   const canMove = id => {
     if (!w || !FMDRAG || (id && subtree(FMDRAG.folders).has(id))) return false;
