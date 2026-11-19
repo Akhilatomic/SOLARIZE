@@ -61,7 +61,7 @@ async function pgQuote(id) {
   $('#cat').onchange = e => { if (e.target.value !== '') { const c = S.catalog[e.target.value]; items.push({ desc: c.desc.trim(), qty: 1, rate: c.rate }); drawItems(); } };
   $('#est').onclick = e => { e.preventDefault(); const kw = prompt('System size in kW?'); if (kw) { $('#qsub').value = subsidyCalc(kw); drawTotals(); } };
   const payload = () => ({ id: q.id, customer_id: $('#qc').value, lead_id: $('#ql').value, date: $('#qd').value, status: $('#qst').value, gst_rate: $('#qg').value, subsidy: $('#qsub').value, terms: $('#qterms').value, items, number: q.number || '' });
-  if ($('#sv')) $('#sv').onclick = async () => { const p = payload(); if (!p.customer_id && !p.lead_id) return alert('Select a customer or a lead'); const r = await api('quotes', 'save', p); if (q.id) route(); else location.hash = '#/quotes/' + r.id; };
+  if ($('#sv')) $('#sv').onclick = async () => { const p = payload(); if (!p.customer_id && !p.lead_id) return sayBad('Select a customer or a lead'); const r = await api('quotes', 'save', p); if (q.id) route(); else location.hash = '#/quotes/' + r.id; };
   const who = () => cs.find(c => c.id == $('#qc').value) || ls.find(l => l.id == $('#ql').value) || {};
   if ($('#pr')) $('#pr').onclick = () => printQuote(q, payload(), who(), calc());
   if ($('#wa')) $('#wa').onclick = () => { const c = who(); waOpen({ name: c.name, phone: c.phone, customer_id: +$('#qc').value || null, lead_id: +$('#ql').value || null, amount: Math.round(calc().tot).toLocaleString('en-IN'), quote_no: q.number }); };
@@ -111,7 +111,7 @@ async function pgAds() {
    <p class="mut">Tag each lead with its campaign (Leads → edit → Meta campaign). To import: export a report from Meta Ads Manager as CSV with columns <code>campaign, date, spend, impressions, clicks</code>.</p>`;
   renderMetaCard();
   if ($('#nc')) $('#nc').onclick = () => campModal({});
-  if ($('#im')) $('#im').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; const rows = csvObjs(await f.text()).map(r => ({ campaign: r.campaign || r['campaign name'], date: r.date || r['day'] || r['reporting starts'], spend: (r.spend || r['amount spent (inr)'] || '0').replace(/[^\d.]/g, ''), impressions: (r.impressions || '0').replace(/[^\d.]/g, ''), clicks: (r.clicks || r['link clicks'] || '0').replace(/[^\d.]/g, '') })); const r = await api('ads', 'import', { rows }); alert(`Imported ${r.imported} rows (${r.campaigns_created} new campaigns)`); route(); };
+  if ($('#im')) $('#im').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; const rows = csvObjs(await f.text()).map(r => ({ campaign: r.campaign || r['campaign name'], date: r.date || r['day'] || r['reporting starts'], spend: (r.spend || r['amount spent (inr)'] || '0').replace(/[^\d.]/g, ''), impressions: (r.impressions || '0').replace(/[^\d.]/g, ''), clicks: (r.clicks || r['link clicks'] || '0').replace(/[^\d.]/g, '') })); const r = await api('ads', 'import', { rows }); toast(`Imported ${r.imported} rows (${r.campaigns_created} new campaigns)`); route(); };
 }
 function campModal(c) {
   const id = c.id, w = canW('ads');
@@ -119,7 +119,7 @@ function campModal(c) {
   const m = modal(`<h2 style="margin-top:0">${id ? 'Campaign' : 'New campaign'}</h2><div class="two">${F.map(f => fld(f, c)).join('')}</div>
    <div class="bar" style="margin-top:14px">${w ? '<button class="btn" id="sv">Save</button>' : ''}${id && w ? '<button class="btn sec" id="sp">+ Spend entry</button>' : ''}<button class="btn sec" id="cx">Close</button><span class="sp"></span>${id && w ? '<button class="btn bad" id="dl">Delete</button>' : ''}</div>`);
   $('#cx', m).onclick = () => m.remove();
-  if (w) $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; if (!o.name) return alert('Name required'); await api('campaigns', 'save', o); m.remove(); route(); };
+  if (w) $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; if (!o.name) return sayBad('Name required'); await api('campaigns', 'save', o); m.remove(); route(); };
   if ($('#sp', m)) $('#sp', m).onclick = () => { m.remove(); const s = modal(`<h3 style="margin-top:0">Spend entry — ${esc(c.name)}</h3><div class="two">${[{ k: 'date', l: 'Date', t: 'date', d: today() }, { k: 'spend', l: 'Spend (₹)', t: 'number' }, { k: 'impressions', l: 'Impressions', t: 'number' }, { k: 'clicks', l: 'Clicks', t: 'number' }].map(f => fld(f)).join('')}</div><div class="bar" style="margin-top:12px"><button class="btn" id="ok">Save</button><button class="btn sec" id="x">Cancel</button></div>`); $('#x', s).onclick = () => s.remove(); $('#ok', s).onclick = async () => { await api('ad_spend', 'save', { campaign_id: id, ...collect(s) }); s.remove(); route(); }; };
   if ($('#dl', m)) $('#dl', m).onclick = async () => { if (confirm('Delete campaign and its spend entries?')) { await api('campaigns', 'delete', { id }); m.remove(); route(); } };
 }

@@ -17,7 +17,9 @@ function startMeta() {
   REMINDTIMER = setInterval(leadRemind, 60000);                                            // checks each minute; reminds every 15 minutes
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshFeed(); });
 }
-async function autoSync() { try { await api('meta', 'sync', {}); } catch (e) { return; } refreshFeed(); }
+/* The automatic sync says nothing when it fails ("Meta is not connected yet", Meta down): nobody asked for it, and the note came back
+   every half hour. The Meta Ads page shows the last error, and "Sync now" (manualSync) still reports its own result. */
+async function autoSync() { try { const r = await fetch('api.php?m=meta&a=sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(x => x.json()); if (!r || r.error) return; } catch (e) { return; } refreshFeed(); }
 async function manualSync(btn) {
   if (btn) { btn.disabled = true; btn.dataset.t = btn.innerHTML; btn.innerHTML = 'Syncing…'; }
   try {
@@ -91,7 +93,8 @@ function toast(msg, bad, click) {
   let box = $('#toasts'); if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
   const t = document.createElement('div'); t.className = 'toast' + (bad ? ' bad' : ''); t.innerHTML = `<i class="i i-${bad ? 'alert' : 'bell'}"></i><span>${esc(msg)}</span>`;
   if (click) { t.style.cursor = 'pointer'; t.onclick = () => { location.hash = '#/dashboard'; t.remove(); }; }
-  box.appendChild(t); setTimeout(() => t.remove(), bad ? 7000 : 9000);
+  if (bad) { t.setAttribute('role', 'alert'); if (!click) { t.style.cursor = 'pointer'; t.title = 'Close'; t.onclick = () => t.remove(); } }
+  box.appendChild(t); setTimeout(() => t.remove(), bad ? Math.max(7000, Math.min(20000, String(msg).length * 90)) : 9000); /* a long error stays long enough to read */
 }
 function drawBell() {
   const lv = typeof HR !== 'undefined' && HR.pend ? HR.pend.length : 0, dn = typeof DISC !== 'undefined' ? DISC.count : 0, n = FEED.count + lv + dn;
@@ -134,7 +137,7 @@ function drawBellPanel() {
   bindNl(p); if (hrH) { hrBellBind(p); discBellBind(p); }
   if ($('#bclr')) $('#bclr').onclick = async () => { await api('meta', 'ack', { all: 1 }); refreshFeed(); };
   $('#bsnd').onchange = e => { SOUND = e.target.checked; try { localStorage.metaSound = SOUND ? '1' : '0'; } catch (x) { } };
-  $('#bpush').onclick = async () => { if (!('Notification' in window)) return alert('This browser does not support desktop notifications'); const r = await Notification.requestPermission(); toast(r === 'granted' ? 'Desktop alerts enabled' : 'Desktop alerts blocked in browser settings', r !== 'granted'); };
+  $('#bpush').onclick = async () => { if (!('Notification' in window)) return sayBad('This browser does not support desktop notifications'); const r = await Notification.requestPermission(); toast(r === 'granted' ? 'Desktop alerts enabled' : 'Desktop alerts blocked in browser settings', r !== 'granted'); };
   $('#bsy').onclick = e => manualSync(e.currentTarget);
 }
 function mountBell() {

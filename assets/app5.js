@@ -194,7 +194,7 @@ async function evModal(ev) {
     return { id: ev.id, title: $('#et', m).value, type: $('#ety', m).value, all_day: ad ? 1 : 0, start: ad ? sd : sd + 'T' + ($('#est', m).value || '10:00'), end: ad ? (ed && ed !== sd ? ed : '') : (ed || sd) + 'T' + ($('#eet', m).value || '11:00'),
       user_id: $('#eu', m).value, lead_id: $('#el', m).value, customer_id: $('#ec', m).value, project_id: $('#ep', m).value, remind: $('#er', m).value, location: $('#eloc', m).value, notes: $('#en', m).value, status: $('#es', m)?.value || 'Scheduled' }; };
   $('#ecx', m).onclick = () => m.remove();
-  if ($('#esv', m)) $('#esv', m).onclick = async () => { const o = collectEv(); if (!o.title.trim()) return alert('Title required'); await api('calendar', 'save', o); m.remove(); toast(isNew ? 'Event added' : 'Event saved'); if (location.hash.startsWith('#/calendar')) route(); };
+  if ($('#esv', m)) $('#esv', m).onclick = async () => { const o = collectEv(); if (!o.title.trim()) return sayBad('Title required'); await api('calendar', 'save', o); m.remove(); toast(isNew ? 'Event added' : 'Event saved'); if (location.hash.startsWith('#/calendar')) route(); };
   if ($('#edone', m)) $('#edone', m).onclick = async () => { await api('calendar', 'status', { id: ev.id, status: 'Done' }); m.remove(); toast('Marked done'); route(); };
   if ($('#edl', m)) $('#edl', m).onclick = async () => { if (confirm('Delete this event?')) { await api('calendar', 'delete', { id: ev.id }); m.remove(); toast('Event deleted'); route(); } };
   if ($('#egc', m)) { const o = collectEv(), z = x => x.replace(/[-:]/g, ''), nd = d => ymd(addD(pdate(d), 1)).replace(/-/g, '');

@@ -67,15 +67,31 @@ const LT_NAMES = { own: 'Own lead', office: 'Office', meta: 'Meta' }, LT_OPTS = 
 const ltBadge = t => LT_NAMES[t] ? `<span class="pill ltp lt-${t}" title="Lead type">${LT_NAMES[t]}</span>` : '';
 const BA = () => !!ME && ME.role === 'ba'; // Business Associate: own leads & customers only, no money, no WhatsApp, cannot delete or revert customers
 
+/* Messages are shown inside the CRM (a red note, bottom right), not as a browser pop-up: a pop-up stops the whole page until it is
+   pressed and, on a phone, covers the form. Before the notes exist (the very first moments) the browser's own box is the fallback. */
+const sayBad = msg => { if (typeof toast === 'function') toast(msg, true); else alert(msg); };
+/* No connection: one note for a save that could not be sent (what was typed stays on the screen - press Save again), and a small
+   banner at the top for as long as the device is offline. Background refreshes fail silently, as before. */
+let NET_SAID = 0;
+function netDown(saving) {
+  if (saving && Date.now() - NET_SAID > 4000) { NET_SAID = Date.now(); sayBad('No internet connection - this was not saved. What you typed is still here: check the connection and try again.'); }
+  return { error: 'No internet connection', offline: 1, quiet: 1 };
+}
+function netBanner() {
+  let b = document.getElementById('netoff');
+  if (navigator.onLine === false) { if (!b) { b = document.createElement('div'); b.id = 'netoff'; b.setAttribute('role', 'status'); b.innerHTML = '<i class="i i-alert"></i><span>No internet connection - changes cannot be saved until it is back</span>'; document.body.appendChild(b); } }
+  else if (b) { b.parentNode.removeChild(b); if (typeof toast === 'function') toast('Back online'); }
+}
+if (!FRAME) { window.addEventListener('offline', netBanner); window.addEventListener('online', netBanner); document.addEventListener('DOMContentLoaded', netBanner); }
 async function api(m, a, body, qs = '') {
   const opt = body instanceof FormData ? { method: 'POST', body } : body !== undefined ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {};
-  const r = await fetch(`api.php?m=${m}&a=${a}${qs}`, opt);
+  let r; try { r = await fetch(`api.php?m=${m}&a=${a}${qs}`, opt); } catch (e) { throw netDown(body !== undefined); }
   const j = await r.json().catch(() => ({ error: 'Bad server response' }));
   if (r.status === 401 && m !== 'auth') { boot(); throw j; }
   /* Every error is thrown. Sign-in errors get no pop-up: the sign-in form shows them under the button (they used to come back as a
      normal answer, so the form reloaded and "Wrong username or password" / "Too many wrong attempts" never appeared).
      quiet: the page shows its own prompt (e.g. email password changed). */
-  if (j.error) { if (!j.quiet && !(m === 'auth' && (a === 'login' || a === 'setup'))) alert(j.error); throw j; }
+  if (j.error) { if (!j.quiet && !(m === 'auth' && (a === 'login' || a === 'setup'))) sayBad(j.error); throw j; }
   if (m === 'leads' && a === 'save' && typeof refreshFeed === 'function') setTimeout(refreshFeed, 0); // edited leads leave "New leads to contact"
   return j;
 }
@@ -130,7 +146,7 @@ function shell() {
   $('#lo').onclick = async () => { if (typeof idleOut === 'function') return idleOut(false); await api('auth', 'logout', {}); location.hash = ''; location.reload(); };
   $('#pdp').onclick = () => { $('#acm').classList.add('hide'); pickAvatar(0, ME.name, setMyAvatar); };
   $('#pdr').onclick = () => { $('#acm').classList.add('hide'); removeAvatar(0, setMyAvatar); };
-  $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); alert('Password changed'); };
+  $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); toast('Password changed'); };
   $('#mtsw').onclick = () => TABS.setOff(!TABS.off());
   if (APPLITE) appVerBind();
   if (FRAME) return; /* a tab's page-frame: its own menu and top bar stay hidden */
@@ -295,11 +311,11 @@ function waOpen(ctx) {
   const set = () => $('#wm', m).value = fill(T[$('#wt', m).value]?.text || '', ctx);
   $('#wt', m).onchange = set; set();
   $('#wx', m).onclick = () => m.remove();
-  if ($('#winb', m)) $('#winb', m).onclick = async () => { if (!waNum(ctx.phone)) return alert('This contact has no phone number');
+  if ($('#winb', m)) $('#winb', m).onclick = async () => { if (!waNum(ctx.phone)) return sayBad('This contact has no phone number');
     const r = await api('wa', 'start', { phone: ctx.phone, name: ctx.name, lead_id: ctx.lead_id || 0, customer_id: ctx.customer_id || 0 });
     try { sessionStorage.waDraft = $('#wm', m).value; } catch (e) { } m.remove(); WA.tab = 'inbox'; WA.chat = r.id; location.hash = '#/whatsapp'; route(); };
   $('#wgo', m).onclick = async () => {
-    if (!waNum(ctx.phone)) return alert('This contact has no phone number');
+    if (!waNum(ctx.phone)) return sayBad('This contact has no phone number');
     const text = $('#wm', m).value;
     waLaunch(ctx.phone, text);
     if (canW('whatsapp')) await api('whatsapp', 'log', { customer_id: ctx.customer_id, lead_id: ctx.lead_id, phone: ctx.phone, text });
@@ -489,8 +505,8 @@ function callbackBox(l, after) {
     toast(at ? 'Call back reminder set — ' + cbWhen(at) : done ? 'Call back done' : 'Call back reminder removed');
     if (LEADCB) LEADCB(l.id, at, note, r); if (after) after();
   };
-  $('#cbs', m).onclick = () => { if (!D.value || !T.value) return alert('Pick a date and a time'); const at = D.value + ' ' + T.value;
-    if (at <= cbNow()) return alert('That time has already passed — pick a later time.'); send(at); };
+  $('#cbs', m).onclick = () => { if (!D.value || !T.value) return sayBad('Pick a date and a time'); const at = D.value + ' ' + T.value;
+    if (at <= cbNow()) return sayBad('That time has already passed — pick a later time.'); send(at); };
   $('#cbc', m).onclick = () => m.remove();
   if (cur) { $('#cbdone', m).onclick = () => send('', true); $('#cbx', m).onclick = () => send(''); }
   m.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); m.remove(); } }); /* only this box, not the lead form under it */
@@ -699,7 +715,7 @@ async function pgLeads() {
   $('#lcol').onclick = () => $('#lcm').classList.toggle('hide');
   $$('[data-col]').forEach(c => c.onchange = () => { LHIDE = $$('[data-col]').filter(x => !x.checked).map(x => x.dataset.col); try { localStorage.lcols = JSON.stringify(LHIDE); } catch (e) { } draw(); });
   if ($('#lex')) $('#lex').onclick = () => csvDownload('leads-' + today() + '.csv', ['name', 'phone', 'email', 'city', 'location', 'source', 'lead_type', 'status', 'appt', 'remark', 'kw', 'budget', 'added_by', 'created', 'notes'], leads);
-  if ($('#lim')) $('#lim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; const rows = csvObjs(await f.text()); let n = 0; for (const r of rows) { if (!r.name) continue; await api('leads', 'save', { ...r, status: r.status || 'New' }); n++; } alert('Imported ' + n + ' leads'); route(); };
+  if ($('#lim')) $('#lim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; const rows = csvObjs(await f.text()); let n = 0; for (const r of rows) { if (!r.name) continue; await api('leads', 'save', { ...r, status: r.status || 'New' }); n++; } toast('Imported ' + n + ' leads'); route(); };
   draw(); DISC.lredraw = draw;
 }
 /* Same phone already in the CRM: while a number is typed into the lead or customer form, a note above the fields names the lead
@@ -747,8 +763,8 @@ async function leadModal(id) {
   if ($('#mul', m)) $('#mul', m).onclick = async () => { if (await unlockLead(id, l.assigned_to == ME.id)) { m.remove(); route(); } };
   if ($('#mas', m)) $('#mas', m).onclick = async () => { if (await assignLead(l)) { m.remove(); route(); } };
   if ($('#oc', m)) $('#oc', m).onclick = () => m.remove();
-  if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m), ...leadExtra(m) }; if (!o.name) return alert('Name required'); if (BA()) o.lead_type = 'own';
-    if (!o.lead_type) { const lt = $('[data-k="lead_type"]', m); if (lt) { lt.focus(); lt.classList.add('bad'); } return alert('Choose the lead type: Own lead, Office or Meta'); } await api('leads', 'save', o); m.remove(); route(); };
+  if (w) $('#sv', m).onclick = async () => { const o = { ...l, id, ...collect(m), ...leadExtra(m) }; if (!o.name) return sayBad('Name required'); if (BA()) o.lead_type = 'own';
+    if (!o.lead_type) { const lt = $('[data-k="lead_type"]', m); if (lt) { lt.focus(); lt.classList.add('bad'); } return sayBad('Choose the lead type: Own lead, Office or Meta'); } await api('leads', 'save', o); m.remove(); route(); };
   if ($('#lcbk', m)) $('#lcbk', m).onclick = () => callbackBox(l, () => { const b = $('#lcbk', m); if (b) { b.innerHTML = cbBtnTxt(l); b.classList.toggle('cbdue', !!l.callback_at && l.callback_at <= cbNow()); } });
   if ($('#wa', m)) $('#wa', m).onclick = () => waOpen({ name: l.name, phone: l.phone, lead_id: id });
   if ($('#lds', m)) $('#lds', m).onclick = () => { m.remove(); discOpen({ lead_id: id }); };
@@ -924,8 +940,8 @@ function customerModal(id, c = {}) {
   $('#cx', m).onclick = () => m.remove(); if (!id) onbBind(m);
   phoneSameWatch(m, { mod: 'customers', customer: id || 0 });
   const lt = $('[data-k="lead_type"]', m);
-  $('#sv', m).onclick = async () => { const o = { ...c, id, ...collect(m) }; if (!o.name) return alert('Name required'); if (BA()) o.lead_type = 'own';
-    if (!o.lead_type) { if (lt) lt.focus(); return alert('Choose the lead type: Own lead or Office'); }
+  $('#sv', m).onclick = async () => { const o = { ...c, id, ...collect(m) }; if (!o.name) return sayBad('Name required'); if (BA()) o.lead_type = 'own';
+    if (!o.lead_type) { if (lt) lt.focus(); return sayBad('Choose the lead type: Own lead or Office'); }
     /* a new customer goes with the approved quotation and the plant cost, in one request */
     let body = o; if (!id) { delete o.id; body = onbForm(m, o); if (!body) return; }
     const b = $('#sv', m); b.disabled = true;
@@ -1005,7 +1021,7 @@ async function projectModal(id, p = {}) {
    <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
   $('#cx', m).onclick = () => m.remove();
   if (!id) { /* a new project: the capacity already held for the customer is filled in */ const cu = $('[data-k="customer_id"]', m), kw = $('[data-k="kw"]', m), fillKw = () => { const c = cs.find(x => x.id == cu.value); if (c && +c.kw > 0 && (!kw.value || kw.dataset.auto)) { kw.value = c.kw; kw.dataset.auto = '1'; } }; if (cu && kw) { cu.addEventListener('change', fillKw); kw.addEventListener('input', () => { delete kw.dataset.auto; }); fillKw(); } }
-  $('#sv', m).onclick = async () => { const o = { ...p, ...collect(m) }; if (id) o.id = id; if (!o.customer_id) return alert('Select a customer'); const r = await api('projects', 'save', o); m.remove(); location.hash = '#/projects/' + r.id; route(); };
+  $('#sv', m).onclick = async () => { const o = { ...p, ...collect(m) }; if (id) o.id = id; if (!o.customer_id) return sayBad('Select a customer'); const r = await api('projects', 'save', o); m.remove(); location.hash = '#/projects/' + r.id; route(); };
 }
 function subsidyCalc(kw) { const r = S.subsidy_rates; kw = Math.max(0, +kw || 0); return Math.min(r.cap, Math.min(kw, 2) * r.per_kw_first2 + Math.max(0, Math.min(kw, 3) - 2) * r.third_kw); }
 async function pgProject(id) {
@@ -1031,7 +1047,7 @@ async function pgProject(id) {
   };
   const bindPB = () => {
     /* loan projects: who paid (the customer or the loan bank; mode Loan = the bank), as on the Tax bill tab and in Accounts — the tax bill unlocks on the customer's own payments */
-    if ($('#ap')) $('#ap').onclick = () => { const loan = p.loan === 'Yes'; const m = modal(`<h3 style="margin-top:0">Record payment</h3><div class="two">${[{ k: 'amount', l: 'Amount (₹)', t: 'number' }, { k: 'date', l: 'Date', t: 'date', d: today() }, { k: 'mode', l: 'Mode', opts: ['Bank transfer', 'UPI', 'Cash', 'Cheque'].concat(loan ? ['Loan'] : []) }, { k: 'ref_no', l: 'Reference no. (UTR / cheque) — not needed for cash' }, ...(loan ? [{ k: 'src', l: 'From', opts: [['customer', 'Customer'], ['bank', 'Bank (loan)']] }] : []), { k: 'note', l: 'Note' }].map(f => fld(f)).join('')}</div><div class="bar" style="margin-top:12px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button></div>`); const md = $('[data-k="mode"]', m), fr = $('[data-k="src"]', m); if (fr) md.onchange = () => { fr.value = ACC.payFrom(md.value, fr.value); }; $('#cx', m).onclick = () => m.remove(); $('#sv', m).onclick = async () => { const o = { project_id: id, ...collect(m) }; if (!(+o.amount > 0)) return alert('Enter an amount'); await api('payments', 'save', o); m.remove(); route(); }; };
+    if ($('#ap')) $('#ap').onclick = () => { const loan = p.loan === 'Yes'; const m = modal(`<h3 style="margin-top:0">Record payment</h3><div class="two">${[{ k: 'amount', l: 'Amount (₹)', t: 'number' }, { k: 'date', l: 'Date', t: 'date', d: today() }, { k: 'mode', l: 'Mode', opts: ['Bank transfer', 'UPI', 'Cash', 'Cheque'].concat(loan ? ['Loan'] : []) }, { k: 'ref_no', l: 'Reference no. (UTR / cheque) — not needed for cash' }, ...(loan ? [{ k: 'src', l: 'From', opts: [['customer', 'Customer'], ['bank', 'Bank (loan)']] }] : []), { k: 'note', l: 'Note' }].map(f => fld(f)).join('')}</div><div class="bar" style="margin-top:12px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button></div>`); const md = $('[data-k="mode"]', m), fr = $('[data-k="src"]', m); if (fr) md.onchange = () => { fr.value = ACC.payFrom(md.value, fr.value); }; $('#cx', m).onclick = () => m.remove(); $('#sv', m).onclick = async () => { const o = { project_id: id, ...collect(m) }; if (!(+o.amount > 0)) return sayBad('Enter an amount'); await api('payments', 'save', o); m.remove(); route(); }; };
     $$('[data-dp]').forEach(a => a.onclick = async e => { e.preventDefault(); if (confirm('Delete this payment?')) { await api('payments', 'delete', { id: +a.dataset.dp }); route(); } });
     $$('[data-df]').forEach(a => a.onclick = async e => { e.preventDefault(); if (confirm('Delete this file?')) { await api('files', 'delete', { id: +a.dataset.df }); route(); } });
     if ($('#up')) $('#up').onclick = async () => { if (await upload({ project_id: id, kind: 'general' })) route(); };

@@ -1220,3 +1220,8 @@ html.mt-frame body{padding:0}
 .phsame .phs-r{display:flex;gap:10px;align-items:center;justify-content:space-between}.phsame .phs-r+.phs-r{margin-top:6px}.phsame .phs-r .btn{flex:none}
 /* "Move to the next step?" note (pipeOffer in app6.js) */
 .toast.pipo{max-width:440px;flex-wrap:wrap}.toast.pipo>span{flex:1 1 180px}.toast.pipo .btn{flex:none}.toast.pipo .ib{flex:none}
+/* error notes may carry line breaks; the offline banner (netBanner in app.js) */
+.toast>span{white-space:pre-line}
+#netoff{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:70;display:flex;gap:8px;align-items:center;background:#1d1d1f;color:#fff;font-size:13px;font-weight:500;padding:8px 14px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:calc(100vw - 24px)}
+#netoff .i{flex:none;background:#ffd60a}
+.toast.bad{color:#fff}.toast.bad .i{background:#fff}
