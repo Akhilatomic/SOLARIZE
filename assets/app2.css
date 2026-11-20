@@ -1349,3 +1349,10 @@ button.pill.stbtn{border:0;font:inherit;font-size:12px;font-weight:500;cursor:po
 .fpdfo{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--white);font:inherit;color:var(--text);cursor:pointer;text-align:left}
 .fpdfo:hover:not(:disabled){border-color:var(--blue);background:var(--blue-tint)}.fpdfo.on{border-color:var(--blue)}.fpdfo span{color:var(--muted);font-size:13px}.fpdfo:disabled{opacity:.5;cursor:default}
 .qmv-h .btn.qmv-on{background:var(--green-tint);color:var(--green-text);border-color:var(--green-tint)}
+
+/* Dashboard › Feasibility card (app.js dashFeas) */
+.dfs-s{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:0 0 10px}
+.dfs-c{display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 4px;border-radius:10px;background:var(--fill-2);color:var(--text);text-decoration:none;font-size:11px;line-height:1.2;text-align:center}
+.dfs-c b{font-size:17px}.dfs-c span{color:var(--muted)}.dfs-c:hover{background:var(--line)}
+.dfs-c.g b{color:var(--green-text)}.dfs-c.y b{color:var(--orange-text)}.dfs-c.b b{color:var(--blue-text)}.dfs-c.r b{color:var(--red-text)}
+.dfs-r .pill{font-size:11px}

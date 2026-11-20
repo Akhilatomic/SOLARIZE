@@ -374,6 +374,29 @@ function recentTxt(r) {
 }
 const recentWhen = c => { const d = new Date(String(c || '').replace(' ', 'T') + 'Z'); if (isNaN(d)) return esc(c || ''); /* audit times are UTC */
   return (d.toDateString() === new Date().toDateString() ? 'Today' : dfmt(DF.dm, d)) + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }); };
+/* dashboard list cards: four in a row when the Feasibility card shows (Finance fee access), else three */
+const DFW = () => canR('fees') ? 's3' : 's4';
+/* Dashboard › Feasibility (owner's rule 2026-11-20): the KSEB feasibility fee list at a glance — how many are pending, demanded,
+   valid, expiring and expired, and every paid one with the days left before it runs out (soonest first). A customer whose
+   registration fee is paid is left out: their feasibility has done its job. Clicking opens Finance › Feasibility fee. */
+async function dashFeas(box) {
+  let d, left = {};
+  try { [d, left] = await Promise.all([api('fees', 'list', undefined, '&kind=feasibility'), canR('customers') || canR('projects') ? api('fees', 'feas_left').catch(() => ({})) : {}]); }
+  catch (e) { box.innerHTML = '<div class="ch"><h3>Feasibility</h3></div><p class="mut">Could not load the feasibility list.</p>'; return; }
+  if (!box.isConnected) return;
+  const alert = +d.alert_days || 3, rows = (d.rows || []).filter(r => !(left[r.customer_id] && left[r.customer_id].rf));
+  const paid = rows.filter(r => +r.paid && r.days_left !== undefined).sort((a, b) => a.days_left - b.days_left);
+  const n = { pending: rows.filter(r => !+r.paid && !+r.demanded).length, demanded: rows.filter(r => !+r.paid && +r.demanded).length,
+    valid: paid.filter(r => r.days_left > alert).length, expiring: paid.filter(r => r.days_left >= 0 && r.days_left <= alert).length, expired: paid.filter(r => r.days_left < 0).length };
+  const tag = r => r.days_left < 0 ? ['r', `Expired ${-r.days_left}d ago`] : r.days_left <= alert ? ['r', r.days_left === 0 ? 'Expires today' : `${r.days_left}d left`] : r.days_left <= 7 ? ['y', `${r.days_left}d left`] : ['g', `${r.days_left}d left`];
+  const chip = (k, l, c) => `<a href="#/fees/feasibility" class="dfs-c${n[k] && c ? ' ' + c : ''}" data-ff="${k === 'valid' ? 'paid' : k === 'expired' ? 'all' : k}"><b>${n[k]}</b><span>${l}</span></a>`;
+  box.innerHTML = `<div class="ch"><h3>Feasibility</h3><span class="pill ${n.expiring + n.expired ? 'r' : ''}">${paid.length}</span></div>
+    <div class="dfs-s">${chip('pending', 'Pending', 'y')}${chip('demanded', 'Demanded', 'b')}${chip('valid', 'Valid', 'g')}${chip('expiring', 'Expiring', 'r')}${chip('expired', 'Expired', 'r')}</div>
+    ${paid.length ? `<div class="scroll">${paid.slice(0, 12).map(r => { const [c, t] = tag(r);
+      return `<div class="act dfs-r"><a href="#/customers/${+r.customer_id}"><b>${esc(r.name)}</b></a> ${pill(t, c)}<br><small>${r.days_left < 0 ? 'Expired' : 'Valid till'} ${dmy(r.expires)} · paid ${dmy(r.paid_on)}</small></div>`; }).join('')}</div>`
+      : `<p class="mut">${rows.length ? 'No paid feasibility running.' : 'No customers on the feasibility list.'}</p>`}`;
+  $$('[data-ff]', box).forEach(a => a.onclick = () => { if (typeof FEEQ !== 'undefined') { FEEQ.f.feasibility = a.dataset.ff; FEEQ.q = ''; } });
+}
 async function pgDashboard() {
   const d = await api('dashboard', 'get');
   const first = (ME.name || '').split(' ')[0];
@@ -423,9 +446,10 @@ async function pgDashboard() {
 
    ${card('<i class="i i-target"></i>', 'Active Leads', d.leads_total, d.leads_today, vs(d.leads_vs), '', '#/leads')}${card('<i class="i i-users"></i>', 'Customers', d.cust_total, d.cust_today, vs(d.cust_vs), '', '#/customers')}${card('<i class="i i-project"></i>', 'Active Projects', d.proj_active, d.proj_today, vs(d.proj_vs), '', '#/projects')}${card('<i class="i i-alert"></i>', 'Overdue Follow-ups', d.overdue, d.due_today, d.due_today + ' due today', '', '#/leads')}
 
-   <div class="s4 card ${d.finance ? '' : 'hide'}">${head('Payments due', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}<small class="mut dsh-sub">Projects past the early stages with a balance (as in Accounts › Pending)</small>${lst(d.dues.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
-   <div class="s4 card">${head('KSEB documents pending', `<span class="pill">${d.kseb_pending.length}</span>`)}${lst(d.kseb_pending.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`, 'All documents complete')}</div>
-   <div class="s4 card">${head('Subsidy in progress', `<span class="pill">${d.subsidy_open.length}</span>`)}${lst(d.subsidy_open, p => `<div class="act"><a href="#/subsidy/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status, stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`, 'None')}</div>
+   <div class="${DFW()} card ${d.finance ? '' : 'hide'}">${head('Payments due', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}<small class="mut dsh-sub">Projects past the early stages with a balance (as in Accounts › Pending)</small>${lst(d.dues.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
+   <div class="${DFW()} card">${head('KSEB documents pending', `<span class="pill">${d.kseb_pending.length}</span>`)}${lst(d.kseb_pending.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`, 'All documents complete')}</div>
+   <div class="${DFW()} card">${head('Subsidy in progress', `<span class="pill">${d.subsidy_open.length}</span>`)}${lst(d.subsidy_open, p => `<div class="act"><a href="#/subsidy/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status, stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`, 'None')}</div>
+   ${canR('fees') ? `<div class="${DFW()} card" id="dfeas"><p class="mut">Loading…</p></div>` : ''}
 
    ${d.finance ? [['Pipeline value', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding · all projects', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="s2 card stat"><b>${v}</b><span>${l}</span></div>`).join('') : ''}
 
@@ -439,6 +463,7 @@ async function pgDashboard() {
    <div class="s4 card">${head(BA() ? 'Your Recent Activity' : 'Recent Activity')}${lst(d.recent, r => `<div class="act"><b>${esc(r.name || r.user)}</b> ${esc(recentTxt(r))} <span class="mut">${esc(r.detail || '')}</span><br><small>${recentWhen(r.created)}</small></div>`, 'No recent activity')}</div>
 
   </div>`;
+  if ($('#dfeas')) dashFeas($('#dfeas'));
   $$('[data-qa]').forEach(b => b.onclick = () => { const q = b.dataset.qa; if (q === 'new') leadModal(0); else if (q === 'quote') { sessionStorage.removeItem('lead2quote'); location.hash = '#/quotes/new'; } else if (q === 'cust') customerModal(0); else if (q === 'proj') startModal({}); });
   if ($('#vod')) $('#vod').onclick = () => { LF.appt = 'overdue'; LF.active = 'active'; location.hash = '#/leads'; };
   /* daily summary tiles: follow-ups open the leads filtered to them; payments due and docs pending open their list,
