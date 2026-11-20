@@ -32,7 +32,11 @@ async function idleOut(auto) {
   if (IDLE.busy) return; IDLE.busy = true; clearInterval(IDLE.t);
   try { if (auto) sessionStorage.setItem(IDLE.SAID, String(idleMin())); } catch (e) { }
   idleSet(IDLE.KEY, null); idleSet(IDLE.OUT, String(Date.now())); /* the other tabs go back to the sign-in page too */
-  try { await api('auth', 'logout', typeof APPLITE !== 'undefined' && APPLITE ? { app_token: appCall('getToken') } : {}); } catch (e) { }
+  /* Speed: the sign-out request goes out (keepalive: it finishes even as the page reloads) and the page reloads at once instead of
+     waiting for the answer first. The server handles one session's requests one after another, so the reloaded page's first
+     question already sees the session ended; if it ever does not, boot() signs out once more (sessionStorage solOut). */
+  try { sessionStorage.setItem('solOut', '1'); } catch (e) { }
+  try { fetch('api.php?m=auth&a=logout', { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'X-Solarize': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(typeof APPLITE !== 'undefined' && APPLITE ? { app_token: appCall('getToken') } : {}) }).catch(() => { }); } catch (e) { }
   if (typeof APPLITE !== 'undefined' && APPLITE) appCall('clear'); /* the Android app forgets its device token and stops checking for leads */
   location.hash = ''; location.reload();
 }

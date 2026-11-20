@@ -107,6 +107,20 @@ function trash_purge_row($t) {
 }
 
 // hourly upkeep (runs on any request): expire old documents, purge the bin
+/* Owner's rule (2026-11-20): a quotation made for a lead goes to the Recycle bin LEAD_QUOTE_DAYS after it was last saved, unless the lead
+   has become a customer (then the quotation belongs to the customer and stays; a PDF copy is kept in Documents LEAD_QUOTE_DOC_DAYS). */
+const LEAD_QUOTE_DAYS = 90;
+const LEAD_QUOTE_DOC_DAYS = 200;
+function lead_quotes_expire() {
+  $n = 0;
+  foreach (rows("SELECT q.id, q.number, l.name FROM quotes q LEFT JOIN leads l ON l.id=q.lead_id WHERE q.lead_id>0 AND COALESCE(q.customer_id,0)=0 AND COALESCE(l.customer_id,0)=0
+      AND COALESCE(q.updated, q.created) < datetime('now', ?) LIMIT 200", ['-' . LEAD_QUOTE_DAYS . ' days']) as $qr) {
+    trash_put('Quotation', 'Quotation ' . $qr['number'] . ($qr['name'] ? ' · lead ' . $qr['name'] : '') . ' · ' . LEAD_QUOTE_DAYS . ' days old', [['quotes', 'id=?', [$qr['id']]]]);
+    q('DELETE FROM quotes WHERE id=?', [$qr['id']]); $n++;
+  }
+  if ($n) audit('quotes_expired', 'quotes', null, "$n lead quotation(s) older than " . LEAD_QUOTE_DAYS . ' days moved to the Recycle bin');
+  return $n;
+}
 function housekeeping($force = false) {
   $last = (int)(row("SELECT v FROM settings WHERE k='hk_last'")['v'] ?? 0);
   if (!$force && time() - $last < 3600) return;
@@ -125,6 +139,7 @@ function housekeeping($force = false) {
   try { disc_reminders(true); } catch (Throwable $e) { }
   try { claim_release(); } catch (Throwable $e) { } /* claimed leads not converted in time → unlocked */
   try { lead_autolost(); } catch (Throwable $e) { } /* new leads nobody attended within 24 hours → Lost */
+  try { lead_quotes_expire(); } catch (Throwable $e) { error_log('lead quotations: ' . $e->getMessage()); }
   foreach (rows("SELECT id,data FROM trash WHERE deleted_at < datetime('now', ?)", ['-' . rule('trash_hours') . ' hours']) as $t) trash_purge_row($t);
   try { db()->exec('PRAGMA optimize'); } catch (Throwable $e) { } // keeps the query planner's statistics current (cheap, usually a no-op)
 }

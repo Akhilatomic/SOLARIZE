@@ -114,8 +114,10 @@ const waNum = p => { const d = String(p || '').replace(/\D/g, ''); return d.leng
 const pill = (t, c = '') => `<span class="pill ${c}">${esc(t)}</span>`;
 const stageCls = s => (typeof SUBSIDY !== 'undefined' && SUBSIDY.CLS[s]) || ({ Won: 'g', Commissioned: 'g', Closed: 'g', Released: 'g', Approved: 'g', Lost: 'r', New: 'b', Survey: 'b', Submitted: 'y', Applied: 'y', 'Under review': 'y' }[s] || '');
 
-async function boot() {
-  const s = await api('auth', 'status', undefined, '&boot=1');
+async function boot(pre) {
+  let s = pre && pre.auth ? pre : await api('auth', 'status', undefined, '&boot=1'); /* pre: the status that came with the sign-in answer */
+  let out = false; try { out = sessionStorage.getItem('solOut') === '1'; sessionStorage.removeItem('solOut'); } catch (e) { }
+  if (out && s.auth && !pre) { try { await api('auth', 'logout', {}); } catch (e) { } s = await api('auth', 'status', undefined, '&boot=1'); } /* just signed out, but the sign-out had not landed yet */
   if (!s.auth && APPLITE && !s.setup) { const t = appCall('getToken'); /* the app's device token signs in again without the password */
     if (t) { let ok = false; try { const r = await fetch('api.php?m=auth&a=app_login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: t }) }); ok = r.ok; } catch (e) { return appOffline(); }
       if (ok) return boot(); appCall('clear'); } }
@@ -143,7 +145,7 @@ function loginView(setup, brand) {
     <div class="err" id="e"></div><button class="btn lg-go" id="go" type="submit">${setup ? 'Create admin account' : 'Sign in'}</button>
     <p class="lg-foot">Jasper Solar Solutions</p></form></div>`;
   $('#eye').onclick = () => { const p = $('#pw'); p.type = p.type === 'password' ? 'text' : 'password'; };
-  $('#lf').onsubmit = async e => { e.preventDefault(); if ($('#rem')) { try { localStorage.setItem('lgRem', $('#rem').checked ? '1' : '0'); } catch (x) { } } const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value, phone: isPhone() ? 1 : 0, remember: $('#rem') && $('#rem').checked ? 1 : 0, app: APPLITE ? 1 : 0, device: APPLITE ? appCall('device') : '' }); if (APPLITE && r.app_token) appCall('setToken', r.app_token); boot(); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
+  $('#lf').onsubmit = async e => { e.preventDefault(); if ($('#rem')) { try { localStorage.setItem('lgRem', $('#rem').checked ? '1' : '0'); } catch (x) { } } const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value, phone: isPhone() ? 1 : 0, remember: $('#rem') && $('#rem').checked ? 1 : 0, app: APPLITE ? 1 : 0, device: APPLITE ? appCall('device') : '' }); if (APPLITE && r.app_token) appCall('setToken', r.app_token); boot(r.status); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
 }
 function shell() {
   const items = MODS.filter(m => APPLITE ? m[0] === 'leads' : m[0] === 'admin' ? ME.role === 'admin' : m[0] === 'fees' ? feesNavItems().length > 0 : canR(m[3]));
@@ -157,7 +159,7 @@ function shell() {
   $('#acct').onclick = e => { e.stopPropagation(); $('#acm').classList.toggle('hide'); };
   document.addEventListener('click', e => { const m = $('#acm'); if (m && !m.contains(e.target)) m.classList.add('hide'); });
   new MutationObserver(fitSoon).observe($('#main'), { childList: true, subtree: true });
-  $('#lo').onclick = async () => { if (typeof idleOut === 'function') return idleOut(false); await api('auth', 'logout', {}); location.hash = ''; location.reload(); };
+  $('#lo').onclick = async () => { if (typeof idleOut === 'function') return idleOut(false); await api('auth', 'logout', {}); location.hash = ''; location.reload(); }; /* idleOut (app38.js) is the quick path */
   $('#pdp').onclick = () => { $('#acm').classList.add('hide'); pickAvatar(0, ME.name, setMyAvatar); };
   $('#pdr').onclick = () => { $('#acm').classList.add('hide'); removeAvatar(0, setMyAvatar); };
   $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = await askText('Current password'); if (!o) return; const n = await askText('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); toast('Password changed'); };
@@ -676,10 +678,10 @@ async function pgLeads() {
       appt: l => ed(l, 'appt', apptBadge(l)),
       cb: l => `<td data-cb="1" class="cbc${w && l.can_edit ? ' qe' : ''}">${cbBadge(l)}</td>` };
     const acts = l => !l.can_edit ? `<button class="ib" title="View" data-a="vw"><i class="i i-eye"></i></button>`
-      : `${discBtn(l.id, 1)}${l.phone ? '<a class="ib apcall" title="Call" href="tel:' + esc(l.phone) + '"><i class="i i-phone"></i></a>' : ''}${APPLITE && l.phone && !BA() ? '<a class="ib apwa" title="WhatsApp" href="https://wa.me/' + waNum(l.phone) + '"><i class="i i-whatsapp"></i></a>' : ''}<button class="ib" title="View / edit" data-a="vw"><i class="i i-eye"></i></button><button class="ib" title="More actions" data-a="more"><i class="i i-dots"></i></button>`;
+      : `${discBtn(l.id, 1)}${l.phone ? '<a class="ib apcall" title="Call" href="tel:' + esc(l.phone) + '"><i class="i i-phone"></i></a>' : ''}${APPLITE && l.phone && !BA() ? '<a class="ib apwa" title="WhatsApp" href="https://wa.me/' + waNum(l.phone) + '"><i class="i i-whatsapp"></i></a>' : ''}${l.q_ids && canR('quotes') ? '<button class="ib" title="Show quotation" data-a="qv"><i class="i i-receipt"></i></button>' : ''}<button class="ib" title="View / edit" data-a="vw"><i class="i i-eye"></i></button><button class="ib" title="More actions" data-a="more"><i class="i i-dots"></i></button>`;
     const rowHtml = l => `<tr data-id="${l.id}"${DISC.lsum[l.id] ? ' class="ldlive" title="Team discussion going on"' : ''}>${show.map(([k]) => cell[k](l)).join('')}<td class="lact">${acts(l)}</td></tr>`;
     const tb = $('#ltb'); let n = Math.min(rows.length, Math.max(LAZY_FIRST, reset === true ? 0 : shown));
-    tb.innerHTML = `<colgroup>${show.map(([k]) => `<col${LW[k] ? ` style="width:${LW[k] + (k === 'owner' && TOUCH() ? 34 : 0)}px"` : ''}>`).join('')}<col style="width:${TOUCH() ? 4 * IBW() + 16 : isAdm() ? 136 : 128}px"></colgroup>
+    tb.innerHTML = `<colgroup>${show.map(([k]) => `<col${LW[k] ? ` style="width:${LW[k] + (k === 'owner' && TOUCH() ? 34 : 0)}px"` : ''}>`).join('')}<col style="width:${(TOUCH() ? 4 * IBW() + 16 : isAdm() ? 136 : 128) + (canR('quotes') && rows.some(x => x.q_ids) ? IBW() : 0)}px"></colgroup>
       <thead><tr>${show.map(([k, t]) => `<th data-sort="${sk(k)}">${t}<span class="so">${LF.sort === sk(k) ? (LF.dir > 0 ? '↑' : '↓') : '⇅'}</span></th>`).join('')}<th class="right">Actions</th></tr></thead>
       <tbody>${rows.slice(0, n).map(rowHtml).join('') || `<tr><td colspan="${show.length + 1}" class="mut">No leads match</td></tr>`}</tbody>`;
     if (reset === true && tb.parentElement) tb.parentElement.scrollTop = 0; // new sort / filter / search starts at the top
@@ -706,6 +708,7 @@ async function pgLeads() {
     if (a === 'assign') { if (await assignLead(l)) route(); return; }
     if (a === 'wa') waOpen({ name: l.name, phone: l.phone, lead_id: l.id });
     if (a === 'ds') discOpen({ lead_id: l.id });
+    if (a === 'qv' && typeof qmShowQuote === 'function') qmShowQuote(String(l.q_ids || '').split(','), l.name);
     if (a === 'vw' || a === 'ed') leadModal(l.id);
     if (a === 'rm') return remarkBox(l);
     if (a === 'rh') return remarkHist(l);
@@ -728,7 +731,7 @@ async function pgLeads() {
   const closeMenu = () => { const m = $('#lmenu'); if (m) m.remove(); };
   const moreMenu = (l, btn) => {
     closeMenu();
-    const items = [l.phone && !BA() ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['rh', 'clock', 'Remark history'], ['cb', 'phone', l.callback_at ? 'Call back: ' + cbWhen(l.callback_at) : 'Call back reminder'], ['ed', 'pencil', 'Edit lead'], canW('survey') ? ['sv', 'pin', 'Add to site survey'] : null, l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null,
+    const items = [l.phone && !BA() ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['rh', 'clock', 'Remark history'], ['cb', 'phone', l.callback_at ? 'Call back: ' + cbWhen(l.callback_at) : 'Call back reminder'], ['ed', 'pencil', 'Edit lead'], canW('survey') ? ['sv', 'pin', 'Add to site survey'] : null, l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null, l.q_ids && canR('quotes') ? ['qv', 'file', 'Show quotation'] : null,
       l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ['unlock', 'lock', l.assigned_to == ME.id ? 'Unclaim (release lead)' : 'Unclaim / unlock (admin)'] : null, canReassignLead(l) ? ['assign', 'users', l.assigned_to ? 'Reassign to…' : 'Assign to…'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu';
     m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('');
@@ -860,7 +863,7 @@ function convertBox(l, done) {
    <div class="bar u-mt14"><button class="btn" id="cvgo">Convert to customer</button><button class="btn sec" id="cvx">Cancel</button></div>`);
   onbBind(m); $('#cvx', m).onclick = () => m.remove();
   $('#cvgo', m).onclick = async e => { const fd = onbForm(m, { id: l.id }); if (!fd) return; const b = e.currentTarget; b.disabled = true;
-    try { const r = await api('leads', 'convert', fd); m.remove(); toast('Converted to customer'); if (done) await done(r); } catch (x) { b.disabled = false; } };
+    try { const r = await api('leads', 'convert', fd); m.remove(); toast('Converted to customer'); if (canR('quotes') && typeof qmKeepLeadQuotes === 'function') qmKeepLeadQuotes(r.customer_id); /* the lead's quotations → the customer's Documents (200 days) */ if (done) await done(r); } catch (x) { b.disabled = false; } };
 }
 
 // ---------- Customers ----------
@@ -879,6 +882,7 @@ async function convertLeadModal() {
   $('#clsv', m).onclick = async e => { const id = +$('#cls', m).value; if (!id) return toast('Choose a lead', true);
     const fd = onbForm(m, { id }); if (!fd) return; const b = e.currentTarget; b.disabled = true;
     let r; try { r = await api('leads', 'convert', fd); } catch (x) { b.disabled = false; return; } m.remove(); toast('Converted to customer');
+    if (canR('quotes') && typeof qmKeepLeadQuotes === 'function') qmKeepLeadQuotes(r.customer_id); /* the lead's quotations → the customer's Documents (200 days) */
     if ($('#clp', m).checked) startModal({ customer_id: r.customer_id }); else location.hash = '#/customers/' + r.customer_id; };
 }
 async function pgCustomers() {

@@ -175,9 +175,13 @@ function sec_fail_server($e) {
 
 // ---------- password storage: Argon2id where the server has it (memory-hard, the current recommendation), bcrypt otherwise ----------
 function pw_algo() { return defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT; }
-function pw_hash($pw) { return password_hash((string)$pw, pw_algo()); }
-function pw_stale($hash) { return password_needs_rehash((string)$hash, pw_algo()); } /* older hashes are upgraded at the next sign-in */
-const PW_DUMMY = '$2y$10$abcdefghijklmnopqrstuuJ2zU5gkKqfVZ4sM1nO7e7N4bK1XyQ3a'; /* checked when the username does not exist */
+/* Argon2id at the OWASP settings (19 MiB, 2 passes, 1 thread): about 30 ms a check instead of about 180 ms with PHP's defaults
+   (64 MiB, 4 passes), which made every sign-in slow. Guessing stays impractical: login_guard locks a username after a few wrong tries. */
+function pw_opts() { return pw_algo() === PASSWORD_DEFAULT ? [] : ['memory_cost' => 19456, 'time_cost' => 2, 'threads' => 1]; }
+function pw_hash($pw) { return password_hash((string)$pw, pw_algo(), pw_opts()); }
+function pw_stale($hash) { return password_needs_rehash((string)$hash, pw_algo(), pw_opts()); } /* older hashes are upgraded at the next sign-in */
+/* checked when the username does not exist (same settings as a real hash, so the answer takes as long) */
+define('PW_DUMMY', defined('PASSWORD_ARGON2ID') ? '$argon2id$v=19$m=19456,t=2,p=1$ejNaN0FIbWoxYlhTUWVYSw$Fq1TCkGIMzhXe3dsiPhNcyQ+bNK9vQZ0/V4fvcY3HMM' : '$2y$10$abcdefghijklmnopqrstuuJ2zU5gkKqfVZ4sM1nO7e7N4bK1XyQ3a');
 
 // ---------- password rules ----------
 function sec_password_ok($pw, $username = '') {

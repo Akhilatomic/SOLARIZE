@@ -527,18 +527,58 @@ async function qmShareQuote(id, person) {
 /* An accepted quotation: make its PDF off-screen (no download) from the saved copy and keep it in the customer's Documents.
    Gives { kept } or { kept: false, why: 'lead' | 'old' } — a lead has no Documents page yet; quotations from before the
    quotation maker have no pages to print here. */
-async function qmKeepQuote(id) {
-  const q = await api('quotes', 'get', undefined, '&id=' + id);
-  if (!q.customer_id) return { kept: false, why: 'lead' };
+/* Leads › Show quotation (owner's rule 2026-11-20): the lead's saved quotation, read-only, exactly as it was shared. ids = the lead's
+   quotations, newest first; with more than one a picker switches between them. Download PDF makes the same PDF the customer got. */
+async function qmShowQuote(ids, who) {
+  ids = (ids || []).map(Number).filter(Boolean); if (!ids.length) return;
+  const m = modal(`<div class="qmv"><div class="qmv-h"><div><h2>Quotation${who ? ' · ' + esc(who) : ''}</h2><small class="mut" id="qmvm"></small></div><span class="sp"></span>
+    ${ids.length > 1 ? `<select id="qmvs" aria-label="Quotation">${ids.map((x, i) => `<option value="${x}">${i ? 'Older quotation ' + (i + 1) : 'Newest quotation'}</option>`).join('')}</select>` : ''}
+    <button class="btn sec" id="qmvd" type="button"><i class="i i-download"></i> Download PDF</button><button class="btn sec" id="qmvx" type="button">Close</button></div>
+    <div class="qmv-b" id="qmvb"><p class="mut">Loading…</p></div></div>`, true);
+  m.classList.add('qmvm');
+  let cur = null;
+  const fit = () => { const b = $('#qmvb', m), p = b && b.querySelector('.qm-pages'); if (p) p.style.zoom = Math.min(1, (b.clientWidth - 8) / 794); };
+  const load = async id => {
+    const b = $('#qmvb', m); b.innerHTML = '<p class="mut">Loading…</p>'; cur = null;
+    let q; try { q = await api('quotes', 'get', undefined, '&id=' + id); } catch (e) { b.innerHTML = `<p class="over">${esc((e && e.error) || 'Could not open the quotation')}</p>`; return; }
+    const sp = await qmSavedPages(q);
+    $('#qmvm', m).textContent = [q.number, q.date ? dmy(q.date) : '', q.total ? inr(q.total) : '', q.status].filter(Boolean).join(' · ');
+    if (!sp) { b.innerHTML = '<p class="mut">This quotation was made before the quotation maker, so it has no pages to show.</p>'; return; }
+    b.innerHTML = '<div class="qm-pages"></div>'; const box = b.firstChild; qmMount(box, sp.pages); cur = { box, name: sp.name }; fit();
+  };
+  $('#qmvx', m).onclick = () => m.remove();
+  if ($('#qmvs', m)) $('#qmvs', m).onchange = e => load(+e.target.value);
+  $('#qmvd', m).onclick = async e => { if (!cur) return; const btn = e.currentTarget; btn.disabled = true;
+    try { await qmDownloadPdf(cur.box, cur.name, true); } catch (x) { toast((x && x.message) || 'Could not make the PDF', true); } btn.disabled = false; };
+  addEventListener('resize', fit);
+  new MutationObserver((r, ob) => { if (!document.body.contains(m)) { ob.disconnect(); removeEventListener('resize', fit); } }).observe(document.body, { childList: true });
+  load(ids[0]);
+}
+/* Lead → customer: every quotation of the lead is kept as a PDF in the new customer's Documents (200 days, api/core.php files keep) */
+async function qmKeepLeadQuotes(cid) {
+  let qs = []; try { qs = (await api('quotes', 'list')).filter(q => +q.customer_id === +cid && +q.lead_id > 0); } catch (e) { return 0; }
+  let n = 0; for (const q of qs) { try { if ((await qmKeepQuote(q.id)).kept) n++; } catch (e) { } }
+  if (n) toast(`${n === 1 ? 'The lead’s quotation is' : n + ' quotations of the lead are'} kept in the customer’s Documents for 200 days`);
+  return n;
+}
+/* a saved quotation's pages exactly as it was sent (its frozen doc), with the PDF file name; null when it has no pages (made before the maker) */
+async function qmSavedPages(q) {
   let d = null; try { d = q.doc ? JSON.parse(q.doc) : null; } catch (e) { d = null; }
-  if (!d || typeof d !== 'object') return { kept: false, why: 'old' };
+  if (!d || typeof d !== 'object') return null;
   qmkNorm(d); if (!d.number) d.number = q.number;
   if (!QMB) QMB = await api('qm', 'boot');
   const st = QM.effectiveSettings(d, QMB.settings, S.subsidy_rates), lines = qmLines(d, QMB.products), calc = QM.calc(d, lines, st, st.subsidy_rates);
   const name = [calc.title, d.customer.name, String(d.number || '').replace(/\//g, '-')].map(s => String(s || '').trim()).filter(Boolean).join(' - ').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-').replace(/\s+/g, ' ').slice(0, 180) + '.pdf';
+  return { d, name, pages: qmPagesHtml(d, lines, calc, d.pill ? Object.assign({}, st, { pill: d.pill }) : st) };
+}
+async function qmKeepQuote(id) {
+  const q = await api('quotes', 'get', undefined, '&id=' + id);
+  if (!q.customer_id) return { kept: false, why: 'lead' };
+  const sp = await qmSavedPages(q); if (!sp) return { kept: false, why: 'old' };
+  const { d, name } = sp;
   const box = document.createElement('div'); box.className = 'qm-off'; box.setAttribute('aria-hidden', 'true'); document.body.appendChild(box);
   try {
-    qmMount(box, qmPagesHtml(d, lines, calc, d.pill ? Object.assign({}, st, { pill: d.pill }) : st));
+    qmMount(box, sp.pages);
     const blob = await qmDownloadPdf(box, name, false);
     return { kept: !!(await docKeep(q.customer_id, 'quote:' + id, 'Quotation ' + (d.number || ''), name, blob)), name };
   } finally { box.remove(); }

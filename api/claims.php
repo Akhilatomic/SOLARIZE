@@ -258,7 +258,7 @@ function lead_guard($a, $in) {
     case 'list':
       need('leads');
       try { claim_release(); } catch (Throwable $e) { } /* claims that ran out are open again before the list is read */
-      out(array_map(fn($x) => strip_fin(lead_mask($x + ['unlock_at' => claim_unlock_at($x), 'hold' => claim_held_by($x), 'grace_used' => claim_ext_used($x), 'grace_max' => CLAIM_GRACE_MAX])), rows('SELECT l.*, u.name owner_name, u.avatar owner_av, COALESCE(rc.n,0) rm_n FROM leads l LEFT JOIN users u ON u.id=l.assigned_to LEFT JOIN (SELECT lead_id, COUNT(*) n FROM lead_remarks GROUP BY lead_id) rc ON rc.lead_id=l.id WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC'))); /* rm_n: entries in the remark history (the number on the history button) */
+      out(array_map(fn($x) => strip_fin(lead_mask($x + ['unlock_at' => claim_unlock_at($x), 'hold' => claim_held_by($x), 'grace_used' => claim_ext_used($x), 'grace_max' => CLAIM_GRACE_MAX])), rows('SELECT l.*, u.name owner_name, u.avatar owner_av, COALESCE(rc.n,0) rm_n, COALESCE(qq.ids,\'\') q_ids FROM leads l LEFT JOIN users u ON u.id=l.assigned_to LEFT JOIN (SELECT lead_id, COUNT(*) n FROM lead_remarks GROUP BY lead_id) rc ON rc.lead_id=l.id LEFT JOIN (SELECT lead_id, GROUP_CONCAT(id) ids FROM (SELECT id, lead_id FROM quotes WHERE lead_id>0 ORDER BY id DESC) GROUP BY lead_id) qq ON qq.lead_id=l.id WHERE ' . lead_scope() . ' ORDER BY l.updated DESC, l.id DESC'))); /* rm_n: entries in the remark history (the number on the history button); q_ids: the lead's saved quotations, newest first (Show quotation) */
     case 'get':
       need('leads');
       $l = lead_or_404($_GET['id'] ?? 0);

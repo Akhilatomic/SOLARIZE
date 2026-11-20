@@ -6,7 +6,8 @@ function handle_auth($a) {
   $count = (int)row('SELECT COUNT(*) c FROM users')['c'];
   $old = dirname(__DIR__) . '/data/config.php'; // v1 single-password install -> first admin
   if ($count === 0 && is_file($old)) { $cfg = include $old; q('INSERT INTO users(name,username,hash,role) VALUES(?,?,?,?)', ['Admin', 'admin', $cfg['hash'], 'admin']); $count = 1; }
-  if ($a === 'status') out(['setup' => $count === 0, 'auth' => !empty($_SESSION['uid']), 'user' => me(), 'brand' => branding(), 'stay' => !empty($_SESSION['uid']) ? (int)($_SESSION['stay'] ?? 0) : 0, 'app' => ['latest' => APP_LATEST, 'url' => APP_URL]] + (!empty($_SESSION['uid']) && !empty($_GET['boot']) ? ['settings' => settings_out()] : [])); /* boot=1: the settings come along, one request less at every start */
+  $status = fn($boot) => ['setup' => $count === 0, 'auth' => !empty($_SESSION['uid']), 'user' => me(), 'brand' => branding(), 'stay' => !empty($_SESSION['uid']) ? (int)($_SESSION['stay'] ?? 0) : 0, 'app' => ['latest' => APP_LATEST, 'url' => APP_URL]] + (!empty($_SESSION['uid']) && $boot ? ['settings' => settings_out()] : []);
+  if ($a === 'status') out($status(!empty($_GET['boot']))); /* boot=1: the settings come along, one request less at every start */
   if ($a === 'setup') {
     if ($count) fail('Already set up', 403);
     $u = trim($in['username'] ?? ''); $pw = $in['password'] ?? ''; $n = trim($in['name'] ?? '') ?: $u;
@@ -22,7 +23,6 @@ function handle_auth($a) {
   if ($a === 'login') {
     $un = mb_substr(trim((string)($in['username'] ?? '')), 0, 60);
     login_guard_check($un);
-    usleep(400000);
     $u = row('SELECT * FROM users WHERE username=? AND active=1', [$un]);
     if (!$u) password_verify((string)($in['password'] ?? ''), PW_DUMMY); /* same work for an unknown username, so the answer time does not tell which usernames exist */
     if ($u && password_verify((string)($in['password'] ?? ''), $u['hash'])) {
@@ -32,7 +32,8 @@ function handle_auth($a) {
       $rem = !empty($in['remember']) && empty($in['app']); /* "Remember this device": signed in for REMEMBER_DAYS on this browser, phone or computer, closed or not */
       if ($rem) { $stay = time() + REMEMBER_DAYS * 86400; $_SESSION['rem'] = 1; }
       if ($stay) { $_SESSION['stay'] = $stay; sec_stay_cookie($stay); }
-      audit('login', 'users', $u['id'], 'from ' . client_ip() . ($rem ? ' · device remembered until ' . date('d M H:i', $stay) : ($stay ? ' · phone, until ' . date('H:i', $stay) : ''))); out(['ok' => true, 'stay' => $stay] + (!empty($in['app']) ? ['app_token' => app_token_issue($u['id'], (string)($in['device'] ?? ''))] : [])); }
+      audit('login', 'users', $u['id'], 'from ' . client_ip() . ($rem ? ' · device remembered until ' . date('d M H:i', $stay) : ($stay ? ' · phone, until ' . date('H:i', $stay) : ''))); out(['ok' => true, 'stay' => $stay, 'status' => $status(true)] + (!empty($in['app']) ? ['app_token' => app_token_issue($u['id'], (string)($in['device'] ?? ''))] : [])); } /* status: what boot() would ask for next, so the app opens without one more round trip */
+    usleep(400000); /* a wrong guess waits (a right password does not) */
     login_guard_fail($un);
     fail('Wrong username or password', 401);
   }
@@ -340,6 +341,7 @@ function handle_files($a) {
     $cid = (int)($_GET['customer_id'] ?? 0); $key = (string)($_GET['gen'] ?? '');
     if (!preg_match('/^([a-z]+)(?::[a-z0-9_-]{1,40})?$/', $key, $mm) || !isset(GEN_KEEP[$mm[1]])) fail('Unknown paper');
     [$mod, $life] = GEN_KEEP[$mm[1]]; if ($life) $life = $mm[1] === 'kseb' ? KSEB_GEN_DAYS : rule('gen_days'); need('customers'); need($mod);
+    if ($mm[1] === 'quote' && preg_match('/^quote:(\d+)$/', $key, $qm) && (int)(row('SELECT lead_id FROM quotes WHERE id=?', [(int)$qm[1]])['lead_id'] ?? 0) > 0) $life = LEAD_QUOTE_DOC_DAYS; /* the quotation of a converted lead: 200 days */
     if (!$cid || !row('SELECT id FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
     $fl = $_FILES['file'] ?? null; sec_upload($fl, ['pdf'], 25);
     $title = mb_substr(trim((string)($_POST['title'] ?? '')), 0, 120); if ($title === '') $title = 'Document';
