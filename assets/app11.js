@@ -14,6 +14,26 @@ const mapsLink = c => c.lat && c.lng ? `https://www.google.com/maps?q=${c.lat},$
 /* All details card: empty fields hidden (remembered in this browser) */
 const pfaHide = () => { try { return localStorage.pfaHide !== '0'; } catch (e) { return true; } }; /* empty fields hidden unless the person chose Show empty */
 const pfaLine = v => String(v).split(String.fromCharCode(10)).map(x => x.trim()).filter(Boolean).join(', ');
+/* Customer page tabs in four groups: Overview · Details (the five numbered pages) · Documents · Money. Each view keeps its own key
+   (PFT, data-pt), so links that open a view by key still work; every sub-tab button stays in the page, only the other groups' rows are hidden.
+   The Details tab shows the total of the red "missing" counts. A group remembers the last sub-tab opened (PFG_LAST, this browser tab only). */
+const PFG = [['overview', 'Overview', 'user', ['overview']], ['details', 'Details', 'clipboard', null], ['docs_g', 'Documents', 'file', ['docs', 'ksebl', 'warranty', 'mnre']], ['money', 'Money', 'wallet', ['pay', 'tax', 'ps', 'comm']]];
+const PFG_LAST = {};
+const pfGroupOf = (k, pgKeys) => (PFG.find(g => (g[3] || pgKeys).includes(k)) || PFG[0])[0];
+function pfTabsHtml(tabs, pgKeys, cnt) {
+  const cur = pfGroupOf(PFT, pgKeys), miss = pgKeys.reduce((a, k) => a + (+cnt[k] || 0), 0);
+  const btn = ([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${esc(l)}${pgKeys.includes(k) ? ` <span class="ppn" data-ppn="${k}"${cnt[k] > 0 ? '' : ' hidden'}>${cnt[k] || 0}</span>` : ''}</button>`;
+  const groups = PFG.map(g => [g, tabs.filter(t => (g[3] || pgKeys).includes(t[0]))]).filter(([, ts]) => ts.length);
+  return `<div class="tabs pftabs pfg" role="tablist">${groups.map(([g]) => `<button data-pg="${g[0]}" class="${cur === g[0] ? 'on' : ''}" role="tab" aria-selected="${cur === g[0]}"><i class="i i-${g[2]}"></i> ${g[1]}${g[0] === 'details' && miss ? ` <span class="ppn">${miss}</span>` : ''}</button>`).join('')}</div>`
+    + groups.filter(([g]) => g[0] !== 'overview').map(([g, ts]) => `<div class="pfsub" data-sub-of="${g[0]}"${cur === g[0] ? '' : ' hidden'}>${ts.map(btn).join('')}</div>`).join('')
+    + tabs.filter(t => t[0] === 'overview').map(t => `<span hidden>${btn(t)}</span>`).join(''); /* Overview's own key, for code that opens it by data-pt */
+}
+function pfTabsShow(k) {
+  const sub = $(`.pfsub [data-pt="${k}"]`), g = sub ? sub.closest('.pfsub').dataset.subOf : 'overview';
+  if (g !== 'overview') PFG_LAST[g] = k;
+  $$('[data-pg]').forEach(b => { const on = b.dataset.pg === g; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  $$('.pfsub').forEach(r => r.hidden = r.dataset.subOf !== g);
+}
 let PFT = 'overview', PFT_ID = 0;
 /* set by the Customers list (Edit): { id, key, edit } - pgCustomer opens that page once, in edit mode, then clears it */
 let PFT_OPEN = null;
@@ -68,7 +88,7 @@ async function pgCustomer(id) {
    <div class="card pfhead"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="mut">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') + ' ' : ''}${typeof feasSpot === 'function' ? feasSpot(c.id) + ' ' : ''}${c.phone ? `<button class="pfv inl" data-cp="${esc(c.phone)}" data-l="phone">${esc(c.phone)}<i class="i i-copy"></i></button>` : ''}${c.consumer_no ? ` · Consumer no. <button class="pfv inl" data-cp="${esc(c.consumer_no)}" data-l="consumer no.">${esc(c.consumer_no)}<i class="i i-copy"></i></button>` : ''}${ownHtml}</div></div>
     <div class="pfact"><button class="btn sec" id="dsc">${discBtnLabel(id)}</button>${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn ok" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}
      ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}${canR('accounts') ? '<button class="btn sec" id="pfexp" title="Project cost sheet: purchases, services, commission / incentive and profit of the latest project"><i class="i i-coin"></i> Project cost</button>' : ''}<button class="btn sec" id="pfkyc" title="Download “Jasper Solar KYC Doc”: every detail held for this customer, as a PDF"><i class="i i-download"></i> KYC PDF</button><button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
-   <div class="tabs pftabs">${[['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, `${i + 1} · ${pg.tab}`, pg.icon]), ['ksebl', 'KSEB login', 'lock'], ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(ME.role === 'admin' ? [['pay', 'Payments', 'card']] : []), ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : []), ...(ME.role === 'admin' ? [['ps', 'Purchases and services', 'coin'], ['comm', 'Commission / Incentive', 'users']] : [])].map(([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${esc(l)}${pgKeys.includes(k) ? ` <span class="ppn" data-ppn="${k}"${cnt0[k] > 0 ? '' : ' hidden'}>${cnt0[k] || 0}</span>` : ''}</button>`).join('')}</div>
+   ${pfTabsHtml([['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, `${i + 1} · ${pg.tab}`, pg.icon]), ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['ksebl', 'KSEB login', 'lock'], ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(ME.role === 'admin' ? [['pay', 'Payments', 'card']] : []), ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : []), ...(ME.role === 'admin' ? [['ps', 'Purchases and services', 'coin'], ['comm', 'Commission / Incentive', 'users']] : [])], pgKeys, cnt0)}
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
     <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut" style="margin:0">No project yet.</p></div>`}
@@ -109,12 +129,13 @@ async function pgCustomer(id) {
   const bindGoto = () => $$('[data-goto]').forEach(b => b.onclick = () => { showTab(b.dataset.goto); scrollTo({ top: 0, behavior: 'smooth' }); });
   const refresh = () => route();
   /* Purchases and services (admin only): a read-only view of the project's purchases and services, no money (app34.js acProfileTab); editing is in Accounts › Project cost */
-  const showTab = (k, edit) => { if (k === 'ps' && PFT === 'ps' && $('#acx_psb')) return; if (!acLeaveOk()) return; acLeft(); if ((k === 'ps' || k === 'comm' || k === 'pay') && ME.role !== 'admin') k = 'overview'; PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
+  const showTab = (k, edit) => { if (k === 'ps' && PFT === 'ps' && $('#acx_psb')) return; if (!acLeaveOk()) return; acLeft(); if ((k === 'ps' || k === 'comm' || k === 'pay') && ME.role !== 'admin') k = 'overview'; PFT = k; $$('[data-pt]').forEach(b => b.classList.toggle('on', b.dataset.pt === k)); pfTabsShow(k); $('.pfgrid').hidden = k !== 'overview'; const box = $('#pfbody'); box.innerHTML = '';
     if (k === 'plant') renderPlant(box, st.c, id, !!edit, st, refresh);
     else if (pgKeys.includes(k)) renderPfPage(box, st, k, !!edit, refresh);
     if (k === 'ksebl' && typeof renderKsebLogin === 'function') renderKsebLogin(box, st.c, id);
     if (k === 'docs') renderDocs(box, st.c, id); if (k === 'warranty') renderWarranty(box, st.c, id); if (k === 'mnre') renderMnre(box, st.c, id); if (k === 'tax') renderTax(box, st.c, id); if (k === 'pay') payTab(box, st.c, id); if (k === 'ps') acProfileTab(box, st.c, id); if (k === 'comm') commProfileTab(box, st.c, id); };
   $$('[data-pt]').forEach(b => b.onclick = () => showTab(b.dataset.pt));
+  $$('[data-pg]').forEach(b => b.onclick = () => { const g = PFG.find(x => x[0] === b.dataset.pg), keys = $$(`[data-sub-of="${g[0]}"] [data-pt]`).map(x => x.dataset.pt); showTab(g[0] === 'overview' ? 'overview' : (keys.includes(PFG_LAST[g[0]]) ? PFG_LAST[g[0]] : keys[0])); });
   bindGoto();
   if (PFT !== 'overview') showTab(PFT, openEdit === PFT);
   feeMembers(id);

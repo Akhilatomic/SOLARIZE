@@ -1298,3 +1298,10 @@ html.touch .rmh-b.n{width:auto;min-width:34px;padding:0 8px}
 #ltb .apnone{font-size:12.5px;white-space:nowrap}
 @media(hover:hover){#ltb .apnone,#ltb .rmadd,#ltb .cbadd{opacity:0;transition:opacity .12s}#ltb tr:hover .apnone,#ltb tr:hover .rmadd,#ltb tr:hover .cbadd,#ltb td:focus-within .rmadd{opacity:1}}
 #ledit.on{background:var(--tx);color:#fff;border-color:var(--tx)}
+
+/* customer page: main tabs + one row of sub-tabs (app11.js pfTabsHtml) */
+.pftabs.pfg{margin:0 0 8px}.pftabs.pfg button{font-size:14.5px;padding:7px 16px}
+.pfsub{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}.pfsub[hidden]{display:none}
+.pfsub button{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--bd);border-radius:980px;padding:5px 13px;font:inherit;font-size:13.5px;color:var(--tx);cursor:pointer}
+.pfsub button:hover{background:var(--fill)}.pfsub button.on{background:var(--tx);border-color:var(--tx);color:#fff}.pfsub .i{width:14px;height:14px}
+@media(max-width:820px){.pftabs.pfg{display:flex;flex-wrap:nowrap}.pftabs.pfg button{flex:1;justify-content:center;padding:7px 6px;font-size:13.5px;white-space:nowrap}.pftabs.pfg .i{display:none}.pfsub{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}.pfsub::-webkit-scrollbar{display:none}.pfsub button{flex:none}}
