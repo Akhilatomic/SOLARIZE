@@ -153,7 +153,7 @@ function shell() {
    ${items.map(m => `${m[0] === 'subsidy' ? '<div class="sep">Compliance</div>' : m[0] === 'whatsapp' ? '<div class="sep">Marketing</div>' : m[0] === 'attendance' ? '<div class="sep">Team</div>' : m[0] === 'settings' ? '<div class="sep">System</div>' : ''}${m[0] === 'fees' ? feesNav() : `<a href="#/${m[0]}" data-m="${m[0]}" title="${m[1]}"><span class="ft t-${m[0]}">${m[2]}</span><span class="lbl">${m[1]}</span></a>`}`).join('')}
    ${APPLITE ? appVerHtml() : ''}</aside><div class="content"><div class="top"><button class="btn sec burger" id="bg"><i class="i i-menu"></i></button><h2 id="title"></h2>
    <div id="pwb" class="acctw"><button class="acct" id="acct" title="Account"><span class="acav" data-pres="${ME.id}">${avImg(ME.id, ME.avatar, ME.name)}</span><span class="acn">${esc(ME.name)}<small>${esc(ME.role_name || ME.role)}</small></span></button>
-    <div class="card menu acm hide" id="acm"><div class="acmh"><span class="acav big">${avImg(ME.id, ME.avatar, ME.name)}</span><div><b>${esc(ME.name)}</b><small class="mut">${esc(ME.role_name || ME.role)} · @${esc(ME.username || '')}</small></div></div><button id="pdp"><i class="i i-user"></i>Change photo</button><button id="pdr" ${ME.avatar ? '' : 'hidden'}><i class="i i-x"></i>Remove photo</button><button id="pwc"><i class="i i-lock"></i>Change password</button><button id="mtsw" class="mt-sw"><i class="i i-file"></i>Open menus in tabs: ${TABS.off() ? 'Off' : 'On'}</button><button id="lo"><i class="i i-x"></i>Sign out</button></div></div></div><main id="main"></main></div><div id="scrim"></div></div>`;
+    <div class="card menu acm hide" id="acm"><div class="acmh"><span class="acav big">${avImg(ME.id, ME.avatar, ME.name)}</span><div><b>${esc(ME.name)}</b><small class="mut">${esc(ME.role_name || ME.role)} · @${esc(ME.username || '')}</small></div></div><button id="pdp"><i class="i i-user"></i>Change photo</button><button id="pdr" ${ME.avatar ? '' : 'hidden'}><i class="i i-x"></i>Remove photo</button><button id="pwc"><i class="i i-lock"></i>Change password</button><button id="mtsw" class="mt-sw"><i class="i i-file"></i>Open menus in tabs: ${TABS.off() ? 'Off' : 'On'}</button><button id="lo"><i class="i i-x"></i>Sign out</button></div></div></div><div id="navbk" class="navbk" hidden></div><main id="main"></main></div><div id="scrim"></div></div>`;
   $('#bg').onclick = () => { $('#side').classList.toggle('open'); document.body.classList.toggle('drawer', $('#side').classList.contains('open')); };
   $('#scrim').onclick = () => { $('#side').classList.remove('open'); document.body.classList.remove('drawer'); };
   $('#acct').onclick = e => { e.stopPropagation(); $('#acm').classList.toggle('hide'); };
@@ -201,6 +201,34 @@ function sideAuto() {
 }
 window.onhashchange = () => ME && route();
 let ROUTE_N = 0; // each navigation gets a number, so a slow page you already left can't paint its error over the page you are on
+/* Back button on every page (owner's rule 2026-11-20): it goes to the page you came from - the last page visited in this window
+   (or menu tab) - and says which ("← Back to Customers"). With nothing before it (a page opened directly), it goes one level up:
+   a customer → Customers, any page → Dashboard. The trail lives in sessionStorage per window / menu tab, so a reload keeps it. */
+const NAVK = 'navTrail' + (location.search.match(/[?&]tab=([\w-]+)/) || ['', ''])[1];
+let NAVBACK = false;
+const navNorm = h => { h = String(h || '').replace(/\/$/, ''); return h && h !== '#' && h !== '#/' ? h : '#/dashboard'; };
+const navGet = () => { try { return JSON.parse(sessionStorage.getItem(NAVK) || '[]'); } catch (e) { return []; } };
+const navSet = a => { try { sessionStorage.setItem(NAVK, JSON.stringify(a.slice(-50))); } catch (e) { } };
+function navName(h) {
+  const [, mod = 'dashboard', id] = h.split('/'), m = typeof MODS !== 'undefined' && MODS.find(x => x[0] === mod);
+  const base = m ? m[1] : mod.charAt(0).toUpperCase() + mod.slice(1);
+  return id && /^\d+$/.test(id) ? ({ customers: 'customer', projects: 'project', quotes: 'quotation', survey: 'site survey', subsidy: 'Subsidy' }[mod] ? (mod === 'subsidy' ? 'Subsidy' : 'the ' + { customers: 'customer', projects: 'project', quotes: 'quotation', survey: 'site survey' }[mod]) : base) : base;
+}
+function navTrack() {
+  const box = document.getElementById('navbk'); if (!box) return;
+  const h = navNorm(location.hash); let a = navGet();
+  if (NAVBACK) { NAVBACK = false; while (a.length && a[a.length - 1] !== h) a.pop(); if (!a.length) a.push(h); }
+  else if (a[a.length - 1] === h) { /* same page drawn again */ }
+  else if (a[a.length - 2] === h) a.pop(); /* the browser's own Back */
+  else a.push(h);
+  navSet(a);
+  const prev = a.length > 1 ? a[a.length - 2] : null, [, mod = 'dashboard', id] = h.split('/');
+  const to = prev || (id ? '#/' + mod : mod !== 'dashboard' ? '#/dashboard' : null);
+  if (!to) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = `<button type="button" class="navbk-b" title="Back to the page you came from"><i class="i i-chev"></i><span>Back to ${esc(navName(to))}</span></button>`;
+  box.firstChild.onclick = () => { if (prev) NAVBACK = true; location.hash = to; };
+}
 async function route() {
   if (TABS.live) return TABS.route(); /* the outer window only shows tabs; each tab's frame draws its own page */
   if (APPLITE && !/^#\/leads(\/|$)/.test(location.hash)) { const other = /^#\/[a-z]/.test(location.hash) && !/^#\/dashboard/.test(location.hash); history.replaceState(null, '', '#/leads'); if (other && typeof toast === 'function') toast('The app has Leads only. Open the CRM in a browser for the other pages.'); } /* Android app: Leads only */
@@ -212,6 +240,7 @@ async function route() {
   const t = MODS.find(m => m[0] === mod);
   $('#title').innerHTML = t ? `<span class="ft t-${t[0]}">${t[2]}</span><span class="ttl">${esc(t[1])}</span>` : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
+  navTrack(); /* the Back button above every page */
   const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, survey: id ? pgSurvey : pgSurveys, subsidy: pgSubsidy, kseb: pgKseb, bank: pgBank, mnre: pgMnre, comm: pgComm, accounts: pgAccounts, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
@@ -1151,7 +1180,7 @@ async function pgProject(id) {
     if ($('#ssv')) $('#ssv').onclick = async () => { await api('projects', 'save', { ...p, application_no: $('#sa').value, subsidy_amount: $('#sm').value }); route(); };
     bindChecklist(id, p); if (typeof ksebDocsBind === 'function') ksebDocsBind(p); bindNote('projects', id, route);
   };
-  $('#main').innerHTML = `<p><a href="#/projects">← Pipeline</a> · <a href="#/customers/${p.customer_id}">${esc(p.customer?.name || '')}</a></p>
+  $('#main').innerHTML = `<p class="u-m0_0_8 mut">Customer: <a href="#/customers/${p.customer_id}">${esc(p.customer?.name || '')}</a></p>
    <div class="card"><div class="bar u-m0"><h2 style="margin:0;margin-right:auto">${esc(p.title)}${new RegExp('\\b' + String(p.kw).replace('.', '\\.') + '\\s*kw\\b', 'i').test(p.title || '') ? '' : ` <span class="mut" style="font-size:14px">${p.kw} kW</span>`}</h2>
    ${canR('accounts') ? `<a class="btn sec" href="#/accounts/cost/${id}"><i class="i i-coin"></i> Project cost</a>` : ''}${w ? `<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>` : pill(p.stage)}</div></div><div id="pstp" class="u-mt12"></div><div id="pb" class="u-mt12"></div>`;
   renderStepper(p, $('#pstp'));

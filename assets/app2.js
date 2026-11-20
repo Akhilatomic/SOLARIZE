@@ -36,7 +36,7 @@ async function pgQuote(id) {
   const [cs, ls] = await Promise.all([list('customers'), list('leads')]);
   if (nav !== ROUTE_N) return;
   const w = canW('quotes');
-  $('#main').innerHTML = `<p><a href="#/quotes">← Quotations</a></p><div class="card">
+  $('#main').innerHTML = `<div class="card">
    <h2 class="u-mt0">${q.number ? 'Quotation ' + esc(q.number) : 'New quotation'}</h2>
    <div class="two"><div><label>Customer</label><select id="qc"><option value="">— none —</option>${cs.map(c => `<option value="${c.id}" ${q.customer_id == c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
    <div><label>…or Lead (if not yet a customer)</label><select id="ql"><option value="">— none —</option>${ls.filter(l => !l.customer_id || l.id == q.lead_id).map(l => `<option value="${l.id}" ${q.lead_id == l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></div>

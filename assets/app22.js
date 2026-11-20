@@ -91,7 +91,7 @@ async function pgQuoteMaker(id, q) {
 
 function qmkShell() {
   const w = canW('quotes'), gear = QMK.boot.admin && typeof qmOpenSettings === 'function';
-  return `<div id="qmk" class="qmk"><div class="qm-head"><a href="#/quotes" class="qm-back">← Quotations</a><h2 id="qmh"></h2><span id="qmstate" class="qm-state"></span></div>
+  return `<div id="qmk" class="qmk"><div class="qm-head"><h2 id="qmh"></h2><span id="qmstate" class="qm-state"></span></div>
    <div class="qm-bar card"><div class="qm-tplw"><i class="i i-file"></i><select id="qmtpl" aria-label="Template"></select></div>
     ${w ? `<button type="button" class="btn sec sm" id="qmtnew" title="Keep these components, price and texts as a template for later quotations"><i class="i i-plus"></i><span class="qm-wl">Save as new template</span><span class="qm-nl">New template</span></button>
     <button type="button" class="btn sec sm" id="qmtupd"><i class="i i-refresh"></i> Update template</button>
