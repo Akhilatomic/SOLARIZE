@@ -72,6 +72,9 @@ const BA = () => !!ME && ME.role === 'ba'; // Business Associate: own leads & cu
    browser refused the new tab. Returns the window, or null. */
 function printWin(html, o = {}) {
   const w = window.open('', '_blank'); if (!w) { sayBad(o.blocked || 'Allow pop-ups to print or save the PDF'); return null; }
+  /* the shared u-* classes (app2.css, styles that used to be inline) are not loaded in the print window: copy them in */
+  let u = ''; try { u = [...document.styleSheets].flatMap(s => { try { return [...s.cssRules]; } catch (e) { return []; } }).filter(r => r.selectorText && /^\.u-/.test(r.selectorText)).map(r => r.cssText).join(''); } catch (e) { }
+  if (u) html = /<\/head>/i.test(html) ? html.replace(/<\/head>/i, `<style>${u}</style></head>`) : `<style>${u}</style>` + html;
   w.document.write(html); w.document.close();
   const go = () => setTimeout(() => { try { if (o.before) o.before(w); w.focus(); w.print(); } catch (e) { } }, o.delay || 300);
   const wait = [...w.document.images].filter(i => !i.complete); let n = wait.length;
@@ -336,10 +339,10 @@ function waOpen(ctx) {
   if (BA()) return toast('WhatsApp is not available for Business Associates', 1);
   const T = (ctx.text ? [{ name: ctx.textName || 'Quotation details', text: ctx.text }] : []).concat(S.wa_templates || []); /* ctx.text: a ready message (e.g. a quotation's details), offered first */
   const fill = (txt, c) => txt.replace(/\{name\}/g, c.name || '').replace(/\{company\}/g, S.company.name).replace(/\{amount\}/g, c.amount ?? '').replace(/\{quote_no\}/g, c.quote_no ?? '').replace(/\{date\}/g, c.date ?? '');
-  const m = modal(`<h3 style="margin-top:0">WhatsApp → ${esc(ctx.name)} <span class="mut">(${esc(ctx.phone || 'no phone')})</span></h3>
+  const m = modal(`<h3 class="u-mt0">WhatsApp → ${esc(ctx.name)} <span class="mut">(${esc(ctx.phone || 'no phone')})</span></h3>
    <label>Template</label><select id="wt">${T.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('')}</select>
    <label>Message (editable)</label><textarea id="wm" rows="6"></textarea>
-   <div class="bar" style="margin-top:12px"><button class="btn ok" id="wgo">Open in WhatsApp Web</button>${WA.on && canW('whatsapp') ? '<button class="btn" id="winb"><i class="i i-chat"></i> Send in CRM inbox</button>' : ''}<button class="btn sec" id="wx">Close</button></div>`);
+   <div class="bar u-mt12"><button class="btn ok" id="wgo">Open in WhatsApp Web</button>${WA.on && canW('whatsapp') ? '<button class="btn" id="winb"><i class="i i-chat"></i> Send in CRM inbox</button>' : ''}<button class="btn sec" id="wx">Close</button></div>`);
   const set = () => $('#wm', m).value = fill(T[$('#wt', m).value]?.text || '', ctx);
   $('#wt', m).onchange = set; set();
   $('#wx', m).onclick = () => m.remove();
@@ -388,7 +391,7 @@ async function pgDashboard() {
    ${[0, 7, 14, 21, 29].map(i => `<text x="${px(i)}" y="142" font-size="11" fill="#8e8e93" text-anchor="middle">${dmy(days[i]).slice(0, 6)}</text>`).join('')}</svg>`;
   // source bars
   const smax = Math.max(1, ...d.sources.map(s => s.n)), cols = ['#0071e3', '#30a14e', '#ff9f0a', '#af52de', '#ff375f', '#64d2ff', '#8e8e93'];
-  const src = d.sources.length ? d.sources.map((s, i) => `<div style="display:flex;align-items:center;gap:10px;margin:9px 0"><span style="width:110px;font-size:13px">${esc(s.s)}</span><div class="prog" style="flex:1"><i style="width:${s.n / smax * 100}%;background:${cols[i % cols.length]}"></i></div><b>${s.n}</b></div>`).join('') : '<div style="text-align:center;padding:30px 0"><b style="font-size:30px">0</b><br><small class="mut">LEADS</small></div>';
+  const src = d.sources.length ? d.sources.map((s, i) => `<div style="display:flex;align-items:center;gap:10px;margin:9px 0"><span style="width:110px;font-size:13px">${esc(s.s)}</span><div class="prog u-fx1"><i style="width:${s.n / smax * 100}%;background:${cols[i % cols.length]}"></i></div><b>${s.n}</b></div>`).join('') : '<div style="text-align:center;padding:30px 0"><b style="font-size:30px">0</b><br><small class="mut">LEADS</small></div>';
   // conversion
   const conv = d.leads_all ? Math.round(d.converted / d.leads_all * 1000) / 10 : 0;
   // target gauges: leads this month (Settings → monthly lead target) and customers this year (yearly customer target); green once reached
@@ -396,7 +399,7 @@ async function pgDashboard() {
     const f = Math.min(1, n / (target || 1)), done = n >= target;
     return `<div class="tgg"><svg viewBox="0 0 220 130" style="width:210px;max-width:100%"><path d="M10 115 A100 100 0 0 1 210 115" pathLength="100" fill="none" stroke="#ececf0" stroke-width="24"/><path d="M10 115 A100 100 0 0 1 210 115" pathLength="100" fill="none" stroke="${done ? '#34c759' : color}" stroke-width="24" stroke-dasharray="${f * 100} 100" stroke-linecap="butt"/>
      <text x="110" y="98" text-anchor="middle" font-size="26" font-weight="700" fill="#1d1d1f">${n.toLocaleString('en-IN')}</text><text x="110" y="117" text-anchor="middle" font-size="11" fill="#6e6e73">${what}</text></svg>
-     <div class="mut" style="font-size:12.5px">${done ? '<b style="color:var(--ok)">Target reached</b>' : `Remaining <b style="color:var(--tx)">${(target - n).toLocaleString('en-IN')}</b>`} · Target <b style="color:var(--tx)">${target.toLocaleString('en-IN')}</b> · ${Math.round(f * 100)}%</div></div>`;
+     <div class="mut u-fs12p5">${done ? '<b class="u-cok">Target reached</b>' : `Remaining <b style="color:var(--tx)">${(target - n).toLocaleString('en-IN')}</b>`} · Target <b style="color:var(--tx)">${target.toLocaleString('en-IN')}</b> · ${Math.round(f * 100)}%</div></div>`;
   };
   const mName = new Date().toLocaleDateString('en-GB', { month: 'long' });
   const gauge = gaugeOf(+d.leads_month || 0, +d.lead_target || 1000, 'leads in ' + mName, '#0071e3') + gaugeOf(+d.cust_year || 0, +d.customer_target || 2000, 'customers in ' + new Date().getFullYear(), '#5e5ce6');
@@ -412,7 +415,7 @@ async function pgDashboard() {
   $('#main').innerHTML =`<div class="dhead"><div><h2>Hello, ${esc(first)}!</h2><div class="mut">${BA() ? 'Here’s how your leads and customers are doing today.' : 'Here’s how Jasper Solar is doing today.'}</div></div><div class="dhr">${QA.length ? `<div class="dqa">${QA.map(q => `<button class="btn sec sm" data-qa="${q[0]}"><i class="i i-plus"></i> ${q[1]}</button>`).join('')}</div>` : ''}<div class="dteam" id="dteam" role="button" tabindex="0" title="Who is online"></div><div class="mut dtime">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div></div>
   <div class="dg">
    <div class="s8" id="newleads"></div>
-   <div class="s4 card"><div style="display:flex;gap:12px;align-items:center"><div class="avatar"><i class="i i-calendar"></i></div><div><b style="font-size:16px">Today</b><div class="mut" style="font-size:12px">What is waiting for you</div></div></div>
+   <div class="s4 card"><div style="display:flex;gap:12px;align-items:center"><div class="avatar"><i class="i i-calendar"></i></div><div><b style="font-size:16px">Today</b><div class="mut u-fs12">What is waiting for you</div></div></div>
     ${sumTiles.length ? `<div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">${sumTiles.map(([i, n, l, k], x) => `<div class="tile go" role="button" tabindex="0" data-dt="${k}" title="Open ${esc(l.toLowerCase())}"${x === sumTiles.length - 1 && x % 2 === 0 ? ' style="grid-column:1/-1"' : ''}><span>${i}</span><div><b>${n}</b><small>${l}</small></div><i class="i i-chev tgo"></i></div>`).join('')}</div>` : '<div class="mut" style="font-size:13px;margin-top:14px"><i class="i i-check"></i> Nothing pending — all clear</div>'}
     ${d.overdue ? `<div class="warn"><span>${d.overdue + ' follow-up' + (d.overdue > 1 ? 's are' : ' is') + ' overdue'}</span><button class="btn sm" id="vod">View Overdue</button></div>` : ''}</div>
 
@@ -429,7 +432,7 @@ async function pgDashboard() {
    <div class="s3 card dtop ${BA() ? 'hide' : ''}" style="text-align:center">${head('Targets')}<div class="tggs">${gauge}</div></div>
 
    <div class="s4 card dtop">${head('Lead → Customer Conversion', `<b style="font-size:24px;color:var(--ok)">${conv}%</b>`)}<div class="mut" style="font-size:12px;margin-bottom:10px">${d.converted} of ${d.leads_all} leads converted</div><div class="prog" style="height:10px"><i style="width:${Math.min(100, conv)}%"></i></div>
-     <h3 style="margin-top:20px">Projects by stage</h3>${bars(d.stages.map(s => [s.stage, s.n]), S.project_stages)}</div>
+     <h3 class="u-mt20">Projects by stage</h3>${bars(d.stages.map(s => [s.stage, s.n]), S.project_stages)}</div>
    <div class="s4 card" id="cal"></div>
    <div class="s4 card">${head(BA() ? 'Your Recent Activity' : 'Recent Activity')}${lst(d.recent, r => `<div class="act"><b>${esc(r.name || r.user)}</b> ${esc(recentTxt(r))} <span class="mut">${esc(r.detail || '')}</span><br><small>${recentWhen(r.created)}</small></div>`, 'No recent activity')}</div>
 
@@ -471,10 +474,10 @@ async function pgDashboard() {
     d.appts.forEach(a => (by[a.d] = by[a.d] || []).push(a));
     const cells = []; for (let i = 0; i < start; i++) cells.push(''); for (let i = 1; i <= dim; i++) cells.push(`${y}-${String(mo + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`);
     const ev = by[sel] || [];
-    $('#cal').innerHTML = `<div class="calw"><div><div class="ch"><h3><a href="#/calendar" style="color:inherit">Calendar</a></h3><a class="btn sec sm" href="#/calendar">Open</a><span class="sp"></span><button class="btn sec sm" id="cp">‹</button><b style="font-size:13px">${cm.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b><button class="btn sec sm" id="cn">›</button></div>
+    $('#cal').innerHTML = `<div class="calw"><div><div class="ch"><h3><a href="#/calendar" style="color:inherit">Calendar</a></h3><a class="btn sec sm" href="#/calendar">Open</a><span class="sp"></span><button class="btn sec sm" id="cp">‹</button><b class="u-fs13">${cm.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b><button class="btn sec sm" id="cn">›</button></div>
      <div class="cg">${['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(x => `<i class="mut">${x}</i>`).join('')}${cells.map(c => c ? `<button class="cd ${c === today() ? 'tdy' : ''} ${c === sel ? 'sel' : ''}" data-d="${c}">${+c.slice(8)}${by[c] ? '<u></u>' : ''}</button>` : '<span></span>').join('')}</div></div>
      <div class="cev"><b>${new Date(sel + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}</b> <small class="mut">${ev.length} appointment${ev.length === 1 ? '' : 's'}</small>
-      ${ev.map(e => `<div class="act"><a href="#/leads">${esc(e.name)}</a><br><small>${esc(e.status)}</small></div>`).join('') || '<p class="mut" style="font-size:13px">No appointments scheduled.</p>'}</div></div>`;
+      ${ev.map(e => `<div class="act"><a href="#/leads">${esc(e.name)}</a><br><small>${esc(e.status)}</small></div>`).join('') || '<p class="mut u-fs13">No appointments scheduled.</p>'}</div></div>`;
     $('#cp').onclick = () => { cm.setMonth(cm.getMonth() - 1); drawCal(); }; $('#cn').onclick = () => { cm.setMonth(cm.getMonth() + 1); drawCal(); };
     $$('.cd').forEach(b => b.onclick = () => { sel = b.dataset.d; drawCal(); });
   };
@@ -483,7 +486,7 @@ async function pgDashboard() {
 function bars(data, order) {
   const m = Object.fromEntries(data), max = Math.max(1, ...data.map(d => d[1]));
   const keys = (order || []).filter(k => m[k] !== undefined).concat(data.map(d => d[0]).filter(k => !(order || []).includes(k)));
-  return keys.map(k => `<div style="display:flex;align-items:center;gap:8px;margin:6px 0"><span style="width:100px;font-size:13px">${esc(k)}</span><div class="prog" style="flex:1"><i style="width:${m[k] / max * 100}%;background:var(--pri)"></i></div><b>${m[k]}</b></div>`).join('') || '<p class="mut">No data</p>';
+  return keys.map(k => `<div style="display:flex;align-items:center;gap:8px;margin:6px 0"><span style="width:100px;font-size:13px">${esc(k)}</span><div class="prog u-fx1"><i style="width:${m[k] / max * 100}%;background:var(--pri)"></i></div><b>${m[k]}</b></div>`).join('') || '<p class="mut">No data</p>';
 }
 
 // ---------- Leads ----------
@@ -526,13 +529,13 @@ const cbBtnTxt = l => '<i class="i i-phone"></i> ' + (l.callback_at ? 'Call back
 let LEADCB = null; // the Leads page redraws its row when a reminder changes elsewhere (lead form, bell)
 function callbackBox(l, after) {
   const cur = l.callback_at || '', tmr = cbYmd(new Date(Date.now() + 864e5));
-  const m = modal(`<h3 style="margin-top:0"><i class="i i-phone"></i> Call back — ${esc(l.name)}</h3>
+  const m = modal(`<h3 class="u-mt0"><i class="i i-phone"></i> Call back — ${esc(l.name)}</h3>
    <p class="mut" style="margin:-4px 0 12px;font-size:13px">${cur ? `Reminder set for <b>${esc(cbWhen(cur))}</b>${cur <= cbNow() ? ' — <b style="color:#c4271f">due now</b>' : ''}.` : 'When should we call back? You' + (l.assigned_to && l.assigned_to != ME.id ? ' and the lead’s owner' : '') + ' get a notification at that time.'}</p>
    <div class="cbq">${CB_QUICK.map(([k, t]) => `<button type="button" class="btn sec sm" data-q="${k}">${t}</button>`).join('')}</div>
    <div class="cbin"><span>Or in</span><input id="cbn" type="number" min="1" max="365" value="4" inputmode="numeric" aria-label="How many"><select id="cbu" aria-label="Days, weeks or months"><option value="d">days</option><option value="w">weeks</option><option value="m">months</option></select></div>
    <div class="two"><div><label for="cbd">Date</label><input id="cbd" type="date" min="${today()}" value="${cur ? cur.slice(0, 10) : tmr}"></div><div><label for="cbt">Time</label><input id="cbt" type="time" value="${cur ? cur.slice(11, 16) : '10:00'}"></div></div>
    <label for="cbnote">Note (optional)</label><input id="cbnote" maxlength="300" ${SPELL} placeholder="e.g. Call after salary day, ask about the subsidy" value="${esc(l.callback_note || '')}">
-   <div class="bar" style="margin-top:14px"><button class="btn" id="cbs"><i class="i i-bell"></i> ${cur ? 'Update reminder' : 'Set reminder'}</button><button class="btn sec" id="cbc">Cancel</button>${cur ? '<span class="sp"></span><button class="btn sec" id="cbdone"><i class="i i-check"></i> Called — done</button><button class="btn sec" id="cbx">Remove</button>' : ''}</div>`);
+   <div class="bar u-mt14"><button class="btn" id="cbs"><i class="i i-bell"></i> ${cur ? 'Update reminder' : 'Set reminder'}</button><button class="btn sec" id="cbc">Cancel</button>${cur ? '<span class="sp"></span><button class="btn sec" id="cbdone"><i class="i i-check"></i> Called — done</button><button class="btn sec" id="cbx">Remove</button>' : ''}</div>`);
   const D = $('#cbd', m), T = $('#cbt', m), mark = k => $$('[data-q]', m).forEach(b => b.classList.toggle('on', b.dataset.q === k));
   const jump = (n, u) => { const d = new Date(); if (u === 'h') { d.setMinutes(d.getMinutes() + 60 * n + (5 - d.getMinutes() % 5) % 5); T.value = cbPad(d.getHours()) + ':' + cbPad(d.getMinutes()); }
     else if (u === 'm') { const day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n); d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); } else d.setDate(d.getDate() + n * (u === 'w' ? 7 : 1));
@@ -635,7 +638,7 @@ async function pgLeads() {
    <div style="position:relative"><button class="btn sec" id="lcol"><i class="i i-menu"></i> Columns</button><div id="lcm" class="card hide" style="position:absolute;z-index:9;top:42px;left:0;width:190px;padding:10px">${LCOLS.map(([k, l]) => `<label style="margin:4px 0;display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-col="${k}" ${LHIDE.includes(k) ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
    <span class="sp"></span>${canExport() ? '<button class="btn sec" id="lex" title="Export CSV"><i class="i i-download"></i> Export</button>' : ''}${w ? '<button class="btn sec" id="lim" title="Import CSV"><i class="i i-upload"></i> Import</button>' : ''}</div>
    ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px"><i class="i i-pencil"></i> ${LF.edit ? 'Click any cell to edit it inline.' : 'Click a Remark or Appt cell to edit it. Turn Quick edit on to edit the other columns.'} Click the column headers to sort.</p>` : ''}
-   <div class="card tw fitbox" style="padding:0"><table id="ltb" data-min="1000"></table></div>`;
+   <div class="card tw fitbox u-p0"><table id="ltb" data-min="1000"></table></div>`;
 
   const filtered = () => {
     const t = LF.q.toLowerCase(), td = today(), now = cbNow();
@@ -714,8 +717,8 @@ async function pgLeads() {
   };
   /* "Add remark": a box with spell check (the browser's prompt() has none). Ctrl+Enter saves, Esc closes. */
   const remarkBox = l => {
-    const m = modal(`<h3 style="margin-top:0">Remark — ${esc(l.name)}</h3><textarea id="rmt" rows="4" ${SPELL} placeholder="Type the remark…">${esc(l.remark || '')}</textarea>
-     <div class="bar" style="margin-top:12px"><button class="btn" id="rms">Save</button><button class="btn sec" id="rmc">Cancel</button><span class="sp"></span><button class="btn sec" id="rmhs"><i class="i i-clock"></i> History</button></div>`);
+    const m = modal(`<h3 class="u-mt0">Remark — ${esc(l.name)}</h3><textarea id="rmt" rows="4" ${SPELL} placeholder="Type the remark…">${esc(l.remark || '')}</textarea>
+     <div class="bar u-mt12"><button class="btn" id="rms">Save</button><button class="btn sec" id="rmc">Cancel</button><span class="sp"></span><button class="btn sec" id="rmhs"><i class="i i-clock"></i> History</button></div>`);
     $('#rmhs', m).onclick = () => remarkHist(l);
     const t = $('#rmt', m); t.focus(); t.setSelectionRange(t.value.length, t.value.length);
     $('#rmc', m).onclick = () => m.remove();
@@ -793,7 +796,7 @@ async function leadModal(id) {
   const lock = id ? `<div class="lockbar">${ownerCell(l)}${l.assigned_to ? `<span class="mut">${l.assigned_to == ME.id ? 'This lead is locked to you.' : 'Locked — only the owner can work on it.'}${l.claimed_at ? ' Claimed ' + agoStr(l.claimed_at) + '.' : ''}${claimLeft(l) ? ` Unlocks for everyone on ${claimLeft(l).when} unless it becomes a customer.` : ''}</span>${claimChip(l)}` : `<span class="mut">Not claimed yet. Claim it to see the full number and start working on it. ${ME.can_claim ? claimRule() : ''}</span>`}<span class="sp"></span>${l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? '<button class="btn sm sec" id="mul"><i class="i i-lock"></i> Unclaim</button>' : ''}${canReassignLead(l) ? `<button class="btn sm sec" id="mas"><i class="i i-users"></i> ${l.assigned_to ? 'Reassign' : 'Assign'}</button>` : ''}</div>` : '';
   const m = modal(`<div class="lmh"><div class="lmt"><div><small class="mut">${id ? 'Lead' : 'New lead'}${id && l.source ? ' · ' + esc(l.source) : ''}</small><h2>${id ? esc(l.name || 'Lead') : 'Add a new lead'}</h2></div><button class="lvx" id="cx2" title="Close (Esc)"><i class="i i-x"></i></button></div>${lock}${leadTabs(l)}</div>
    <div class="lmb"><div class="ltp ltp-d"><div class="two">${F.map(f => fld(f, l)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2" ${SPELL}>${esc(l.notes || '')}</textarea></div>${leadSitePane(l)}${leadPlantPane(l)}
-   ${id ? `<div class="ltp-d"><p class="mut" style="font-size:12px">Added by ${esc(l.added_by || '—')} on ${dmy(l.created)}</p>` + noteBox('leads', id, l.notes_log) + `<div class="card" style="margin-top:10px"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div></div>` : ''}</div>
+   ${id ? `<div class="ltp-d"><p class="mut u-fs12">Added by ${esc(l.added_by || '—')} on ${dmy(l.created)}</p>` + noteBox('leads', id, l.notes_log) + `<div class="card u-mt10"><h3>Messages sent</h3>${(l.messages || []).map(x => `<div class="act">${esc(x.text)}<br><small>${esc(x.user)} · ${x.created}</small></div>`).join('') || '<p class="mut">None</p>'}</div></div>` : ''}</div>
    <div class="lmf">${w ? '<button class="btn" id="sv">Save</button>' : ''}<button class="btn sec" id="cx">Close</button>${id && w ? `<button class="btn sec${l.callback_at && l.callback_at <= cbNow() ? ' cbdue' : ''}" id="lcbk">${cbBtnTxt(l)}</button>` : ''}
    ${id && l.can_edit !== 0 ? '<button class="btn sec" id="lds"><i class="i i-chat"></i> Discussion</button>' : ''}${id && l.phone && w ? (BA() ? '' : '<button class="btn ok" id="wa">WhatsApp</button>') + '<a class="btn sec" href="tel:' + esc(l.phone) + '">Call</a>' : ''}
    ${id && w && !l.customer_id ? '<button class="btn sec" id="cv">Convert to customer</button>' : ''}${l.customer_id ? `<a class="btn sec" href="#/customers/${l.customer_id}" id="oc">Open customer</a>` : ''}
@@ -853,8 +856,8 @@ function onbForm(m, fields) {
 }
 /* Convert a lead to a customer: asks for the approved quotation and the total plant cost, then done({customer_id}) */
 function convertBox(l, done) {
-  const m = modal(`<h2 style="margin-top:0">Convert to customer</h2><p class="mut" style="margin-top:-6px">${esc(l.name || 'This lead')}${l.phone ? ' · ' + esc(l.phone) : ''}</p>${onbHtml()}
-   <div class="bar" style="margin-top:14px"><button class="btn" id="cvgo">Convert to customer</button><button class="btn sec" id="cvx">Cancel</button></div>`);
+  const m = modal(`<h2 class="u-mt0">Convert to customer</h2><p class="mut u-mtn6">${esc(l.name || 'This lead')}${l.phone ? ' · ' + esc(l.phone) : ''}</p>${onbHtml()}
+   <div class="bar u-mt14"><button class="btn" id="cvgo">Convert to customer</button><button class="btn sec" id="cvx">Cancel</button></div>`);
   onbBind(m); $('#cvx', m).onclick = () => m.remove();
   $('#cvgo', m).onclick = async e => { const fd = onbForm(m, { id: l.id }); if (!fd) return; const b = e.currentTarget; b.disabled = true;
     try { const r = await api('leads', 'convert', fd); m.remove(); toast('Converted to customer'); if (done) await done(r); } catch (x) { b.disabled = false; } };
@@ -865,12 +868,12 @@ let CUF = { q: '', st: '', sort: 'feas' }; /* the list opens with the feasibilit
 const STC = { New: 'b', Survey: 'y', Design: 'y', Quotation: 'p', Approval: 'p', Material: 'y', Installation: 'c', 'Net-meter': 'c', Commissioned: 'g', Subsidy: 'g', Closed: 'g' };
 async function convertLeadModal() {
   const ls = (await api('leads', 'list')).filter(l => l.can_edit && !l.customer_id && !['Won', 'Lost'].includes(l.status));
-  const m = modal(`<h2 style="margin-top:0">Convert lead to customer</h2><p class="mut" style="margin-top:-6px">Only your claimed (or admin-visible) open leads are listed.</p>
+  const m = modal(`<h2 class="u-mt0">Convert lead to customer</h2><p class="mut u-mtn6">Only your claimed (or admin-visible) open leads are listed.</p>
    <label>Lead</label><input id="clq" placeholder="Search name, phone, city…" autocomplete="off"><select id="cls" size="8" style="margin-top:6px">${ls.map(l => `<option value="${l.id}">${esc(l.name)}${l.phone ? ' · ' + esc(l.phone) : ''}${l.city ? ' · ' + esc(l.city) : ''}</option>`).join('')}</select>
    ${ls.length ? '' : '<p class="mut">No open leads to convert. Claim a lead first on the Leads page.</p>'}
    ${onbHtml()}
    <label style="display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px;margin-top:10px"><input type="checkbox" id="clp" style="width:auto" ${canW('projects') ? 'checked' : 'disabled'}> Also start a project for this customer</label>
-   <div class="bar" style="margin-top:14px"><button class="btn" id="clsv">Convert</button><button class="btn sec" id="clcx">Cancel</button></div>`);
+   <div class="bar u-mt14"><button class="btn" id="clsv">Convert</button><button class="btn sec" id="clcx">Cancel</button></div>`);
   $('#clq', m).oninput = e => { const t = e.target.value.toLowerCase(); [...$('#cls', m).options].forEach(o => o.hidden = !o.text.toLowerCase().includes(t)); };
   $('#clcx', m).onclick = () => m.remove(); onbBind(m);
   $('#clsv', m).onclick = async e => { const id = +$('#cls', m).value; if (!id) return toast('Choose a lead', true);
@@ -889,7 +892,7 @@ async function pgCustomers() {
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
    <select id="csort">${[['feas', 'Feasibility expiry'], ['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity']].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
    <label class="hsw" title="Show status, next step and feasibility when you point at a customer"><input type="checkbox" id="chov" ${hoverOn() ? 'checked' : ''}><span class="hswt"></span>Hover info</label><span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex" title="Export CSV"><i class="i i-download"></i> Export</button>' : ''}</div>
-   <div class="card tw fitbox" style="padding:0"><table id="ctb" class="ctb2" data-min="680"></table></div>`;
+   <div class="card tw fitbox u-p0"><table id="ctb" class="ctb2" data-min="680"></table></div>`;
   const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}" aria-label="${t}"><i class="i i-${i}"></i></button>`;
   let onScreen = 0; // rows on screen; a refresh (resize, discussion update) keeps at least this many
   const draw = reset => {
@@ -981,8 +984,8 @@ const CF = [{ k: 'name', l: 'Consumer name (as on the KSEB bill)' }, { k: 'phone
 function customerModal(id, c = {}) {
   /* Meta only comes from a lead: a customer added here is Own lead or Office */
   const cf = CF.filter(f => !(f.k === 'lead_type' && BA())).map(f => f.k === 'lead_type' ? { ...f, opts: LT_OPTS.filter(o => o[0] !== 'meta') } : f);
-  const m = modal(`<h2 style="margin-top:0">New customer</h2><div class="two">${cf.map(f => fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>${id ? '' : onbHtml()}
-   <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
+  const m = modal(`<h2 class="u-mt0">New customer</h2><div class="two">${cf.map(f => fld(f, c)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(c.notes || '')}</textarea>${id ? '' : onbHtml()}
+   <div class="bar u-mt14"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
   $('#cx', m).onclick = () => m.remove(); if (!id) onbBind(m);
   phoneSameWatch(m, { mod: 'customers', customer: id || 0 });
   const lt = $('[data-k="lead_type"]', m);
@@ -1032,9 +1035,9 @@ async function revertToLead(id, name, parent) {
     r.docs ? `<li><b>${r.docs} uploaded document${r.docs === 1 ? '' : 's'}</b> (KSEB papers, receipts, photos…)</li>` : ''].join('');
   const m = modal(`<div class="rvw"><div class="rvh"><span class="rvi"><i class="i i-alert"></i></span><div><h2>Delete and revert to lead?</h2><small>${esc(r.name)}</small></div></div>
     <p>Reverting will <b>permanently delete</b>:</p><ul class="rvl">${list}</ul>
-    <p class="mut" style="font-size:13px">This cannot be undone. Download anything you need first. Quotes, notes, WhatsApp log and discussions are kept on the lead.${r.payments && ME.role !== 'admin' ? '<br><b style="color:#c4271f">Only an admin can revert a customer with payments.</b>' : ''}</p>
+    <p class="mut u-fs13">This cannot be undone. Download anything you need first. Quotes, notes, WhatsApp log and discussions are kept on the lead.${r.payments && ME.role !== 'admin' ? '<br><b style="color:#c4271f">Only an admin can revert a customer with payments.</b>' : ''}</p>
     <label>Type <b>REVERT</b> to confirm</label><input id="rvc" autocomplete="off" placeholder="REVERT">
-    <div class="bar" style="margin-top:14px"><button class="btn sec" id="rvx">Cancel</button><span class="sp"></span><button class="btn bad" id="rvgo" disabled>Delete & revert to lead</button></div></div>`);
+    <div class="bar u-mt14"><button class="btn sec" id="rvx">Cancel</button><span class="sp"></span><button class="btn bad" id="rvgo" disabled>Delete & revert to lead</button></div></div>`);
   m.classList.add('rvmod');
   $('#rvx', m).onclick = () => m.remove();
   $('#rvc', m).oninput = e => $('#rvgo', m).disabled = e.target.value.trim().toUpperCase() !== 'REVERT';
@@ -1055,7 +1058,7 @@ async function pgProjects() {
       if (canW('projects')) $$('.col').forEach(c => { c.ondragover = e => e.preventDefault(); c.ondrop = async e => { e.preventDefault(); const p = ps.find(x => x.id == e.dataTransfer.getData('id')); if (p && p.stage !== c.dataset.s) { await api('projects', 'save', { ...p, stage: c.dataset.s }); route(); } }; });
     } else $('#pv').innerHTML = table([['Customer', p => `<b>${esc(p.customer)}</b>`], ['Project', p => esc(p.title)], ['kW', p => p.kw, 'num'], ['Stage', p => pill(p.stage, stageCls(p.stage))], ['Value', p => inr(p.cost), 'num'], ['Balance', p => inr(p.cost - p.paid), 'num'], ['Engineer', p => esc(p.engineer)]], ps, id => location.hash = '#/projects/' + id);
   };
-  $('#main').innerHTML = `<div class="bar"><div class="tabs" style="margin:0"><button data-v="board" class="${PV === 'board' ? 'on' : ''}">Board</button><button data-v="list" class="${PV === 'list' ? 'on' : ''}">List</button></div><span class="sp"></span>${canW('projects') ? '<button class="btn" id="pn">+ New project</button>' : ''}</div><div id="pv"></div>`;
+  $('#main').innerHTML = `<div class="bar"><div class="tabs u-m0"><button data-v="board" class="${PV === 'board' ? 'on' : ''}">Board</button><button data-v="list" class="${PV === 'list' ? 'on' : ''}">List</button></div><span class="sp"></span>${canW('projects') ? '<button class="btn" id="pn">+ New project</button>' : ''}</div><div id="pv"></div>`;
   $$('[data-v]').forEach(b => b.onclick = () => { PV = b.dataset.v; route(); });
   if ($('#pn')) $('#pn').onclick = () => projectModal(0, {}); draw();
 }
@@ -1063,8 +1066,8 @@ async function projectModal(id, p = {}) {
   const cs = await list('customers');
   const F = [{ k: 'customer_id', l: 'Customer', opts: opt(cs.map(c => [c.id, c.name]), '— select —'), full: 1 }, { k: 'title', l: 'Project title', d: p.title || '3 kW rooftop solar', full: 1 }, { k: 'kw', l: 'System size (kW)', t: 'number' }, { k: 'loan', l: 'Loan taken?', opts: [['', 'Not decided'], 'Yes', 'No'] },
     { k: 'panel', l: 'Panels', d: 'ReNew 550 Wp M10 Bifacial' }, { k: 'inverter', l: 'Inverter' }, ...(FIN() ? [{ k: 'cost', l: 'Project value (₹)', t: 'number' }] : []), { k: 'engineer', l: 'Site engineer' }, { k: 'start', l: 'Start date', t: 'date' }, { k: 'end', l: 'Completion date', t: 'date' }];
-  const m = modal(`<h2 style="margin-top:0">${id ? 'Edit' : 'New'} project</h2><div class="two">${F.map(f => fld(f, p)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(p.notes || '')}</textarea>
-   <div class="bar" style="margin-top:14px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
+  const m = modal(`<h2 class="u-mt0">${id ? 'Edit' : 'New'} project</h2><div class="two">${F.map(f => fld(f, p)).join('')}</div><label>Notes</label><textarea data-k="notes" rows="2">${esc(p.notes || '')}</textarea>
+   <div class="bar u-mt14"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Close</button></div>`);
   $('#cx', m).onclick = () => m.remove();
   if (!id) { /* a new project: the capacity already held for the customer is filled in */ const cu = $('[data-k="customer_id"]', m), kw = $('[data-k="kw"]', m), fillKw = () => { const c = cs.find(x => x.id == cu.value); if (c && +c.kw > 0 && (!kw.value || kw.dataset.auto)) { kw.value = c.kw; kw.dataset.auto = '1'; } }; if (cu && kw) { cu.addEventListener('change', fillKw); kw.addEventListener('input', () => { delete kw.dataset.auto; }); fillKw(); } }
   $('#sv', m).onclick = async () => { const o = { ...p, ...collect(m) }; if (id) o.id = id; if (!o.customer_id) return sayBad('Select a customer'); const r = await api('projects', 'save', o); m.remove(); location.hash = '#/projects/' + r.id; route(); };
@@ -1078,14 +1081,14 @@ async function pgProject(id) {
   const draw = () => {
     const t = TAB.proj || 'overview';
     let body = '';
-    if (t === 'overview') body = `<div class="grid cols2"><div class="card"><h3>Details</h3><p class="mut" style="margin:0">Panels: ${esc(p.panel)}<br>Inverter: ${esc(p.inverter)}<br>Engineer: ${esc(p.engineer) || '—'}<br>Start: ${esc(p.start) || '—'} · Completion: ${esc(p.end) || '—'}<br>${esc(p.notes)}</p>${p.survey ? `<p style="margin:10px 0 0"><a href="#/survey/${+p.survey.id}"><i class="i i-pin"></i> Site survey</a> ${pill(p.survey.status, { 'To visit': 'y', 'In progress': 'b', Done: 'g' }[p.survey.status])} <span class="mut">${p.survey.assigned_name ? '· ' + esc(p.survey.assigned_name) : ''}${p.survey.visit_date && p.survey.status !== 'Done' ? ' · visit ' + dmy(p.survey.visit_date) : ''}</span></p>` : ''}</div>
+    if (t === 'overview') body = `<div class="grid cols2"><div class="card"><h3>Details</h3><p class="mut u-m0">Panels: ${esc(p.panel)}<br>Inverter: ${esc(p.inverter)}<br>Engineer: ${esc(p.engineer) || '—'}<br>Start: ${esc(p.start) || '—'} · Completion: ${esc(p.end) || '—'}<br>${esc(p.notes)}</p>${p.survey ? `<p style="margin:10px 0 0"><a href="#/survey/${+p.survey.id}"><i class="i i-pin"></i> Site survey</a> ${pill(p.survey.status, { 'To visit': 'y', 'In progress': 'b', Done: 'g' }[p.survey.status])} <span class="mut">${p.survey.assigned_name ? '· ' + esc(p.survey.assigned_name) : ''}${p.survey.visit_date && p.survey.status !== 'Done' ? ' · visit ' + dmy(p.survey.visit_date) : ''}</span></p>` : ''}</div>
       ${!FIN() ? '<div class="card"><h3>Payments</h3><p class="mut">Finance details are hidden for your role.</p></div>' : ''}<div class="card ${FIN() ? '' : 'hide'}"><h3>Payments ${canW('payments') ? '<button class="btn sm" id="ap" style="float:right">+ Payment</button>' : ''}</h3><p>Value <b>${inr(p.cost)}</b> · Received <b>${inr(paid)}</b> · Balance <b class="${p.cost - paid > 0 ? 'over' : ''}">${inr(p.cost - paid)}</b></p>
       ${p.payments.map(x => `<div class="act">${inr(x.amount)} ${x.mode ? '· ' + esc(x.mode) : ''} <small>${dmy(x.date)}${x.ref_no ? ' · Ref ' + esc(x.ref_no) : ''}${x.note ? ' · ' + esc(x.note) : ''}${x.src === 'bank' ? ' · From the bank (loan)' : ''}</small> ${canW('payments') ? `<a href="#" data-dp="${x.id}"><i class="i i-x"></i></a>` : ''}</div>`).join('') || '<p class="mut">No payments recorded</p>'}</div></div>
-      <div style="margin-top:12px">${noteBox('projects', id, p.notes_log)}</div>`;
+      <div class="u-mt12">${noteBox('projects', id, p.notes_log)}</div>`;
     if (t === 'subsidy') body = `<div class="card"><h3>PM Surya Ghar subsidy</h3><div class="two">
       <div><label>Application no.</label><input id="sa" value="${esc(p.application_no)}" ${w ? '' : 'disabled'}></div><div><label>Status</label><div class="sdy-pick">${typeof SUBSIDY !== 'undefined' && SUBSIDY.CLS[p.subsidy_status] ? pill(p.subsidy_status, SUBSIDY.cls(p.subsidy_status)) + (canR('checklist') ? `<a href="#/subsidy/${p.customer_id}">Open in Subsidy</a>` : '') : '<span class="mut">Not on the subsidy list</span>' + (canR('checklist') ? '<a href="#/subsidy">Subsidy list</a>' : '')}</div></div>
       <div><label>Subsidy amount (₹) — estimate for ${p.kw} kW: ${inr(subsidyCalc(p.kw))}</label><input id="sm" type="number" value="${p.subsidy_amount || ''}" ${w ? '' : 'disabled'}></div>${w ? '<div style="align-self:end"><button class="btn" id="ssv">Save subsidy details</button></div>' : ''}</div></div>
-      <div class="card" style="margin-top:12px"><h3>Subsidy steps</h3>${checklistHtml('subsidy', p.checklist_subsidy, p.files, wc)}</div>`;
+      <div class="card u-mt12"><h3>Subsidy steps</h3>${checklistHtml('subsidy', p.checklist_subsidy, p.files, wc)}</div>`;
     if (t === 'amc') body = '<div id="amcbox"></div>';
     if (t === 'kseb') body = typeof ksebDocsTab === 'function' ? ksebDocsTab(p, wc) : `<div class="card"><h3>KSEB documentation</h3>${checklistHtml('kseb', p.checklist_kseb, p.files, wc)}</div>`;
     if (t === 'files') body = `<div class="card"><h3>All files ${canW('files') ? '<button class="btn sm" id="up" style="float:right">Upload</button>' : ''}</h3>${p.files.map(f => `<div class="act">${fileLink(f)}${f.item ? '<br><small>' + esc(f.kind) + ': ' + esc(f.item) + '</small>' : ''} ${canW('files') ? `<a href="#" data-df="${f.id}"><i class="i i-x"></i></a>` : ''}</div>`).join('') || '<p class="mut">No files</p>'}</div>`;
@@ -1093,7 +1096,7 @@ async function pgProject(id) {
   };
   const bindPB = () => {
     /* loan projects: who paid (the customer or the loan bank; mode Loan = the bank), as on the Tax bill tab and in Accounts — the tax bill unlocks on the customer's own payments */
-    if ($('#ap')) $('#ap').onclick = () => { const loan = p.loan === 'Yes'; const m = modal(`<h3 style="margin-top:0">Record payment</h3><div class="two">${[{ k: 'amount', l: 'Amount (₹)', t: 'number' }, { k: 'date', l: 'Date', t: 'date', d: today() }, { k: 'mode', l: 'Mode', opts: ['Bank transfer', 'UPI', 'Cash', 'Cheque'].concat(loan ? ['Loan'] : []) }, { k: 'ref_no', l: 'Reference no. (UTR / cheque) — not needed for cash' }, ...(loan ? [{ k: 'src', l: 'From', opts: [['customer', 'Customer'], ['bank', 'Bank (loan)']] }] : []), { k: 'note', l: 'Note' }].map(f => fld(f)).join('')}</div><div class="bar" style="margin-top:12px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button></div>`); const md = $('[data-k="mode"]', m), fr = $('[data-k="src"]', m); if (fr) md.onchange = () => { fr.value = ACC.payFrom(md.value, fr.value); }; $('#cx', m).onclick = () => m.remove(); $('#sv', m).onclick = async () => { const o = { project_id: id, ...collect(m) }; if (!(+o.amount > 0)) return sayBad('Enter an amount'); await api('payments', 'save', o); m.remove(); route(); }; };
+    if ($('#ap')) $('#ap').onclick = () => { const loan = p.loan === 'Yes'; const m = modal(`<h3 class="u-mt0">Record payment</h3><div class="two">${[{ k: 'amount', l: 'Amount (₹)', t: 'number' }, { k: 'date', l: 'Date', t: 'date', d: today() }, { k: 'mode', l: 'Mode', opts: ['Bank transfer', 'UPI', 'Cash', 'Cheque'].concat(loan ? ['Loan'] : []) }, { k: 'ref_no', l: 'Reference no. (UTR / cheque) — not needed for cash' }, ...(loan ? [{ k: 'src', l: 'From', opts: [['customer', 'Customer'], ['bank', 'Bank (loan)']] }] : []), { k: 'note', l: 'Note' }].map(f => fld(f)).join('')}</div><div class="bar u-mt12"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button></div>`); const md = $('[data-k="mode"]', m), fr = $('[data-k="src"]', m); if (fr) md.onchange = () => { fr.value = ACC.payFrom(md.value, fr.value); }; $('#cx', m).onclick = () => m.remove(); $('#sv', m).onclick = async () => { const o = { project_id: id, ...collect(m) }; if (!(+o.amount > 0)) return sayBad('Enter an amount'); await api('payments', 'save', o); m.remove(); route(); }; };
     $$('[data-dp]').forEach(a => a.onclick = async e => { e.preventDefault(); if (await ask('Delete this payment?')) { await api('payments', 'delete', { id: +a.dataset.dp }); route(); } });
     $$('[data-df]').forEach(a => a.onclick = async e => { e.preventDefault(); if (await ask('Delete this file?')) { await api('files', 'delete', { id: +a.dataset.df }); route(); } });
     if ($('#up')) $('#up').onclick = async () => { if (await upload({ project_id: id, kind: 'general' })) route(); };
@@ -1101,8 +1104,8 @@ async function pgProject(id) {
     bindChecklist(id, p); if (typeof ksebDocsBind === 'function') ksebDocsBind(p); bindNote('projects', id, route);
   };
   $('#main').innerHTML = `<p><a href="#/projects">← Pipeline</a> · <a href="#/customers/${p.customer_id}">${esc(p.customer?.name || '')}</a></p>
-   <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(p.title)}${new RegExp('\\b' + String(p.kw).replace('.', '\\.') + '\\s*kw\\b', 'i').test(p.title || '') ? '' : ` <span class="mut" style="font-size:14px">${p.kw} kW</span>`}</h2>
-   ${canR('accounts') ? `<a class="btn sec" href="#/accounts/cost/${id}"><i class="i i-coin"></i> Project cost</a>` : ''}${w ? `<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>` : pill(p.stage)}</div></div><div id="pstp" style="margin-top:12px"></div><div id="pb" style="margin-top:12px"></div>`;
+   <div class="card"><div class="bar u-m0"><h2 style="margin:0;margin-right:auto">${esc(p.title)}${new RegExp('\\b' + String(p.kw).replace('.', '\\.') + '\\s*kw\\b', 'i').test(p.title || '') ? '' : ` <span class="mut" style="font-size:14px">${p.kw} kW</span>`}</h2>
+   ${canR('accounts') ? `<a class="btn sec" href="#/accounts/cost/${id}"><i class="i i-coin"></i> Project cost</a>` : ''}${w ? `<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>` : pill(p.stage)}</div></div><div id="pstp" class="u-mt12"></div><div id="pb" class="u-mt12"></div>`;
   renderStepper(p, $('#pstp'));
   if ($('#ed')) $('#ed').onclick = () => projectModal(id, p);
   if ($('#dl')) $('#dl').onclick = async () => { if (await ask('Delete this project with its payments, checklists and files?')) { await api('projects', 'delete', { id }); location.hash = '#/projects'; } };
@@ -1110,7 +1113,7 @@ async function pgProject(id) {
 }
 function checklistHtml(kind, items, files, wc) {
   const done = items.filter(i => i.status === 'Approved' || i.status === 'NA').length;
-  return `<div class="bar"><div class="prog" style="flex:1"><i style="width:${items.length ? done / items.length * 100 : 0}%"></i></div><b>${done}/${items.length}</b></div>` + items.map((i, n) => {
+  return `<div class="bar"><div class="prog u-fx1"><i style="width:${items.length ? done / items.length * 100 : 0}%"></i></div><b>${done}/${items.length}</b></div>` + items.map((i, n) => {
     const fs = files.filter(f => f.kind === kind && f.item === i.item);
     return `<div class="chk" data-kind="${kind}" data-n="${n}"><div>${esc(i.item)}${fs.map(f => '<br>' + fileLink(f)).join('')}</div>
      <select data-f="status" ${wc ? '' : 'disabled'}>${['Pending', 'Submitted', 'Approved', 'NA'].map(s => `<option ${i.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
@@ -1134,17 +1137,17 @@ function bindChecklist(pid, p) {
 
 /* Leads > Remark > history: every remark this lead has had, newest first, with who wrote it and when (table lead_remarks). */
 async function remarkHist(l) {
-  const m = modal(`<div class="bar" style="margin:0 0 4px"><h3 style="margin:0">Remark history</h3><span class="sp"></span><button class="ib" id="rmhx" title="Close"><i class="i i-x"></i></button></div><div class="mut" style="margin-bottom:12px">${esc(l.name || 'Lead')}${l.phone ? ' · ' + esc(l.phone) : ''}</div><div id="rmhl"><p class="mut">Loading…</p></div>`);
+  const m = modal(`<div class="bar u-m0_0_4"><h3 class="u-m0">Remark history</h3><span class="sp"></span><button class="ib" id="rmhx" title="Close"><i class="i i-x"></i></button></div><div class="mut" style="margin-bottom:12px">${esc(l.name || 'Lead')}${l.phone ? ' · ' + esc(l.phone) : ''}</div><div id="rmhl"><p class="mut">Loading…</p></div>`);
   $('#rmhx', m).onclick = () => m.remove();
   let R; try { R = (await api('leads', 'remarks', undefined, '&id=' + l.id)).rows; } catch (e) { m.remove(); return; }
   const when = c => { const d = new Date(String(c).replace(' ', 'T') + 'Z'); return isNaN(d) ? esc(c) : d.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }); };
   $('#rmhl', m).innerHTML = R.length ? `<div class="rmh-l">${R.map((r, i) => `<div class="rmh-r${i ? '' : ' now'}"><span class="rmh-d"></span><div class="rmh-t">${r.text ? esc(r.text) : '<i class="mut">Remark removed</i>'}</div>
      <small class="mut">${+r.old ? 'Written before history was kept' : esc(r.user || 'Unknown')} · ${when(r.created)}${i ? '' : ' · current'}</small></div>`).join('')}</div>`
-    : '<p class="mut" style="margin:0">No remarks yet. Each remark saved from now on is listed here with the person and the time.</p>';
+    : '<p class="mut u-m0">No remarks yet. Each remark saved from now on is listed here with the person and the time.</p>';
 }
 
 /* Android app: the CRM could not be reached (no network) */
-function appOffline() { app.innerHTML = '<div class="lg"><div class="lg-card" style="text-align:center"><img src="assets/logo.png" alt="Jasper" class="lg-logo"><h2>No connection</h2><p class="lg-sub">The CRM could not be reached. Check the internet and try again.</p><button class="btn lg-go" id="aprt" type="button">Try again</button></div></div>'; document.getElementById('aprt').onclick = () => location.reload(); }
+function appOffline() { app.innerHTML = '<div class="lg"><div class="lg-card u-tacenter"><img src="assets/logo.png" alt="Jasper" class="lg-logo"><h2>No connection</h2><p class="lg-sub">The CRM could not be reached. Check the internet and try again.</p><button class="btn lg-go" id="aprt" type="button">Try again</button></div></div>'; document.getElementById('aprt').onclick = () => location.reload(); }
 
 /* ---- Android app: helpers the app's own buttons use ---- */
 /* Phones (and the Android app): a list's filters fold behind one "Filters (n)" button; n = filters that are on. Open / closed is

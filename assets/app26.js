@@ -43,11 +43,11 @@ async function reassignBox(kind, rec) {
   if (!us.length) { toast('Nobody else can take this ' + (lead ? 'lead' : 'customer') + ' — give someone access first', true); return null; }
   const now = cur ? esc(ownLabel(cur, rec.owner_name)) : 'nobody';
   return new Promise(res => {
-    const m = modal(`<h3 style="margin-top:0">Reassign ${lead ? 'lead' : 'customer'}</h3>
+    const m = modal(`<h3 class="u-mt0">Reassign ${lead ? 'lead' : 'customer'}</h3>
      <p class="mut" style="margin:-6px 0 12px;font-size:13px"><b>${esc(rec.name || '')}</b> · owner now: <b>${now}</b></p>
      <label for="rau">New owner</label><select id="rau">${us.map(u => `<option value="${u.id}">${esc(u.name)}${u.id === +ME.id ? ' (you)' : ''} — ${esc(u.role_name)}</option>`).join('')}</select>
      <p class="mut" style="font-size:13px;margin:8px 0 0">${lead ? 'The lead stays locked, now to the new owner' + (ME.role === 'admin' ? '.' : ' — if that is someone else, you will no longer see it.') :'Everyone can still see the customer; the new owner finds it under <b>Me</b>.'} They get a notification.</p>
-     <div class="bar" style="margin-top:14px"><button class="btn" id="raok">Reassign</button><button class="btn sec" id="racx">Cancel</button></div>`);
+     <div class="bar u-mt14"><button class="btn" id="raok">Reassign</button><button class="btn sec" id="racx">Cancel</button></div>`);
     $('#rau', m).focus();
     $('#racx', m).onclick = () => { m.remove(); res(null); };
     $('#raok', m).onclick = async () => { const b = $('#raok', m); b.disabled = true;

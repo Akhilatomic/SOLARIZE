@@ -90,7 +90,7 @@ async function renderWarranty(box, c, id) {
           ${x && w ? `<input type="date" data-wd="${k}" value="${esc(x.on)}" title="Change the date">` : ''}
           ${k === 'wa' && c.phone ? `<button class="btn sec sm" data-send="wa"><i class="i i-whatsapp"></i> Send</button>` : ''}${k === 'mail' ? `<button class="btn sec sm" data-send="mail"><i class="i i-mail"></i> Send</button>` : ''}${k === 'req' ? '<button class="btn sec sm" data-send="form">Form</button>' : ''}</div>`; }).join('')}</div>
       <label>Note</label><textarea id="wcn" rows="2" placeholder="e.g. courier details, who collected the card" ${w ? '' : 'disabled'}>${esc(S.note || '')}</textarea>
-      ${w ? '<div class="bar" style="margin-top:8px"><button class="btn sec sm" id="wcns">Save note</button></div>' : ''}`;
+      ${w ? '<div class="bar u-mt8"><button class="btn sec sm" id="wcns">Save note</button></div>' : ''}`;
     $$('[data-wk]', box).forEach(b => b.onclick = async () => { const k = b.dataset.wk; if (S.steps[k]) { if (!await ask('Mark this step as not done?')) return; delete S.steps[k]; } else S.steps[k] = { on: today(), by: (ME || {}).name || '' }; save(S.steps[k] ? 'Status updated' : 'Step cleared'); });
     $$('[data-wd]', box).forEach(e => e.onchange = () => { if (!e.value) return; S.steps[e.dataset.wd].on = e.value; save('Date updated'); });
     if ($('#wcns', box)) $('#wcns', box).onclick = () => { S.note = $('#wcn', box).value.trim(); save('Note saved'); };
@@ -154,8 +154,8 @@ async function renderMfr(box, c, id, fresh) {
     ${MFR_ROWS.map(([k, l]) => fld(k, l)).join('')}
     <div class="mfr mfe"><div class="mfl">Send to (email)</div><div class="mfv"><input type="email" data-m="email" value="${esc(D.email)}" placeholder="Distributor's email" ${w ? '' : 'disabled'}></div></div></div>
     <div id="mfw"></div>
-    <div class="bar" style="margin-top:12px">${w ? '<button class="btn" id="mfs">Save</button>' : ''}<button class="btn sec" id="mfx"><i class="i i-download"></i> Download Excel</button><button class="btn sec" id="mfm"><i class="i i-mail"></i> Email</button><button class="btn sec" id="mfc">Copy details</button>${w ? '<span class="sp"></span><button class="btn sec" id="mfr0" title="Fill again from the profile, plant details and tax bill">Refresh from profile</button>' : ''}</div>
-    ${g.doc ? `<p class="mut" style="font-size:12px;margin:8px 0 0">Saved ${new Date(g.doc.updated.replace(' ', 'T') + 'Z').toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${g.doc.updated_by ? ' by ' + esc(g.doc.updated_by) : ''}</p>` : ''}`;
+    <div class="bar u-mt12">${w ? '<button class="btn" id="mfs">Save</button>' : ''}<button class="btn sec" id="mfx"><i class="i i-download"></i> Download Excel</button><button class="btn sec" id="mfm"><i class="i i-mail"></i> Email</button><button class="btn sec" id="mfc">Copy details</button>${w ? '<span class="sp"></span><button class="btn sec" id="mfr0" title="Fill again from the profile, plant details and tax bill">Refresh from profile</button>' : ''}</div>
+    ${g.doc ? `<p class="mut u-fs12-m8_0_0">Saved ${new Date(g.doc.updated.replace(' ', 'T') + 'Z').toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${g.doc.updated_by ? ' by ' + esc(g.doc.updated_by) : ''}</p>` : ''}`;
   const val = () => { const o = {}; $$('[data-m]', box).forEach(e => o[e.dataset.m] = e.value.trim()); return o; };
   const nums = v => (v.serials || '').split(/[\s,;]+/).filter(Boolean);
   const check = () => { const v = val(), n = nums(v), miss = MFR_ROWS.filter(([k]) => !v[k]).map(([, l]) => l.replace(/[: ]+$/, ''));
@@ -232,7 +232,7 @@ async function renderTax(box, c, id) {
       <label>Also print</label><div class="tbo"><label><input type="checkbox" data-o="paid" ${D.show_paid ? 'checked' : ''} ${w ? '' : 'disabled'}> Payment made & balance due</label></div>
       <div class="bar" style="margin:12px 0 0">${w ? '<span class="acx-iss" id="tiss"></span>' : ''}<button class="btn sec" id="tpr"><i class="i i-download"></i> ${g.doc ? 'Print' : 'Print / PDF'}</button></div>
       <small class="acx-lkn" id="tlkn"></small><div id="tshr"></div>
-      <p class="mut" style="font-size:12px;margin:8px 0 0">HSN codes and GST rates are suggestions — confirm them with your accountant. The invoice number is issued once and never reused.</p></div>
+      <p class="mut u-fs12-m8_0_0">HSN codes and GST rates are suggestions — confirm them with your accountant. The invoice number is issued once and never reused.</p></div>
     <div class="gdp"><div class="doc dtax" id="tdoc"></div></div></div>
     <div class="tbx"><div class="card" id="tacc"></div><div class="card" id="tsum"></div></div>
     <datalist id="hsnl">${['85414300 — Solar PV modules', '85044090 — Inverters', '73089090 — Mounting structure', '85444999 — Cables', '853690 — Connectors / DB', '995461 — Installation services', '998732 — Repair & maintenance'].map(x => `<option value="${x.split(' ')[0]}">${x}</option>`).join('')}</datalist>`;
@@ -244,12 +244,12 @@ async function renderTax(box, c, id) {
     <div class="two"><div><label>HSN/SAC</label><input data-p="${p}.hsn" list="hsnl" value="${esc(PT[p].hsn || '')}" ${ro}></div><div><label>GST %</label><select data-p="${p}.gst" ${ro}>${[0, 5, 12, 18, 28].map(r => `<option ${+PT[p].gst === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div></div></div>`;
   const drawItems = () => {
     if (PT) {
-      $('#tlines', box).innerHTML = `<label style="margin-top:12px">Total amount incl. GST (₹)</label><div class="tbr"><input id="ptot" data-p="total" inputmode="decimal" value="${+PT.total || ''}" placeholder="Plant cost incl. GST" ${ro}>${w && +A.cost && +A.cost !== +PT.total ? `<button class="btn sec sm" id="puse" type="button">Use plant cost ${inr2(A.cost)}</button>` : ''}</div>
+      $('#tlines', box).innerHTML = `<label class="u-mt12">Total amount incl. GST (₹)</label><div class="tbr"><input id="ptot" data-p="total" inputmode="decimal" value="${+PT.total || ''}" placeholder="Plant cost incl. GST" ${ro}>${w && +A.cost && +A.cost !== +PT.total ? `<button class="btn sec sm" id="puse" type="button">Use plant cost ${inr2(A.cost)}</button>` : ''}</div>
        <div class="two"><div><label>Part A share of the taxable value (%)</label><input data-p="share" inputmode="decimal" value="${+PT.share}" ${ro}></div><div><label>Part B share (%)</label><input id="pshb" value="${100 - Math.min(100, +PT.share || 0)}" disabled></div></div>
        ${partBox('a')}${partBox('b')}`;
       if ($('#puse', box)) $('#puse', box).onclick = () => { PT.total = +A.cost; drawItems(); upd(); };
       return; }
-    $('#tlines', box).innerHTML = `<label style="margin-top:12px">Items</label><div id="titems"></div>${w ? '<button class="btn sec sm" id="tadd" type="button"><i class="i i-plus"></i> Add line</button> <button class="btn sec sm" id="tconv" type="button">Use Part A / Part B layout</button>' : ''}`;
+    $('#tlines', box).innerHTML = `<label class="u-mt12">Items</label><div id="titems"></div>${w ? '<button class="btn sec sm" id="tadd" type="button"><i class="i i-plus"></i> Add line</button> <button class="btn sec sm" id="tconv" type="button">Use Part A / Part B layout</button>' : ''}`;
     if ($('#tadd', box)) $('#tadd', box).onclick = () => { I.push({ desc: '', hsn: '', qty: 1, rate: 0, gst: 18 }); drawItems(); };
     if ($('#tconv', box)) $('#tconv', box).onclick = () => { PT = defParts(); drawItems(); upd(); toast('Switched to Part A / Part B — check it, then save'); };
     $('#titems', box).innerHTML = I.map((x, i) => `<div class="tirow"><input data-i="${i}" data-f="desc" value="${esc(x.desc)}" placeholder="Description" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="hsn" value="${esc(x.hsn || '')}" placeholder="HSN/SAC" list="hsnl" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="qty" value="${x.qty}" inputmode="decimal" placeholder="Qty" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="rate" value="${x.rate}" inputmode="decimal" placeholder="Rate" ${w ? '' : 'disabled'}><select data-i="${i}" data-f="gst" ${w ? '' : 'disabled'}>${[0, 5, 12, 18, 28].map(r => `<option ${+x.gst === r ? 'selected' : ''}>${r}</option>`).join('')}</select>${w ? `<button class="ib" data-del="${i}" title="Remove line" type="button"><i class="i i-x"></i></button>` : ''}</div>`).join('');
@@ -267,7 +267,7 @@ async function renderTax(box, c, id) {
     const meta = [['Invoice no.', `<b>${esc(($('#tno', box) || {}).value || (g.doc ? g.doc.number : '(issued on save)'))}</b>`], ['Invoice date', fdt(date)], ...(v.terms ? [['Terms', esc(v.terms)]] : []), ['Due date', fdt(v.due_on || date)],
       ['Place of supply', inter ? 'Outside Kerala (IGST)' : 'Kerala (32)'], ['Consumer no.', esc(c.consumer_no || '—')]];
     const nb = x => inr2(x).replace('₹', ''), taxTd = x => inter ? `<td class="r">${+x.gst}%</td><td class="r">${nb(x.t)}</td>` : `<td class="r">${+x.gst / 2}%</td><td class="r">${nb(x.t / 2)}</td><td class="r">${+x.gst / 2}%</td><td class="r">${nb(x.t / 2)}</td>`;
-    const colg = `<colgroup><col style="width:20px"><col><col style="width:62px"><col style="width:28px"><col style="width:74px">${inter ? '<col style="width:34px"><col style="width:64px">' : '<col style="width:34px"><col style="width:62px"><col style="width:34px"><col style="width:62px">'}<col style="width:76px"></colgroup>`;
+    const colg = `<colgroup><col style="width:20px"><col><col class="u-w62"><col style="width:28px"><col style="width:74px">${inter ? '<col class="u-w34"><col class="u-w64">' : '<col class="u-w34"><col class="u-w62"><col class="u-w34"><col class="u-w62">'}<col style="width:76px"></colgroup>`;
     const desc = x => k.parts ? `<div class="dpt"><span class="dpk">PART ${x.part}</span> ${esc(x.desc)}</div>${x.sub ? `<div class="dsub">${esc(x.sub)}</div>` : ''}` : esc(x.desc);
     const byRate = {}; k.rows.forEach(x => { if (+x.gst) byRate[+x.gst] = (byRate[+x.gst] || 0) + x.t; });
     const taxLines = Object.keys(byRate).map(Number).sort((a, b) => a - b).flatMap(r => inter ? [[`IGST ${r}%`, byRate[r]]] : [[`CGST ${r / 2}%`, byRate[r] / 2], [`SGST ${r / 2}%`, byRate[r] / 2]]);
@@ -309,7 +309,7 @@ async function renderTax(box, c, id) {
       ${w ? `<div class="tbr"><input id="tcost" inputmode="decimal" placeholder="Total plant cost (₹)" value="${A.cost || ''}"><button class="btn sec" id="tcsv">Save cost</button></div>` : ''}
       <div class="tbl">${A.payments.map(p => `<div class="tbp"><span>${fdt(p.date)}</span><span>${esc(p.mode || '—')}${p.ref_no ? `<em>Ref ${esc(p.ref_no)}</em>` : !isCash(p) ? '<em class="noref">No reference no. — needed for the receipt</em>' : ''}${p.note ? `<em>${esc(p.note)}</em>` : ''}${p.src === 'bank' ? '<em>From the bank (loan)</em>' : ''}${p.receipt_no ? `<em>Receipt ${esc(p.receipt_no)}</em>` : ''}</span><b>${inr2(p.amount)}</b><button class="ib" data-prc="${p.id}" title="Payment receipt — PDF, WhatsApp, email"><i class="i i-receipt"></i></button>${wp ? `<button class="ib" data-pedit="${p.id}" title="Edit payment"><i class="i i-pencil"></i></button><button class="ib" data-pdel="${p.id}" title="Delete payment"><i class="i i-trash"></i></button>` : ''}</div>`).join('') || '<p class="mut" style="margin:6px 0">No payments recorded yet.</p>'}</div>
       ${wp ? `<div class="tbr tba"><input type="date" id="tpd" value="${today()}"><input id="tpa" inputmode="decimal" placeholder="Amount (₹)"><select id="tpm">${MODES.map(m => `<option>${m}</option>`).join('')}</select><input id="tpref" placeholder="${REF_PH}" maxlength="60" autocomplete="off"><input id="tpn" placeholder="Note (optional)" maxlength="120">${isLoan ? srcSel('tpsrc', 'customer') : ''}<button class="btn" id="tpadd">Add payment</button></div>` : ''}
-      ${!A.project_id && w ? '<p class="mut" style="font-size:12px;margin:6px 0 0">Saving the plant cost also starts this customer\'s project in the pipeline.</p>' : ''}`;
+      ${!A.project_id && w ? '<p class="mut u-fs12-m6_0_0">Saving the plant cost also starts this customer\'s project in the pipeline.</p>' : ''}`;
     const reload = accReload;
     if ($('#tcsv', box)) $('#tcsv', box).onclick = async e => { e.currentTarget.disabled = true; try { await api('gen', 'cost', { kind: 'tax', customer_id: id, cost: +$('#tcost', box).value || 0 }); toast('Plant cost saved'); await accReload(); } catch (x) { drawAcc(); } }; /* the cost changes what is still due, so the bill lock is read again */
     if ($('#tpadd', box)) $('#tpadd', box).onclick = async e => { const amt = +$('#tpa', box).value || 0; if (amt <= 0) return toast('Enter the amount received', true);
@@ -334,13 +334,13 @@ async function renderTax(box, c, id) {
     const modes = MODES.includes(p.mode) || !p.mode ? MODES : MODES.concat(p.mode);
     /* older payments kept the reference in the note ("Reference / note"): offer it when it looks like one (has a number, short) */
     const guess = !p.ref_no && /\d/.test(p.note || '') && String(p.note).length <= 40 ? p.note : '';
-    const m = modal(`<h3 style="margin-top:0">Edit payment${p.receipt_no ? ' · receipt ' + esc(p.receipt_no) : ''}</h3>${why ? `<p class="mfw" style="margin:0 0 10px">${esc(why)}</p>` : ''}
+    const m = modal(`<h3 class="u-mt0">Edit payment${p.receipt_no ? ' · receipt ' + esc(p.receipt_no) : ''}</h3>${why ? `<p class="mfw u-m0_0_10">${esc(why)}</p>` : ''}
       <div class="two"><div><label for="pe_d">Date</label><input type="date" id="pe_d" value="${esc(p.date || '')}"></div><div><label for="pe_a">Amount (₹)</label><input id="pe_a" inputmode="decimal" value="${+p.amount || ''}"></div>
        <div><label for="pe_m">Mode</label><select id="pe_m">${modes.map(x => `<option ${x === p.mode ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div><div><label for="pe_r">Reference no.</label><input id="pe_r" maxlength="60" autocomplete="off" placeholder="UTR / cheque / transaction no." value="${esc(p.ref_no || guess)}">${guess ? '<small class="mut">Filled in from the note — check it.</small>' : ''}</div>
        ${isLoan || p.src === 'bank' ? `<div><label for="pe_src">Paid by</label>${srcSel('pe_src', p.src)}</div>` : ''}
        <div class="full"><label for="pe_n">Note</label><input id="pe_n" maxlength="120" value="${esc(p.note || '')}"></div></div>
       ${p.receipt_no ? '<p class="mut" style="font-size:12.5px;margin:8px 0 0">The receipt keeps its number. Open it again after saving to get the corrected copy.</p>' : ''}
-      <div class="bar" style="margin-top:12px"><button class="btn" id="pe_s">Save</button><button class="btn sec" id="pe_x">Cancel</button></div>`);
+      <div class="bar u-mt12"><button class="btn" id="pe_s">Save</button><button class="btn sec" id="pe_x">Cancel</button></div>`);
     if (why) setTimeout(() => $('#pe_r', m).focus(), 50);
     $('#pe_m', m).onchange = () => { const s = $('#pe_src', m); if (s) s.value = ACC.payFrom($('#pe_m', m).value, s.value); }; /* mode Loan: from the bank */
     $('#pe_x', m).onclick = () => m.remove();
@@ -404,7 +404,7 @@ async function renderTax(box, c, id) {
     const bk = isLoan && canR('loans'), sb = (via, to, icon, label) => `<button class="btn sec sm" data-via="${via}" data-to="${to}"><i class="i i-${icon}"></i> ${label}</button>`;
     el.innerHTML = `<div class="acx-tsh"><div class="bar"><b>Send the bill</b><span class="sp"></span>${sb('pdf', 'customer', 'download', 'PDF')}${sb('email', 'customer', 'mail', 'Email')}${sb('whatsapp', 'customer', 'whatsapp', 'WhatsApp')}${bk ? sb('email', 'bank', 'bank', 'Email to bank') + sb('whatsapp', 'bank', 'whatsapp', 'WhatsApp to bank') : ''}</div>
       <div class="acx-shl">${acSharedHtml(g.shared || [])}</div>
-      <div class="bar"><span class="mut" id="tkst" style="font-size:12.5px"></span><span class="sp"></span><button class="btn sec sm" id="tkeep"><i class="i i-folder"></i> Save to Documents</button></div></div>`;
+      <div class="bar"><span class="mut u-fs12p5" id="tkst"></span><span class="sp"></span><button class="btn sec sm" id="tkeep"><i class="i i-folder"></i> Save to Documents</button></div></div>`;
     drawKept();
     /* by hand: the same copy the CRM keeps by itself after a save, a print or a send — here with a clear answer when it could not be kept */
     $('#tkeep', el).onclick = async e => { if (formSnap() !== savedSnap) return toast('Save the changes first', true);
@@ -504,8 +504,8 @@ async function renderMnre(box, c, id) {
       <label class="msec">Inverter</label><div class="two">${f('inv_make', 'Make / model')}${f('inv_capacity', 'Capacity')}</div>
       <p class="mut" style="font-size:12.5px;margin:6px 0 0">Serial numbers come from <b>Plant details</b>: ${pn.length} module${pn.length === 1 ? '' : 's'}, ${iv.length} inverter${iv.length === 1 ? '' : 's'}. <button class="btn sec sm" id="mgoplant" type="button">Open Plant details</button></p>
       <label class="msec">Signed by</label><div class="two">${f('sign_name', 'Name')}${f('sign_desig', 'Designation')}${f('sign_phone', 'Phone')}</div>
-      <div class="bar" style="margin-top:12px">${w ? `<button class="btn" id="msv">${g.doc ? 'Save changes' : 'Issue warranty card'}</button>` : ''}<button class="btn sec" id="mpr"><i class="i i-download"></i> Print / PDF</button></div>
-      <p class="mut" style="font-size:12px;margin:8px 0 0">Prints on A4 with the letterhead. Leave the space above "For JASPER SOLAR SOLUTIONS" for the seal and signature.</p></div>
+      <div class="bar u-mt12">${w ? `<button class="btn" id="msv">${g.doc ? 'Save changes' : 'Issue warranty card'}</button>` : ''}<button class="btn sec" id="mpr"><i class="i i-download"></i> Print / PDF</button></div>
+      <p class="mut u-fs12-m8_0_0">Prints on A4 with the letterhead. Leave the space above "For JASPER SOLAR SOLUTIONS" for the seal and signature.</p></div>
     <div class="gdp"><div class="lhwrap" id="mwrap"><div class="lhfit" id="mdoc"></div></div></div></div>`;
   const ref = () => $('#mref', box).value.trim(), page = () => mnrePage(D, ref(), $('#mdate', box).value, pn, iv);
   const fit = () => { const wr = $('#mwrap', box), pg = $('#mdoc', box); if (!wr || !pg) return; const s = Math.min(1, (wr.parentElement.clientWidth - 2) / 794); pg.style.transform = `scale(${s})`; wr.style.width = 794 * s + 'px'; wr.style.height = 1123 * s + 'px'; };

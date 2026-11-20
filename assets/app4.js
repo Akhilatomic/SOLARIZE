@@ -308,8 +308,8 @@ async function pgFolder(id) {
       copyText(ds.length === 1 ? shareUrl(ds[0]) : ds.map(d => d.file_name + '\n' + shareUrl(d)).join('\n\n'), ds.length === 1 ? 'share link' : ds.length + ' share links'); };
     if ($('#fmrn')) $('#fmrn').onclick = () => {
       const isF = fo.length === 1, it = isF ? folders.find(f => +f.id === fo[0]) : items.find(i => +i.id === fl[0]); if (!it) return;
-      const m = modal(`<h2 style="margin-top:0">Rename ${isF ? 'folder' : 'file'}</h2><input id="fmrnv" value="${esc(isF ? it.name : it.file_name)}">${isF ? '' : '<p class="mut" style="font-size:12px;margin:6px 0 0">The file type stays the same.</p>'}
-        <div class="bar" style="margin-top:12px"><button class="btn" id="fmrnok">Rename</button><button class="btn sec" id="fmrnx">Cancel</button></div>`);
+      const m = modal(`<h2 class="u-mt0">Rename ${isF ? 'folder' : 'file'}</h2><input id="fmrnv" value="${esc(isF ? it.name : it.file_name)}">${isF ? '' : '<p class="mut u-fs12-m6_0_0">The file type stays the same.</p>'}
+        <div class="bar u-mt12"><button class="btn" id="fmrnok">Rename</button><button class="btn sec" id="fmrnx">Cancel</button></div>`);
       const inp = $('#fmrnv', m); inp.focus(); inp.select(); $('#fmrnx', m).onclick = () => m.remove();
       const go = async () => { const v = inp.value.trim(); if (!v) return; try { await api('folder', isF ? 'folder_rename' : 'rename', { id: it.id, name: v }); m.remove(); clearSel(); reload(); } catch (e) { } };
       $('#fmrnok', m).onclick = go; inp.onkeydown = e => { if (e.key === 'Enter') go(); };
@@ -324,9 +324,9 @@ async function pgFolder(id) {
     const fl = [...FM.files], fo = [...FM.folders];
     const barred = subtree(fo);
     const tree = (pid, depth) => folders.filter(f => (+f.parent_id || 0) === pid && !barred.has(+f.id)).sort((a, b) => a.name.localeCompare(b.name)).map(f => `<label class="fm-pick" style="padding-left:${10 + depth * 18}px"><input type="radio" name="fmto" value="${f.id}"><i class="i i-folder"></i> ${esc(f.name)}</label>${tree(+f.id, depth + 1)}`).join('');
-    const m = modal(`<h2 style="margin-top:0">Move ${fl.length + fo.length} item${fl.length + fo.length === 1 ? '' : 's'} to…</h2>
+    const m = modal(`<h2 class="u-mt0">Move ${fl.length + fo.length} item${fl.length + fo.length === 1 ? '' : 's'} to…</h2>
       <div class="fm-picks"><label class="fm-pick"><input type="radio" name="fmto" value="0" checked><i class="i i-folder"></i> Folder (top level)</label>${tree(0, 1)}</div>
-      <div class="bar" style="margin-top:12px"><button class="btn" id="fmmvok">Move here</button><button class="btn sec" id="fmmvx">Cancel</button></div>`);
+      <div class="bar u-mt12"><button class="btn" id="fmmvok">Move here</button><button class="btn sec" id="fmmvx">Cancel</button></div>`);
     $('#fmmvx', m).onclick = () => m.remove();
     $('#fmmvok', m).onclick = async () => { const to = +$('input[name=fmto]:checked', m).value; try { await api('folder', 'move', { files: fl, folders: fo, to: to || null }); m.remove(); clearSel(); toast('Moved'); reload(); } catch (e) { } };
   };
@@ -362,7 +362,7 @@ async function pgFolder(id) {
     $('#fmup').onclick = () => $('#fmfile').click();
     $('#fmfile').onchange = e => { const l = [...e.target.files]; e.target.value = ''; upload(l); };
     $('#fmnew').onclick = () => {
-      const m = modal(`<h2 style="margin-top:0">New folder</h2><input id="fmnn" placeholder="Folder name"><div class="bar" style="margin-top:12px"><button class="btn" id="fmnok">Create</button><button class="btn sec" id="fmnx">Cancel</button></div>`);
+      const m = modal(`<h2 class="u-mt0">New folder</h2><input id="fmnn" placeholder="Folder name"><div class="bar u-mt12"><button class="btn" id="fmnok">Create</button><button class="btn sec" id="fmnx">Cancel</button></div>`);
       const inp = $('#fmnn', m); inp.focus(); $('#fmnx', m).onclick = () => m.remove();
       const go = async () => { const v = inp.value.trim(); if (!v) return; try { await api('folder', 'folder_new', { parent_id: cur || null, name: v }); m.remove(); reload(); } catch (e) { } };
       $('#fmnok', m).onclick = go; inp.onkeydown = e => { if (e.key === 'Enter') go(); };
@@ -424,12 +424,12 @@ async function shareModal(list) {
   const contacts = cs.map(c => ({ ...c, type: 'customer' })).concat(ls.filter(l => !l.customer_id).map(l => ({ ...l, type: 'lead' }))).filter(c => c.phone);
   const compose = name => `Hello${name ? ' ' + name : ''}, as requested, here ${list.length > 1 ? 'are the product datasheets' : 'is the product datasheet'} from ${S.company.name}:\n\n` +
     list.map((d, i) => `${list.length > 1 ? (i + 1) + '. ' : ''}${d.title}${[d.brand, d.model].filter(Boolean).length ? ' (' + [d.brand, d.model].filter(Boolean).join(' ') + ')' : ''}\n${shareUrl(d)}`).join('\n\n') + '\n\nPlease let us know if you need anything else.';
-  const m = modal(`<h2 style="margin-top:0">Share on WhatsApp</h2><p class="mut" style="margin:0 0 6px">${list.map(d => esc(d.title)).join(' · ')}</p>
+  const m = modal(`<h2 class="u-mt0">Share on WhatsApp</h2><p class="mut u-m0_0_6">${list.map(d => esc(d.title)).join(' · ')}</p>
    <label>Send to (customer / lead) — or type a number</label><input id="sc" list="scl" placeholder="Search name or phone…" autocomplete="off"><datalist id="scl">${contacts.map(c => `<option value="${esc(c.name)} · ${esc(c.phone)}"></option>`).join('')}</datalist>
-   <input id="sn" placeholder="Phone number (optional — leave empty to choose the chat in WhatsApp)" style="margin-top:8px" type="tel">
+   <input id="sn" placeholder="Phone number (optional — leave empty to choose the chat in WhatsApp)" class="u-mt8" type="tel">
    <label>Message (editable)</label><textarea id="sm" rows="9"></textarea>
-   <div class="bar" style="margin-top:12px"><button class="btn ok" id="sgo"><i class="i i-chat"></i> Open WhatsApp</button><button class="btn sec" id="scp">Copy message</button><button class="btn sec" id="scx">Cancel</button></div>
-   <p class="mut" style="font-size:12px;margin:6px 0 0">Customers get a private link to each file — no login needed.</p>`);
+   <div class="bar u-mt12"><button class="btn ok" id="sgo"><i class="i i-chat"></i> Open WhatsApp</button><button class="btn sec" id="scp">Copy message</button><button class="btn sec" id="scx">Cancel</button></div>
+   <p class="mut u-fs12-m6_0_0">Customers get a private link to each file — no login needed.</p>`);
   let who = null; const sm = $('#sm', m);
   const redo = () => sm.value = compose(who?.name || ''); redo();
   $('#sc', m).oninput = e => { const c = contacts.find(x => `${x.name} · ${x.phone}` === e.target.value); who = c || null; if (c) $('#sn', m).value = c.phone; redo(); };

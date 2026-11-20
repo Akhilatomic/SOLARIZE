@@ -46,7 +46,7 @@ async function pgCalendar() {
   const types = [...CAL.data.types, 'Lead appointment', 'Project'];
   $('#main').innerHTML = `<div class="bar calbar pghd">
     <button class="btn sec sm" id="ctoday">Today</button><button class="btn sec sm" id="cprev" title="Previous">‹</button><button class="btn sec sm" id="cnext" title="Next">›</button><b class="clabel">${label}</b>
-    <span class="sp"></span><div class="tabs" style="margin:0">${[['month', 'Month'], ['week', 'Week'], ['day', 'Day'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-v="${k}" class="${CAL.view === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <span class="sp"></span><div class="tabs u-m0">${[['month', 'Month'], ['week', 'Week'], ['day', 'Day'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-v="${k}" class="${CAL.view === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <button class="btn sec sm" id="cics" title="Download these events as .ics"><i class="i i-download"></i> .ics</button>${w ? '<button class="btn" id="cnew"><i class="i i-plus"></i> New event</button>' : ''}</div>
    <div class="bar calf">${types.map(x => `<button class="cf t-${CT[x]} ${CAL.hide.has(x) ? 'off' : ''}" data-t="${esc(x)}"><i></i>${esc(x)}</button>`).join('')}<span class="sp"></span>
     <select id="cuser" title="Show events for"><option value="">Everyone</option>${CAL.data.users.map(u => `<option value="${u.id}" ${CAL.user == u.id ? 'selected' : ''}>${u.id == ME.id ? 'Me (' + esc(u.name) + ')' : esc(u.name)}</option>`).join('')}</select></div>
@@ -120,13 +120,13 @@ function drawAgenda(box, items) {
   const [f, t] = calRange(), groups = []; box.className = 'cview fitbox agenda';
   for (let d = new Date(f); d <= t; d = addD(d, 1)) { const ds = ymd(d), its = items.filter(i => onDay(i, ds)); if (its.length) groups.push([ds, its]); }
   box.innerHTML = groups.map(([ds, its]) => `<div class="cag"><div class="cagd ${ds === today() ? 'tdy' : ''}"><b>${pdate(ds).getDate()}</b><small>${pdate(ds).toLocaleDateString('en-GB', { weekday: 'short', month: 'short' })}</small></div><div class="cagl">${its.map(i => `<div class="cagi" data-k="${i.kind}" data-id="${i.id}"><span class="cagt">${i.time ? hm(i.time) + (i.endTime ? ' – ' + hm(i.endTime) : '') : 'All day'}</span><span class="cf t-${CT[i.type]}"><i></i>${esc(i.type)}</span><span class="cagx"><b class="${i.status === 'Done' ? 'done' : ''} ${i.status === 'Cancelled' ? 'cxl' : ''}">${esc(i.title)}</b><small class="mut">${esc(i.sub || '')}</small></span>${i.kind === 'event' && i.status && i.status !== 'Scheduled' ? pill(i.status, i.status === 'Done' ? 'g' : 'r') : ''}</div>`).join('')}</div></div>`).join('')
-    || '<p class="mut" style="padding:20px">Nothing scheduled in the next 60 days.</p>';
+    || '<p class="mut u-p20">Nothing scheduled in the next 60 days.</p>';
 }
 function drawSide(items) {
   const ds = CAL.sel || today(), its = items.filter(i => onDay(i, ds)), side = $('#cside'); if (!side) return;
   const up = items.filter(i => i.date > ds).slice(0, 8);
   side.innerHTML = `<div class="ch"><h3>${pdate(ds).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>${canW('calendar') ? '<button class="btn sm" id="sadd"><i class="i i-plus"></i> Add</button>' : ''}</div>
-   ${its.map(i => `<div class="sitem" data-k="${i.kind}" data-id="${i.id}"><span class="sdot t-${CT[i.type]}"></span><div><b class="${i.status === 'Done' ? 'done' : ''} ${i.status === 'Cancelled' ? 'cxl' : ''}">${esc(i.title)}</b><small>${i.time ? hm(i.time) + (i.endTime ? ' – ' + hm(i.endTime) : '') : 'All day'} · ${esc(i.type)}</small>${i.sub ? `<small class="mut">${esc(i.sub)}</small>` : ''}</div></div>`).join('') || '<p class="mut" style="font-size:13px">Nothing scheduled. Double-click a day to add an event.</p>'}
+   ${its.map(i => `<div class="sitem" data-k="${i.kind}" data-id="${i.id}"><span class="sdot t-${CT[i.type]}"></span><div><b class="${i.status === 'Done' ? 'done' : ''} ${i.status === 'Cancelled' ? 'cxl' : ''}">${esc(i.title)}</b><small>${i.time ? hm(i.time) + (i.endTime ? ' – ' + hm(i.endTime) : '') : 'All day'} · ${esc(i.type)}</small>${i.sub ? `<small class="mut">${esc(i.sub)}</small>` : ''}</div></div>`).join('') || '<p class="mut u-fs13">Nothing scheduled. Double-click a day to add an event.</p>'}
    ${up.length ? `<h3 style="margin-top:18px">Coming up</h3>${up.map(i => `<div class="sitem" data-k="${i.kind}" data-id="${i.id}"><span class="sdot t-${CT[i.type]}"></span><div><b>${esc(i.title)}</b><small>${pdate(i.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}${i.time ? ' · ' + hm(i.time) : ''} · ${esc(i.type)}</small></div></div>`).join('')}` : ''}`;
   if ($('#sadd')) $('#sadd').onclick = () => evModal({ start: ds });
   bindItems(side);
@@ -166,7 +166,7 @@ async function evModal(ev) {
   const s = ev.start || today(), e = ev.end || '', allDay = isNew ? s.length <= 10 : !!ev.all_day;
   const sT = s.length > 10 ? s.slice(11, 16) : '10:00', eT = e.length > 10 ? e.slice(11, 16) : (() => { const m = mins(sT) + 60; return pad2(Math.min(23, Math.floor(m / 60))) + ':' + pad2(m % 60); })();
   const users = CAL.data ? CAL.data.users : [];
-  const m = modal(`<h2 style="margin-top:0">${isNew ? 'New event' : 'Event'}</h2><div class="two">
+  const m = modal(`<h2 class="u-mt0">${isNew ? 'New event' : 'Event'}</h2><div class="two">
    <div class="full"><label>Title</label><input id="et" value="${esc(ev.title || '')}" placeholder="e.g. Site visit — Hari Kumar"></div>
    <div><label>Type</label><select id="ety">${(CAL.data ? CAL.data.types : Object.keys(CT).slice(0, 7)).map(x => `<option ${ev.type === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
    <div><label>Assigned to</label><select id="eu"><option value="">Team (everyone)</option>${users.map(u => `<option value="${u.id}" ${(isNew ? ME.id : ev.user_id) == u.id ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select></div>
@@ -180,7 +180,7 @@ async function evModal(ev) {
    <div class="full"><label>Location</label><input id="eloc" value="${esc(ev.location || '')}" placeholder="Address or Google Maps link"></div>
    <div class="full"><label>Notes</label><textarea id="en" rows="3">${esc(ev.notes || '')}</textarea></div>
    ${isNew ? '' : `<div><label>Status</label><select id="es">${['Scheduled', 'Done', 'Cancelled'].map(x => `<option ${ev.status === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div><div><label>Created by</label><input disabled value="${esc(ev.created_by_name || '')}"></div>`}</div>
-   <div class="bar" style="margin-top:14px">${w ? '<button class="btn" id="esv">Save</button>' : ''}<button class="btn sec" id="ecx">Close</button>
+   <div class="bar u-mt14">${w ? '<button class="btn" id="esv">Save</button>' : ''}<button class="btn sec" id="ecx">Close</button>
     ${!isNew && w && ev.status !== 'Done' ? '<button class="btn sec" id="edone"><i class="i i-check"></i> Mark done</button>' : ''}
     ${!isNew ? '<a class="btn sec" id="egc" target="_blank" title="Add to Google Calendar"><i class="i i-calendar"></i> Google</a>' : ''}
     ${!isNew && ev.location ? `<a class="btn sec" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}"><i class="i i-target"></i> Map</a>` : ''}

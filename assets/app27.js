@@ -76,8 +76,8 @@ async function pgComm() {
    <div class="fstats" id="cmst"></div>
    <div class="bar fbar"><input id="fq" placeholder="Search by customer, phone, ${adm ? 'person, ' : ''}transaction ID…" value="${esc(COMMQ.q)}">
      ${adm ? `<select id="cmwho" class="cmn-who"><option value="0">${kind === 'commission' ? 'All Business Associates' : 'All staff'}</option>${people.map(p => `<option value="${p.id}" ${who() === p.id ? 'selected' : ''}>${esc(p.name)}${p.active ? '' : ' (inactive)'}</option>`).join('')}</select>` : ''}
-     <div class="tabs" style="margin:0">${tabs.map(([k, l]) => `<button data-cst="${k}" class="${COMMQ.st[kind] === k ? 'on' : ''}">${l}</button>`).join('')}</div><span class="mut" id="fcnt"></span></div>
-   <div class="card tw" style="padding:0"><table id="cmtb" class="ftb cmn-tb" data-min="${adm ? 1120 : 860}"></table></div>
+     <div class="tabs u-m0">${tabs.map(([k, l]) => `<button data-cst="${k}" class="${COMMQ.st[kind] === k ? 'on' : ''}">${l}</button>`).join('')}</div><span class="mut" id="fcnt"></span></div>
+   <div class="card tw u-p0"><table id="cmtb" class="ftb cmn-tb" data-min="${adm ? 1120 : 860}"></table></div>
    <p class="mut cmn-foot">${adm ? `Project cost and payments received are totals of all the customer’s projects (Tax bill payments)${inc ? '; kW comes from the projects, else the lead' : ''}. A calculated incentive follows changes (kW, lead type, order in the month) until part 1 is paid. Switch on <b>Visible</b> to let the ${W.person.toLowerCase()} see a customer under <i>${W.K} received</i>; everything else here is only for ${boss ? 'you' : 'the admin and incentive managers'}.` : `Shown only for the customers the admin has approved and shared with you.`}</p>`;
 
   const ms = () => { const box = $('#cmms'); if (!box) return;
@@ -173,14 +173,14 @@ function commApprove(r, people, done) {
   const staff = people.filter(p => p.kind === 'incentive');
   /* Meta only comes from a lead: a customer added directly is Own lead or Office */
   const types = Object.entries(COMM.LT).filter(([k]) => k !== 'meta' || +r.from_lead), cur = types.some(([k]) => k === r.lead_type) ? r.lead_type : 'office';
-  const m = modal(`<h2 style="margin-top:0">Approve incentive</h2><p class="mut" style="margin-top:-6px"><b>${esc(r.name)}</b>${r.ym ? ' · won ' + cmYm(r.ym) : ''}${+r.kw ? ' · ' + (+r.kw) + ' kW' : ' · kW not set yet'}${+r.from_lead ? '' : ' · added directly, not from a lead'}</p>
+  const m = modal(`<h2 class="u-mt0">Approve incentive</h2><p class="mut u-mtn6"><b>${esc(r.name)}</b>${r.ym ? ' · won ' + cmYm(r.ym) : ''}${+r.kw ? ' · ' + (+r.kw) + ' kW' : ' · kW not set yet'}${+r.from_lead ? '' : ' · added directly, not from a lead'}</p>
     <div class="two"><div><label>Staff member</label><select id="apu">${r.user_id ? '' : '<option value="">Choose…</option>'}${staff.map(p => `<option value="${p.id}" ${+r.user_id === p.id ? 'selected' : ''}>${esc(p.name)}${p.active ? '' : ' (inactive)'}</option>`).join('')}</select></div>
       <div><label>Lead type</label><select id="apt">${types.map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
     <div class="cmn-sum" id="apv"></div>
     <label class="cmn-vis"><input type="checkbox" id="apvis" ${r.appr === 'no' && !r.visible ? '' : 'checked'}> <span id="apvl"></span></label>
-    <p class="mut" style="font-size:12px;margin:6px 0 0">Own lead: ₹3,000 per kW. Meta / Office lead: by the staff member’s milestone in the month the customer was won. Only approved customers get an incentive.</p>
+    <p class="mut u-fs12-m6_0_0">Own lead: ₹3,000 per kW. Meta / Office lead: by the staff member’s milestone in the month the customer was won. Only approved customers get an incentive.</p>
     <div class="err" id="ape"></div>
-    <div class="bar" style="margin-top:8px"><button class="btn" id="apok">Approve</button><button class="btn sec" id="apno">Not eligible</button><span class="sp"></span><button class="btn sec" id="apx">Cancel</button></div>`);
+    <div class="bar u-mt8"><button class="btn" id="apok">Approve</button><button class="btn sec" id="apno">Not eligible</button><span class="sp"></span><button class="btn sec" id="apx">Cancel</button></div>`);
   const upd = () => { const t = $('#apt', m).value, p = staff.find(x => x.id === +$('#apu', m).value), pv = r.preview;
     $('#apv', m).innerHTML = pv && p && +r.user_id === p.id ? `Incentive: <b>${inr(t === 'own' ? pv.own : pv.company)}</b> <span class="mut">(${esc(t === 'own' ? pv.own_txt : pv.company_txt)})</span>` : 'The incentive is worked out when you approve.';
     $('#apvl', m).textContent = p ? `Visible to ${p.name} under “Incentive received”` : 'Visible to the staff member'; $('#ape', m).textContent = ''; };
@@ -203,7 +203,7 @@ function commEdit(r, people, done) {
       <div><label>Paid on</label><input type="date" id="cmp${n}d" value="${esc(r['p' + n + '_date'] || '')}" max="${today()}"></div>
       <div><label>Transaction ID</label><input id="cmp${n}r" value="${esc(r['p' + n + '_ref'] || '')}" maxlength="80" placeholder="UTR / UPI / cheque no."></div></div>`;
   const sch = !!r.scheme;
-  const m = modal(`<h2 style="margin-top:0" id="cmh"></h2><p class="mut" style="margin-top:-6px"><b>${esc(r.name)}</b>${sch ? ' · ' + COMM.LT[r.lead_type] + (r.ym ? ' · won ' + cmYm(r.ym) : '') : ''}${r.cost ? ' · Project cost ' + inr(r.cost) : ''}${r.received ? ' · Received ' + inr(r.received) : ''}</p>
+  const m = modal(`<h2 class="u-mt0" id="cmh"></h2><p class="mut u-mtn6"><b>${esc(r.name)}</b>${sch ? ' · ' + COMM.LT[r.lead_type] + (r.ym ? ' · won ' + cmYm(r.ym) : '') : ''}${r.cost ? ' · Project cost ' + inr(r.cost) : ''}${r.received ? ' · Received ' + inr(r.received) : ''}</p>
     <div class="two"><div><label>Paid to</label><select id="cmu">${r.user_id ? '' : '<option value="">Choose…</option>'}${[['commission', 'Business Associates — commission'], ['incentive', 'Staff — incentive']].filter(([k]) => people.some(p => p.kind === k)).map(([k, l]) => `<optgroup label="${l}">${opts(k)}</optgroup>`).join('')}</select></div>
       <div><label id="cmal"></label><input id="cma" inputmode="decimal" value="${+r.amount || ''}" placeholder="0"></div></div>
     ${sch ? `<label class="cmn-vis"><input type="checkbox" id="cmauto" ${r.auto ? 'checked' : ''}> Calculated amount <span class="mut" id="cmcalc">${esc(r.auto && r.calc ? r.calc : 'worked out when you save')}</span></label>` : ''}
@@ -235,8 +235,8 @@ function commEdit(r, people, done) {
 // admin / incentive manager: a customer that is on neither list (no owner, or owned by an admin)
 async function commPick(d, done, reload) {
   const cs = await api('comm', 'candidates');
-  const m = modal(`<h2 style="margin-top:0">Add a customer</h2><p class="mut" style="margin-top:-6px">Customers owned by a Business Associate or staff member are listed already. Pick one that has no such owner.</p>
-    <input id="cmq" placeholder="Search customers…"><div class="fcl2" id="cml"></div><div class="bar" style="margin-top:12px"><button class="btn sec" id="cmx">Cancel</button></div>`);
+  const m = modal(`<h2 class="u-mt0">Add a customer</h2><p class="mut u-mtn6">Customers owned by a Business Associate or staff member are listed already. Pick one that has no such owner.</p>
+    <input id="cmq" placeholder="Search customers…"><div class="fcl2" id="cml"></div><div class="bar u-mt12"><button class="btn sec" id="cmx">Cancel</button></div>`);
   const dr = () => { const t = $('#cmq', m).value.toLowerCase(), L = cs.filter(c => !t || [c.name, c.phone, c.district].join(' ').toLowerCase().includes(t)).slice(0, 200);
     $('#cml', m).innerHTML = L.map(c => `<button type="button" class="fci cmn-pick" data-pk="${c.id}"><span><b>${esc(c.name)}</b><small class="mut">${esc([c.phone, c.district, c.ym ? 'won ' + cmYm(c.ym) : ''].filter(Boolean).join(' · '))}</small></span></button>`).join('') || '<p class="mut">No other customers.</p>'; };
   $('#cmq', m).oninput = dr; dr(); $('#cmx', m).onclick = () => m.remove();
@@ -252,7 +252,7 @@ async function commPick(d, done, reload) {
 async function commProfileTab(box, c, cid) {
   box.innerHTML = '<p class="mut">Loading…</p>';
   let d; try { d = await api('comm', 'for_customer', undefined, '&customer_id=' + (+cid)); }
-  catch (e) { if (box.isConnected) box.innerHTML = `<div class="card pfc"><p class="over" style="margin:0">${esc((e && (e.error || e.message)) || 'Could not load the commission / incentive')}</p></div>`; return; }
+  catch (e) { if (box.isConnected) box.innerHTML = `<div class="card pfc"><p class="over u-m0">${esc((e && (e.error || e.message)) || 'Could not load the commission / incentive')}</p></div>`; return; }
   if (!box.isConnected || !$('[data-pt="comm"].on')) return; /* another tab was opened meanwhile */
   const r = d.row, people = d.people || [], reload = () => commProfileTab(box, c, cid);
   const head = (t, extra) => `<div class="pfch"><i class="i i-users"></i><h3>${t}</h3>${extra || ''}</div>`;

@@ -33,14 +33,14 @@ async function pgFees() {
   $('#main').innerHTML = `<div class="fhead pghd"><div><div class="mut pghd-s">${K.sub}</div></div><span class="sp"></span>
      <button class="btn sec" id="frf"><i class="i i-refresh"></i> Refresh</button><button class="btn sec" id="fpdf"><i class="i i-download"></i> Download PDF</button>${w ? '<button class="btn" id="fadd"><i class="i i-plus"></i> Add customers</button>' : ''}</div>
    <div class="fstats">${stats.map(([l, v, c]) => `<div class="card fst ${c === 'r' && !v ? '' : c}"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
-   <div class="bar fbar"><input id="fq" placeholder="Search by name, phone, consumer no., address, section…" value="${esc(FEEQ.q)}"><div class="tabs" style="margin:0">${K.filters.map(([k, l]) => `<button data-ff="${k}" class="${FEEQ.f[kind] === k ? 'on' : ''}">${l}</button>`).join('')}</div><span class="mut" id="fcnt"></span></div>
-   <div class="card tw" style="padding:0"><table id="ftb" class="ftb" data-min="900"></table></div>
+   <div class="bar fbar"><input id="fq" placeholder="Search by name, phone, consumer no., address, section…" value="${esc(FEEQ.q)}"><div class="tabs u-m0">${K.filters.map(([k, l]) => `<button data-ff="${k}" class="${FEEQ.f[kind] === k ? 'on' : ''}">${l}</button>`).join('')}</div><span class="mut" id="fcnt"></span></div>
+   <div class="card tw u-p0"><table id="ftb" class="ftb" data-min="900"></table></div>
    ${kind === 'feasibility' ? `<p class="mut" style="font-size:12px;margin:10px 2px">Feasibility is valid for ${d.valid_days} days from the payment date. Everyone with Finance access gets a notification ${d.alert_days} days before it expires and again when it expires. Uploading the KSEB feasibility receipt in the pipeline marks it paid here automatically.</p>` : kind === 'registration' ? '<p class="mut" style="font-size:12px;margin:10px 2px">Uploading the KSEB registration fee receipt in the pipeline marks it paid here automatically.</p>' : ''}`;
   const filt = () => { const t = FEEQ.q.toLowerCase(), f = FEEQ.f[kind];
     return d.rows.filter(r => (f === 'all' || (f === 'expiring' ? (+r.paid && r.days_left >= 0 && r.days_left <= d.alert_days) : f === 'paid' ? +r.paid : f === 'pending' && kind === 'stamp' ? !+r.paid : st(r) === f))
       && (!t || [r.name, r.phone, r.consumer_no, r.address, r.district, r.pincode, r.kseb_section, r.landmark].join(' ').toLowerCase().includes(t))); };
   const draw = () => { const rows = filt(); $('#fcnt').textContent = `${rows.length} record${rows.length === 1 ? '' : 's'}`;
-    $('#ftb').innerHTML = `<colgroup><col style="width:44px"><col style="width:20%"><col><col style="width:14%"><col style="width:110px">${kind === 'stamp' ? '' : '<col style="width:120px">'}<col style="width:${kind === 'feasibility' ? 210 : 140}px"><col style="width:78px"></colgroup>
+    $('#ftb').innerHTML = `<colgroup><col style="width:44px"><col style="width:20%"><col><col style="width:14%"><col class="u-w110">${kind === 'stamp' ? '' : '<col style="width:120px">'}<col style="width:${kind === 'feasibility' ? 210 : 140}px"><col style="width:78px"></colgroup>
      <thead><tr><th>#</th><th>Customer</th><th>Address</th><th>Electrical section</th><th>${kind === 'stamp' ? 'Stamp value' : 'Amount'}</th>${kind === 'stamp' ? '' : '<th>Demanded</th>'}<th>${K.paid}</th><th class="right">Remove</th></tr></thead><tbody>
      ${rows.map((r, i) => { const s = st(r);
        const life = kind === 'feasibility' && +r.paid ? `<div class="fval"><small>Paid ${fdate(r.paid_on)}</small><small>Expires ${fdate(r.expires)}</small>${r.days_left < 0 ? `<span class="fbad r">Expired ${-r.days_left}d ago</span>${w ? `<button class="btn sm" data-renew="${r.id}">Renew</button>` : ''}` : `<span class="fbad ${r.days_left <= d.alert_days ? 'r' : r.days_left <= 10 ? 'y' : 'g'}">${r.days_left === 0 ? 'Expires today' : r.days_left + 'd left'}</span>`}</div>` : +r.paid && r.paid_on ? `<div class="fval"><small>${fdate(r.paid_on)}</small>${r.ref ? `<small>Ref ${esc(r.ref)}</small>` : ''}</div>` : '';
@@ -55,11 +55,11 @@ async function pgFees() {
       || `<tr><td colspan="8" class="mut" style="text-align:center;padding:28px">${d.rows.length ? 'Nothing matches.' : `No customers on this list yet.${w ? ' Use <b>Add customers</b>.' : ''}`}</td></tr>`}</tbody>`;
     bind(); };
   const reload = () => pgFees();
-  const payModal = r => { const m = modal(`<h2 style="margin-top:0">${kind === 'stamp' ? 'Stamp paper purchased' : (+r.paid ? 'Renew ' : '') + K.title + ' paid'}</h2><p class="mut" style="margin-top:-6px">${esc(r.name)}</p>
+  const payModal = r => { const m = modal(`<h2 class="u-mt0">${kind === 'stamp' ? 'Stamp paper purchased' : (+r.paid ? 'Renew ' : '') + K.title + ' paid'}</h2><p class="mut u-mtn6">${esc(r.name)}</p>
       <div class="two"><div><label>${kind === 'stamp' ? 'Purchased on' : 'Paid on'}</label><input type="date" id="fpo" value="${today()}" max="${today()}"></div><div><label>${kind === 'stamp' ? 'Stamp value (₹)' : 'Amount (₹)'}</label><input id="fpa" inputmode="decimal" value="${+r.amount || ''}"></div>
       <div class="full"><label>Receipt / reference no. (optional)</label><input id="fpr" value="${esc(r.ref || '')}" maxlength="80"></div></div>
-      ${kind === 'feasibility' ? `<p class="mut" style="font-size:13px">Valid until <b id="fpx"></b> (${d.valid_days} days). You’ll be reminded ${d.alert_days} days before.</p>` : ''}
-      <div class="bar" style="margin-top:12px"><button class="btn" id="fps">Save</button><button class="btn sec" id="fpc">Cancel</button></div>`);
+      ${kind === 'feasibility' ? `<p class="mut u-fs13">Valid until <b id="fpx"></b> (${d.valid_days} days). You’ll be reminded ${d.alert_days} days before.</p>` : ''}
+      <div class="bar u-mt12"><button class="btn" id="fps">Save</button><button class="btn sec" id="fpc">Cancel</button></div>`);
     const upx = () => { if ($('#fpx', m)) { const x = new Date($('#fpo', m).value + 'T00:00:00'); x.setDate(x.getDate() + d.valid_days); $('#fpx', m).textContent = isNaN(x) ? '—' : x.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } };
     $('#fpo', m).oninput = upx; upx(); $('#fpc', m).onclick = () => m.remove();
     $('#fps', m).onclick = async () => { await api('fees', 'set', { id: r.id, paid: 1, paid_on: $('#fpo', m).value, amount: $('#fpa', m).value, ref: $('#fpr', m).value }); m.remove(); toast(`${K.title}: ${r.name} marked ${K.paid.toLowerCase()}`); reload(); if (typeof pipeOffer === 'function' && (kind === 'feasibility' || kind === 'registration')) pipeOffer({ customer_id: r.customer_id }, kind === 'feasibility' ? 'feas_pay' : 'reg_pay'); }; };
@@ -76,8 +76,8 @@ async function pgFees() {
   $('#frf').onclick = reload;
   $('#fpdf').onclick = () => feesPdf(kind, K, filt(), st);
   if ($('#fadd')) $('#fadd').onclick = async () => { const cs = await api('fees', 'candidates', undefined, '&kind=' + kind);
-    const m = modal(`<h2 style="margin-top:0">Add customers to ${K.title}</h2><input id="fcs" placeholder="Search customers…"><div class="fcl2" id="fcl"></div>
-      <div class="bar" style="margin-top:12px"><button class="btn" id="fca">Add selected</button><button class="btn sec" id="fcx">Cancel</button><span class="sp"></span><span class="mut" id="fcn">0 selected</span></div>`);
+    const m = modal(`<h2 class="u-mt0">Add customers to ${K.title}</h2><input id="fcs" placeholder="Search customers…"><div class="fcl2" id="fcl"></div>
+      <div class="bar u-mt12"><button class="btn" id="fca">Add selected</button><button class="btn sec" id="fcx">Cancel</button><span class="sp"></span><span class="mut" id="fcn">0 selected</span></div>`);
     const sel = new Set();
     const dr = () => { const t = $('#fcs', m).value.toLowerCase(), L = cs.filter(c => !t || [c.name, c.phone, c.consumer_no, c.district, c.kseb_section].join(' ').toLowerCase().includes(t)).slice(0, 200);
       $('#fcl', m).innerHTML = L.map(c => `<label class="fci"><input type="checkbox" value="${c.id}" ${sel.has(c.id) ? 'checked' : ''}><span><b>${esc(c.name)}</b><small class="mut">${esc([c.phone, c.consumer_no, c.kseb_section].filter(Boolean).join(' · '))}</small></span></label>`).join('') || '<p class="mut">Every customer is already on this list.</p>';

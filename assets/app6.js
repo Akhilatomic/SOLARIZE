@@ -26,7 +26,7 @@ async function pgPipeline() {
   const done = ps.filter(p => p.stage === 'Project completed');
   const counts = { 1: ps.filter(p => stepOf(p.stage) === 1).length, 2: ps.filter(p => stepOf(p.stage) === 2).length, 3: ps.filter(p => stepOf(p.stage) === 3 && p.stage !== 'Project completed').length, 4: done.length };
   $('#main').innerHTML = `<div class="bar pghd"><div><div class="mut pghd-s">${B.projects.length} projects · ${B.projects.filter(p => p.stage !== 'Project completed').length} in progress</div></div><span class="sp"></span>
-    ${ownSwitch('projects', PL.own)}<input id="plq" placeholder="Search customer, phone…" value="${esc(PL.q)}" style="max-width:260px">${PL.step < 4 ? `<div class="tabs" style="margin:0"><button data-pv="list" class="${PL.view === 'list' ? 'on' : ''}">List</button><button data-pv="board" class="${PL.view === 'board' ? 'on' : ''}">Board</button></div>` : ''}
+    ${ownSwitch('projects', PL.own)}<input id="plq" placeholder="Search customer, phone…" value="${esc(PL.q)}" style="max-width:260px">${PL.step < 4 ? `<div class="tabs u-m0"><button data-pv="list" class="${PL.view === 'list' ? 'on' : ''}">List</button><button data-pv="board" class="${PL.view === 'board' ? 'on' : ''}">Board</button></div>` : ''}
     ${w ? '<button class="btn" id="pnew"><i class="i i-plus"></i> Start project</button>' : ''}</div>
    <div class="stepper-tabs">${STEPS.map(([n, a, b]) => `<button data-step="${n}" class="${PL.step === n ? 'on' : ''}"><span class="sn">${n}</span><span><b>${b}</b><small>${a} · ${counts[n]} ${n === 4 ? 'completed' : 'active'}</small></span></button>`).join('')}</div>
    <div id="pbody"></div>`;
@@ -40,7 +40,7 @@ async function pgPipeline() {
   const cols = PIPE.filter(s => s[2] === PL.step);
   if (PL.view === 'list') {
     const rows = ps.filter(p => stepOf(p.stage) === PL.step);
-    body.innerHTML = `<div class="card tw fitbox" style="padding:0"><table id="ptb"><thead><tr><th>Customer</th><th>Project</th><th>Stage</th><th>In stage</th><th>AF/RF</th><th>Receipts</th><th>Engineer</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(p => `<tr class="row" data-id="${p.id}"><td><b>${esc(p.customer)}</b><br><small class="mut">${esc(p.phone || '')}</small></td><td>${projOwnTitle(p) ? `${esc(p.title)}<br><small class="mut">${p.kw} kW${FIN() ? ' · ' + inr(p.cost) : ''}</small>` : `<b>${p.kw} kW</b>${FIN() ? `<br><small class="mut">${inr(p.cost)}</small>` : ''}`}</td><td>${pill(p.stage, stepCls(p.stage))}${pendPill(p)}</td><td>${daysSince(p.since)}d</td><td>${feasCol(p.customer_id)}</td><td>${rcBadges(p)}</td><td>${esc(p.engineer) || '—'}</td><td class="right">${w ? nextBtn(p) : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="mut">No projects in this step</td></tr>'}</tbody></table></div>`;
+    body.innerHTML = `<div class="card tw fitbox u-p0"><table id="ptb"><thead><tr><th>Customer</th><th>Project</th><th>Stage</th><th>In stage</th><th>AF/RF</th><th>Receipts</th><th>Engineer</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(p => `<tr class="row" data-id="${p.id}"><td><b>${esc(p.customer)}</b><br><small class="mut">${esc(p.phone || '')}</small></td><td>${projOwnTitle(p) ? `${esc(p.title)}<br><small class="mut">${p.kw} kW${FIN() ? ' · ' + inr(p.cost) : ''}</small>` : `<b>${p.kw} kW</b>${FIN() ? `<br><small class="mut">${inr(p.cost)}</small>` : ''}`}</td><td>${pill(p.stage, stepCls(p.stage))}${pendPill(p)}</td><td>${daysSince(p.since)}d</td><td>${feasCol(p.customer_id)}</td><td>${rcBadges(p)}</td><td>${esc(p.engineer) || '—'}</td><td class="right">${w ? nextBtn(p) : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="mut">No projects in this step</td></tr>'}</tbody></table></div>`;
     $$('#ptb tr.row').forEach(r => r.onclick = e => { if (!e.target.closest('button')) location.hash = '#/projects/' + r.dataset.id; });
     bindNext(body, ps); return;
   }
@@ -86,11 +86,11 @@ async function moveTo(p, stage, note, skip) {
 async function stepDone(p, key) { try { await api('pipeline', 'step_done', { id: p.id, key }); } catch (e) { return false; } toast(((PIPE.find(s => s[0] === key) || [])[1] || 'Step') + ' marked done'); route(); return true; }
 function receiptModal(pid, key, done) {
   const st = PIPE.find(s => s[0] === key);
-  const m = modal(`<h2 style="margin-top:0">Upload receipt</h2><p class="mut" style="margin-top:-6px">${esc(st[1])} — the step is marked done once its receipt is uploaded. The project can move on meanwhile.</p>
+  const m = modal(`<h2 class="u-mt0">Upload receipt</h2><p class="mut u-mtn6">${esc(st[1])} — the step is marked done once its receipt is uploaded. The project can move on meanwhile.</p>
    <div class="two"><div><label>Amount paid (₹)</label><input id="ra" type="number" step="any"></div><div><label>Payment date</label><input id="rd" type="date" value="${today()}"></div>
    <div class="full"><label>Receipt / transaction no.</label><input id="rr" placeholder="Optional"></div></div>
    <div id="rdrop" class="drop"><i class="i i-upload" style="width:26px;height:26px"></i><div><b>Choose receipt</b> or drop it here</div><small class="mut">JPG or PDF only · maximum 2 MB</small><input type="file" id="rf" accept=".jpg,.jpeg,.pdf,image/jpeg,application/pdf" class="hide"></div><div id="rinfo" style="margin-top:8px;font-size:14px"></div>
-   <div class="bar" style="margin-top:12px"><button class="btn" id="rsv" disabled>Upload receipt</button><button class="btn sec" id="rcx">Cancel</button></div>`);
+   <div class="bar u-mt12"><button class="btn" id="rsv" disabled>Upload receipt</button><button class="btn sec" id="rcx">Cancel</button></div>`);
   let file = null; const dz = $('#rdrop', m);
   const pick = f => { const ext = (f.name.split('.').pop() || '').toLowerCase(), info = $('#rinfo', m);
     if (!['jpg', 'jpeg', 'pdf'].includes(ext)) { file = null; info.innerHTML = '<span class="over">Only JPG or PDF files are allowed.</span>'; }
@@ -105,12 +105,12 @@ function receiptModal(pid, key, done) {
 }
 async function startModal({ customer_id }) {
   const cs = canR('customers') ? await api('customers', 'list') : [];
-  const m = modal(`<h2 style="margin-top:0">Start a project</h2><p class="mut" style="margin-top:-6px">Projects start from a customer. To turn a lead into a customer, use <b>Convert lead</b> on the Customers page.</p><div class="two">
+  const m = modal(`<h2 class="u-mt0">Start a project</h2><p class="mut u-mtn6">Projects start from a customer. To turn a lead into a customer, use <b>Convert lead</b> on the Customers page.</p><div class="two">
    <div class="full"><label>Customer</label><select id="sfrom"><option value="">— choose a customer —</option>${cs.map(c => `<option value="${c.id}" ${customer_id == c.id ? 'selected' : ''}>${esc(c.name)}${c.phone ? ' · ' + esc(c.phone) : ''}${c.stage ? ' (has a project)' : ''}</option>`).join('')}</select></div>
    <div><label>System size (kW)</label><input id="skw" type="number" step="any"></div>${FIN() ? '<div><label>Project value (₹)</label><input id="scost" type="number" step="any"></div>' : ''}
    <div><label>Loan taken?</label><select id="sloan"><option value="">Not decided</option><option>Yes</option><option>No</option></select></div><div><label>Site engineer</label><input id="seng"></div>
    <div class="full"><label>Project title</label><input id="stitle" placeholder="e.g. 3 kW rooftop solar (blank = automatic)"></div></div>
-   <div class="bar" style="margin-top:14px"><button class="btn" id="ssv">Start project</button><button class="btn sec" id="scx">Cancel</button><span class="sp"></span><a class="btn sec" href="#/customers" id="sgoc">Go to Customers</a></div>`);
+   <div class="bar u-mt14"><button class="btn" id="ssv">Start project</button><button class="btn sec" id="scx">Cancel</button><span class="sp"></span><a class="btn sec" href="#/customers" id="sgoc">Go to Customers</a></div>`);
   /* the capacity already held for the customer is filled in - type it only when it is not known yet */
   const skwFill = () => { const c = cs.find(x => x.id == $('#sfrom', m).value), k = $('#skw', m); if (c && +c.kw > 0 && (!k.value || k.dataset.auto)) { k.value = c.kw; k.dataset.auto = '1'; } }; $('#sfrom', m).onchange = skwFill; $('#skw', m).oninput = e => { delete e.target.dataset.auto; }; skwFill();
   $('#scx', m).onclick = () => m.remove(); $('#sgoc', m).onclick = () => m.remove();
@@ -125,8 +125,8 @@ function amcBoard(body, done, types) {
   const td = today(), w = canW('projects');
   const rows = done.map(p => ({ ...p, next: nextService(p) })).sort((a, b) => (a.next || '9999').localeCompare(b.next || '9999'));
   const od = rows.filter(r => r.next && r.next < td).length, soon = rows.filter(r => r.next && r.next >= td && r.next <= ymd(addD(new Date(), 30))).length, noamc = rows.filter(r => !r.amc_start).length;
-  body.innerHTML = `<div class="grid stats" style="margin-bottom:14px">${[['Completed projects', rows.length], ['Service overdue', od], ['Due in 30 days', soon], ['Without AMC', noamc]].map(([l, v]) => `<div class="card stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
-   <div class="card tw fitbox" style="padding:0"><table id="amt"><thead><tr><th>Customer</th><th>System</th><th>AMC period</th><th>Every</th><th>Last service</th><th>Next service</th><th class="right">Actions</th></tr></thead><tbody>
+  body.innerHTML = `<div class="grid stats u-mb14">${[['Completed projects', rows.length], ['Service overdue', od], ['Due in 30 days', soon], ['Without AMC', noamc]].map(([l, v]) => `<div class="card stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+   <div class="card tw fitbox u-p0"><table id="amt"><thead><tr><th>Customer</th><th>System</th><th>AMC period</th><th>Every</th><th>Last service</th><th>Next service</th><th class="right">Actions</th></tr></thead><tbody>
    ${rows.map(p => `<tr class="row" data-id="${p.id}"><td><b>${esc(p.customer)}</b><br><small class="mut">${esc(p.phone || '')}${p.district ? ' · ' + esc(p.district) : ''}</small></td><td>${p.kw} kW<br><small class="mut">${esc(p.title)}</small></td>
      <td>${p.amc_start ? dmy(p.amc_start) + ' – ' + (p.amc_end ? dmy(p.amc_end) : 'open') : '<span class="mut">No AMC</span>'}${p.amc_end && p.amc_end < td ? ' ' + pill('Expired', 'r') : ''}</td><td>${p.amc_start ? (p.amc_interval || 6) + ' months' : '—'}</td>
      <td>${p.svc && p.svc.last_done ? dmy(p.svc.last_done) : '<span class="mut">—</span>'}</td><td>${p.next ? pill(dmy(p.next), p.next < td ? 'r' : p.next <= ymd(addD(new Date(), 30)) ? 'y' : 'g') : '<span class="mut">—</span>'}</td>
@@ -136,20 +136,20 @@ function amcBoard(body, done, types) {
   $$('[data-amc]', body).forEach(b => b.onclick = () => amcModal(rows.find(p => p.id == b.dataset.amc), () => pgPipeline()));
 }
 function amcModal(p, done) {
-  const m = modal(`<h2 style="margin-top:0">AMC — ${esc(p.customer || p.title)}</h2><div class="two"><div><label>AMC start</label><input type="date" id="as" value="${esc(p.amc_start || today())}"></div><div><label>AMC end</label><input type="date" id="ae" value="${esc(p.amc_end || addMonths(today(), 12))}"></div>
+  const m = modal(`<h2 class="u-mt0">AMC — ${esc(p.customer || p.title)}</h2><div class="two"><div><label>AMC start</label><input type="date" id="as" value="${esc(p.amc_start || today())}"></div><div><label>AMC end</label><input type="date" id="ae" value="${esc(p.amc_end || addMonths(today(), 12))}"></div>
    <div><label>Service every</label><select id="ai">${[1, 2, 3, 4, 6, 12].map(n => `<option value="${n}" ${(p.amc_interval || 6) == n ? 'selected' : ''}>${n} month${n > 1 ? 's' : ''}</option>`).join('')}</select></div></div>
-   <div class="bar" style="margin-top:14px"><button class="btn" id="asv">Save AMC</button><button class="btn sec" id="acx">Cancel</button></div>`);
+   <div class="bar u-mt14"><button class="btn" id="asv">Save AMC</button><button class="btn sec" id="acx">Cancel</button></div>`);
   $('#acx', m).onclick = () => m.remove();
   $('#asv', m).onclick = async () => { await api('pipeline', 'amc', { id: p.id, amc_start: $('#as', m).value, amc_end: $('#ae', m).value, amc_interval: $('#ai', m).value }); m.remove(); toast('AMC saved'); done(); };
 }
 function serviceModal(pid, s, types, done, p) {
-  const m = modal(`<h2 style="margin-top:0">${s.id ? 'Service record' : 'Add service'}</h2><div class="two">
+  const m = modal(`<h2 class="u-mt0">${s.id ? 'Service record' : 'Add service'}</h2><div class="two">
    <div><label>Date</label><input type="date" id="vd" value="${esc(s.date || (p && p.next) || today())}"></div><div><label>Type</label><select id="vt">${(types || []).map(t => `<option ${s.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
    <div><label>Status</label><select id="vs">${['Scheduled', 'Done'].map(x => `<option ${s.status === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div><div><label>Technician</label><input id="vtech" value="${esc(s.technician || '')}"></div>
    <div><label>Charge (₹)</label><input id="vc" type="number" step="any" value="${s.cost || ''}"></div><div></div>
    <div class="full"><label>Notes / work done</label><textarea id="vn" rows="3">${esc(s.notes || '')}</textarea></div>
-   ${s.id ? '' : '<div class="full"><label style="display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" id="vcal" style="width:auto" checked> Also add to the calendar</label></div>'}</div>
-   <div class="bar" style="margin-top:14px"><button class="btn" id="vsv">Save</button><button class="btn sec" id="vcx">Cancel</button><span class="sp"></span>${s.id ? '<button class="btn bad" id="vdl">Delete</button>' : ''}</div>`);
+   ${s.id ? '' : '<div class="full"><label style="display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" id="vcal" class="u-wauto" checked> Also add to the calendar</label></div>'}</div>
+   <div class="bar u-mt14"><button class="btn" id="vsv">Save</button><button class="btn sec" id="vcx">Cancel</button><span class="sp"></span>${s.id ? '<button class="btn bad" id="vdl">Delete</button>' : ''}</div>`);
   $('#vcx', m).onclick = () => m.remove();
   $('#vsv', m).onclick = async () => { const o = { id: s.id, project_id: pid, date: $('#vd', m).value, type: $('#vt', m).value, status: $('#vs', m).value, technician: $('#vtech', m).value, cost: $('#vc', m).value, notes: $('#vn', m).value };
     await api('pipeline', 'service_save', o);
@@ -191,7 +191,7 @@ async function amcTab(p, box) {
   const pp = { ...p, svc: { last_done: (p.services || []).filter(s => s.status === 'Done').map(s => s.date).sort().pop(), next_sched: (p.services || []).filter(s => s.status === 'Scheduled').map(s => s.date).sort()[0] }, customer: p.customer && p.customer.name };
   const nx = nextService(pp);
   box.innerHTML = `<div class="grid cols2"><div class="card"><div class="ch"><h3>AMC contract</h3>${w ? '<button class="btn sm sec" id="tamc">Edit AMC</button>' : ''}</div>
-    ${p.amc_start ? `<p style="margin:0">From <b>${dmy(p.amc_start)}</b> to <b>${p.amc_end ? dmy(p.amc_end) : 'open'}</b>, service every <b>${p.amc_interval || 6} months</b>.</p><p>Next service: ${nx ? pill(dmy(nx), nx < today() ? 'r' : 'g') : '—'}</p>` : '<p class="mut">No AMC set up for this project.</p>'}</div>
+    ${p.amc_start ? `<p class="u-m0">From <b>${dmy(p.amc_start)}</b> to <b>${p.amc_end ? dmy(p.amc_end) : 'open'}</b>, service every <b>${p.amc_interval || 6} months</b>.</p><p>Next service: ${nx ? pill(dmy(nx), nx < today() ? 'r' : 'g') : '—'}</p>` : '<p class="mut">No AMC set up for this project.</p>'}</div>
    <div class="card"><div class="ch"><h3>Service history (${(p.services || []).length})</h3>${w ? '<button class="btn sm" id="tsvc"><i class="i i-plus"></i> Add service</button>' : ''}</div>
     ${(p.services || []).map(s => `<div class="act" data-s="${s.id}" style="cursor:pointer"><b>${esc(s.type)}</b> ${pill(s.status, s.status === 'Done' ? 'g' : 'y')} <span class="mut">${dmy(s.date)}</span><br><small>${[s.technician, s.cost ? inr(s.cost) : '', s.notes].filter(Boolean).map(esc).join(' · ')}</small></div>`).join('') || '<p class="mut">No service records yet.</p>'}</div></div>`;
   if ($('#tamc', box)) $('#tamc', box).onclick = () => amcModal(pp, () => route());

@@ -37,7 +37,7 @@ function leadPlantPane(l) {
   return `<div class="ltp" data-lp="p" hidden><div class="lpsum" id="lps"></div>
     ${LS_PLANT.map(([t, fs]) => `<div class="lsg"><div class="lsgh">${t}${t === 'Panels' ? '<button class="btn sec sm" id="lpcalc" type="button">Calculate number of panels</button>' : ''}</div><div class="two">${fs.map(lsField('data-lpk', d)).join('')}</div></div>`).join('')}
     <div class="lsg"><div class="lsgh">Remarks</div><textarea data-lpk="plant_remarks" rows="2" ${SPELL} placeholder="Options discussed, upgrades, battery later…">${esc(d.plant_remarks || '')}</textarea></div>
-    <p class="mut" style="font-size:12px;margin:6px 0 0">When this lead is converted, the site condition and plant details are copied to the customer’s <b>Plant details</b> tab.</p></div>`;
+    <p class="mut u-fs12-m6_0_0">When this lead is converted, the site condition and plant details are copied to the customer’s <b>Plant details</b> tab.</p></div>`;
 }
 function leadExtra(m) {
   const site = {}, plant = {};

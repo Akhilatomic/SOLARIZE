@@ -424,9 +424,9 @@ function ksebDocsTab(p, wc) {
   return `<div class="card ksd"><div class="ch"><h3>KSEB papers made in the CRM</h3><span class="pill ${nSaved === list.length ? 'g' : ''}">${nSaved} of ${list.length} saved</span><span class="sp"></span>${zip}${canR('checklist') ? `<a class="btn sm" href="#/kseb/${cid}"><i class="i i-clipboard"></i> Open KSEB documentation</a>` : ''}</div>
     <p class="ksd-h">A PDF copy of each paper is saved here automatically whenever it is saved or downloaded on the KSEB documentation page — or all at once with <b>Save all to project</b> there. A KSEB paper is kept for ${days} days, then moved to the Recycle bin; making the paper again replaces the copy and starts the time again.</p>
     <div class="ksd-g">${list.map(card).join('')}</div></div>
-   <div class="card ksd" style="margin-top:12px"><div class="ch"><h3>Submission checklist</h3><span class="sp"></span>${[['Pending', ''], ['Ready', 'y'], ['Submitted', 'b'], ['Approved', 'g'], ['NA', '']].map(([s, c]) => cnt(s) ? `<span class="pill ${c}">${cnt(s)} ${KSD_ST[s][1].toLowerCase()}</span>` : '').join('')}<b class="ksd-c">${done}/${items.length}</b></div>
+   <div class="card ksd u-mt12"><div class="ch"><h3>Submission checklist</h3><span class="sp"></span>${[['Pending', ''], ['Ready', 'y'], ['Submitted', 'b'], ['Approved', 'g'], ['NA', '']].map(([s, c]) => cnt(s) ? `<span class="pill ${c}">${cnt(s)} ${KSD_ST[s][1].toLowerCase()}</span>` : '').join('')}<b class="ksd-c">${done}/${items.length}</b></div>
     <div class="prog" style="margin:2px 0 6px"><i style="width:${items.length ? done / items.length * 100 : 0}%"></i></div>
-    <p class="ksd-h" style="margin:0 0 4px">A line turns <b>Ready</b> by itself when its paper is saved above. Set it to Submitted when the paper is handed in at the KSEB office.</p>
+    <p class="ksd-h u-m0_0_4">A line turns <b>Ready</b> by itself when its paper is saved above. Set it to Submitted when the paper is handed in at the KSEB office.</p>
     ${items.map(row).join('')}${otherChkFiles('kseb', items, files)}</div>`;
 }
 function ksebDocsBind(p) {

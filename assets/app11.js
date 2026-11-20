@@ -75,7 +75,7 @@ async function pgCustomer(id) {
      ${ml ? `<div class="pfshare"><a class="btn sm" href="${ml}" target="_blank"><i class="i i-target"></i> Open in Maps</a>${hasPin ? `<a class="btn sec sm" href="https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}" target="_blank">Directions</a>` : ''}
        <button class="btn sec sm" data-cp="${esc(ml)}" data-l="map link"><i class="i i-copy"></i> Copy link</button>${BA() ? '' : '<button class="btn sec sm" id="pfwa"><i class="i i-whatsapp"></i> WhatsApp</button>'}${navigator.share ? '<button class="btn sec sm" id="pfsh"><i class="i i-link"></i> Share</button>' : ''}</div>` : ''}</div>`;
   const prog = tl.progress.map(p => { const pct = p.idx < 0 ? 0 : Math.round((p.idx + 1) / p.total * 100);
-    return `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3><a href="#/projects/${p.id}">${esc(p.title || 'Project')}</a>${p.kw ? ` <span class="mut" style="font-weight:400">· ${p.kw} kW</span>` : ''}</h3><span class="sp"></span>${pill(p.stage, typeof stepCls === 'function' ? stepCls(p.stage) : '')}</div>
+    return `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3><a href="#/projects/${p.id}">${esc(p.title || 'Project')}</a>${p.kw ? ` <span class="mut u-fw400">· ${p.kw} kW</span>` : ''}</h3><span class="sp"></span>${pill(p.stage, typeof stepCls === 'function' ? stepCls(p.stage) : '')}</div>
       <div class="pfbar"><i style="width:${pct}%"></i></div><div class="mut" style="font-size:12px;margin:4px 0 10px">Step ${p.idx + 1} of ${p.total} · ${pct}% complete</div>
       <div class="pfsteps">${p.stages.map((s, i) => `<div class="pfs ${i < p.idx || (s.paid && i !== p.idx) ? 'ok' : i === p.idx ? 'cur' : ''}" title="${esc(s.label)}${s.paid ? ' · paid ' + fdate(s.paid) : s.at ? ' · ' + tlTime(s.at).day + ' ' + tlTime(s.at).time : ''}"><span></span><b>${esc(s.label)}</b>${s.paid ? `<small>Paid ${fdate(s.paid)}</small>` : s.at ? `<small>${tlTime(s.at).day.replace(/^\w+, /, '')}</small>` : ''}</div>`).join('')}</div></div>`; }).join('');
   let lastDay = '';
@@ -84,14 +84,14 @@ async function pgCustomer(id) {
   const initials = (c.name || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase();
   const canOwn = w && OWN.canReassign(c.owner_id, ME); // owner chip; the owner, admin or assistant manager can reassign
   const ownHtml = ` · Owner <span class="own${+c.owner_id === +ME.id ? ' me' : ''}" title="Customer owner"><i class="i i-user"></i>${+c.owner_id ? esc(ownLabel(c.owner_id, c.owner_name)) : 'No owner'}</span>${canOwn ? ` <button class="owbtn" id="pfown">${+c.owner_id ? 'Reassign' : 'Set owner'}</button>` : ''}`;
-  $('#main').innerHTML = `<p style="margin:0 0 8px"><a href="#/customers">← Customers</a></p>
+  $('#main').innerHTML = `<p class="u-m0_0_8"><a href="#/customers">← Customers</a></p>
    <div class="card pfhead"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="mut">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') + ' ' : ''}${typeof feasSpot === 'function' ? feasSpot(c.id) + ' ' : ''}${c.phone ? `<button class="pfv inl" data-cp="${esc(c.phone)}" data-l="phone">${esc(c.phone)}<i class="i i-copy"></i></button>` : ''}${c.consumer_no ? ` · Consumer no. <button class="pfv inl" data-cp="${esc(c.consumer_no)}" data-l="consumer no.">${esc(c.consumer_no)}<i class="i i-copy"></i></button>` : ''}${ownHtml}</div></div>
     <div class="pfact"><button class="btn sec" id="dsc">${discBtnLabel(id)}</button>${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn ok" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}
      ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}${canR('accounts') ? '<button class="btn sec" id="pfexp" title="Project cost sheet: purchases, services, commission / incentive and profit of the latest project"><i class="i i-coin"></i> Project cost</button>' : ''}<button class="btn sec" id="pfkyc" title="Download “Jasper Solar KYC Doc”: every detail held for this customer, as a PDF"><i class="i i-download"></i> KYC PDF</button><button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
    ${pfTabsHtml([['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, `${i + 1} · ${pg.tab}`, pg.icon]), ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['ksebl', 'KSEB login', 'lock'], ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(ME.role === 'admin' ? [['pay', 'Payments', 'card']] : []), ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : []), ...(ME.role === 'admin' ? [['ps', 'Purchases and services', 'coin'], ['comm', 'Commission / Incentive', 'users']] : [])], pgKeys, cnt0)}
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
-    <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut" style="margin:0">No project yet.</p></div>`}
+    <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut u-m0">No project yet.</p></div>`}
      <div class="pfcols"><div class="card pfc"><div class="pfch"><i class="i i-clipboard"></i><h3>Details by page</h3></div><div id="ppsum">${sumHtml(cnt0)}</div></div>${locCard}
      ${pfQuoteCard(c)}
      ${c.notes ? `<div class="card pfc"><div class="pfch"><i class="i i-note"></i><h3>Notes</h3></div><div style="font-size:14px;white-space:pre-wrap">${esc(c.notes)}</div></div>` : ''}</div></div>
@@ -163,13 +163,13 @@ function parseLatLng(s) {
   return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat: lat.toFixed(6), lng: lng.toFixed(6) } : null;
 }
 function locModal(c, id) {
-  const m = modal(`<h2 style="margin-top:0">Customer location</h2>
+  const m = modal(`<h2 class="u-mt0">Customer location</h2>
     <button class="btn" id="lcgps" style="width:100%;justify-content:center"><i class="i i-target"></i> Use my current location (at the site)</button>
     <div class="mut" style="text-align:center;margin:10px 0;font-size:13px">— or —</div>
     <label>Paste a Google Maps link or coordinates</label><input id="lcp" placeholder="https://maps.google.com/… or 8.6037, 76.9977" value="${c.lat && c.lng ? c.lat + ', ' + c.lng : ''}">
     <div class="mut" id="lcok" style="font-size:12px;margin-top:4px"></div>
-    <label style="margin-top:10px">Landmark</label><input id="lcl" placeholder="e.g. Near Govt. LP School, opposite temple" value="${esc(c.landmark || '')}" maxlength="120">
-    <div class="bar" style="margin-top:14px"><button class="btn" id="lcsv">Save location</button><button class="btn sec" id="lcx">Cancel</button>${c.lat ? '<span class="sp"></span><button class="btn sec" id="lcclr">Remove pin</button>' : ''}</div>`);
+    <label class="u-mt10">Landmark</label><input id="lcl" placeholder="e.g. Near Govt. LP School, opposite temple" value="${esc(c.landmark || '')}" maxlength="120">
+    <div class="bar u-mt14"><button class="btn" id="lcsv">Save location</button><button class="btn sec" id="lcx">Cancel</button>${c.lat ? '<span class="sp"></span><button class="btn sec" id="lcclr">Remove pin</button>' : ''}</div>`);
   const chk = () => { const p = parseLatLng($('#lcp', m).value); $('#lcok', m).textContent = $('#lcp', m).value.trim() ? (p ? `✓ ${p.lat}, ${p.lng}` : 'Could not read coordinates — open the place in Google Maps and copy the link from the address bar, or paste "lat, lng". Short links (maps.app.goo.gl) don\'t contain coordinates.') : ''; return p; };
   $('#lcp', m).oninput = chk; chk();
   $('#lcx', m).onclick = () => m.remove();
@@ -240,11 +240,11 @@ async function payTab(box, c, id) {
     if (done && !full) { if (!await ask(has ? `${inr(s.balance)} is still pending for ${c.name}.\n\nMove to Completed anyway?` : `No plant cost is entered for ${c.name}.\n\nMove to Completed anyway?`)) return; body.force = 1; }
     b.disabled = true; try { await api('acc', 'track_set', body); toast(c.name + (done ? ' moved to Completed' : ' moved back to In progress')); redraw(); } catch (er) { b.disabled = false; } });
   $('#pczed', box).onclick = () => {
-    const m = modal(`<h2 style="margin-top:0">Plant cost</h2><div class="two"><div><label>Total plant cost (₹)</label><input id="pczc" inputmode="numeric" autocomplete="off" value="${s.agreed > 0 || has ? (multi ? s.agreed || '' : s.cost).toLocaleString('en-IN') : ''}"></div>
+    const m = modal(`<h2 class="u-mt0">Plant cost</h2><div class="two"><div><label>Total plant cost (₹)</label><input id="pczc" inputmode="numeric" autocomplete="off" value="${s.agreed > 0 || has ? (multi ? s.agreed || '' : s.cost).toLocaleString('en-IN') : ''}"></div>
       <div><label>KSEB charges</label><select id="pczx"><option value="0">Included in the plant cost</option><option value="1" ${s.kseb_extra ? 'selected' : ''}>Additional (paid on top)</option></select></div>
       <div class="full" id="pczab" ${s.kseb_extra ? '' : 'hidden'}><label>KSEB charges amount (₹) — leave empty if it is not known yet</label><input id="pcza" inputmode="numeric" autocomplete="off" value="${s.kseb_extra_amt > 0 ? s.kseb_extra_amt.toLocaleString('en-IN') : ''}"></div></div>
       <p class="mut" style="font-size:12.5px;margin:10px 0 0">${multi ? `This customer has ${s.projects.length} projects. Each project keeps its own value (edit it on the project); the figure here is the cost agreed in the approved quotation.` : s.projects.length ? 'The project’s value follows this figure, so Accounts and the tax bill agree.' : 'A project started for this customer takes this figure as its value.'}</p>
-      <div class="bar" style="margin-top:14px"><button class="btn" id="pczsv">Save</button><button class="btn sec" id="pczcx">Cancel</button></div>`);
+      <div class="bar u-mt14"><button class="btn" id="pczsv">Save</button><button class="btn sec" id="pczcx">Cancel</button></div>`);
     $('#pczx', m).onchange = e => { $('#pczab', m).hidden = e.target.value !== '1'; };
     $('#pczcx', m).onclick = () => m.remove();
     $('#pczsv', m).onclick = async e => { const cost = onbNum($('#pczc', m).value); if (!(cost > 0)) return toast('Enter the total plant cost', true); const b = e.currentTarget; b.disabled = true;
@@ -263,5 +263,5 @@ function pfQuoteCard(c) {
   const A = ap.map(f => `<div class="pfdoc pfq"><div class="pfq-m"><a href="api.php?m=files&a=get&id=${+f.id}&v=1" target="_blank" rel="noopener"><b>${esc(f.name)}</b></a> ${pill('Approved', 'g')}<br><small class="mut">${who('Uploaded', f.by_name, f.created)} · in Documents</small></div></div>`);
   const Q = c.quotes.map(q => { const ch = q.updated && q.created && q.updated.slice(0, 16) !== q.created.slice(0, 16);
     return `<div class="pfdoc pfq"><div class="pfq-m"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${q.total != null ? inr(q.total) : ''}<br><small class="mut">${who('Created', q.made_name, q.created || q.date)}${ch ? ' · ' + who('Modified', q.edit_name, q.updated) : ''}</small></div>${w ? `<a class="btn sec sm" href="#/quotes/${q.id}" title="Open this quotation and change it. When it is saved, the new PDF replaces the copy in Documents."><i class="i i-pencil"></i> Modify</a>` : ''}</div>`; });
-  return `<div class="card pfc"><div class="pfch pfq-h"><i class="i i-receipt"></i><h3>Quotations</h3><span class="sp"></span>${w ? '<button class="btn sec sm" id="nqu" title="Upload the quotation the customer approved (PDF or photo). It is kept in Documents."><i class="i i-upload"></i> Upload approved quotation</button><button class="btn sm" id="nq"><i class="i i-plus"></i> Create quotation</button>' : ''}</div>${A.join('') + Q.join('') || '<p class="mut" style="margin:0;font-size:13px">No quotations</p>'}</div>`;
+  return `<div class="card pfc"><div class="pfch pfq-h"><i class="i i-receipt"></i><h3>Quotations</h3><span class="sp"></span>${w ? '<button class="btn sec sm" id="nqu" title="Upload the quotation the customer approved (PDF or photo). It is kept in Documents."><i class="i i-upload"></i> Upload approved quotation</button><button class="btn sm" id="nq"><i class="i i-plus"></i> Create quotation</button>' : ''}</div>${A.join('') + Q.join('') || '<p class="mut u-m0-fs13">No quotations</p>'}</div>`;
 }

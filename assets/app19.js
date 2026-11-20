@@ -26,7 +26,7 @@ async function pgEmail() {
     <nav class="emf card"><button class="mbxsw" id="emsw" title="Switch email" aria-haspopup="menu"></button><button class="btn emnew" id="emnew"><i class="i i-pencil"></i> New email</button><div id="emfl"><p class="mut" style="padding:6px 10px">Loading folders…</p></div></nav>
     <section class="eml card"><div class="emlh"><button class="mbxsw mbxsm" id="emsw2" title="Switch email" aria-haspopup="menu"></button><select id="emfs" class="emfs" aria-label="Folder"></select><div class="emsr"><i class="i i-search"></i><input id="emq" type="search" placeholder="Search mail" value="${esc(EM.q)}"></div>
       <button class="ib ${EM.unread ? 'on' : ''}" id="emun" title="Show unread only"><i class="i i-eye"></i></button><button class="ib" id="emrf" title="Refresh"><i class="i i-refresh"></i></button><button class="btn sm emnew2" id="emnew2" title="New email"><i class="i i-pencil"></i></button></div>
-      <div class="emls" id="emls"><p class="mut" style="padding:14px">Loading…</p></div><div class="emp" id="emp"></div></section>
+      <div class="emls" id="emls"><p class="mut u-p14">Loading…</p></div><div class="emp" id="emp"></div></section>
     <section class="emr card" id="emr"><div class="emempty"><i class="i i-mail"></i><p>Select an email to read it</p></div></section></div>`;
   emSwDraw();
   $('#emsw').onclick = $('#emsw2').onclick = e => emSwMenu(e.currentTarget);
@@ -92,8 +92,8 @@ function emAccountForm(box, acc, done, note) {
     <details class="mbxsrv" id="mbx_d"><summary>Server settings</summary><div class="two">
       <div><label for="mbx_ih">Incoming (IMAP) server</label><input id="mbx_ih" autocomplete="off"></div><div><label for="mbx_ip">IMAP port (SSL)</label><input id="mbx_ip" inputmode="numeric"></div>
       <div><label for="mbx_sh">Outgoing (SMTP) server</label><input id="mbx_sh" autocomplete="off"></div><div><label for="mbx_sp">SMTP port (465 SSL or 587 STARTTLS)</label><input id="mbx_sp" inputmode="numeric"></div></div></details>
-    <div class="bar" style="margin-top:14px"><button class="btn" id="mbx_go">${acc ? 'Save' : 'Connect'}</button>${acc ? '<span class="sp"></span><button class="btn sec" id="mbx_rm">Remove this email</button>' : ''}</div>
-    <p class="mut" style="font-size:12px;margin:8px 0 0">${acc ? 'Saving' : 'Connect'} signs in to your mailbox first to check the details.</p>`;
+    <div class="bar u-mt14"><button class="btn" id="mbx_go">${acc ? 'Save' : 'Connect'}</button>${acc ? '<span class="sp"></span><button class="btn sec" id="mbx_rm">Remove this email</button>' : ''}</div>
+    <p class="mut u-fs12-m8_0_0">${acc ? 'Saving' : 'Connect'} signs in to your mailbox first to check the details.</p>`;
   const fill = s => { $('#mbx_ih', box).value = s.imap_host || ''; $('#mbx_ip', box).value = s.imap_port || 993; $('#mbx_sh', box).value = s.smtp_host || ''; $('#mbx_sp', box).value = s.smtp_port || 465; };
   let picked = !!acc; // once the user picks a provider, the address no longer changes it
   const setPv = (k, keepServers) => { pv = k;
@@ -132,7 +132,7 @@ async function emList() {
   const box = $('#emls'); if (!box) return; const kk = () => EM.acct + '|' + EM.f + '|' + EM.p + '|' + EM.q + '|' + EM.unread, key = kk();
   box.classList.add('busy');
   let r; try { r = await api('mail', 'list', undefined, `&folder=${encodeURIComponent(EM.f)}&page=${EM.p}&q=${encodeURIComponent(EM.q)}${EM.unread ? '&only=unread' : ''}` + emQ()); }
-  catch (e) { if (key !== kk()) return; box.classList.remove('busy'); if (e && e.relogin) return emNeedPw(box, e.relogin); box.innerHTML = '<p class="mut" style="padding:14px">Could not load emails.</p>'; return; }
+  catch (e) { if (key !== kk()) return; box.classList.remove('busy'); if (e && e.relogin) return emNeedPw(box, e.relogin); box.innerHTML = '<p class="mut u-p14">Could not load emails.</p>'; return; }
   if (key !== kk() || !$('#emls')) return; // a newer request is on its way
   EM.list = r; box.classList.remove('busy');
   const sent = emRole() === 'sent' || emRole() === 'drafts';
@@ -150,8 +150,8 @@ async function emList() {
 
 async function emOpen(uid) {
   EM.uid = uid; $$('.emi').forEach(b => b.classList.toggle('on', +b.dataset.uid === uid));
-  const r = $('#emr'); r.innerHTML = '<p class="mut" style="padding:20px">Opening…</p>'; $('#emw').classList.replace('v-list', 'v-read');
-  let m; try { m = await api('mail', 'get', undefined, `&folder=${encodeURIComponent(EM.f)}&uid=${uid}` + emQ()); } catch (e) { if (e && e.relogin) { emRelogin(e.relogin); return emNeedPw(r, e.relogin); } r.innerHTML = '<p class="mut" style="padding:20px">Could not open this email.</p>'; return; }
+  const r = $('#emr'); r.innerHTML = '<p class="mut u-p20">Opening…</p>'; $('#emw').classList.replace('v-list', 'v-read');
+  let m; try { m = await api('mail', 'get', undefined, `&folder=${encodeURIComponent(EM.f)}&uid=${uid}` + emQ()); } catch (e) { if (e && e.relogin) { emRelogin(e.relogin); return emNeedPw(r, e.relogin); } r.innerHTML = '<p class="mut u-p20">Could not open this email.</p>'; return; }
   if (EM.uid !== uid) return; EM.msg = m;
   const li = $(`.emi[data-uid="${uid}"]`); if (li && li.classList.contains('un')) { li.classList.remove('un'); const it = (EM.list.items || []).find(x => x.uid === uid); if (it) it.seen = true; const f = EM.folders.find(x => x.id === EM.f); if (f && f.unseen > 0) { f.unseen--; emFoldersCounts(); } }
   const w = canW('email'), others = EM.folders.filter(f => f.id !== EM.f);
@@ -219,7 +219,7 @@ async function composeMail(o = {}) {
       <div class="emcr"><label for="emc_su">Subject</label><input id="emc_su" value="${esc(o.subject || '')}"></div>
       <textarea id="emc_bd" rows="14" placeholder="Write your message…">${esc(body)}</textarea>
       <div class="emcat" id="emc_at"></div>
-      <div class="bar"><button class="btn" id="emc_go"><i class="i i-upload"></i> Send</button><label class="btn sec" title="Attach files from this computer"><input type="file" id="emc_f" multiple hidden accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"><i class="i i-clip"></i> Attach</label><span class="sp"></span><span class="mut" style="font-size:12px">Documents and images, up to 24 MB in total</span></div></div>
+      <div class="bar"><button class="btn" id="emc_go"><i class="i i-upload"></i> Send</button><label class="btn sec" title="Attach files from this computer"><input type="file" id="emc_f" multiple hidden accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"><i class="i i-clip"></i> Attach</label><span class="sp"></span><span class="mut u-fs12">Documents and images, up to 24 MB in total</span></div></div>
     <datalist id="emc_dl"></datalist>`, true);
   m.classList.add('emmod');
   const close = () => m.remove(); $('[data-x]', m).onclick = close;

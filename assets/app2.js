@@ -37,16 +37,16 @@ async function pgQuote(id) {
   if (nav !== ROUTE_N) return;
   const w = canW('quotes');
   $('#main').innerHTML = `<p><a href="#/quotes">← Quotations</a></p><div class="card">
-   <h2 style="margin-top:0">${q.number ? 'Quotation ' + esc(q.number) : 'New quotation'}</h2>
+   <h2 class="u-mt0">${q.number ? 'Quotation ' + esc(q.number) : 'New quotation'}</h2>
    <div class="two"><div><label>Customer</label><select id="qc"><option value="">— none —</option>${cs.map(c => `<option value="${c.id}" ${q.customer_id == c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
    <div><label>…or Lead (if not yet a customer)</label><select id="ql"><option value="">— none —</option>${ls.filter(l => !l.customer_id || l.id == q.lead_id).map(l => `<option value="${l.id}" ${q.lead_id == l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></div>
    <div><label>Date</label><input id="qd" type="date" value="${esc(q.date)}"></div><div><label>Status</label><select id="qst">${['Draft', 'Sent', 'Accepted', 'Rejected'].map(s => `<option ${q.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div></div>
    <h3 style="margin-top:16px">Items</h3><div class="tw"><table class="qtbl" data-nofit="1"><thead><tr><th>Description</th><th style="width:80px">Qty</th><th style="width:130px">Rate (₹)</th><th style="width:130px" class="right">Amount</th><th></th></tr></thead><tbody id="qi"></tbody></table></div>
-   <div class="bar" style="margin-top:8px"><button class="btn sec sm" id="ai">+ Add line</button><select id="cat" style="max-width:260px"><option value="">+ From catalog…</option>${S.catalog.map((c, i) => `<option value="${i}">${esc(c.desc.trim())}</option>`).join('')}</select></div>
+   <div class="bar u-mt8"><button class="btn sec sm" id="ai">+ Add line</button><select id="cat" style="max-width:260px"><option value="">+ From catalog…</option>${S.catalog.map((c, i) => `<option value="${i}">${esc(c.desc.trim())}</option>`).join('')}</select></div>
    <div class="two"><div><label>GST %</label><input id="qg" type="number" step="any" value="${q.gst_rate}"></div><div><label>PM Surya Ghar subsidy (₹) <a href="#" id="est">estimate</a></label><input id="qsub" type="number" value="${q.subsidy || 0}"></div></div>
    <div id="qt" style="text-align:right;margin:12px 0;line-height:1.8"></div>
    <label>Terms</label><textarea id="qterms" rows="6">${esc(q.terms)}</textarea>
-   <div class="bar" style="margin-top:14px">${w ? '<button class="btn" id="sv">Save</button>' : ''}${q.id ? '<button class="btn sec" id="pr">Print / PDF</button><button class="btn ok" id="wa">WhatsApp</button>' : ''}${q.id && w && q.status === 'Accepted' && q.customer_id ? '<button class="btn sec" id="mp">Create project</button>' : ''}<span class="sp"></span>${q.id && w ? '<button class="btn bad" id="dl">Delete</button>' : ''}</div></div>`;
+   <div class="bar u-mt14">${w ? '<button class="btn" id="sv">Save</button>' : ''}${q.id ? '<button class="btn sec" id="pr">Print / PDF</button><button class="btn ok" id="wa">WhatsApp</button>' : ''}${q.id && w && q.status === 'Accepted' && q.customer_id ? '<button class="btn sec" id="mp">Create project</button>' : ''}<span class="sp"></span>${q.id && w ? '<button class="btn bad" id="dl">Delete</button>' : ''}</div></div>`;
   let items = (q.items || []).map(i => ({ ...i }));
   const calc = () => { const sub = items.reduce((a, i) => a + (+i.qty || 0) * (+i.rate || 0), 0), g = sub * (+$('#qg').value || 0) / 100, tot = sub + g, s = +$('#qsub').value || 0; return { sub, g, tot, s, eff: tot - s }; };
   const drawTotals = () => { const c = calc(); $('#qt').innerHTML = `Subtotal ${inr(c.sub)}<br>GST ${inr(c.g)}<br><b style="font-size:18px">Total ${inr(c.tot)}</b><br><span class="mut">Less subsidy (credited to your bank by govt.) ${inr(c.s)}</span><br><b>Effective cost ${inr(c.eff)}</b>`; };
@@ -71,11 +71,11 @@ async function pgQuote(id) {
 function printQuote(q, p, who, c) {
   const co = S.company;
   printWin(`<!doctype html><title>${esc(q.number || 'Quotation')}</title><style>body{font:14px/1.5 Arial,sans-serif;max-width:800px;margin:20px auto;color:#111}h1{margin:0}table{width:100%;border-collapse:collapse;margin:14px 0}th,td{border:1px solid #bbb;padding:7px;text-align:left}th{background:#f3f3f3}.r{text-align:right}.t{width:280px;margin-left:auto}.t div{display:flex;justify-content:space-between;padding:3px 0}pre{white-space:pre-wrap;font:inherit}</style>
-  <div style="display:flex;justify-content:space-between"><div><img src="${location.origin}${location.pathname.replace(/[^/]*$/,"")}assets/logo.png" style="width:80px;height:80px;object-fit:contain"><h1>${esc(co.name)}</h1>${esc(co.address)}<br>${co.gstin ? 'GSTIN: ' + esc(co.gstin) + '<br>' : ''}${esc(co.phone)} ${esc(co.email)}</div><div class="r"><h2 style="margin:0">QUOTATION</h2>No: <b>${esc(q.number || 'DRAFT')}</b><br>Date: ${esc(p.date)}</div></div><hr>
+  <div style="display:flex;justify-content:space-between"><div><img src="${location.origin}${location.pathname.replace(/[^/]*$/,"")}assets/logo.png" style="width:80px;height:80px;object-fit:contain"><h1>${esc(co.name)}</h1>${esc(co.address)}<br>${co.gstin ? 'GSTIN: ' + esc(co.gstin) + '<br>' : ''}${esc(co.phone)} ${esc(co.email)}</div><div class="r"><h2 class="u-m0">QUOTATION</h2>No: <b>${esc(q.number || 'DRAFT')}</b><br>Date: ${esc(p.date)}</div></div><hr>
   <p><b>To:</b> ${esc(who.name || '')}<br>${esc(who.address || '')}<br>${esc(who.phone || '')}</p>
   <table><tr><th>#</th><th>Description</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th></tr>${p.items.filter(i => i.desc).map((i, n) => `<tr><td>${n + 1}</td><td>${esc(i.desc)}</td><td class="r">${i.qty}</td><td class="r">${inr(i.rate)}</td><td class="r">${inr(i.qty * i.rate)}</td></tr>`).join('')}</table>
   <div class="t"><div><span>Subtotal</span><span>${inr(c.sub)}</span></div><div><span>GST @ ${p.gst_rate}%</span><span>${inr(c.g)}</span></div><div><b>Total</b><b>${inr(c.tot)}</b></div><div><span>Less: PM Surya Ghar subsidy*</span><span>${inr(c.s)}</span></div><div><b>Effective cost</b><b>${inr(c.eff)}</b></div></div>
-  <p style="font-size:12px">*Subsidy is credited by the Government directly to the customer's bank account after commissioning.</p><h4>Terms &amp; conditions</h4><pre>${esc(p.terms)}</pre>`); /* the print box is opened by printWin: a script written into the new tab is not allowed to run */
+  <p class="u-fs12">*Subsidy is credited by the Government directly to the customer's bank account after commissioning.</p><h4>Terms &amp; conditions</h4><pre>${esc(p.terms)}</pre>`); /* the print box is opened by printWin: a script written into the new tab is not allowed to run */
 }
 
 // ---------- Subsidy / KSEB overview ----------
@@ -103,9 +103,9 @@ async function pgWhatsapp() {
 async function pgAds() {
   const rep = await api('ads', 'report'); const w = canW('ads');
   const t = rep.reduce((a, c) => ({ spent: a.spent + c.spent, leads: a.leads + c.crm_leads, won: a.won + c.won, rev: a.rev + c.revenue }), { spent: 0, leads: 0, won: 0, rev: 0 });
-  $('#main').innerHTML = `<div id="metasync" style="margin-bottom:14px"></div><div class="grid stats"><div class="card stat"><b>${inr(t.spent)}</b><span>Total ad spend</span></div><div class="card stat"><b>${t.leads}</b><span>Leads from ads (in CRM)</span></div><div class="card stat"><b>${t.leads ? inr(t.spent / t.leads) : '—'}</b><span>Cost per lead</span></div>
+  $('#main').innerHTML = `<div id="metasync" class="u-mb14"></div><div class="grid stats"><div class="card stat"><b>${inr(t.spent)}</b><span>Total ad spend</span></div><div class="card stat"><b>${t.leads}</b><span>Leads from ads (in CRM)</span></div><div class="card stat"><b>${t.leads ? inr(t.spent / t.leads) : '—'}</b><span>Cost per lead</span></div>
    <div class="card stat"><b>${t.won}</b><span>Customers won</span></div><div class="card stat"><b>${t.won ? inr(t.spent / t.won) : '—'}</b><span>Cost per sale</span></div><div class="card stat"><b>${t.spent ? (t.rev / t.spent).toFixed(1) + '×' : '—'}</b><span>Revenue / spend</span></div></div>
-   <div class="bar" style="margin-top:14px"><span class="sp"></span>${w ? '<button class="btn sec" id="im">Import Meta CSV</button> <button class="btn" id="nc">+ Campaign</button>' : ''}</div>
+   <div class="bar u-mt14"><span class="sp"></span>${w ? '<button class="btn sec" id="im">Import Meta CSV</button> <button class="btn" id="nc">+ Campaign</button>' : ''}</div>
    ${table([['Campaign', c => `<b>${esc(c.name)}</b><br><small class="mut">${esc(c.platform)} · ${esc(c.objective)}</small>`], ['Status', c => pill(c.status || 'Active', c.status === 'Paused' ? 'y' : 'g')], ['Spend', c => inr(c.spent), 'num'], ['Reach / clicks', c => `${c.impressions || 0} / ${c.clicks || 0}`], ['CRM leads', c => c.crm_leads, 'num'], ['CPL', c => c.crm_leads ? inr(c.spent / c.crm_leads) : '—', 'num'], ['Won', c => c.won, 'num'], ['Cost / sale', c => c.won ? inr(c.spent / c.won) : '—', 'num'], ['Revenue', c => inr(c.revenue), 'num']], rep, id => campModal(rep.find(c => c.id == id)))}
    <p class="mut">Tag each lead with its campaign (Leads → edit → Meta campaign). To import: export a report from Meta Ads Manager as CSV with columns <code>campaign, date, spend, impressions, clicks</code>.</p>`;
   renderMetaCard();
@@ -115,11 +115,11 @@ async function pgAds() {
 function campModal(c) {
   const id = c.id, w = canW('ads');
   const F = [{ k: 'name', l: 'Campaign name', full: 1 }, { k: 'platform', l: 'Platform', opts: ['Meta', 'Instagram', 'Google', 'Other'] }, { k: 'status', l: 'Status', opts: ['Active', 'Paused', 'Ended'] }, { k: 'objective', l: 'Objective', d: 'Leads' }, { k: 'budget', l: 'Budget (₹)', t: 'number' }, { k: 'start', l: 'Start', t: 'date' }, { k: 'end', l: 'End', t: 'date' }];
-  const m = modal(`<h2 style="margin-top:0">${id ? 'Campaign' : 'New campaign'}</h2><div class="two">${F.map(f => fld(f, c)).join('')}</div>
-   <div class="bar" style="margin-top:14px">${w ? '<button class="btn" id="sv">Save</button>' : ''}${id && w ? '<button class="btn sec" id="sp">+ Spend entry</button>' : ''}<button class="btn sec" id="cx">Close</button><span class="sp"></span>${id && w ? '<button class="btn bad" id="dl">Delete</button>' : ''}</div>`);
+  const m = modal(`<h2 class="u-mt0">${id ? 'Campaign' : 'New campaign'}</h2><div class="two">${F.map(f => fld(f, c)).join('')}</div>
+   <div class="bar u-mt14">${w ? '<button class="btn" id="sv">Save</button>' : ''}${id && w ? '<button class="btn sec" id="sp">+ Spend entry</button>' : ''}<button class="btn sec" id="cx">Close</button><span class="sp"></span>${id && w ? '<button class="btn bad" id="dl">Delete</button>' : ''}</div>`);
   $('#cx', m).onclick = () => m.remove();
   if (w) $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; if (!o.name) return sayBad('Name required'); await api('campaigns', 'save', o); m.remove(); route(); };
-  if ($('#sp', m)) $('#sp', m).onclick = () => { m.remove(); const s = modal(`<h3 style="margin-top:0">Spend entry — ${esc(c.name)}</h3><div class="two">${[{ k: 'date', l: 'Date', t: 'date', d: today() }, { k: 'spend', l: 'Spend (₹)', t: 'number' }, { k: 'impressions', l: 'Impressions', t: 'number' }, { k: 'clicks', l: 'Clicks', t: 'number' }].map(f => fld(f)).join('')}</div><div class="bar" style="margin-top:12px"><button class="btn" id="ok">Save</button><button class="btn sec" id="x">Cancel</button></div>`); $('#x', s).onclick = () => s.remove(); $('#ok', s).onclick = async () => { await api('ad_spend', 'save', { campaign_id: id, ...collect(s) }); s.remove(); route(); }; };
+  if ($('#sp', m)) $('#sp', m).onclick = () => { m.remove(); const s = modal(`<h3 class="u-mt0">Spend entry — ${esc(c.name)}</h3><div class="two">${[{ k: 'date', l: 'Date', t: 'date', d: today() }, { k: 'spend', l: 'Spend (₹)', t: 'number' }, { k: 'impressions', l: 'Impressions', t: 'number' }, { k: 'clicks', l: 'Clicks', t: 'number' }].map(f => fld(f)).join('')}</div><div class="bar u-mt12"><button class="btn" id="ok">Save</button><button class="btn sec" id="x">Cancel</button></div>`); $('#x', s).onclick = () => s.remove(); $('#ok', s).onclick = async () => { await api('ad_spend', 'save', { campaign_id: id, ...collect(s) }); s.remove(); route(); }; };
   if ($('#dl', m)) $('#dl', m).onclick = async () => { if (await ask('Delete campaign and its spend entries?')) { await api('campaigns', 'delete', { id }); m.remove(); route(); } };
 }
 
@@ -235,7 +235,7 @@ function stgPanes(adm) {
     accounts: () => `<div class="stg-cards">
       ${link('stg-actpl', 'Messages for receipts and tax bills', 'The email to the bank with a payment receipt, the email with the final tax bill, and the WhatsApp payment reminder.', '<button class="btn" id="stgtpl"><i class="i i-mail"></i> Edit the messages</button>')}
       ${link('stg-accat', 'Expense categories and profit', 'Expense categories are kept in Accounts › Expenses. The default profit % is at the top of the Price list.', '<a class="btn sec" href="#/accounts">Open Accounts</a><button class="btn sec" type="button" data-stgo="prices">Open Price list</button>')}
-      <div class="card" id="stg-inc"><h3>Incentive scheme</h3><div id="stginc"><p class="mut" style="margin:0;font-size:13px">Loading…</p></div></div></div>`,
+      <div class="card" id="stg-inc"><h3>Incentive scheme</h3><div id="stginc"><p class="mut u-m0-fs13">Loading…</p></div></div></div>`,
     users: () => `<div id="stgusers"><p class="mut">Loading…</p></div>`,
     rules: () => `<div class="stg-cards stg-one"><div class="card" id="stg-rules"><div class="stg-grp">
        <div><h4>Documents</h4>${rn('doc_days', 'Uploaded documents are kept (days)')}${rn('gen_days', 'Papers made in the CRM are kept (days)')}${rn('trash_hours', 'Deleted items stay in the Recycle bin (hours)')}</div>
@@ -403,13 +403,13 @@ async function systemPanel(box, withAudit) {
   let st, bk; try { [st, bk] = await Promise.all([api('admin', 'stats'), api('reset', 'backups')]); } catch (e) { box.innerHTML = '<p class="mut">The system details could not be loaded.</p>'; return; }
   if (!box.isConnected) return;
   box.innerHTML = `<div class="grid stats">${Object.entries(st).map(([k, v]) => `<div class="card stat"><b>${v}</b><span>${k.replace('_', ' ')}</span></div>`).join('')}</div>
-     <div class="grid cols2" style="margin-top:12px">
+     <div class="grid cols2 u-mt12">
       <div class="card" id="bkcard"><h3>Backup</h3><p class="mut">Download a copy and keep it somewhere safe. The database holds customers, projects, users and settings. With all files the backup also holds every document, Folder file and picture<span id="bkinf"></span>.</p>
-       <div class="stg-act" style="margin-top:0"><a class="btn" href="api.php?m=reset&a=backup_zip&files=1"><i class="i i-download"></i> Download database and all files</a><a class="btn sec" href="api.php?m=admin&a=backup"><i class="i i-download"></i> Database only</a></div>
-       <h3 style="margin-top:20px">Restore</h3><p class="mut">Bring back documents and Folder files deleted by mistake, or put everything back as it was when a backup was made.</p>
+       <div class="stg-act u-mt0"><a class="btn" href="api.php?m=reset&a=backup_zip&files=1"><i class="i i-download"></i> Download database and all files</a><a class="btn sec" href="api.php?m=admin&a=backup"><i class="i i-download"></i> Database only</a></div>
+       <h3 class="u-mt20">Restore</h3><p class="mut">Bring back documents and Folder files deleted by mistake, or put everything back as it was when a backup was made.</p>
        <button class="btn sec" type="button" id="bkres"><i class="i i-upload"></i> Restore from a backup file…</button>
-       <h3 style="margin-top:20px">Saved backups</h3>${bk.map(b => `<div class="act bkr-sv"><a href="api.php?m=reset&a=backup_get&name=${encodeURIComponent(b.name)}"><i class="i i-download"></i> ${esc(b.name)}</a> <small>${b.time} · ${b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : Math.round(b.size / 1024) + ' KB'}</small><button class="btn sec sm" type="button" data-bkr="${esc(b.name)}">Restore…</button></div>`).join('') || '<p class="mut" style="font-size:13px">None yet. A copy of the database is saved here before every reset and every full restore.</p>'}</div>
-      <div class="card danger"><h3>Total reset</h3><p style="margin:0 0 8px">Start fresh: deletes all customers, projects, quotations, payments, receipts & files, KSEB/subsidy checklists, AMC & service records, calendar events, notes and WhatsApp history.</p>
+       <h3 class="u-mt20">Saved backups</h3>${bk.map(b => `<div class="act bkr-sv"><a href="api.php?m=reset&a=backup_get&name=${encodeURIComponent(b.name)}"><i class="i i-download"></i> ${esc(b.name)}</a> <small>${b.time} · ${b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : Math.round(b.size / 1024) + ' KB'}</small><button class="btn sec sm" type="button" data-bkr="${esc(b.name)}">Restore…</button></div>`).join('') || '<p class="mut u-fs13">None yet. A copy of the database is saved here before every reset and every full restore.</p>'}</div>
+      <div class="card danger"><h3>Total reset</h3><p class="u-m0_0_8">Start fresh: deletes all customers, projects, quotations, payments, receipts & files, KSEB/subsidy checklists, AMC & service records, calendar events, notes and WhatsApp history.</p>
        <p class="mut" style="font-size:13px;margin:0 0 12px"><b>Always kept:</b> all leads, Meta Ads connection & sync, campaigns & ad spend, and your admin login. A full backup is saved first.</p>
        <button class="btn bad" id="rst"><i class="i i-alert"></i> Total reset…</button></div>
       ${withAudit ? '<div class="card"><h3>Audit log</h3><p class="mut">Who did what in the last 72 hours. Older entries stay on the customer and lead timelines.</p><button class="btn sec" type="button" id="sysaud">Open the audit log</button></div>' : ''}</div>`;
@@ -426,13 +426,13 @@ const bkWhen = s => { const d = s ? new Date(s) : null; return d && !isNaN(d) ? 
 function bkRestore(saved, done) {
   const m = modal('<div id="bkr"></div>', true), box = $('#bkr', m), close = () => m.remove();
   const pickStep = () => {
-    box.innerHTML = `<h2 style="margin-top:0">Restore from a backup</h2><p class="mut" style="margin-top:-6px">Choose the backup file downloaded from this page: the <b>.zip</b> (database and files) or the <b>.sqlite</b> (database only). Nothing is changed until you have seen what is in it.</p>
+    box.innerHTML = `<h2 class="u-mt0">Restore from a backup</h2><p class="mut u-mtn6">Choose the backup file downloaded from this page: the <b>.zip</b> (database and files) or the <b>.sqlite</b> (database only). Nothing is changed until you have seen what is in it.</p>
       <div class="onb-file"><button type="button" class="btn" id="bkpick"><i class="i i-upload"></i> Choose the backup file</button><span class="mut" id="bkpn">.zip or .sqlite</span><input type="file" id="bkfile" accept=".zip,.sqlite" hidden></div>
-      <p class="mut bkr-note" id="bklim"></p><div class="bar" style="margin-top:14px"><button class="btn sec" id="bkx">Cancel</button></div>`;
+      <p class="mut bkr-note" id="bklim"></p><div class="bar u-mt14"><button class="btn sec" id="bkx">Cancel</button></div>`;
     $('#bkx', box).onclick = close; $('#bkpick', box).onclick = () => $('#bkfile', box).click();
     api('reset', 'backup_info').then(i => { const el = $('#bklim', box); if (el) el.textContent = `This server takes a file of up to ${bkSize(i.upload_limit)} in one upload. A larger backup: put it in the data/backups folder with the hosting File Manager, then press Restore beside it under Saved backups.`; }).catch(() => { });
     $('#bkfile', box).onchange = async e => { const f = e.target.files[0]; if (!f) return;
-      box.innerHTML = `<h2 style="margin-top:0">Restore from a backup</h2><p class="mut">Reading ${esc(f.name)} (${bkSize(f.size)})…</p>`;
+      box.innerHTML = `<h2 class="u-mt0">Restore from a backup</h2><p class="mut">Reading ${esc(f.name)} (${bkSize(f.size)})…</p>`;
       const fd = new FormData(); fd.append('file', f);
       try { showStep(await api('reset', 'restore_check', fd)); } catch (x) { if (m.isConnected) pickStep(); } };
   };
@@ -443,19 +443,19 @@ function bkRestore(saved, done) {
       sk.replaced ? `${n(sk.replaced, 'paper was', 'papers were')} made again since the backup, so the newer copy is kept.` : '',
       (sk.nofile || (c.sheets_skip || {}).nofile) ? `${n((sk.nofile || 0) + ((c.sheets_skip || {}).nofile || 0), 'file is', 'files are')} listed in this backup but not inside it${c.with_files ? '' : ' (it is a database-only backup)'}.` : ''].filter(Boolean);
     const list = (L, total) => L.length ? `<ul class="bkr-l">${L.slice(0, 8).map(x => `<li><b>${esc(x.name)}</b>${x.owner ? ' · ' + esc(x.owner) : ''}${x.date ? ` <small class="mut">${esc(x.date)}</small>` : ''}</li>`).join('')}${total > 8 ? `<li class="mut">and ${total - 8} more</li>` : ''}</ul>` : '';
-    box.innerHTML = `<h2 style="margin-top:0">Restore from a backup</h2>
+    box.innerHTML = `<h2 class="u-mt0">Restore from a backup</h2>
       <p class="bkr-h"><b>${esc(c.label)}</b><span class="mut">made ${esc(bkWhen(c.made))} · ${c.with_files ? `database and ${c.files.toLocaleString('en-IN')} file${c.files === 1 ? '' : 's'}` : 'database only'}</span></p>
       <div class="bkr-g"><div><h4>What it holds</h4><table class="bkr-t"><thead><tr><th></th><th>In the backup</th><th>In the CRM now</th></tr></thead><tbody>${c.counts.map(([l, a, b]) => `<tr><td>${esc(l)}</td><td>${a}</td><td class="${a !== b ? 'bkr-d' : ''}">${b}</td></tr>`).join('')}</tbody></table></div>
-       <div><h4>Missing from the CRM now</h4>${nothing ? '<p class="mut" style="margin:0">Nothing. Every document and Folder file of this backup is still in the CRM.</p>'
-         : `<p style="margin:0 0 6px">${[c.docs ? n(c.docs, 'document', 'documents') : '', c.sheets ? n(c.sheets, 'Folder file', 'Folder files') : '', c.lost ? n(c.lost, 'file lost from the server', 'files lost from the server') : ''].filter(Boolean).join(' · ')}</p>${list(c.docs_list || [], c.docs)}${list(c.sheets_list || [], c.sheets)}`}
+       <div><h4>Missing from the CRM now</h4>${nothing ? '<p class="mut u-m0">Nothing. Every document and Folder file of this backup is still in the CRM.</p>'
+         : `<p class="u-m0_0_6">${[c.docs ? n(c.docs, 'document', 'documents') : '', c.sheets ? n(c.sheets, 'Folder file', 'Folder files') : '', c.lost ? n(c.lost, 'file lost from the server', 'files lost from the server') : ''].filter(Boolean).join(' · ')}</p>${list(c.docs_list || [], c.docs)}${list(c.sheets_list || [], c.sheets)}`}
         ${notes.length ? `<p class="mut bkr-note">${notes.join(' ')}</p>` : ''}
         <div class="stg-act"><button class="btn" id="bkmiss" ${nothing ? 'disabled' : ''}>Bring back what is missing</button></div>
         <p class="mut bkr-note">Puts back only what is missing. Nothing that is in the CRM now is changed.</p></div></div>
       <div class="bkr-full"><h4>Put everything back as in this backup</h4>
-       <p class="mut" style="margin:0 0 8px">The whole database goes back to how it was when this backup was made: everything added or changed since is lost, and people may have to sign in again. A copy of the database as it is now is saved first under Saved backups.</p>
+       <p class="mut u-m0_0_8">The whole database goes back to how it was when this backup was made: everything added or changed since is lost, and people may have to sign in again. A copy of the database as it is now is saved first under Saved backups.</p>
        <div class="two"><div><label>Your admin password</label><input type="password" id="bkpw" autocomplete="current-password"></div><div><label>Type <b>RESTORE</b> to confirm</label><input id="bkcf" autocomplete="off" placeholder="RESTORE"></div></div>
        <div class="err" id="bker"></div><div class="stg-act"><button class="btn bad" id="bkfull" disabled>Put everything back</button></div></div>
-      <div class="bar" style="margin-top:14px"><button class="btn sec" id="bkx">Close</button></div>`;
+      <div class="bar u-mt14"><button class="btn sec" id="bkx">Close</button></div>`;
     $('#bkx', box).onclick = close;
     const run = async body => { const r = await fetch('api.php?m=reset&a=restore_run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: c.token, ...body }) }).then(x => x.json()).catch(() => ({ error: 'Network error' })); return r; };
     $('#bkmiss', box).onclick = async e => { const b = e.currentTarget; b.disabled = true; b.textContent = 'Bringing back…';
@@ -466,12 +466,12 @@ function bkRestore(saved, done) {
     $('#bkfull', box).onclick = async e => { const b = e.currentTarget; b.disabled = true; b.textContent = 'Restoring…'; $('#bker', box).textContent = '';
       const r = await run({ mode: 'full', password: $('#bkpw', box).value, confirm: $('#bkcf', box).value });
       if (r.error) { $('#bker', box).textContent = r.error; b.textContent = 'Put everything back'; ok(); return; }
-      box.innerHTML = `<h2 style="margin-top:0">Restore complete</h2><p>The CRM is back as it was when the backup was made${r.files ? `, and <b>${r.files}</b> file${r.files === 1 ? ' was' : 's were'} put back on the server` : ''}.</p>
+      box.innerHTML = `<h2 class="u-mt0">Restore complete</h2><p>The CRM is back as it was when the backup was made${r.files ? `, and <b>${r.files}</b> file${r.files === 1 ? ' was' : 's were'} put back on the server` : ''}.</p>
         <p class="mut">The database from just before the restore is saved as <b>${esc(r.backup)}</b> under Saved backups.${r.failed ? ` ${r.failed} file${r.failed === 1 ? '' : 's'} in the backup could not be put back.` : ''}</p>
         <div class="bar"><button class="btn" id="bkgo">Reload the CRM</button></div>`;
       $('#bkgo', box).onclick = () => location.reload(); };
   };
-  if (saved) { box.innerHTML = `<h2 style="margin-top:0">Restore from a backup</h2><p class="mut">Reading ${esc(saved)}…</p>`; api('reset', 'restore_check', { name: saved }).then(showStep).catch(close); }
+  if (saved) { box.innerHTML = `<h2 class="u-mt0">Restore from a backup</h2><p class="mut">Reading ${esc(saved)}…</p>`; api('reset', 'restore_check', { name: saved }).then(showStep).catch(close); }
   else pickStep();
 }
 
@@ -482,12 +482,12 @@ async function pgAdmin() {
   bindTabs('adm', pgAdmin);
   const ab = $('#ab');
   if (t === 'users') { /* the same panel as Settings › Users */
-    ab.innerHTML = `<div id="adusers"><p class="mut">Loading…</p></div><div class="card" style="margin-top:12px"><h3>Role permissions</h3><p class="mut" style="margin:0">Choose what each role can view and edit in <a href="#/settings/access">Settings → User access</a>. Admin always has full access.</p></div>`;
+    ab.innerHTML = `<div id="adusers"><p class="mut">Loading…</p></div><div class="card u-mt12"><h3>Role permissions</h3><p class="mut u-m0">Choose what each role can view and edit in <a href="#/settings/access">Settings → User access</a>. Admin always has full access.</p></div>`;
     await usersPanel($('#adusers'));
   }
   if (t === 'audit') {
     const log = await api('admin', 'audit');
-    ab.innerHTML = `<p class="mut" style="margin:0 0 10px">Last 72 hours · ${log.length} entr${log.length === 1 ? 'y' : 'ies'}. Older entries are kept for the customer and lead timelines.</p>` + table([['When', l => l.created], ['User', l => esc(l.user)], ['Action', l => esc(l.action)], ['Entity', l => esc(l.entity) + (l.entity_id ? ' #' + l.entity_id : '')], ['Detail', l => esc(l.detail)]], log, () => { });
+    ab.innerHTML = `<p class="mut u-m0_0_10">Last 72 hours · ${log.length} entr${log.length === 1 ? 'y' : 'ies'}. Older entries are kept for the customer and lead timelines.</p>` + table([['When', l => l.created], ['User', l => esc(l.user)], ['Action', l => esc(l.action)], ['Entity', l => esc(l.entity) + (l.entity_id ? ' #' + l.entity_id : '')], ['Detail', l => esc(l.detail)]], log, () => { });
   }
   if (t === 'system') await systemPanel(ab, false); /* the same panel as Settings › Data & backup */
 }
@@ -498,9 +498,9 @@ function resetModal() {
    <div class="rbox keep"><b>Always kept</b><span>All leads (and their claims) · Meta Ads connection, sync & campaigns · Your admin login</span></div>
    <h3 style="margin:16px 0 6px">Also delete (optional)</h3>
    ${opt('audit', 'Audit log', 'Clear the history of who did what', true)}${opt('datasheets', 'Folder datasheets', 'Product datasheets and their share links', false)}${opt('settings', 'Settings', 'Company details, rates, catalogue, templates, login page — back to defaults', false)}${opt('users', 'Other user accounts', 'Remove every login except yours; their lead claims are released', false)}
-   <div class="two" style="margin-top:12px"><div><label>Your admin password</label><input type="password" id="rpw" autocomplete="current-password"></div><div><label>Type <b>RESET</b> to confirm</label><input id="rcf" autocomplete="off" placeholder="RESET"></div></div>
+   <div class="two u-mt12"><div><label>Your admin password</label><input type="password" id="rpw" autocomplete="current-password"></div><div><label>Type <b>RESET</b> to confirm</label><input id="rcf" autocomplete="off" placeholder="RESET"></div></div>
    <div class="err" id="rer"></div>
-   <div class="bar" style="margin-top:8px"><button class="btn bad" id="rgo" disabled>Delete everything listed</button><button class="btn sec" id="rcx">Cancel</button></div>`);
+   <div class="bar u-mt8"><button class="btn bad" id="rgo" disabled>Delete everything listed</button><button class="btn sec" id="rcx">Cancel</button></div>`);
   const ok = () => $('#rgo', m).disabled = !($('#rcf', m).value === 'RESET' && $('#rpw', m).value.length >= 1);
   $('#rcf', m).oninput = ok; $('#rpw', m).oninput = ok;
   $('#rcx', m).onclick = () => m.remove();
@@ -510,16 +510,16 @@ function resetModal() {
     const r = await fetch('api.php?m=reset&a=reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('#rpw', m).value, confirm: $('#rcf', m).value, opts }) }).then(x => x.json()).catch(() => ({ error: 'Network error' }));
     if (r.error) { $('#rer', m).textContent = r.error; $('#rgo', m).textContent = 'Delete everything listed'; ok(); return; }
     m.remove(); S = await api('settings', 'get');
-    modal(`<h2 style="margin-top:0">Reset complete</h2><p>The CRM has been reset. <b>${r.leads_kept}</b> leads were kept.</p><p class="mut">A full backup of everything before the reset was saved as <b>${esc(r.backup)}</b>.</p>
+    modal(`<h2 class="u-mt0">Reset complete</h2><p>The CRM has been reset. <b>${r.leads_kept}</b> leads were kept.</p><p class="mut">A full backup of everything before the reset was saved as <b>${esc(r.backup)}</b>.</p>
       <div class="bar"><a class="btn sec" href="api.php?m=reset&a=backup_get&name=${encodeURIComponent(r.backup)}"><i class="i i-download"></i> Download backup</a><button class="btn" onclick="this.closest('.modal').remove();location.hash='#/dashboard';route()">Done</button></div>`);
   };
 }
 function userModal(u) {
   const id = u.id;
-  const m = modal(`<h3 style="margin-top:0">${id ? 'Edit' : 'New'} user</h3><div class="two">${[{ k: 'name', l: 'Full name' }, { k: 'username', l: 'Username' }, { k: 'role', l: 'Role', opts: Object.entries(S.role_names || {}).map(([k, v]) => [k, v]) }, { k: 'active', l: 'Active', opts: [['1', 'Yes'], ['0', 'Disabled']], d: '1' }, { k: 'can_claim', l: 'Leads access', opts: [['1', 'Can see & claim unclaimed leads'], ['0', 'Only leads assigned to them']] }, { k: 'password', l: id ? 'New password (leave blank to keep)' : 'Password (min 8)', t: 'password', full: 1 }].map(f => fld(f, { ...u, active: u.active === 0 ? '0' : '1', can_claim: u.can_claim === 0 ? '0' : (u.can_claim ? '1' : '0') })).join('')}</div>
+  const m = modal(`<h3 class="u-mt0">${id ? 'Edit' : 'New'} user</h3><div class="two">${[{ k: 'name', l: 'Full name' }, { k: 'username', l: 'Username' }, { k: 'role', l: 'Role', opts: Object.entries(S.role_names || {}).map(([k, v]) => [k, v]) }, { k: 'active', l: 'Active', opts: [['1', 'Yes'], ['0', 'Disabled']], d: '1' }, { k: 'can_claim', l: 'Leads access', opts: [['1', 'Can see & claim unclaimed leads'], ['0', 'Only leads assigned to them']] }, { k: 'password', l: id ? 'New password (leave blank to keep)' : 'Password (min 8)', t: 'password', full: 1 }].map(f => fld(f, { ...u, active: u.active === 0 ? '0' : '1', can_claim: u.can_claim === 0 ? '0' : (u.can_claim ? '1' : '0') })).join('')}</div>
    ${id ? `<div class="udp"><span class="uav big" id="udpi">${avImg(id, u.avatar, u.name)}</span><div><b>Profile photo</b><div class="bar" style="margin:6px 0 0"><button class="btn sec sm" id="udpu" type="button">Upload photo</button><button class="btn sec sm" id="udpr" type="button" ${u.avatar ? '' : 'hidden'}>Remove</button></div></div></div>
      <div class="mbxadm"><b>Email addresses</b><small class="mut">Addresses ${id == ME.id ? 'you' : 'this person'} connected in the CRM. You never see their mail here.</small><div id="umbx"><p class="mut" style="font-size:13px;margin:6px 0 0">Loading…</p></div></div>` : ''}
-   <div class="bar" style="margin-top:12px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button><span class="sp"></span>${id && id != ME.id ? '<button class="btn bad" id="udel" type="button"><i class="i i-trash"></i> Delete user</button>' : ''}</div>`);
+   <div class="bar u-mt12"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button><span class="sp"></span>${id && id != ME.id ? '<button class="btn bad" id="udel" type="button"><i class="i i-trash"></i> Delete user</button>' : ''}</div>`);
   $('#cx', m).onclick = () => m.remove();
   if ($('#udel', m)) $('#udel', m).onclick = () => userDelete(u, () => { m.remove(); route(); });
   const dpDone = av => { u.avatar = av; $('#udpi', m).innerHTML = avImg(id, av, u.name); $('#udpr', m).hidden = !av; if (id == ME.id) setMyAvatar(av); };
@@ -539,8 +539,8 @@ function userModal(u) {
 async function userDelete(u, done) {
   let cand = []; try { cand = (await api('customers', 'owners')).filter(x => x.id != u.id); } catch (e) { }
   const nC = +u.customers || 0, nL = +u.leads || 0, nM = +u.mails || 0;
-  const m = modal(`<h3 style="margin-top:0">Delete ${esc(u.name)}?</h3>
-    <p style="margin:0 0 10px">They will no longer be able to sign in and will leave every list. This cannot be undone here.</p>
+  const m = modal(`<h3 class="u-mt0">Delete ${esc(u.name)}?</h3>
+    <p class="u-m0_0_10">They will no longer be able to sign in and will leave every list. This cannot be undone here.</p>
     <ul class="udl-l"><li>What they did stays under their name: attendance, incentives, notes and the audit log.</li>
       <li>${nL ? `<b>${nL}</b> lead${nL === 1 ? '' : 's'} they hold go${nL === 1 ? 'es' : ''} back to the shared list for others to claim.` : 'They hold no leads.'}</li>
       <li>${nC ? `<b>${nC}</b> customer${nC === 1 ? '' : 's'} they own go${nC === 1 ? 'es' : ''} to the person you choose below.` : 'They own no customers.'}</li>
@@ -548,7 +548,7 @@ async function userDelete(u, done) {
       <li>The username <b>${esc(u.username)}</b> becomes free for a new user.</li></ul>
     ${nC ? `<label>Give their customers to</label><select id="udlto">${cand.map(x => `<option value="${x.id}" ${x.id == ME.id ? 'selected' : ''}>${esc(x.name)}${x.id == ME.id ? ' (you)' : ''} · ${esc(x.role_name || x.role)}</option>`).join('')}<option value="0">Nobody (no owner)</option></select>` : ''}
     <label>Type the username <b>${esc(u.username)}</b> to confirm</label><input id="udlu" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <div class="bar" style="margin-top:14px"><button class="btn bad" id="udlgo" disabled><i class="i i-trash"></i> Delete user</button><button class="btn sec" id="udlcx">Cancel</button></div>`);
+    <div class="bar u-mt14"><button class="btn bad" id="udlgo" disabled><i class="i i-trash"></i> Delete user</button><button class="btn sec" id="udlcx">Cancel</button></div>`);
   const inp = $('#udlu', m), go = $('#udlgo', m);
   inp.oninput = () => { go.disabled = inp.value.trim().toLowerCase() !== String(u.username).toLowerCase(); };
   $('#udlcx', m).onclick = () => m.remove(); inp.focus();
@@ -590,7 +590,7 @@ async function drawAccess() {
      ${who ? `<p class="uac-who">${who}</p>` : ''}
      <div class="tw"><table class="acc"><thead><tr><th>Area</th>${roles.map(r => `<th class="${hi === r ? 'uac-hi' : ''}">${esc(S.role_names[r])}<small class="mut">${cnt(r)} ${cnt(r) === 1 ? 'person' : 'people'}</small><small><a href="#" data-allr="${r}">all</a> · <a href="#" data-nofin="${r}">no finance</a> · <a href="#" data-def="${r}">default</a></small></th>`).join('')}</tr></thead><tbody>
      ${body || `<tr><td colspan="${roles.length + 1}" class="mut">No area matches “${esc(UAF.q)}”.</td></tr>`}</tbody></table></div>
-     <div class="bar" style="margin-top:12px"><button class="btn sec" id="uars">Reset all to defaults</button><span class="mut" style="font-size:12.5px">Ticking Edit also ticks View. Changes apply the next time the person loads a page.</span></div>`;
+     <div class="bar u-mt12"><button class="btn sec" id="uars">Reset all to defaults</button><span class="mut u-fs12p5">Ticking Edit also ticks View. Changes apply the next time the person loads a page.</span></div>`;
     $$('input[data-r]', box).forEach(c => c.onchange = () => { const r = now[c.dataset.r], m = c.dataset.m, k = c.dataset.k, set = new Set(r[k]);
       c.checked ? set.add(m) : set.delete(m); r[k] = [...set];
       if (k === 'write' && c.checked && !r.read.includes(m)) r.read.push(m);          /* edit needs view */
@@ -617,9 +617,9 @@ document.addEventListener('click', async e => {
   const go = () => { location.href = a.getAttribute('href'); };
   const post = b => fetch('api.php?m=reset&a=unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json()).catch(() => ({ error: 'No connection - try again' }));
   if ((await post({ check: 1 })).ok) return go();
-  const m = modal(`<h2 style="margin-top:0">Download backup</h2><p class="mut">A backup holds every customer's details and the staff logins. Type your password to download it.</p>
+  const m = modal(`<h2 class="u-mt0">Download backup</h2><p class="mut">A backup holds every customer's details and the staff logins. Type your password to download it.</p>
     <div><label>Your password</label><input type="password" id="bkpw" autocomplete="current-password"></div><div class="err" id="bker"></div>
-    <div class="bar" style="margin-top:12px"><button class="btn" id="bkgo"><i class="i i-download"></i> Download</button><button class="btn sec" id="bkno">Cancel</button></div>`);
+    <div class="bar u-mt12"><button class="btn" id="bkgo"><i class="i i-download"></i> Download</button><button class="btn sec" id="bkno">Cancel</button></div>`);
   const run = async () => {
     $('#bkgo', m).disabled = true; const r = await post({ password: $('#bkpw', m).value }); $('#bkgo', m).disabled = false;
     if (r.error) { $('#bker', m).textContent = r.error; $('#bkpw', m).select(); return; }

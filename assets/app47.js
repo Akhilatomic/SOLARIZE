@@ -63,8 +63,8 @@ async function pgSubsidy(id) {
 /* pick a customer who is not on the list yet; they start at the first status and their box opens to set the date / status */
 async function sdyPick(reload) {
   const cs = await api('subsidy', 'candidates');
-  const m = modal(`<h2 style="margin-top:0">Add a customer</h2><p class="mut" style="margin-top:-6px">Pick the customer to follow for subsidy. They start at “Netmeter installed”.</p>
-    <input id="sdypq" placeholder="Search name, phone, consumer no.…"><div class="fcl2" id="sdypl"></div><div class="bar" style="margin-top:12px"><button class="btn sec" id="sdypx">Cancel</button></div>`);
+  const m = modal(`<h2 class="u-mt0">Add a customer</h2><p class="mut u-mtn6">Pick the customer to follow for subsidy. They start at “Netmeter installed”.</p>
+    <input id="sdypq" placeholder="Search name, phone, consumer no.…"><div class="fcl2" id="sdypl"></div><div class="bar u-mt12"><button class="btn sec" id="sdypx">Cancel</button></div>`);
   const dr = () => { const t = $('#sdypq', m).value.trim().toLowerCase(), L = cs.filter(c => !t || [c.name, c.phone, c.consumer_no, c.district].join(' ').toLowerCase().includes(t)).slice(0, 200);
     $('#sdypl', m).innerHTML = L.map(c => `<button type="button" class="fci cmn-pick" data-pk="${c.id}"><span><b>${esc(c.name)}</b><small class="mut">${esc([c.phone, c.consumer_no, c.district].filter(Boolean).join(' · '))}</small></span></button>`).join('') || `<p class="mut" style="padding:10px 12px;margin:0">${cs.length ? 'No customer matches.' : 'Every customer is on the subsidy list already.'}</p>`; };
   $('#sdypq', m).oninput = dr; dr(); $('#sdypq', m).focus(); $('#sdypx', m).onclick = () => m.remove();

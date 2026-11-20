@@ -174,9 +174,9 @@ async function kreadText(url) {
 
 /* Documents tab → Read & fill: read one PDF, show what it says next to what is saved, fill the ticked details */
 async function docRead(f, id, done) {
-  const m = modal(`<div class="krw"><h2 style="margin:0 0 4px">Read &amp; fill</h2><p class="mut" style="margin:0 0 12px">${esc(f.item || 'Document')} · ${esc(f.name)}</p><div id="krb"><p class="mut">Reading the PDF…</p></div></div>`, true);
+  const m = modal(`<div class="krw"><h2 class="u-m0_0_4">Read &amp; fill</h2><p class="mut" style="margin:0 0 12px">${esc(f.item || 'Document')} · ${esc(f.name)}</p><div id="krb"><p class="mut">Reading the PDF…</p></div></div>`, true);
   const body = $('#krb', m), close = () => m.remove();
-  const fail = msg => { body.innerHTML = `<p>${msg}</p><div class="bar" style="margin-top:12px"><button class="btn sec" id="krx">Close</button></div>`; $('#krx', m).onclick = close; };
+  const fail = msg => { body.innerHTML = `<p>${msg}</p><div class="bar u-mt12"><button class="btn sec" id="krx">Close</button></div>`; $('#krx', m).onclick = close; };
   let text;
   try { text = await kreadText(fileUrl(f)); } catch (e) { return fail('This file could not be read as a PDF.'); }
   if (KREAD.norm(text).length < 60) return fail('This PDF has no text in it — it is a scan or a photo, so it cannot be read. Download the PDF from the KSEB website or the National Portal (pmsuryaghar.gov.in) and upload that, or type the details.');
@@ -198,16 +198,16 @@ async function docRead(f, id, done) {
   const serialsNow = (pl.panels || []).filter(x => x.serial).length;
   const showSerials = r.serials.length && canW('customers');
   const fmt = (k, v) => v === '' || v == null ? '<span class="mut">—</span>' : esc(/(_date|_on)$/.test(k) && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('-') : v);
-  body.innerHTML = `<p style="margin:0 0 10px"><span class="pill b">${esc(r.title)}</span> ${r.fields.consumer_no ? `<span class="mut">Consumer no. ${esc(r.fields.consumer_no)}</span>` : ''}</p>
+  body.innerHTML = `<p class="u-m0_0_10"><span class="pill b">${esc(r.title)}</span> ${r.fields.consumer_no ? `<span class="mut">Consumer no. ${esc(r.fields.consumer_no)}</span>` : ''}</p>
     ${otherCon ? `<div class="kr-warn"><b>Different customer?</b> This paper is for consumer no. ${esc(r.fields.consumer_no)}, but this customer has ${esc(c.consumer_no)}. Nothing is ticked — check you opened the right customer.</div>` : ''}
     ${r.warn.map(x => `<div class="kr-warn">${esc(x)}</div>`).join('')}
-    <div class="tw" style="max-height:52vh;overflow:auto;border:1px solid var(--bd);border-radius:12px"><table class="kr-t"><thead><tr><th style="width:34px"></th><th>Detail</th><th>In the paper</th><th>Saved now</th></tr></thead><tbody>
+    <div class="tw" style="max-height:52vh;overflow:auto;border:1px solid var(--bd);border-radius:12px"><table class="kr-t"><thead><tr><th class="u-w34"></th><th>Detail</th><th>In the paper</th><th>Saved now</th></tr></thead><tbody>
     ${rows.map((x, i) => `<tr class="${x.isSame ? 'kr-same' : !KREAD.empty(x.now) ? 'kr-diff' : ''}"><td>${x.isSame ? '<i class="i i-check" title="Same"></i>' : x.allowed ? `<input type="checkbox" data-i="${i}" ${x.tick ? 'checked' : ''}>` : '<span class="mut" title="You cannot change this">—</span>'}</td>
       <td>${esc(x.l)}${x.k === 'name' && !x.isSame && !KREAD.empty(x.now) ? '<br><small class="mut">The KSEB bill name is printed on every paper</small>' : ''}</td><td><b>${fmt(x.k, x.v)}</b></td><td>${x.isSame ? '<span class="mut">same</span>' : KREAD.empty(x.now) ? '<span class="mut">—</span>' : fmt(x.k, x.now)}${!x.isSame && !KREAD.empty(x.now) ? ' <span class="pill y">differs</span>' : ''}</td></tr>`).join('')}
     ${showSerials ? `<tr class="${serialsNow ? 'kr-diff' : ''}"><td><input type="checkbox" id="krser" ${serialsNow || otherCon ? '' : 'checked'}></td><td>Panel serial numbers</td><td><b>${r.serials.length} serials</b><br><small class="mut">${esc(r.serials.slice(0, 3).join(', '))}${r.serials.length > 3 ? '…' : ''}</small></td><td>${serialsNow ? serialsNow + ' saved <span class="pill y">replaces them</span>' : '<span class="mut">—</span>'}</td></tr>` : ''}
     </tbody></table></div>
-    <p class="mut" style="font-size:12px;margin:8px 0 0">Ticked details are saved to the profile. Empty ones are ticked for you; ones that differ are not — tick them to replace what is saved.</p>
-    <div class="bar" style="margin-top:12px"><button class="btn" id="krgo"><i class="i i-check"></i> Fill ticked details</button><button class="btn sec" id="krx">Cancel</button></div>`;
+    <p class="mut u-fs12-m8_0_0">Ticked details are saved to the profile. Empty ones are ticked for you; ones that differ are not — tick them to replace what is saved.</p>
+    <div class="bar u-mt12"><button class="btn" id="krgo"><i class="i i-check"></i> Fill ticked details</button><button class="btn sec" id="krx">Cancel</button></div>`;
   $('#krx', m).onclick = close;
   $('#krgo', m).onclick = async () => {
     const pick = rows.filter((x, i) => { const cb = $(`[data-i="${i}"]`, body); return cb && cb.checked; });

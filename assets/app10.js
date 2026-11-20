@@ -11,12 +11,12 @@ async function pgRecycle() {
    <div class="rbh"><i class="i i-alert"></i><div>Deleted items stay here for <b>${d.hours} hours</b> and can be restored — after that they are removed for good.
      Uploaded documents are kept for <b>${d.doc_days} days</b> and papers made in the CRM for <b>${GEN_DAYS} days</b>, then they move here automatically. Tax bills and warranty cards are kept until someone deletes them.</div></div>
    <div class="bar" style="margin-bottom:10px"><input id="rbq" placeholder="Search deleted items…" style="max-width:320px" value="${esc(RB.q)}">
-     <select id="rbk" style="width:auto"><option value="">All types</option>${kinds.map(k => `<option ${RB.kind === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
-   <div class="card tw fitbox" style="padding:0"><table id="rbt" data-min="760"></table></div>`;
+     <select id="rbk" class="u-wauto"><option value="">All types</option>${kinds.map(k => `<option ${RB.kind === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
+   <div class="card tw fitbox u-p0"><table id="rbt" data-min="760"></table></div>`;
   const draw = () => {
     const t = RB.q.toLowerCase(), rows = d.rows.filter(r => (!RB.kind || r.kind === RB.kind) && (!t || (r.kind + ' ' + r.label + ' ' + r.deleted_by).toLowerCase().includes(t)));
     $('#rbc').textContent = `${rows.length} item${rows.length === 1 ? '' : 's'}`;
-    $('#rbt').innerHTML = `<colgroup><col style="width:150px"><col><col style="width:150px"><col style="width:150px"><col style="width:150px"><col style="width:${adm ? 200 : 120}px"></colgroup>
+    $('#rbt').innerHTML = `<colgroup><col class="u-w150"><col><col class="u-w150"><col class="u-w150"><col class="u-w150"><col style="width:${adm ? 200 : 120}px"></colgroup>
      <thead><tr><th>Type</th><th>Item</th><th>Deleted by</th><th>Deleted</th><th>Removed in</th><th class="right">Actions</th></tr></thead><tbody>
      ${rows.map(r => { const ms = leftMs(r), pct = Math.max(0, Math.min(100, ms / (d.hours * 36e5) * 100));
        return `<tr><td class="rbk">${esc(r.kind)}</td><td class="rbl" title="${esc(r.label)}"><b>${esc(r.label)}</b>${r.count > 1 || r.files ? `<br><small class="mut">${r.count} record${r.count === 1 ? '' : 's'}${r.files ? ` · ${r.files} file${r.files === 1 ? '' : 's'}` : ''}</small>` : ''}</td>

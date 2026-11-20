@@ -4,8 +4,8 @@
 // The CRM does not sign in to KSEB: the button only opens the official site in a new tab.
 const KSEB_PORTAL = 'https://wss.kseb.in/selfservices/';
 async function renderKsebLogin(box, c, id) {
-  box.innerHTML = '<div class="card kbl"><p class="mut" style="margin:0">Loading…</p></div>';
-  let d; try { d = await api('profile', 'kl_get', undefined, '&customer_id=' + id); } catch (e) { box.innerHTML = '<div class="card kbl"><p class="over" style="margin:0">Could not load the KSEB login.</p></div>'; return; }
+  box.innerHTML = '<div class="card kbl"><p class="mut u-m0">Loading…</p></div>';
+  let d; try { d = await api('profile', 'kl_get', undefined, '&customer_id=' + id); } catch (e) { box.innerHTML = '<div class="card kbl"><p class="over u-m0">Could not load the KSEB login.</p></div>'; return; }
   if (!document.body.contains(box)) return;
   const w = !!d.can_edit; let pw = null, shown = false, dirty = false; /* pw: null = not fetched yet */
   const draw = () => {

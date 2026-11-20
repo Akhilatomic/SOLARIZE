@@ -1,11 +1,11 @@
 /* Customers → Import (admin): load a prepared customer file (.json), preview what happens to each record, then import.
    New customers get a project at "Project completed" and their plant details; customers already here only get their EMPTY details filled. */
 function custImport(done) {
-  const m = modal(`<h2 style="margin-top:0">Import customers</h2>
-    <p class="mut" style="margin:0 0 10px">Choose the import file (.json). You see what will happen first — nothing changes until you press Import.
+  const m = modal(`<h2 class="u-mt0">Import customers</h2>
+    <p class="mut u-m0_0_10">Choose the import file (.json). You see what will happen first — nothing changes until you press Import.
     Customers already here (same consumer no. or MNRE application no.) only get their empty details filled; nothing is overwritten.</p>
-    <input type="file" id="imf" accept=".json,application/json"><div id="imv" style="margin-top:12px"></div>
-    <div class="bar" style="margin-top:12px"><button class="btn" id="imgo" disabled><i class="i i-upload"></i> Import</button><button class="btn sec" id="imx">Cancel</button></div>`, true);
+    <input type="file" id="imf" accept=".json,application/json"><div id="imv" class="u-mt12"></div>
+    <div class="bar u-mt12"><button class="btn" id="imgo" disabled><i class="i i-upload"></i> Import</button><button class="btn sec" id="imx">Cancel</button></div>`, true);
   let file = null;
   const FIELD = { phone: 'phone', alt_phone: 'alt. phone', email: 'email', address: 'address', district: 'district', pincode: 'PIN', consumer_no: 'consumer no.', kseb_section: 'section',
     kseb_subdivision: 'sub division', kseb_division: 'division', kseb_circle: 'circle', tariff: 'tariff', phase: 'phase', sanctioned_load: 'load', meter_no: 'meter no.', pole_no: 'pole no.',

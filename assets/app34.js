@@ -506,7 +506,7 @@ function acCsBuy(chosen) {
     <div><label for="acx_bwb">Bill date</label><input id="acx_bwb" type="date" value="${esc(today())}"></div>
     <div><label for="acx_bws">Supplier</label><input id="acx_bws" maxlength="120" autocomplete="off" list="acx_sups" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'supplier'))}" ${SPELL}></div>
     <div><label for="acx_bwn">Bill no.</label><input id="acx_bwn" maxlength="60" autocomplete="off" value="${esc(ACC.sharedValue(ACS.lines, idxs, 'bill_no'))}"></div></div>
-    <div class="card tw acx-bwl"><table class="acx-mt" id="acx_bwt" data-min="420"><colgroup><col><col style="width:90px"><col style="width:150px"></colgroup>
+    <div class="card tw acx-bwl"><table class="acx-mt" id="acx_bwt" data-min="420"><colgroup><col><col style="width:90px"><col class="u-w150"></colgroup>
       <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Price paid, each (₹, before GST)</th></tr></thead>
       <tbody>${idxs.map(i => { const l = ACS.lines[i]; return `<tr data-bi="${i}"><td class="acx-nm">${esc(l.name)}</td><td class="num">${esc(acV(l.qty))} ${esc(l.unit)}</td><td class="num"><input data-bp inputmode="decimal" autocomplete="off" value="${acV(l.rate)}" placeholder="0" aria-label="Price paid for ${esc(l.name)}"></td></tr>`; }).join('')}</tbody></table></div>
     <div class="acx-fcp mut" id="acx_bwm" aria-live="polite"></div>
@@ -681,7 +681,7 @@ function acTplEdit(t, done, ro) {
       body += `<tr data-i="${i}"><td class="acx-nm">${esc(it.name)}</td><td class="num"><input data-f="qty" inputmode="decimal" autocomplete="off" aria-label="Quantity of ${esc(it.name)}" value="${esc(acV(it.qty))}" ${ro ? 'disabled' : ''}></td><td>${esc(it.unit)}</td>
         <td class="acx-act">${ro ? '' : `<button type="button" class="ib" data-del title="Remove" aria-label="Remove ${esc(it.name)}"><i class="i i-trash"></i></button>`}</td></tr>`;
     });
-    tb.innerHTML = `<colgroup><col><col style="width:110px"><col style="width:70px"><col style="width:50px"></colgroup><thead><tr><th>Item</th><th class="num">Quantity</th><th>Unit</th><th><span class="acx-sr">Actions</span></th></tr></thead>
+    tb.innerHTML = `<colgroup><col><col class="u-w110"><col style="width:70px"><col style="width:50px"></colgroup><thead><tr><th>Item</th><th class="num">Quantity</th><th>Unit</th><th><span class="acx-sr">Actions</span></th></tr></thead>
       <tbody>${body || '<tr><td colspan="4" class="mut">No items yet. Press Add item.</td></tr>'}</tbody>`;
     $('#acx_tpc', m).textContent = acPl(items.length, 'item');
     if (typeof fitSoon === 'function') fitSoon();
@@ -788,7 +788,7 @@ async function acMaterials(box) {
         <td class="num">${+x.rate ? `<b>${inrW(ACC.custPrice(x.rate, pc))}</b>` : '<span class="mut">—</span>'}</td><td class="num">${+x.gst}</td>
         ${w ? `<td class="acx-act"><button type="button" class="ib" data-acx-m="offer" title="Add a supplier's price" aria-label="Add a supplier's price for ${esc(x.name)}"><i class="i i-plus"></i></button><button type="button" class="ib" data-acx-m="edit" title="Edit" aria-label="Edit ${esc(x.name)}"><i class="i i-pencil"></i></button><button type="button" class="ib" data-acx-m="hide" title="${x.hidden ? 'Offer on Project cost sheets again' : 'Hide from Project cost sheets'}" aria-label="${x.hidden ? 'Show' : 'Hide'} ${esc(x.name)}"><i class="i i-eye"></i></button><button type="button" class="ib" data-acx-m="del" title="Delete" aria-label="Delete ${esc(x.name)}"><i class="i i-trash"></i></button></td>` : ''}</tr>` + acOfferRows(x, v, w, def);
     });
-    tb.innerHTML = `<colgroup><col><col style="width:64px"><col style="width:150px"><col style="width:110px"><col style="width:120px"><col style="width:64px">${w ? '<col style="width:150px">' : ''}</colgroup>
+    tb.innerHTML = `<colgroup><col><col class="u-w64"><col class="u-w150"><col class="u-w110"><col style="width:120px"><col class="u-w64">${w ? '<col class="u-w150">' : ''}</colgroup>
       <thead><tr><th>Item</th><th>Unit</th><th class="num">Dealer price</th><th class="num">Profit %</th><th class="num">Customer price</th><th class="num">GST %</th>${w ? '<th><span class="acx-sr">Actions</span></th>' : ''}</tr></thead>
       <tbody>${body || `<tr><td colspan="${nc}" class="mut">${mats.length ? 'Nothing matches.' : 'The list is empty.'}</td></tr>`}</tbody>`;
     if (typeof fitSoon === 'function') fitSoon();
@@ -1041,7 +1041,7 @@ const ACX_PICK = { cid: 0, pid: 0 };
 let ACX_PUSEQ = 0; /* the latest load wins when the picker changes quickly */
 function acProfileTab(box, c, cid) {
   const ps = (c.projects || []).filter(p => +p.id); /* newest first */
-  if (!ps.length) { box.innerHTML = '<div class="card pfc"><p class="mut" style="margin:0">Start a project for this customer first.</p></div>'; return; }
+  if (!ps.length) { box.innerHTML = '<div class="card pfc"><p class="mut u-m0">Start a project for this customer first.</p></div>'; return; }
   const sel = (ACX_PICK.cid === +cid && ps.find(p => +p.id === ACX_PICK.pid)) || ps[0];
   box.innerHTML = `<div class="acx-ps">${ps.length > 1 ? `<div class="acx-proj"><label for="acx_pp">Project</label><select id="acx_pp">${ps.map(p => `<option value="${+p.id}"${p === sel ? ' selected' : ''}>${esc([p.title || 'Project', acKw(p.kw) ? acKw(p.kw) + ' kW' : '', p.stage].filter(Boolean).join(' · '))}</option>`).join('')}</select></div>` : ''}<div id="acx_psb"><p class="mut">Loading…</p></div></div>`;
   const pp = $('#acx_pp', box);
@@ -1052,7 +1052,7 @@ async function acPuView(pid, el) {
   const seq = ++ACX_PUSEQ;
   el.innerHTML = '<p class="mut">Loading…</p>';
   let d; try { d = await api('acc', 'ac_cost', undefined, '&project_id=' + pid); }
-  catch (e) { if (seq === ACX_PUSEQ && el.isConnected) el.innerHTML = `<div class="card pfc"><p class="over" style="margin:0">${esc((e && (e.error || e.message)) || 'Could not load the purchases')}</p></div>`; return; }
+  catch (e) { if (seq === ACX_PUSEQ && el.isConnected) el.innerHTML = `<div class="card pfc"><p class="over u-m0">${esc((e && (e.error || e.message)) || 'Could not load the purchases')}</p></div>`; return; }
   if (seq !== ACX_PUSEQ || !el.isConnected) return;
   const lines = acSort((d.lines || []).map(acIn)), bought = lines.filter(ACC.isBought).length, edit = `#/accounts/cost/${+pid}`;
   const sum = lines.length ? `${acPl(lines.length, 'item')} · ${bought} purchased / paid · ${lines.length - bought} still to buy / pay` : 'Nothing listed yet';
@@ -1066,8 +1066,8 @@ async function acPuView(pid, el) {
   el.innerHTML = `<div class="card pfc acx-puh"><div class="pfch"><i class="i i-coin"></i><h3>Purchases and services</h3><span class="sp"></span>
       ${lines.some(l => l.grp !== ACX_SVC) ? '<button type="button" class="btn sec sm" id="acx_pudl"><i class="i i-download"></i> Download material list</button>' : ''}
       <a class="btn sm" href="${edit}"><i class="i i-pencil"></i> Edit in Accounts</a></div>
-      <p class="mut acx-small" style="margin:0">${esc(sum)}. Prices, expense and profit are kept in Accounts › Project cost.</p></div>
-    ${cards || `<div class="card pfc"><p class="mut" style="margin:0">No purchases or services listed for this project yet. Use <b>Edit in Accounts</b> to add them.</p></div>`}`;
+      <p class="mut acx-small u-m0">${esc(sum)}. Prices, expense and profit are kept in Accounts › Project cost.</p></div>
+    ${cards || `<div class="card pfc"><p class="mut u-m0">No purchases or services listed for this project yet. Use <b>Edit in Accounts</b> to add them.</p></div>`}`;
   const dl = $('#acx_pudl', el);
   if (dl) dl.onclick = async () => {
     dl.disabled = true;
