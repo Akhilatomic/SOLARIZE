@@ -1378,3 +1378,40 @@ button.pill.stbtn{border:0;font:inherit;font-size:12px;font-weight:500;cursor:po
 .dpl-r .pill{font-size:11px;max-width:48%;overflow:hidden;text-overflow:ellipsis}.dpl-d{min-width:24px;text-align:right}
 @media (prefers-reduced-motion: reduce){.dpl-live i{animation:none}}
 .dpl-r{flex-direction:column;align-items:stretch;gap:3px}.dpl-n{display:flex;align-items:baseline;gap:6px;min-width:0}.dpl-n a{white-space:normal;overflow:visible}.dpl-m{display:flex;align-items:center;gap:6px;min-width:0}.dpl-m .pill{max-width:75%}.dpl-r .dpl-d{text-align:left}
+
+/* ---- Customer Overview redesign (2026-11-20, app11.js pgCustomer) ---- */
+.pfhead{flex-direction:column;align-items:stretch;gap:12px}
+.pfh1{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.pfh1 .pfht{flex:1;min-width:220px}.pfh1 .pfht h2{line-height:1.2;overflow-wrap:break-word}
+.pfst{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.pfact .btn{white-space:nowrap}.pfwab .i{color:var(--whatsapp)}.pfmb{padding-left:10px;padding-right:10px}
+.pfchips{display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)}
+.pfchip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:10px;background:var(--fill-2);font-size:14px;min-width:0;max-width:100%}
+.pfchip>small{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.pfchip .pfv.inl{margin:0;padding:0 2px}.pfchip b{font-weight:500}.pfchip .owbtn{margin-left:2px}
+/* progress: three groups, the current one with its stage and days */
+.pfg3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:2px 0 10px}
+.pfg{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--fill-2);min-width:0}
+.pfg>span{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--line-strong);display:grid;place-items:center;background:var(--white)}
+.pfg>span .i{width:12px;height:12px;opacity:0}.pfg b{display:block;font-size:14px;font-weight:600}.pfg small{display:block;font-size:12px;color:var(--text-2);overflow-wrap:break-word;margin-top:1px}
+.pfg.pfg-done>span{background:var(--green);border-color:var(--green);color:var(--white)}.pfg.pfg-done>span .i{opacity:1}.pfg.pfg-done b{color:var(--green-text)}
+.pfg.pfg-now{background:var(--blue-tint);box-shadow:inset 0 0 0 1.5px var(--blue)}.pfg.pfg-now>span{border-color:var(--blue);box-shadow:inset 0 0 0 4px var(--white);background:var(--blue)}.pfg.pfg-now b{color:var(--blue-text)}
+.pfnx{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}.pfnx .btn{max-width:100%;white-space:normal;text-align:left}
+.pfall{all:unset;cursor:pointer;font-size:13px;color:var(--blue);font-weight:500}.pfall:hover{text-decoration:underline}
+.pfprog .pfsteps{margin-top:12px}.pfprog .pfsteps[hidden]{display:none}
+/* To complete: each page with a fill bar */
+.pp-sum2{display:grid;grid-template-columns:20px minmax(120px,1.2fr) minmax(60px,1fr) auto;gap:12px;align-items:center}
+.pp-sum2 .pp-t{min-width:0;overflow-wrap:break-word}.pp-sum2 .pp-bar{height:6px;border-radius:3px;background:var(--fill-2);overflow:hidden}
+.pp-sum2 .pp-bar i{display:block;height:100%;border-radius:3px;background:var(--green)}.pp-sum2 .pp-bar.need i{background:var(--orange)}
+.pp-sum2 b{white-space:nowrap;text-align:right}
+/* words never split in the middle; long values (addresses) take two columns */
+.pfv{overflow-wrap:break-word;word-break:normal}
+.pfa-f.pfa-w{grid-column:span 2}
+.pfloc .pfr{grid-template-columns:110px minmax(0,1fr);align-items:start}
+@media(max-width:1100px){.pp-sum2{grid-template-columns:20px minmax(0,1fr) auto}.pp-sum2 .pp-bar{grid-column:2/-1;grid-row:2}}
+@media(max-width:880px){
+  .pfgrid .pfleft{display:contents}
+  .pfgrid>.pfleft>.pfprog{order:1}.pfgrid>.pfleft>.pftodo{order:2}.pfgrid>.pfright{order:3}.pfgrid>.pfleft>.pfqc{order:4}.pfgrid>.pfleft>.pfloc{order:5}.pfgrid>.pfleft>.pfnotes{order:6}.pfgrid>.pfa{order:7}
+}
+@media(max-width:600px){.pfg3{grid-template-columns:minmax(0,1fr)}.pfact{width:100%}.pfact .btn{flex:1;justify-content:center}.pfact .pfmb{flex:0 0 auto}.pfa-f.pfa-w{grid-column:1/-1}}
+.pp-sum2{grid-template-columns:20px minmax(150px,240px) minmax(80px,1fr) 150px}
+@media(max-width:1100px){.pp-sum2{grid-template-columns:20px minmax(0,1fr) auto}}

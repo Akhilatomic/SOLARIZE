@@ -42,7 +42,8 @@ async function pgCustomer(id) {
   let openEdit = null;
   if (PFT_OPEN && PFT_OPEN.id === id) { PFT = PFT_OPEN.key; PFT_ID = id; openEdit = PFT_OPEN.edit ? PFT_OPEN.key : null; }
   PFT_OPEN = null;
-  const [c, tl, pl] = await Promise.all([api('customers', 'get', undefined, '&id=' + id), api('profile', 'timeline', undefined, '&customer_id=' + id), api('plant', 'get', undefined, '&customer_id=' + id)]);
+  const [c, tl, pl] = await Promise.all([api('customers', 'get', undefined, '&id=' + id), api('profile', 'timeline', undefined, '&customer_id=' + id), api('plant', 'get', undefined, '&customer_id=' + id),
+    typeof PIPE !== 'undefined' && !PIPE && canR('projects') ? api('pipeline', 'board').then(b => { PIPE = b.stages; }).catch(() => { }) : null]); /* PIPE: which step group each stage is in (the progress strip) */
   const w = canW('customers'), p0 = tl.progress[tl.progress.length - 1];
   const val = (k, t) => { const v = c[k]; if (v === null || v === undefined || v === '') return ''; return t === 'date' ? new Date(String(v).replace(' ', 'T') + 'Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : String(v); };
   const row = (k, l, t) => { const v = val(k, t); return `<div class="pfr"><span>${l}</span>${v ? `<button class="pfv" data-cp="${esc(v)}" data-l="${esc(l)}" title="Click to copy">${esc(v)}<i class="i i-copy"></i></button>` : '<em class="mut">—</em>'}</div>`; };
@@ -51,7 +52,8 @@ async function pgCustomer(id) {
   const pgKeys = PFP.PAGES.map(x => x.key);
   const cnt0 = PFP.counts(pfCtx(st));
   const fillN = {}; /* per page [filled, total], from the All details card below */
-  const sumHtml = n => PFP.PAGES.map((pg, i) => { const f = fillN[pg.key]; return `<button class="pp-sum" data-goto="${esc(pg.key)}"><i class="i i-${esc(pg.icon)}"></i><span>${i + 1} · ${esc(pg.tab)}</span>${n[pg.key] > 0 ? `<b class="pp-need">${n[pg.key]} missing</b>` : !f || f[0] >= f[1] ? '<b class="pp-ok">Complete</b>' : `<b class="pp-later">Nothing due yet · ${f[0]} of ${f[1]} filled</b>`}</button>`; }).join('');
+  const sumHtml = n => PFP.PAGES.map((pg, i) => { const f = fillN[pg.key] || [0, 0], pc = f[1] ? Math.round(f[0] / f[1] * 100) : 100;
+    return `<button class="pp-sum pp-sum2" data-goto="${esc(pg.key)}"><i class="i i-${esc(pg.icon)}"></i><span class="pp-t">${i + 1} · ${esc(pg.tab)}</span><span class="pp-bar${n[pg.key] > 0 ? ' need' : ''}" title="${f[0]} of ${f[1]} filled"><i style="width:${pc}%"></i></span>${n[pg.key] > 0 ? `<b class="pp-need">${n[pg.key]} missing</b>` : f[0] >= f[1] ? '<b class="pp-ok">Complete</b>' : `<b class="pp-later">Nothing due yet · ${f[0]}/${f[1]}</b>`}</button>`; }).join('');
   /* Overview: every detail of the customer in one card (the five pages' fields, in page order), each value click to copy; a hidden
      value (masked account numbers) is shown as it is, without copy. "Copy all" = the filled ones as "Label: value" lines. */
   const allCtx = pfCtx(st), allTxt = [];
@@ -62,7 +64,7 @@ async function pgCustomer(id) {
       const l = f.l.split(' (')[0]; let v = PFP.value(f, allCtx);
       if (f.k === 'lead_type' && v) v = (LT_OPTS.find(o => o[0] === v) || [0, v])[1];
       if (v) { filled++; if (!pfMasked(v)) allTxt.push(l + ': ' + pfaLine(v)); }
-      return `<div class="pfa-f${v ? '' : ' pfa-e'}"><span>${esc(l)}</span>${!v ? '<em class="mut">—</em>' : pfMasked(v) ? `<b>${esc(v)}</b>` : pfCopy(v, l)}</div>`;
+      return `<div class="pfa-f${v ? '' : ' pfa-e'}${v && String(v).length > 34 ? ' pfa-w' : ''}"><span>${esc(l)}</span>${!v ? '<em class="mut">—</em>' : pfMasked(v) ? `<b>${esc(v)}</b>` : pfCopy(v, l)}</div>`;
     }).join('');
     fillN[pg.key] = [filled, fs.length];
     return cells ? `<div class="pfa-s"><button class="pfa-h" data-goto="${esc(pg.key)}" title="Open this page"><i class="i i-${esc(pg.icon)}"></i>${i + 1} · ${esc(pg.tab)}<small>${filled} of ${fs.length} filled</small></button><div class="pfa-g">${cells}</div></div>` : '';
@@ -74,27 +76,35 @@ async function pgCustomer(id) {
      ${row('address', 'Address')}${row('landmark', 'Landmark')}${hasPin ? `<div class="pfr"><span>Coordinates</span><button class="pfv" data-cp="${c.lat},${c.lng}" data-l="coordinates">${c.lat}, ${c.lng}<i class="i i-copy"></i></button></div>` : ''}
      ${ml ? `<div class="pfshare"><a class="btn sm" href="${ml}" target="_blank"><i class="i i-target"></i> Open in Maps</a>${hasPin ? `<a class="btn sec sm" href="https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}" target="_blank">Directions</a>` : ''}
        <button class="btn sec sm" data-cp="${esc(ml)}" data-l="map link"><i class="i i-copy"></i> Copy link</button>${BA() ? '' : '<button class="btn sec sm" id="pfwa"><i class="i i-whatsapp"></i> WhatsApp</button>'}${navigator.share ? '<button class="btn sec sm" id="pfsh"><i class="i i-link"></i> Share</button>' : ''}</div>` : ''}</div>`;
-  const prog = tl.progress.map(p => { const pct = p.idx < 0 ? 0 : Math.round((p.idx + 1) / p.total * 100);
-    return `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3><a href="#/projects/${p.id}">${esc(p.title || 'Project')}</a>${p.kw ? ` <span class="mut u-fw400">· ${p.kw} kW</span>` : ''}</h3><span class="sp"></span>${pill(p.stage, typeof stepCls === 'function' ? stepCls(p.stage) : '')}</div>
-      <div class="pfbar"><i style="width:${pct}%"></i></div><div class="mut" style="font-size:12px;margin:4px 0 10px">Step ${p.idx + 1} of ${p.total} · ${pct}% complete</div>
-      <div class="pfsteps">${p.stages.map((s, i) => `<div class="pfs ${i < p.idx || (s.paid && i !== p.idx) ? 'ok' : i === p.idx ? 'cur' : ''}" title="${esc(s.label)}${s.paid ? ' · paid ' + fdate(s.paid) : s.at ? ' · ' + tlTime(s.at).day + ' ' + tlTime(s.at).time : ''}"><span></span><b>${esc(s.label)}</b>${s.paid ? `<small>Paid ${fdate(s.paid)}</small>` : s.at ? `<small>${tlTime(s.at).day.replace(/^\w+, /, '')}</small>` : ''}</div>`).join('')}</div></div>`; }).join('');
+  /* Progress (redesign 2026-11-20): Registration → Execution → Closure with the current stage, days in it and the next step;
+     the full step list folds open (remembered per browser in localStorage pfAllSteps) */
+  const stepsOpen = (() => { try { return localStorage.pfAllSteps === '1'; } catch (e) { return false; } })();
+  const prog = tl.progress.map(p => { const pct = p.idx < 0 ? 0 : Math.round((p.idx + 1) / p.total * 100), grp = l => typeof stepOf === 'function' ? stepOf(l) : 0;
+    const cur = p.stages[p.idx] || {}, nx = p.stages[p.idx + 1], g0 = grp(p.stage), dIn = cur.at ? Math.max(0, Math.floor((Date.now() - Date.parse(String(cur.at).replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(cur.at) ? '' : 'Z'))) / 864e5)) : null;
+    const G = [[1, 'Registration'], [2, 'Execution'], [3, 'Closure']];
+    return `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3><a href="#/projects/${p.id}">${esc(p.title || 'Project')}</a>${p.kw ? ` <span class="mut u-fw400">· ${p.kw} kW</span>` : ''}</h3><span class="sp"></span><small class="mut">${pct}% · step ${p.idx + 1} of ${p.total}</small></div>
+      <div class="pfg3">${G.map(([n, l]) => `<div class="pfg ${g0 > n || (p.stage === 'Project completed') ? 'pfg-done' : g0 === n ? 'pfg-now' : ''}"><span><i class="i i-check"></i></span><div><b>${l}</b>${g0 === n && p.stage !== 'Project completed' ? `<small>${esc(p.stage)}${dIn !== null ? ` · ${dIn}d` : ''}</small>` : ''}</div></div>`).join('')}</div>
+      <div class="pfbar"><i style="width:${pct}%"></i></div>
+      <div class="pfnx">${nx ? `<a class="btn sm" href="#/projects/${p.id}">Next: ${esc(nx.label)} →</a>` : '<span class="mut">All steps done</span>'}<span class="sp"></span><button type="button" class="pfall" data-allsteps aria-expanded="${stepsOpen}">${stepsOpen ? 'Hide steps' : `All ${p.total} steps`}</button></div>
+      <div class="pfsteps"${stepsOpen ? '' : ' hidden'}>${p.stages.map((s, i) => `<div class="pfs ${i < p.idx || (s.paid && i !== p.idx) ? 'ok' : i === p.idx ? 'cur' : ''}" title="${esc(s.label)}${s.paid ? ' · paid ' + fdate(s.paid) : s.at ? ' · ' + tlTime(s.at).day + ' ' + tlTime(s.at).time : ''}"><span></span><b>${esc(s.label)}</b>${s.paid ? `<small>Paid ${fdate(s.paid)}</small>` : s.at ? `<small>${tlTime(s.at).day.replace(/^\w+, /, '')}</small>` : ''}</div>`).join('')}</div></div>`; }).join('');
   let lastDay = '';
   const tline = tl.events.map(e => { const t = tlTime(e.ts, e.local), head = t.day !== lastDay ? `<div class="tlday">${t.day}</div>` : ''; lastDay = t.day;
     return `${head}<div class="tle k-${e.kind}"><div class="tlt">${t.time}</div><div class="tld"><i class="i i-${TL_ICON[e.kind] || 'dots'}"></i></div><div class="tlb"><b>${e.link ? `<a href="${e.link}">${esc(e.title)}</a>` : e.file ? `<a href="api.php?m=files&a=get&id=${e.file}" target="_blank">${esc(e.title)}</a>` : esc(e.title)}</b>${e.detail ? `<div class="tlx">${esc(e.detail)}</div>` : ''}${e.user ? `<small class="mut">by ${esc(e.user)}</small>` : ''}</div></div>`; }).join('');
   const initials = (c.name || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase();
   const canOwn = w && OWN.canReassign(c.owner_id, ME); // owner chip; the owner, admin or assistant manager can reassign
-  const ownHtml = ` · Owner <span class="own${+c.owner_id === +ME.id ? ' me' : ''}" title="Customer owner"><i class="i i-user"></i>${+c.owner_id ? esc(ownLabel(c.owner_id, c.owner_name)) : 'No owner'}</span>${canOwn ? ` <button class="owbtn" id="pfown">${+c.owner_id ? 'Reassign' : 'Set owner'}</button>` : ''}`;
+  const ownHtml = `<span class="pfchip"><small>Owner</small><span class="own${+c.owner_id === +ME.id ? ' me' : ''}" title="Customer owner"><i class="i i-user"></i>${+c.owner_id ? esc(ownLabel(c.owner_id, c.owner_name)) : 'No owner'}</span>${canOwn ? `<button class="owbtn" id="pfown">${+c.owner_id ? 'Reassign' : 'Set owner'}</button>` : ''}</span>`;
+  const chip = (lbl, v, l) => v ? `<span class="pfchip"><small>${lbl}</small><button class="pfv inl" data-cp="${esc(v)}" data-l="${l}" title="Click to copy">${esc(v)}<i class="i i-copy"></i></button></span>` : '';
   $('#main').innerHTML = `<p class="u-m0_0_8"><a href="#/customers">← Customers</a></p>
-   <div class="card pfhead"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="mut">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') + ' ' : ''}${typeof feasSpot === 'function' ? feasSpot(c.id) + ' ' : ''}${c.phone ? `<button class="pfv inl" data-cp="${esc(c.phone)}" data-l="phone">${esc(c.phone)}<i class="i i-copy"></i></button>` : ''}${c.consumer_no ? ` · Consumer no. <button class="pfv inl" data-cp="${esc(c.consumer_no)}" data-l="consumer no.">${esc(c.consumer_no)}<i class="i i-copy"></i></button>` : ''}${ownHtml}</div></div>
-    <div class="pfact"><button class="btn sec" id="dsc">${discBtnLabel(id)}</button>${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn ok" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}
-     ${w ? '<button class="btn sec" id="ed"><i class="i i-pencil"></i> Edit</button>' : ''}${canR('accounts') ? '<button class="btn sec" id="pfexp" title="Project cost sheet: purchases, services, commission / incentive and profit of the latest project"><i class="i i-coin"></i> Project cost</button>' : ''}<button class="btn sec" id="pfkyc" title="Download “Jasper Solar KYC Doc”: every detail held for this customer, as a PDF"><i class="i i-download"></i> KYC PDF</button><button class="ib" id="pfmore" title="More actions"><i class="i i-dots"></i></button></div></div>
+   <div class="card pfhead"><div class="pfh1"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="pfst">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') : pill('No project yet')}${typeof feasSpot === 'function' ? feasSpot(c.id) : ''}</div></div>
+    <div class="pfact">${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn sec pfwab" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}<button class="btn sec" id="dsc">${discBtnLabel(id)}</button><button class="btn sec pfmb" id="pfmore" title="More: edit, project cost, KYC PDF…" aria-label="More actions"><i class="i i-dots"></i></button></div></div>
+    <div class="pfchips">${chip('Phone', c.phone, 'phone')}${chip('Consumer no.', c.consumer_no, 'consumer no.')}${c.district ? `<span class="pfchip"><small>District</small><b>${esc(c.district)}</b></span>` : ''}${ownHtml}</div></div>
    ${pfTabsHtml([['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, `${i + 1} · ${pg.tab}`, pg.icon]), ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['ksebl', 'KSEB login', 'lock'], ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(ME.role === 'admin' ? [['pay', 'Payments', 'card']] : []), ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : []), ...(ME.role === 'admin' ? [['ps', 'Purchases and services', 'coin'], ['comm', 'Commission / Incentive', 'users']] : [])], pgKeys, cnt0)}
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
     <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut u-m0">No project yet.</p></div>`}
-     <div class="pfcols"><div class="card pfc"><div class="pfch"><i class="i i-clipboard"></i><h3>Details by page</h3></div><div id="ppsum">${sumHtml(cnt0)}</div></div>${locCard}
-     ${pfQuoteCard(c)}
-     ${c.notes ? `<div class="card pfc"><div class="pfch"><i class="i i-note"></i><h3>Notes</h3></div><div style="font-size:14px;white-space:pre-wrap">${esc(c.notes)}</div></div>` : ''}</div></div>
+     <div class="card pfc pftodo"><div class="pfch"><i class="i i-clipboard"></i><h3>To complete</h3><span class="sp"></span><small class="mut">Click a page to open it</small></div><div id="ppsum">${sumHtml(cnt0)}</div></div>
+     ${pfQuoteCard(c).replace('class="card', 'class="card pfqc')}${locCard.replace('class="card pfc"', 'class="card pfc pfloc"')}
+     ${c.notes ? `<div class="card pfc pfnotes"><div class="pfch"><i class="i i-note"></i><h3>Notes</h3></div><div style="font-size:14px;white-space:pre-wrap">${esc(c.notes)}</div></div>` : ''}</div>
     <div class="pfright"><div class="card pftl"><div class="pfch"><i class="i i-clock"></i><h3>Timeline</h3><span class="sp"></span><small class="mut">${tl.events.length} events</small></div>
       <div class="tladd"><input id="tln" placeholder="Add an update or note… (Enter to save)"><button class="btn sm" id="tlnb">Add</button></div>
       <div class="tl">${tline || '<p class="mut">Nothing yet.</p>'}</div></div></div>
@@ -112,9 +122,9 @@ async function pgCustomer(id) {
   // actions
   $('#dsc').onclick = () => discOpen(id);
   if ($('#wa')) $('#wa').onclick = () => waOpen({ name: c.name, phone: c.phone, customer_id: id });
-  if ($('#ed')) $('#ed').onclick = () => showTab(pgKeys.includes(PFT) ? PFT : 'kseb', true);
+
   /* Expense: the latest project's Project cost sheet (c.projects is newest first) */
-  if ($('#pfexp')) $('#pfexp').onclick = () => { const j = (c.projects || [])[0]; if (j && +j.id) location.hash = '#/accounts/cost/' + +j.id; else toast('Start a project for this customer first', true); };
+
   if ($('#np')) $('#np').onclick = () => startModal({ customer_id: id });
   if ($('#nq')) $('#nq').onclick = () => { sessionStorage.lead2quote = JSON.stringify({ customer_id: id, name: c.name }); location.hash = '#/quotes/new'; };
   /* the approved quotation (the copy the customer agreed to): kept in Documents until an admin deletes it */
@@ -137,15 +147,19 @@ async function pgCustomer(id) {
   $$('[data-pt]').forEach(b => b.onclick = () => showTab(b.dataset.pt));
   $$('[data-pg]').forEach(b => b.onclick = () => { const g = PFG.find(x => x[0] === b.dataset.pg), keys = $$(`[data-sub-of="${g[0]}"] [data-pt]`).map(x => x.dataset.pt); showTab(g[0] === 'overview' ? 'overview' : (keys.includes(PFG_LAST[g[0]]) ? PFG_LAST[g[0]] : keys[0])); });
   bindGoto();
+  $$('[data-allsteps]').forEach(b => b.onclick = () => { const box = b.closest('.pfprog').querySelector('.pfsteps'), on = box.hidden; box.hidden = !on; b.setAttribute('aria-expanded', on); b.textContent = on ? 'Hide steps' : `All ${box.children.length} steps`; try { localStorage.pfAllSteps = on ? '1' : '0'; } catch (e) { } });
   if (PFT !== 'overview') showTab(PFT, openEdit === PFT);
   feeMembers(id);
   if ($('#pfown')) $('#pfown').onclick = async () => { if (acLeaveOk() && await reassignBox('customers', c)) { acLeft(); route(); } };
-  $('#pfkyc').onclick = e => kycDownload(st, tl, e.currentTarget); /* app45.js */
+  /* KYC PDF, Edit and Project cost are in the ⋯ menu (kycDownload in app45.js) */
   $('#pfmore').onclick = e => { e.stopPropagation(); const old = $('#lmenu'); if (old) { old.remove(); return; }
-    const items = [canW('projects') && tl.progress.length ? ['np2', 'project', '+ New project'] : null, canOwn ? ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner'] : null, w && canW('leads') && !BA() ? ['rv', 'refresh', 'Revert to lead'] : null, ...feeMenuItems(id), w && !BA() ? ['dl', 'trash', 'Delete customer'] : null].filter(Boolean);
+    const items = [w ? ['ed', 'pencil', 'Edit details'] : null, canR('accounts') ? ['exp', 'coin', 'Project cost'] : null, ['kyc', 'download', 'KYC PDF (every detail)'], canW('projects') && tl.progress.length ? ['np2', 'project', '+ New project'] : null, canOwn ? ['own', 'users', +c.owner_id ? 'Reassign owner' : 'Set owner'] : null, w && canW('leads') && !BA() ? ['rv', 'refresh', 'Revert to lead'] : null, ...feeMenuItems(id), w && !BA() ? ['dl', 'trash', 'Delete customer'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu'; m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('') || '<p class="mut" style="margin:6px">No actions</p>';
     document.body.appendChild(m); const r = e.currentTarget.getBoundingClientRect(); m.style.top = (r.bottom + 6 + scrollY) + 'px'; m.style.left = Math.max(8, r.right - m.offsetWidth) + 'px';
     $$('[data-m]', m).forEach(b => b.onclick = async () => { m.remove(); const a = b.dataset.m; if (await feeMenuRun(a, { id, name: c.name })) return;
+      if (a === 'ed') return showTab(pgKeys.includes(PFT) ? PFT : 'kseb', true);
+      if (a === 'exp') { const j = (c.projects || [])[0]; if (j && +j.id) location.hash = '#/accounts/cost/' + +j.id; else toast('Start a project for this customer first', true); return; }
+      if (a === 'kyc') return kycDownload(st, tl, $('#pfmore'));
       if (a === 'np2') startModal({ customer_id: id });
       if (a === 'own' && acLeaveOk() && await reassignBox('customers', c)) { acLeft(); route(); }
       if (a === 'rv') revertToLead(id, c.name);
