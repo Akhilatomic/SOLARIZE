@@ -27,7 +27,7 @@
 .acx-step{font-size:22px;line-height:1;padding:2px 10px;color:var(--tx)}
 .acx-per .btn.on{background:#1d1d1f;color:#fff}
 .acx-soon{display:flex;flex-direction:column;gap:4px;padding:22px}
-.acx-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.acx-sr{position:absolute;left:0;top:0;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} /* left/top 0: without them it sat at its place in a scrolling table, outside the scroll box, and widened the page on phones */
 .acx-crumb{font-size:13.5px;color:var(--mut)}
 .acx-hd{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}
 .acx-hd h2{margin:0;font-size:24px;letter-spacing:-.02em}.acx-hd h2 .mut{font-weight:500}
