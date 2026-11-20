@@ -19,6 +19,10 @@ function handle_dashboard() {
   $billed = $one("SELECT COALESCE(SUM(cost),0) v FROM projects");
   $paid = $one("SELECT COALESCE(SUM(amount),0) v FROM payments");
   $stages = rows("SELECT stage, COUNT(*) n FROM projects WHERE 1=1$P GROUP BY stage");
+  /* the dashboard's live pipeline card: every project still running, with its stage, step group (1 registration, 2 execution, 3 closure) and the day it reached the stage */
+  $stepOf = []; foreach (PIPE as $s) $stepOf[$s[1]] = $s[2];
+  $pipeLive = array_map(fn($r) => $r + ['step' => $stepOf[$r['stage']] ?? 0], rows("SELECT p.id, c.name customer, p.kw, p.stage, COALESCE((SELECT MAX(created) FROM project_steps s WHERE s.project_id=p.id), p.created) since
+    FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE p.stage<>'Project completed'" . str_replace('customer_id IN', 'p.customer_id IN', $P) . " ORDER BY since DESC LIMIT 300"));
   $lstat = rows("SELECT status, COUNT(*) n FROM leads WHERE 1=1$L GROUP BY status");
   $follow = rows("SELECT id,name,phone,status,appt followup,'lead' type FROM leads WHERE appt<>'' AND appt<=? AND status NOT IN ('Won','Lost')$L ORDER BY appt LIMIT 15", [$today]);
   $sub = rows("SELECT c.id, c.name title, st.status subsidy_status, COALESCE(pj.amt,0) subsidy_amount FROM subsidy_track st JOIN customers c ON c.id=st.customer_id
@@ -57,7 +61,7 @@ function handle_dashboard() {
   if (!can('finance')) { $pipeline = $billed = $paid = $spendM = 0; $overdue = []; }
   out($extra + ['finance' => can('finance') ? 1 : 0, 'leads_month' => $leadsM, 'won_month' => $wonM, 'conversion' => $leadsM ? round($wonM / $leadsM * 100) : 0, 'spend_month' => $spendM,
     'cpl' => $adLeadsM ? round($spendM / $adLeadsM) : 0, 'pipeline' => $pipeline, 'billed' => $billed, 'paid' => $paid, 'outstanding' => max(0, $billed - $paid),
-    'stages' => $stages, 'lead_status' => $lstat, 'followups' => $follow, 'subsidy_open' => $sub, 'kseb_pending' => array_slice($kpending, 0, 500), 'dues' => $overdue,
+    'stages' => $stages, 'pipe_live' => $pipeLive, 'lead_status' => $lstat, 'followups' => $follow, 'subsidy_open' => $sub, 'kseb_pending' => array_slice($kpending, 0, 500), 'dues' => $overdue,
     'customers' => (int)row("SELECT COUNT(*) c FROM customers WHERE 1=1$C")['c'], 'projects' => (int)row("SELECT COUNT(*) c FROM projects WHERE 1=1$P")['c']]);
 }
 

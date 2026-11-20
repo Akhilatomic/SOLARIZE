@@ -130,7 +130,7 @@ async function boot(pre) {
     if (typeof startIdle === 'function') startIdle(); shell(); mountBell(); startMeta(); startDisc(); if (typeof startPresence === 'function') startPresence(); route(); appCall('ready'); /* the app's opening screen may go */ return; }
   if (FRAME) return bootFrame();
   if (typeof startIdle === 'function' && startIdle()) return; /* not used for too long: signing out */
-  shell(); mountBell(); if (typeof startSideFeed === 'function') startSideFeed(); if (typeof startPresence === 'function') startPresence(); if (typeof startFeas === 'function') startFeas(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
+  shell(); mountBell(); if (typeof startSideFeed === 'function') startSideFeed(); if (typeof startPresence === 'function') startPresence(); if (typeof startFeas === 'function') startFeas(); if (typeof startFeasPop === 'function') startFeasPop(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
 }
 function loginView(setup, brand) {
   if (APPLITE) setTimeout(() => appCall('ready'), 0); /* Android app: the sign-in page is up, its opening screen may go */
@@ -374,6 +374,24 @@ function recentTxt(r) {
 }
 const recentWhen = c => { const d = new Date(String(c || '').replace(' ', 'T') + 'Z'); if (isNaN(d)) return esc(c || ''); /* audit times are UTC */
   return (d.toDateString() === new Date().toDateString() ? 'Today' : dfmt(DF.dm, d)) + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }); };
+/* Dashboard › Project pipeline (owner's rule 2026-11-20, in place of "KSEB documents pending"): every running project with its stage
+   and days in that stage, scrolling on its own like a live board (pauses under the mouse, stops for people who turn motion off).
+   The counts on top are the three step groups; a name opens the project. */
+function dashPipeHtml(ps) {
+  const g = n => ps.filter(p => +p.step === n).length, cls = { 1: 'y', 2: 'c', 3: 'g' };
+  const days = p => { const t = Date.parse(String(p.since || '').replace(' ', 'T') + 'Z'); return isNaN(t) ? '' : Math.max(0, Math.floor((Date.now() - t) / 864e5)) + 'd'; };
+  const row = p => `<div class="dpl-r"><div class="dpl-n"><a href="#/projects/${+p.id}"><b>${esc(p.customer || '—')}</b></a>${+p.kw ? `<small>${esc(String(+p.kw))} kW</small>` : ''}</div><div class="dpl-m">${pill(p.stage, cls[+p.step] || '')}<small class="dpl-d" title="Days in this stage">${days(p)} in stage</small></div></div>`;
+  return `<div class="${DFW()} card dpl"><div class="ch"><h3>Project pipeline</h3><span class="dpl-live" title="Running projects, newest move first"><i></i>Live</span><span class="pill">${ps.length}</span></div>
+    <div class="dpl-s"><a href="#/projects" class="y"><b>${g(1)}</b><span>Registration</span></a><a href="#/projects" class="c"><b>${g(2)}</b><span>Execution</span></a><a href="#/projects" class="g"><b>${g(3)}</b><span>Closure</span></a></div>
+    ${ps.length ? `<div class="dpl-w" id="dplw"><div class="dpl-t" id="dplt">${ps.map(row).join('')}</div></div>` : '<p class="mut">No running projects.</p>'}</div>`;
+}
+/* the scroll: when the names do not fit, the list is shown twice in a row and slides up one copy's height, then starts over unnoticed */
+function dashPipeRun() {
+  const w = $('#dplw'), t = $('#dplt'); if (!w || !t) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || t.scrollHeight <= w.clientHeight + 4) { w.classList.add('dpl-static'); return; }
+  const h = t.scrollHeight; t.innerHTML += t.innerHTML; /* the second copy carries on where the first ends */
+  t.style.setProperty('--dpl-h', h + 'px'); t.style.animationDuration = Math.max(12, Math.round(t.children.length / 2 * 2.6)) + 's'; t.classList.add('dpl-run');
+}
 /* dashboard list cards: four in a row when the Feasibility card shows (Finance fee access), else three */
 const DFW = () => canR('fees') ? 's3' : 's4';
 /* Dashboard › Feasibility (owner's rule 2026-11-20): the KSEB feasibility fee list at a glance — how many are pending, demanded,
@@ -447,7 +465,7 @@ async function pgDashboard() {
    ${card('<i class="i i-target"></i>', 'Active Leads', d.leads_total, d.leads_today, vs(d.leads_vs), '', '#/leads')}${card('<i class="i i-users"></i>', 'Customers', d.cust_total, d.cust_today, vs(d.cust_vs), '', '#/customers')}${card('<i class="i i-project"></i>', 'Active Projects', d.proj_active, d.proj_today, vs(d.proj_vs), '', '#/projects')}${card('<i class="i i-alert"></i>', 'Overdue Follow-ups', d.overdue, d.due_today, d.due_today + ' due today', '', '#/leads')}
 
    <div class="${DFW()} card ${d.finance ? '' : 'hide'}">${head('Payments due', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}<small class="mut dsh-sub">Projects past the early stages with a balance (as in Accounts › Pending)</small>${lst(d.dues.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
-   <div class="${DFW()} card">${head('KSEB documents pending', `<span class="pill">${d.kseb_pending.length}</span>`)}${lst(d.kseb_pending.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`, 'All documents complete')}</div>
+   ${dashPipeHtml(d.pipe_live || [])}
    <div class="${DFW()} card">${head('Subsidy in progress', `<span class="pill">${d.subsidy_open.length}</span>`)}${lst(d.subsidy_open, p => `<div class="act"><a href="#/subsidy/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status, stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`, 'None')}</div>
    ${canR('fees') ? `<div class="${DFW()} card" id="dfeas"><p class="mut">Loading…</p></div>` : ''}
 
@@ -464,6 +482,7 @@ async function pgDashboard() {
 
   </div>`;
   if ($('#dfeas')) dashFeas($('#dfeas'));
+  dashPipeRun();
   $$('[data-qa]').forEach(b => b.onclick = () => { const q = b.dataset.qa; if (q === 'new') leadModal(0); else if (q === 'quote') { sessionStorage.removeItem('lead2quote'); location.hash = '#/quotes/new'; } else if (q === 'cust') customerModal(0); else if (q === 'proj') startModal({}); });
   if ($('#vod')) $('#vod').onclick = () => { LF.appt = 'overdue'; LF.active = 'active'; location.hash = '#/leads'; };
   /* daily summary tiles: follow-ups open the leads filtered to them; payments due and docs pending open their list,

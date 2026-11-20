@@ -39,6 +39,7 @@ function fee_alerts() {
   }
 }
 
+const FEAS_POP_HOURS = 3; /* the feasibility-expiry pop-up comes back every 3 hours until dismissed (owner's rule 2026-11-20) */
 function handle_fees($a) {
   $in = body();
   switch ($a) {
@@ -63,6 +64,33 @@ function handle_fees($a) {
       }
       foreach (rows("SELECT f.customer_id, f.paid_on FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.kind='registration' AND f.paid=1 AND " . cust_scope('c')) as $r) $m[(int)$r['customer_id']] = ['rf' => 1, 'rf_on' => (string)$r['paid_on']];
       out($m ?: new stdClass);
+    /* Feasibility about to expire — the CRM's own pop-up with a warning sound (owner's rule 2026-11-20): every paid feasibility with
+       0..feas_alert_days days left (registration fee not paid, project not completed). It comes back every FEAS_POP_HOURS until this
+       person dismisses that customer's one; a new payment date brings it back. Kept per person in settings feaspop_<user id>. */
+    case 'feas_alerts': // GET
+      need('fees');
+      $st = kv_get('feaspop_' . uid(), ['seen' => 0, 'dis' => []]); $days = rule('feas_valid_days'); $warn = rule('feas_alert_days');
+      $today = new DateTime(date('Y-m-d')); $list = [];
+      foreach (rows("SELECT f.id, f.customer_id, f.paid_on, c.name, c.phone, c.consumer_no FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.kind='feasibility' AND f.paid=1 AND f.paid_on<>'' AND " . cust_scope('c') . "
+          AND NOT EXISTS(SELECT 1 FROM fees r WHERE r.customer_id=f.customer_id AND r.kind='registration' AND r.paid=1)
+          AND NOT EXISTS(SELECT 1 FROM projects p WHERE p.customer_id=f.customer_id AND p.stage='Project completed')") as $r) {
+        try { $e = (new DateTime($r['paid_on']))->modify("+$days days"); } catch (Throwable $x) { continue; }
+        $left = (int)$today->diff($e)->format('%r%a');
+        if ($left < 0 || $left > $warn) continue;
+        if (($st['dis'][(string)$r['id']] ?? null) === $r['paid_on']) continue; /* dismissed for this payment */
+        $list[] = ['id' => (int)$r['id'], 'customer_id' => (int)$r['customer_id'], 'name' => $r['name'], 'phone' => $r['phone'], 'consumer_no' => $r['consumer_no'], 'expires' => $e->format('Y-m-d'), 'days_left' => $left];
+      }
+      usort($list, fn($a, $b) => $a['days_left'] <=> $b['days_left']);
+      out(['rows' => $list, 'seen' => (int)$st['seen'], 'every' => FEAS_POP_HOURS * 3600, 'now' => time(), 'warn_days' => $warn]);
+    case 'feas_seen': // the pop-up was shown (or closed with "Remind me later"): the next one comes FEAS_POP_HOURS from now, on every device
+      need('fees');
+      $st = kv_get('feaspop_' . uid(), ['seen' => 0, 'dis' => []]); $st['seen'] = time(); kv_set('feaspop_' . uid(), $st); out(['ok' => true]);
+    case 'feas_dismiss': // {ids: [fee id, …]} — no more pop-ups for these customers until their feasibility is paid again
+      need('fees');
+      $st = kv_get('feaspop_' . uid(), ['seen' => 0, 'dis' => []]); $dis = (array)$st['dis'];
+      foreach (array_slice(array_map('intval', (array)($in['ids'] ?? [])), 0, 500) as $fid) { $f = row("SELECT paid_on FROM fees WHERE id=? AND kind='feasibility'", [$fid]); if ($f) $dis[(string)$fid] = $f['paid_on']; }
+      foreach ($dis as $k => $v) if (!row('SELECT 1 FROM fees WHERE id=? AND paid_on=?', [(int)$k, $v])) unset($dis[$k]); /* forget ones that no longer apply */
+      $st['dis'] = $dis; $st['seen'] = time(); kv_set('feaspop_' . uid(), $st); out(['ok' => true]);
     case 'member': // which Finance lists each customer is on (for the customer menus)
       need('fees'); $cid = (int)($_GET['customer_id'] ?? 0);
       $m = []; $today = new DateTime(date('Y-m-d'));

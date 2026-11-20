@@ -1356,3 +1356,25 @@ button.pill.stbtn{border:0;font:inherit;font-size:12px;font-weight:500;cursor:po
 .dfs-c b{font-size:17px}.dfs-c span{color:var(--muted)}.dfs-c:hover{background:var(--line)}
 .dfs-c.g b{color:var(--green-text)}.dfs-c.y b{color:var(--orange-text)}.dfs-c.b b{color:var(--blue-text)}.dfs-c.r b{color:var(--red-text)}
 .dfs-r .pill{font-size:11px}
+
+/* feasibility about to expire pop-up (app48.js) */
+.fpwm>div{max-width:560px;border-top:4px solid var(--red)}.fpw-h{display:flex;gap:12px;align-items:flex-start}.fpw-h h3{margin:0 0 2px;font-size:18px}.fpw-i{flex:none;width:40px;height:40px;border-radius:12px;background:var(--red-tint);color:var(--red-text);display:grid;place-items:center}.fpw-i .i{width:22px;height:22px}
+.fpw-l{margin:14px 0 0;max-height:50vh;overflow-y:auto;border-top:1px solid var(--line)}.fpw-r{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.fpw-r>div{flex:1;min-width:0}.fpw-r small{display:block}.fpw-b{margin:14px 0 0}
+
+/* Dashboard › Project pipeline card (app.js dashPipeHtml / dashPipeRun) */
+.dpl .ch{gap:8px}.dpl-live{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--green-text);text-transform:uppercase;letter-spacing:.05em}
+.dpl-live i{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(52,199,89,.6);animation:dplPulse 1.6s ease-out infinite}
+@keyframes dplPulse{0%{box-shadow:0 0 0 0 rgba(52,199,89,.55)}70%{box-shadow:0 0 0 7px rgba(52,199,89,0)}100%{box-shadow:0 0 0 0 rgba(52,199,89,0)}}
+.dpl-s{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0 0 10px}
+.dpl-s a{display:flex;flex-direction:column;align-items:center;padding:7px 4px;border-radius:10px;background:var(--fill-2);color:var(--text);text-decoration:none;font-size:11px;line-height:1.2}
+.dpl-s a b{font-size:17px}.dpl-s a span{color:var(--muted)}.dpl-s a:hover{background:var(--line)}
+.dpl-s .y b{color:var(--orange-text)}.dpl-s .c b{color:var(--teal-text)}.dpl-s .g b{color:var(--green-text)}
+.dpl-w{height:262px;overflow:hidden;position:relative;-webkit-mask-image:linear-gradient(transparent,#000 14px,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(transparent,#000 14px,#000 calc(100% - 18px),transparent)}
+.dpl-w.dpl-static{height:auto;max-height:262px;overflow-y:auto;-webkit-mask-image:none;mask-image:none}
+.dpl-t.dpl-run{animation:dplScroll linear infinite}.dpl-w:hover .dpl-t.dpl-run{animation-play-state:paused}
+@keyframes dplScroll{from{transform:translateY(0)}to{transform:translateY(calc(-1 * var(--dpl-h)))}}
+.dpl-r{display:flex;align-items:center;gap:6px;padding:7px 2px 7px 10px;border-left:3px solid var(--blue);margin:0 0 6px;font-size:13px;min-width:0}
+.dpl-r a{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dpl-r small{color:var(--muted);font-size:11px;white-space:nowrap}
+.dpl-r .pill{font-size:11px;max-width:48%;overflow:hidden;text-overflow:ellipsis}.dpl-d{min-width:24px;text-align:right}
+@media (prefers-reduced-motion: reduce){.dpl-live i{animation:none}}
+.dpl-r{flex-direction:column;align-items:stretch;gap:3px}.dpl-n{display:flex;align-items:baseline;gap:6px;min-width:0}.dpl-n a{white-space:normal;overflow:visible}.dpl-m{display:flex;align-items:center;gap:6px;min-width:0}.dpl-m .pill{max-width:75%}.dpl-r .dpl-d{text-align:left}
