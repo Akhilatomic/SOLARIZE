@@ -39,17 +39,24 @@ async function pgSubsidy(id) {
       ['Status', r => pill(r.status, SUBSIDY.cls(r.status))],
       ['Since', r => `<span class="sdy-nw">${dshort(r.status_date)}</span>${d.closed.includes(r.status) ? '' : `<br><small class="mut">${SUBSIDY.daysTxt(SUBSIDY.days(r.status_date, td))}</small>`}`],
       ...(d.fin ? [['Subsidy amount', r => r.subsidy_amount ? inr(r.subsidy_amount) : '—', 'num']] : []),
-      ['Note', r => `<span class="sdy-note">${esc(r.note)}</span>`]];
+      ['Note', r => `<span class="sdy-note">${esc(r.note)}</span>`],
+      /* row actions: the customer's team discussion (as on the Customers list), edit = the status box, delete = off the list */
+      ['Actions', r => `${canR('customers') && typeof discBtn === 'function' ? discBtn(r.customer_id) : ''}<button class="ib" data-a="ed" title="${d.write ? 'Edit status, date and note' : 'Open'}"><i class="i i-pencil"></i></button>${d.write ? '<button class="ib sdy-del" data-a="rm" title="Delete from the subsidy list"><i class="i i-trash"></i></button>' : ''}`, 'sdy-ac']];
     main.innerHTML = `<div class="sdy-bar"><input id="sdyq" type="search" placeholder="Search name, phone, consumer no.…" value="${esc(SDY.q)}">${d.write ? '<button class="btn" id="sdyadd"><i class="i i-plus"></i> Add customer</button>' : ''}</div>
       <div class="sdy-tiles">${tile('', 'All', d.rows.length)}${all.map(s => tile(s, s, n[s])).join('')}</div>
       <div id="sdyl">${d.rows.length ? table(cols, list.map(r => ({ ...r, id: r.customer_id })), cid => sdyBox(+cid, reload)) : `<div class="card sdy-empty"><b>No customers on the subsidy list yet</b><p class="mut">${d.write ? 'Add a customer once their net meter is installed, then follow the subsidy here until it reaches their bank.' : 'Customers appear here once they are added for subsidy follow-up.'}</p>${d.write ? '<button class="btn" id="sdyadd2"><i class="i i-plus"></i> Add customer</button>' : ''}</div>`}</div>`;
     $$('.sdy-t', main).forEach(b => b.onclick = () => { SDY.f = b.dataset.f; draw(); });
     const q = $('#sdyq', main); q.oninput = () => { SDY.q = q.value; const pos = q.selectionStart; draw(); const nq = $('#sdyq', main); nq.focus(); nq.setSelectionRange(pos, pos); };
     [$('#sdyadd', main), $('#sdyadd2', main)].forEach(b => { if (b) b.onclick = () => sdyPick(reload); });
+    $$('#sdyl tr.row [data-a]', main).forEach(b => b.onclick = () => { const cid = +b.closest('tr').dataset.id, r = d.rows.find(x => x.customer_id === cid), a = b.dataset.a; if (!r) return;
+      if (a === 'ed') sdyBox(cid, reload);
+      if (a === 'rm') sdyRemove(r, reload);
+      if (a === 'ds') sdyDisc(cid, () => { if ($('#sdyq', main)) draw(); }); });
     if (typeof fitSoon === 'function') fitSoon();
   };
   const reload = async () => { SDY.d = await api('subsidy', 'list'); Object.assign(d, SDY.d); if ($('#sdyq', main)) draw(); };
   draw();
+  if (typeof discSummary === 'function') discSummary().then(() => { if ($('#sdyq', main) && !document.querySelector('.modal')) draw(); }); /* fresh discussion marks */
   if (id) sdyBox(+id, reload); /* #/subsidy/<customer id>: straight to that customer (dashboard, project page) */
 }
 
@@ -92,9 +99,21 @@ async function sdyBox(cid, reload) {
       const res = await api('subsidy', 'set', { customer_id: cid, status: sel, date: $('#sdyd', box).value, note: $('#sdyn', box).value });
       m.remove(); if (typeof toast === 'function') toast(res.same ? 'Nothing changed' : 'Subsidy status saved'); if (reload) await reload();
     };
-    if ($('#sdyrm', box)) $('#sdyrm', box).onclick = async e => { e.preventDefault();
-      if (!confirm(`Remove ${r.name} from the subsidy list?\nThe status history goes to the Recycle bin.`)) return;
-      await api('subsidy', 'remove', { customer_id: cid }); m.remove(); if (typeof toast === 'function') toast('Removed from the subsidy list'); if (reload) await reload(); };
+    if ($('#sdyrm', box)) $('#sdyrm', box).onclick = async e => { e.preventDefault(); if (await sdyRemove(r, reload)) m.remove(); };
   };
   draw();
+}
+
+/* delete = take the customer off the subsidy list (the customer stays; the status history goes to the Recycle bin) */
+async function sdyRemove(r, reload) {
+  if (!confirm(`Delete ${r.name} from the subsidy list?\nThe customer stays in the CRM. The subsidy status history goes to the Recycle bin.`)) return false;
+  await api('subsidy', 'remove', { customer_id: r.customer_id }); if (typeof toast === 'function') toast('Deleted from the subsidy list'); if (reload) await reload(); return true;
+}
+/* the customer's team discussion (app9.js); when its window closes the list shows the new live / unread mark */
+function sdyDisc(cid, redraw) {
+  if (typeof discOpen !== 'function') return;
+  discOpen(cid);
+  const m = document.querySelector('.xdmod'); if (!m) return;
+  const ob = new MutationObserver(() => { if (document.body.contains(m)) return; ob.disconnect(); discSummary().then(redraw); });
+  ob.observe(document.body, { childList: true });
 }

@@ -1273,7 +1273,7 @@ html.touch .rmh-b.n{width:auto;min-width:34px;padding:0 8px}
 .sdy-t:hover{border-color:rgba(0,0,0,.16)}.sdy-t.on{border-color:var(--pri);box-shadow:0 0 0 1px var(--pri) inset}
 .sdy-t b{display:block;font-size:22px;font-weight:700;letter-spacing:-.03em;line-height:1.15}.sdy-t span{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);line-height:1.25;margin-top:2px}
 .sdy-dot{flex:none;width:8px;height:8px;border-radius:50%;background:#aeaeb2;display:inline-block}.sdy-dot.g{background:#30a14e}.sdy-dot.r{background:#e5342b}.sdy-dot.b{background:#0a84ff}.sdy-dot.y{background:#f0a020}.sdy-dot.p{background:#8e5cf2}.sdy-dot.c{background:#16a3b5}
-.sdy-nw{white-space:nowrap}.sdy-note{display:inline-block;max-width:320px;overflow-wrap:anywhere;color:var(--mut);font-size:13px}
+.sdy-nw{white-space:nowrap}td.sdy-ac{white-space:nowrap;text-align:right;width:1%}th.sdy-ac{text-align:right}.ib.sdy-del:hover{color:var(--bad);background:#ffecea}table.stack td.sdy-ac{display:flex;gap:6px;text-align:left;width:auto}table.stack td.sdy-ac::before{display:none}.sdy-note{display:inline-block;max-width:320px;overflow-wrap:anywhere;color:var(--mut);font-size:13px}
 .sdy-empty{text-align:center;padding:36px 18px}.sdy-empty p{max-width:420px;margin:6px auto 14px}.sdy-empty .btn{display:inline-flex;align-items:center;gap:6px}.sdy-empty .btn .i{width:14px;height:14px}
 .sdy-h{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.sdy-h h2{margin:0 0 2px}.sdy-hr{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
 .sdy-steps{display:grid;grid-template-columns:repeat(7,1fr);gap:0;margin:18px 0 10px}
