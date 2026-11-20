@@ -533,16 +533,25 @@ async function qmShowQuote(ids, who) {
   ids = (ids || []).map(Number).filter(Boolean); if (!ids.length) return;
   const m = modal(`<div class="qmv"><div class="qmv-h"><div><h2>Quotation${who ? ' · ' + esc(who) : ''}</h2><small class="mut" id="qmvm"></small></div><span class="sp"></span>
     ${ids.length > 1 ? `<select id="qmvs" aria-label="Quotation">${ids.map((x, i) => `<option value="${x}">${i ? 'Older quotation ' + (i + 1) : 'Newest quotation'}</option>`).join('')}</select>` : ''}
+    ${canW('quotes') ? '<button class="btn sec" id="qmva" type="button" hidden></button><button class="btn sec" id="qmve" type="button"><i class="i i-pencil"></i> Modify</button>' : ''}
     <button class="btn sec" id="qmvd" type="button"><i class="i i-download"></i> Download PDF</button><button class="btn sec" id="qmvx" type="button">Close</button></div>
     <div class="qmv-b" id="qmvb"><p class="mut">Loading…</p></div></div>`, true);
   m.classList.add('qmvm');
-  let cur = null;
+  let cur = null, q = null;
+  /* Mark accepted / unmark (back to Sent), as on the Quotations list; a customer's accepted quotation is kept in their Documents */
+  const meta = () => { $('#qmvm', m).textContent = [q.number, q.date ? dmy(q.date) : '', q.total ? inr(q.total) : '', q.status].filter(Boolean).join(' · ');
+    const a = $('#qmva', m); if (!a) return; const on = q.status === 'Accepted'; a.hidden = false; a.classList.toggle('qmv-on', on);
+    a.innerHTML = on ? '<i class="i i-check"></i> Accepted' : '<i class="i i-check"></i> Mark accepted'; a.title = on ? 'Accepted — click to unmark (back to Sent)' : 'Mark this quotation accepted by the customer'; };
+  if ($('#qmva', m)) $('#qmva', m).onclick = async e => { if (!q) return; const b = e.currentTarget, s = q.status === 'Accepted' ? 'Sent' : 'Accepted';
+    b.disabled = true; try { await api('qm', 'status', { id: q.id, status: s }); q.status = s; meta(); toast(`${q.number} · ${s === 'Accepted' ? 'Accepted' : 'no longer accepted (Sent)'}`);
+      if (s === 'Accepted' && q.customer_id) qmKeepNote(q.id); } catch (x) { } b.disabled = false; };
+  if ($('#qmve', m)) $('#qmve', m).onclick = () => { if (!q) return; m.remove(); location.hash = '#/quotes/' + q.id; }; /* opens it in the quotation maker */
   const fit = () => { const b = $('#qmvb', m), p = b && b.querySelector('.qm-pages'); if (p) p.style.zoom = Math.min(1, (b.clientWidth - 8) / 794); };
   const load = async id => {
     const b = $('#qmvb', m); b.innerHTML = '<p class="mut">Loading…</p>'; cur = null;
-    let q; try { q = await api('quotes', 'get', undefined, '&id=' + id); } catch (e) { b.innerHTML = `<p class="over">${esc((e && e.error) || 'Could not open the quotation')}</p>`; return; }
+    q = null; try { q = await api('quotes', 'get', undefined, '&id=' + id); } catch (e) { b.innerHTML = `<p class="over">${esc((e && e.error) || 'Could not open the quotation')}</p>`; return; }
     const sp = await qmSavedPages(q);
-    $('#qmvm', m).textContent = [q.number, q.date ? dmy(q.date) : '', q.total ? inr(q.total) : '', q.status].filter(Boolean).join(' · ');
+    meta();
     if (!sp) { b.innerHTML = '<p class="mut">This quotation was made before the quotation maker, so it has no pages to show.</p>'; return; }
     b.innerHTML = '<div class="qm-pages"></div>'; const box = b.firstChild; qmMount(box, sp.pages); cur = { box, name: sp.name }; fit();
   };

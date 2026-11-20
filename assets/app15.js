@@ -36,7 +36,7 @@ async function pgFees() {
    <div class="bar fbar"><input id="fq" placeholder="Search by name, phone, consumer no., address, section…" value="${esc(FEEQ.q)}"><div class="tabs u-m0">${K.filters.map(([k, l]) => `<button data-ff="${k}" class="${FEEQ.f[kind] === k ? 'on' : ''}">${l}</button>`).join('')}</div><span class="mut" id="fcnt"></span></div>
    <div class="card tw u-p0"><table id="ftb" class="ftb" data-min="900"></table></div>
    ${kind === 'feasibility' ? `<p class="mut" style="font-size:12px;margin:10px 2px">Feasibility is valid for ${d.valid_days} days from the payment date. Everyone with Finance access gets a notification ${d.alert_days} days before it expires and again when it expires. Uploading the KSEB feasibility receipt in the pipeline marks it paid here automatically.</p>` : kind === 'registration' ? '<p class="mut" style="font-size:12px;margin:10px 2px">Uploading the KSEB registration fee receipt in the pipeline marks it paid here automatically.</p>' : ''}`;
-  const filt = () => { const t = FEEQ.q.toLowerCase(), f = FEEQ.f[kind];
+  const filt = (only, noSearch) => { const t = noSearch ? '' : FEEQ.q.toLowerCase(), f = only || FEEQ.f[kind];
     return d.rows.filter(r => (f === 'all' || (f === 'expiring' ? (+r.paid && r.days_left >= 0 && r.days_left <= d.alert_days) : f === 'paid' ? +r.paid : f === 'pending' && kind === 'stamp' ? !+r.paid : st(r) === f))
       && (!t || [r.name, r.phone, r.consumer_no, r.address, r.district, r.pincode, r.kseb_section, r.landmark].join(' ').toLowerCase().includes(t))); };
   const draw = () => { const rows = filt(); $('#fcnt').textContent = `${rows.length} record${rows.length === 1 ? '' : 's'}`;
@@ -74,7 +74,16 @@ async function pgFees() {
   $('#fq').oninput = e => { FEEQ.q = e.target.value; draw(); };
   $$('[data-ff]').forEach(b => b.onclick = () => { FEEQ.f[kind] = b.dataset.ff; $$('[data-ff]').forEach(x => x.classList.toggle('on', x === b)); draw(); });
   $('#frf').onclick = reload;
-  $('#fpdf').onclick = () => feesPdf(kind, K, filt(), st);
+  /* Download PDF asks which list to print (owner's rule 2026-11-20): Pending / Demanded / Paid / Expiring / All, with how many each has.
+     The whole list of that type is printed (the search box is not applied); the type is in the PDF's title. */
+  $('#fpdf').onclick = () => {
+    const m = modal(`<h3 class="u-mt0">Download PDF</h3><p class="mut u-mtn6">Which ${esc(K.title.toLowerCase())} list?</p><div class="fpdfc">${K.filters.map(([k, l]) => { const n = filt(k, true).length;
+      return `<button type="button" class="fpdfo${FEEQ.f[kind] === k ? ' on' : ''}" data-pk="${k}"${n ? '' : ' disabled'}><b>${esc(l)}</b><span>${n} record${n === 1 ? '' : 's'}</span></button>`; }).join('')}</div>
+      <div class="bar u-mt14"><span class="sp"></span><button class="btn sec" id="fpdfx" type="button">Cancel</button></div>`);
+    m.classList.add('fpdfm'); $('#fpdfx', m).onclick = () => m.remove();
+    $$('[data-pk]', m).forEach(b => b.onclick = () => { const k = b.dataset.pk, l = (K.filters.find(x => x[0] === k) || [])[1] || '';
+      m.remove(); feesPdf(kind, Object.assign({}, K, { title: k === 'all' ? K.title : K.title + ' · ' + l }), filt(k, true), st); });
+  };
   if ($('#fadd')) $('#fadd').onclick = async () => { const cs = await api('fees', 'candidates', undefined, '&kind=' + kind);
     const m = modal(`<h2 class="u-mt0">Add customers to ${K.title}</h2><input id="fcs" placeholder="Search customers…"><div class="fcl2" id="fcl"></div>
       <div class="bar u-mt12"><button class="btn" id="fca">Add selected</button><button class="btn sec" id="fcx">Cancel</button><span class="sp"></span><span class="mut" id="fcn">0 selected</span></div>`);

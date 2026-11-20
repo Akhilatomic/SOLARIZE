@@ -1343,3 +1343,9 @@ button.pill.stbtn{border:0;font:inherit;font-size:12px;font-weight:500;cursor:po
 /* Leads › Show quotation (app22.js qmShowQuote) */
 .qmvm>div{max-width:900px}.qmv-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.qmv-h h2{margin:0;font-size:18px}.qmv-h select{max-width:180px}
 .qmv-b{max-height:72vh;overflow:auto;background:var(--fill-2);border-radius:12px;padding:4px}.qmv-b .qm-pages{display:flex;flex-direction:column;gap:12px;align-items:center}
+
+/* Finance fee pages: Download PDF picks the list (app15.js) */
+.fpdfm>div{max-width:420px}.fpdfc{display:grid;gap:8px;margin-top:12px}
+.fpdfo{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--white);font:inherit;color:var(--text);cursor:pointer;text-align:left}
+.fpdfo:hover:not(:disabled){border-color:var(--blue);background:var(--blue-tint)}.fpdfo.on{border-color:var(--blue)}.fpdfo span{color:var(--muted);font-size:13px}.fpdfo:disabled{opacity:.5;cursor:default}
+.qmv-h .btn.qmv-on{background:var(--green-tint);color:var(--green-text);border-color:var(--green-tint)}
