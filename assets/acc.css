@@ -1,6 +1,6 @@
 /* Accounts (assets/acc.css): receipt window, sharing buttons and the tax bill lock. Every class starts with .acx */
 .acx-rcb{margin:0 0 8px}
-.acx-shl{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:12.5px;color:var(--mut);margin:0 0 12px}
+.acx-shl{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:12px;color:var(--mut);margin:0 0 12px}
 .acx-shl b{color:var(--tx);font-weight:600;margin-right:2px}
 .acx-sh{display:inline-flex;align-items:center;gap:5px;background:#f2f2f7;border-radius:999px;padding:3px 10px;color:var(--tx);white-space:nowrap}
 .acx-sh .i{width:13px;height:13px;opacity:.75}
@@ -9,9 +9,9 @@
 .acx-iss{display:contents}
 .acx-iss .btn:disabled{background:#e5e5ea;color:#3a3a3c;border-color:#e5e5ea;cursor:not-allowed;box-shadow:none}
 .acx-rcb .btn:disabled,.acx-tsh .btn:disabled{opacity:.6;cursor:progress}
-.acx-link{background:none;border:0;padding:6px 4px;color:var(--pri);font:inherit;font-size:13.5px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.acx-link{background:none;border:0;padding:6px 4px;color:var(--pri);font:inherit;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .acx-link:hover{opacity:.8}
-.acx-lkn{display:block;font-size:12.5px;color:var(--mut);margin:6px 0 0}
+.acx-lkn{display:block;font-size:12px;color:var(--mut);margin:6px 0 0}
 .acx-lkn:empty{display:none}
 .acx-tsh{border-top:1px solid var(--bd);margin-top:12px;padding-top:10px}
 .acx-tsh .bar{margin:0 0 8px}
@@ -28,14 +28,14 @@
 .acx-per .btn.on{background:#1d1d1f;color:#fff}
 .acx-soon{display:flex;flex-direction:column;gap:4px;padding:22px}
 .acx-sr{position:absolute;left:0;top:0;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} /* left/top 0: without them it sat at its place in a scrolling table, outside the scroll box, and widened the page on phones */
-.acx-crumb{font-size:13.5px;color:var(--mut)}
+.acx-crumb{font-size:13px;color:var(--mut)}
 .acx-hd{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}
 .acx-hd h2{margin:0;font-size:24px;letter-spacing:-.02em}.acx-hd h2 .mut{font-weight:500}
 .acx-sub{display:flex;align-items:center;gap:6px;color:var(--mut);font-size:13px;margin-top:3px}
-.acx-st{font-size:12.5px;color:var(--mut)}.acx-st.acx-dirty{color:#c76a00;font-weight:600}
+.acx-st{font-size:12px;color:var(--mut)}.acx-st.acx-dirty{color:#c76a00;font-weight:600}
 .acx-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .acx-t{padding:14px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
-.acx-t small{font-size:12.5px;color:var(--mut)}
+.acx-t small{font-size:12px;color:var(--mut)}
 .acx-t b{font-size:22px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .acx-t em{font-style:normal;font-size:12px;color:var(--mut)}
 .acx-t.acx-pos b{color:#1e8e3e}.acx-t.acx-neg b{color:#d70015}.acx-t.acx-warn b{color:#c76a00}
@@ -46,7 +46,7 @@
 .acx-cst td.num input{text-align:right}
 .acx-cst .ib{padding:6px}
 .acx-nm{font-weight:500;overflow-wrap:anywhere}
-.acx-cst tr.acx-grp>td,.acx-mt tr.acx-grp>td{background:#e3edfb;font-size:13px;padding:8px 10px;color:#0b3a75;border-top:1px solid #c9dcf5;border-bottom:1px solid #c9dcf5}
+.acx-cst tr.acx-grp>td,.acx-mt tr.acx-grp>td{background:#e3edfb;font-size:13px;padding:8px 10px;color:#0b3a75;border-top:1px solid #cfe2fb;border-bottom:1px solid #cfe2fb}
 .acx-gsum{color:#4a6d9c;font-weight:400;margin-left:8px}
 .acx-cst tr.acx-auto>td{background:#fbfaf3}
 /* stacked (narrow) tables: a group row is one full-width band; the item name leads each line */
@@ -56,9 +56,9 @@ table.stack tr.acx-auto{background:#fbfaf3}
 table.stack tr.acx-auto>td{background:none}
 table.acx-cst.stack td.acx-nm{grid-column:1/-1}
 .acx-tag{font-size:11px;padding:0 7px;margin-left:4px;vertical-align:1px}
-.acx-new{font-size:11px;padding:0 7px;margin-left:4px;background:#e8f3ff;color:#0a66c2}
+.acx-new{font-size:11px;padding:0 7px;margin-left:4px;background:#e6f1fd;color:#0a66c2}
 input.acx-bad{border-color:var(--bad);box-shadow:0 0 0 3px rgba(229,52,43,.15)}
-.acx-fee{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;font-size:12.5px}
+.acx-fee{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;font-size:12px}
 .acx-note{font-size:12px;color:var(--mut);margin:0 2px}
 .acx-mt tr.acx-hid>td{color:var(--mut)}
 .acx-act{white-space:nowrap;text-align:right}
@@ -72,26 +72,26 @@ input.acx-bad{border-color:var(--bad);box-shadow:0 0 0 3px rgba(229,52,43,.15)}
 .acx-kt button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--bd);background:#fff;color:#1d1d1f;border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;line-height:1.2}
 .acx-kt button:hover{background:#f5f5f7}
 .acx-kt button.on{background:#1d1d1f;border-color:#1d1d1f;color:#fff}
-.acx-ktn{font-size:11.5px;color:var(--mut)}.acx-kt button.on .acx-ktn{color:rgba(255,255,255,.75)}
-.acx-ktk{font-size:11px;font-weight:600;padding:1px 6px;border-radius:999px;background:#e8f5ec;color:#1e7d3a}.acx-kt button.on .acx-ktk{background:rgba(255,255,255,.2);color:#fff}
+.acx-ktn{font-size:11px;color:var(--mut)}.acx-kt button.on .acx-ktn{color:rgba(255,255,255,.75)}
+.acx-ktk{font-size:11px;font-weight:600;padding:1px 6px;border-radius:999px;background:#e8f7ec;color:#1e7a37}.acx-kt button.on .acx-ktk{background:rgba(255,255,255,.2);color:#fff}
 .acx-kt button.acx-kt0{opacity:.5}
 .acx-pgh{position:sticky;top:0;z-index:1;background:#f5f5f7;font-size:12px;font-weight:600;color:#3a3a3c;padding:6px 12px;border-bottom:1px solid var(--bd)}
-.acx-pi{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #f0f0f3;padding:8px 12px;font:inherit;font-size:13.5px;color:var(--tx);cursor:pointer}
+.acx-pi{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #f2f2f7;padding:8px 12px;font:inherit;font-size:13px;color:var(--tx);cursor:pointer}
 .acx-pi:hover,.acx-pi:focus-visible{background:#f2f7ff;outline:0}.acx-pi:disabled{opacity:.5;cursor:progress}
 .acx-pi small{color:var(--mut);font-size:12px}.acx-pi small b{color:#1e8e3e;font-weight:600}
 .acx-pe{margin:0;padding:16px 12px}
 .acx-nw{margin-top:12px;border:1px solid var(--bd);border-radius:12px;padding:8px 12px}
-.acx-nw>summary{cursor:pointer;font-weight:600;font-size:13.5px;color:var(--pri)}
+.acx-nw>summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--pri)}
 .acx-two{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
 .acx-nwgo{margin:12px 0 2px}
 .acx-small{font-size:12px}.acx-top0{margin-top:0}
 .acx-mft{margin:14px 0 0}
 .acx-opts{display:flex;gap:6px 16px;flex-wrap:wrap;margin:10px 0 0}
-label.acx-chk{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:400;color:var(--tx);cursor:pointer;margin:0}
+label.acx-chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:400;color:var(--tx);cursor:pointer;margin:0}
 .acx-chk input{width:auto;margin:0}
 .acx-fh{display:flex;align-items:flex-end;padding:0 0 10px}
 @media(max-width:900px){.acx-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:600px){.acx-hd h2{font-size:20px}.acx-hd .btn,.acx-ch .btn{flex:1 1 auto;justify-content:center}.acx-t b{font-size:19px}.acx-pbar{flex-direction:column}.acx-pbar select{max-width:none}.acx-perl{min-width:0}}
+@media(max-width:600px){.acx-hd h2{font-size:20px}.acx-hd .btn,.acx-ch .btn{flex:1 1 auto;justify-content:center}.acx-t b{font-size:18px}.acx-pbar{flex-direction:column}.acx-pbar select{max-width:none}.acx-perl{min-width:0}}
 /* Accounts list tabs (app33.js): Overview, Pending payments, Payments received, Project profit, Expenses */
 .acx-view{display:flex;flex-direction:column;gap:12px;min-width:0}
 a.acx-go{color:inherit;text-decoration:none;transition:box-shadow .15s}
@@ -100,7 +100,7 @@ a.acx-go:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
 .acx-fbar{margin:0;gap:8px 10px}
 .acx-fbar .tabs{margin:0}
 .acx-fbar input[type=search]{max-width:320px}
-.acx-n{color:var(--mut);font-weight:400;font-size:12.5px;font-variant-numeric:tabular-nums}
+.acx-n{color:var(--mut);font-weight:400;font-size:12px;font-variant-numeric:tabular-nums}
 .acx-n:empty{display:none}
 .acx-sum{font-size:13px;color:var(--mut);font-variant-numeric:tabular-nums}
 .acx-cn a{color:var(--tx);font-weight:600;text-decoration:none}
@@ -123,14 +123,14 @@ table.acx-ex.stack tr.acx-auto{background:#fbfaf3}
 .acx-nc h3{margin:0 0 4px;font-size:16px}
 .acx-nc p{margin:0}
 .acx-nc ul{list-style:none;margin:8px 0 0;padding:0}
-.acx-nc li{display:flex;align-items:center;gap:6px;padding:8px 0;border-top:1px solid var(--bd);font-size:13.5px}
+.acx-nc li{display:flex;align-items:center;gap:6px;padding:8px 0;border-top:1px solid var(--bd);font-size:13px}
 .acx-nc li a:first-child{color:var(--tx);font-weight:600;text-decoration:none}
 .acx-nc li .btn{margin-left:auto}
 .acx-cats{display:flex;flex-direction:column;gap:6px;margin:10px 0}
 .acx-cats .acx-cats{margin:0}.acx-cats .acx-cats:empty{display:none}
 .acx-cat{display:flex;align-items:center;gap:6px}
 .acx-cat input{flex:1;min-width:0;margin:0}
-.acx-fx{justify-content:space-between;padding:8px 12px;background:#f5f5f7;border-radius:9px;font-size:13.5px}
+.acx-fx{justify-content:space-between;padding:8px 12px;background:#f5f5f7;border-radius:9px;font-size:13px}
 .acx-fx .i{width:14px;height:14px;opacity:.45}
 .acx-top8{margin-top:8px}
 .acx-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -140,23 +140,23 @@ table.acx-ex.stack tr.acx-auto{background:#fbfaf3}
 .acx-tpv{font-size:12px;margin:3px 0 0;word-break:break-word}
 @media(max-width:600px){.acx-fbar input[type=search]{max-width:none;flex:1 1 100%}.acx-fbar .tabs{flex:1 1 100%}.acx-nc li{flex-wrap:wrap}}
 /* Expense sheet, Add item window and the price list (app34.js; Settings › Price list in app2.js) */
-input.acx-need{border-color:#e0a100;background:#fffbea}
+input.acx-need{border-color:#e0a100;background:#fff8e6}
 table.acx-cst.stack td[colspan]{grid-column:1/-1}
 .acx-cst td.acx-cpr,.acx-cst td.acx-amt{font-variant-numeric:tabular-nums}
 .acx-cst td.acx-cpr{color:#1d1d1f;font-weight:600}
 .acx-amode{margin:0 0 12px}
-.acx-pi.acx-on{background:#e8f3ff;box-shadow:inset 3px 0 0 var(--pri)}
-.acx-addbar{display:flex;align-items:flex-end;gap:10px 14px;flex-wrap:wrap;margin-top:12px;padding:12px 14px;border:1px solid var(--bd);border-radius:12px;background:#fafafa}
-.acx-chosen{flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:13.5px;overflow-wrap:anywhere}
+.acx-pi.acx-on{background:#e6f1fd;box-shadow:inset 3px 0 0 var(--pri)}
+.acx-addbar{display:flex;align-items:flex-end;gap:10px 14px;flex-wrap:wrap;margin-top:12px;padding:12px 14px;border:1px solid var(--bd);border-radius:12px;background:#fafafc}
+.acx-chosen{flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:13px;overflow-wrap:anywhere}
 .acx-chosen small{color:var(--mut);font-size:12px}
 .acx-qty{display:grid;grid-template-columns:auto auto;align-items:center;gap:3px 6px}
 .acx-qty label{grid-column:1/-1;margin:0;font-size:12px;font-weight:600}
 .acx-qty input{width:110px;margin:0}
 .acx-qty span{font-size:13px;min-width:24px}
 .acx-addbar .btn:disabled{background:#e5e5ea;color:#8e8e93;border-color:#e5e5ea;cursor:not-allowed;box-shadow:none}
-.acx-fcp{font-size:13.5px;margin:2px 0 6px}
+.acx-fcp{font-size:13px;margin:2px 0 6px}
 .acx-pdef{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;margin:0 0 10px}
-.acx-pdef label{margin:0;font-size:13.5px;font-weight:600}
+.acx-pdef label{margin:0;font-size:13px;font-weight:600}
 .acx-pdef input{width:90px;margin:0;text-align:right}
 .acx-setpl{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;min-width:0;margin-top:6px}
 .acx-setpl .acx-ch{margin:0}
@@ -173,7 +173,7 @@ table.acx-cst.stack td[colspan]{grid-column:1/-1}
 #acx_psb{display:flex;flex-direction:column;gap:12px;min-width:0}
 .acx-puh .pfch{flex-wrap:wrap;gap:8px}.acx-puh .pfch .btn{margin:0}
 .acx-pul{display:flex;flex-direction:column}
-.acx-pur{display:grid;grid-template-columns:minmax(0,1fr) 110px minmax(180px,34%);gap:6px 16px;align-items:start;padding:8px 0;border-top:1px solid var(--fill, #f0f0f3)}
+.acx-pur{display:grid;grid-template-columns:minmax(0,1fr) 110px minmax(180px,34%);gap:6px 16px;align-items:start;padding:8px 0;border-top:1px solid var(--fill, #f2f2f7)}
 .acx-pur:first-child{border-top:0}
 .acx-pun{font-size:14px;overflow-wrap:anywhere}
 .acx-puq{font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}.acx-puq small{color:var(--mut)}
@@ -182,13 +182,13 @@ table.acx-cst.stack td[colspan]{grid-column:1/-1}
 /* Add item, several products at once (app34.js acCsAdd): a tick on every product row, the ticked ones listed with their quantity boxes */
 .acx-pnote{margin:8px 0 0}
 .acx-pi.acx-pc{display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:start}.acx-pc input[type=checkbox]{grid-row:1/3;margin:3px 0 0;width:16px;height:16px;accent-color:var(--pri)}
-.acx-multi{flex-shrink:0;flex-direction:column;align-items:stretch;gap:8px}.acx-mh{display:flex;align-items:center;gap:10px;min-height:34px}.acx-mh b{font-size:13.5px}
+.acx-multi{flex-shrink:0;flex-direction:column;align-items:stretch;gap:8px}.acx-mh{display:flex;align-items:center;gap:10px;min-height:34px}.acx-mh b{font-size:13px}
 .acx-sl{flex:0 0 auto;display:flex;flex-direction:column;gap:6px;max-height:min(22vh,180px);overflow:auto}
-.acx-srow{display:grid;grid-template-columns:1fr 110px 44px auto;align-items:center;gap:8px}.acx-sn{display:flex;flex-direction:column;min-width:0;font-size:13.5px;overflow-wrap:anywhere}.acx-sn small{color:var(--mut);font-size:12px}.acx-srow input{margin:0;width:100%}.acx-su{font-size:13px}
+.acx-srow{display:grid;grid-template-columns:1fr 110px 44px auto;align-items:center;gap:8px}.acx-sn{display:flex;flex-direction:column;min-width:0;font-size:13px;overflow-wrap:anywhere}.acx-sn small{color:var(--mut);font-size:12px}.acx-srow input{margin:0;width:100%}.acx-su{font-size:13px}
 @media(max-width:600px){.acx-srow{grid-template-columns:1fr 90px auto}.acx-su{display:none}}
 .acx-addbar[hidden]{display:none}
 /* Purchased / To buy on the Expense sheet (app34.js): Status cell, the choose-lines bar, the Mark purchased window */
-.acx-bsel{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;min-height:0;font-size:13.5px}
+.acx-bsel{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;min-height:0;font-size:13px}
 .acx-bsel:empty{display:none}
 .acx-bck{width:16px;height:16px;margin:0 6px 0 0;vertical-align:-3px;accent-color:var(--pri)}
 .acx-bt{white-space:normal;line-height:1.35}
@@ -210,8 +210,8 @@ table.acx-cst.stack tr.acx-bgt{background:#f4fbf6}
 .acx-ip-st{display:block;font-size:13px;font-weight:600}
 .acx-ip-bar{display:block;height:5px;margin:4px 0 2px;border-radius:3px;background:var(--fill);overflow:hidden;max-width:190px}
 .acx-ip-bar i{display:block;height:100%;border-radius:3px;background:var(--pri)}
-.acx-ip-sc small{font-size:11.5px}
-.acx-ip-pc{display:block;font-size:11.5px;font-weight:400;color:var(--mut)}
+.acx-ip-sc small{font-size:11px}
+.acx-ip-pc{display:block;font-size:11px;font-weight:400;color:var(--mut)}
 /* categories: the New category chip of the Add item window, the name window and Settings › Price list › Categories */
 .acx-kt button.acx-ktadd{border-style:dashed;background:none;color:var(--pri);gap:4px}
 .acx-kt button.acx-ktadd:hover{background:#f5f5f7}
@@ -219,7 +219,7 @@ table.acx-cst.stack tr.acx-bgt{background:#f4fbf6}
 .acx-cnh{margin:8px 0 0;color:var(--mut);min-height:1.4em}.acx-cnh.acx-cbad{color:var(--bad)}
 .acx-cl{border:1px solid var(--bd);border-radius:12px;max-height:46vh;overflow:auto}
 .acx-cr{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--bd)}.acx-cr:last-child{border-bottom:0}
-.acx-cn{flex:1;min-width:0;display:flex;flex-direction:column}.acx-cn b{font-weight:600;font-size:13.5px;overflow-wrap:anywhere}.acx-cn small{color:var(--mut);font-size:12px}
+.acx-cn{flex:1;min-width:0;display:flex;flex-direction:column}.acx-cn b{font-weight:600;font-size:13px;overflow-wrap:anywhere}.acx-cn small{color:var(--mut);font-size:12px}
 .acx-cr .ib.acx-coff{opacity:.35}
 .acx-cadd{display:flex;gap:8px;margin:12px 0 0}.acx-cadd input{flex:1;min-width:0}.acx-cadd .btn{white-space:nowrap}
 .acx-kt button.acx-kt0.on{opacity:1}
@@ -227,16 +227,16 @@ table.acx-cst.stack tr.acx-bgt{background:#f4fbf6}
 /* ---- suppliers and supplier prices on the price list (app36.js) ---- */
 .acs-by{display:block;font-size:11px;line-height:1.35;font-weight:400;color:var(--mut);margin-top:1px;overflow-wrap:anywhere}
 .acs-by.acs-pick{color:#b25000}
-.acs-save{display:block;font-size:11px;line-height:1.35;font-weight:500;color:#1f7a3a;white-space:nowrap}
-.acs-less{color:#1f7a3a;font-weight:500}
-.acs-df{font-size:12.5px}
-.acs-lowp{font-size:10.5px;padding:0 6px;background:#e6f4ea;color:#1f7a3a;vertical-align:1px}
+.acs-save{display:block;font-size:11px;line-height:1.35;font-weight:500;color:#1e7a37;white-space:nowrap}
+.acs-less{color:#1e7a37;font-weight:500}
+.acs-df{font-size:12px}
+.acs-lowp{font-size:10px;padding:0 6px;background:#e8f7ec;color:#1e7a37;vertical-align:1px}
 .acx-mt tr.acs-alt>td{background:#fafafc;font-size:13px;padding-top:5px;padding-bottom:5px}
 .acx-mt tr.acs-has>td{border-bottom-color:transparent}
 .acx-mt td.acs-an{padding-left:30px;position:relative}
 .acx-mt td.acs-an::before{content:"";position:absolute;left:14px;top:0;height:55%;width:9px;border-left:1px solid #c7c7cc;border-bottom:1px solid #c7c7cc;border-bottom-left-radius:5px}
 .acs-as{font-weight:500}
-.acx-mt .acx-act .btn.sm{padding:2px 9px;font-size:12.5px;margin-right:2px;vertical-align:middle}
+.acx-mt .acx-act .btn.sm{padding:2px 9px;font-size:12px;margin-right:2px;vertical-align:middle}
 select.acs-fs{width:auto;max-width:210px;margin:0}
 .acs-for{margin:0 0 10px;font-weight:600;overflow-wrap:anywhere}
 .acs-pk{margin:2px 0 4px}
@@ -247,7 +247,7 @@ select.acs-fs{width:auto;max-width:210px;margin:0}
 .acs-sn{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere;font-size:14px}
 .acs-sn small{color:var(--mut);font-size:12px}
 .acs-sn small:empty{display:none}
-.acs-sc{color:var(--mut);font-size:12.5px;white-space:nowrap}
+.acs-sc{color:var(--mut);font-size:12px;white-space:nowrap}
 table.acx-mt.stack tr.acs-alt{background:#fafafc}
 table.acx-mt.stack td.acs-an{grid-column:1/-1;padding-left:16px}
 table.acx-mt.stack td.acs-an::before{display:none}
