@@ -263,7 +263,7 @@ function attEdit(r, done) {
    <div class="bar" style="margin-top:12px"><button class="btn" id="asv">Save</button><button class="btn sec" id="acx">Cancel</button><span class="sp"></span>${r.check_in || r.status ? '<button class="btn bad" id="aclr">Clear day</button>' : ''}</div>`);
   $('#acx', m).onclick = () => m.remove();
   $('#asv', m).onclick = async () => { await api('hr', 'mark', { user_id: r.user_id, date: r.date, status: $('#ast', m).value, check_in: $('#aci', m).value, check_out: $('#aco', m).value, notes: $('#ano', m).value }); m.remove(); toast('Attendance updated'); done(); };
-  if ($('#aclr', m)) $('#aclr', m).onclick = async () => { if (!confirm('Remove this day’s attendance record?')) return; await api('hr', 'mark', { user_id: r.user_id, date: r.date, clear: 1 }); m.remove(); done(); };
+  if ($('#aclr', m)) $('#aclr', m).onclick = async () => { if (!await ask('Remove this day’s attendance record?')) return; await api('hr', 'mark', { user_id: r.user_id, date: r.date, clear: 1 }); m.remove(); done(); };
 }
 
 // ---------- Leaves page ----------
@@ -292,7 +292,7 @@ async function pgLeaves() {
   const redo = () => { hrMe(); if (location.hash.startsWith('#/leaves')) pgLeaves(); };
   $$('[data-ap]', box).forEach(b => b.onclick = async () => { b.disabled = true; try { const x = await api('hr', 'decide', { id: +b.dataset.ap, decision: 'Approved', note: '' }); toast('Leave approved' + lvCleared(x.cleared)); redo(); } catch (e) { b.disabled = false; } });
   $$('[data-rv]', box).forEach(b => b.onclick = () => lvReview(+b.dataset.rv, redo));
-  $$('[data-cx]', box).forEach(b => b.onclick = async () => { if (!confirm('Cancel this leave?')) return; await api('hr', 'cancel', { id: +b.dataset.cx }); toast('Leave cancelled'); hrMe(); pgLeaves(); });
+  $$('[data-cx]', box).forEach(b => b.onclick = async () => { if (!await ask('Cancel this leave?')) return; await api('hr', 'cancel', { id: +b.dataset.cx }); toast('Leave cancelled'); hrMe(); pgLeaves(); });
 }
 async function applyModal(d) {
   const mgr = !!d.manage; let users = [];
@@ -420,6 +420,6 @@ async function drawHolidays(list) {
     $$('input', r).forEach(inp => inp.onchange = () => { const v = inp.value.trim(); if (!v) return drawHolidays(HR.hol);
       if (inp.dataset.f === 'date' && HR.hol.some((x, j) => j !== i && x.date === v)) { toast('There is already a holiday on that date'); return drawHolidays(HR.hol); }
       save(HR.hol.map((x, j) => j === i ? { ...x, [inp.dataset.f]: v } : x), 'Holiday updated'); });
-    $('[data-del]', r).onclick = () => { if (confirm(`Remove "${HR.hol[i].name}" (${HR.hol[i].date})?`)) save(HR.hol.filter((_, j) => j !== i), 'Holiday removed'); };
+    $('[data-del]', r).onclick = async () => { if (await ask(`Remove "${HR.hol[i].name}" (${HR.hol[i].date})?`)) save(HR.hol.filter((_, j) => j !== i), 'Holiday removed'); };
   });
 }

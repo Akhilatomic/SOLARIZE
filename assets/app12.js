@@ -138,7 +138,7 @@ function renderDocs(box, c, id) {
   $$('[data-sh]', box).forEach(b => b.onclick = () => docShare(F[+b.dataset.sh], c));
   $$('[data-ocr]', box).forEach(b => b.onclick = () => docOcr(F[+b.dataset.ocr], c)); /* app44.js */
   $$('[data-rd]', box).forEach(b => b.onclick = () => docRead(F[+b.dataset.rd], id, () => route()));
-  $$('[data-del]', box).forEach(b => b.onclick = async () => { const f = F[+b.dataset.del]; if (!confirm(`Delete "${f.item || f.name}"?\n\nIt goes to the Recycle bin and can be restored for ${RULE('trash_hours')} hours.`)) return; await api('files', 'delete', { id: f.id }); toast('Moved to Recycle bin'); reload(); });
+  $$('[data-del]', box).forEach(b => b.onclick = async () => { const f = F[+b.dataset.del]; if (!await ask(`Delete "${f.item || f.name}"?\n\nIt goes to the Recycle bin and can be restored for ${RULE('trash_hours')} hours.`)) return; await api('files', 'delete', { id: f.id }); toast('Moved to Recycle bin'); reload(); });
   if (DOC_STALE.delete(+id)) reload(); /* a paper was kept since this customer was loaded */
 }
 async function docShare(f, c) {

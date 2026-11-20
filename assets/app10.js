@@ -27,10 +27,10 @@ async function pgRecycle() {
     $$('[data-rs]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.rs); b.disabled = true;
       try { await api('trash', 'restore', { id: r.id }); toast(`Restored: ${r.kind} — ${r.label}`); pgRecycle(); } catch (e) { b.disabled = false; } });
     $$('[data-pg]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.pg);
-      if (!confirm(`Delete "${r.label}" for good?\n\nThis cannot be undone.`)) return; await api('trash', 'purge', { id: r.id }); toast('Deleted for good'); pgRecycle(); });
+      if (!await ask(`Delete "${r.label}" for good?\n\nThis cannot be undone.`)) return; await api('trash', 'purge', { id: r.id }); toast('Deleted for good'); pgRecycle(); });
   };
   $('#rbq').oninput = e => { RB.q = e.target.value; draw(); };
   $('#rbk').onchange = e => { RB.kind = e.target.value; draw(); };
-  if ($('#rbempty')) $('#rbempty').onclick = async () => { if (!confirm(`Empty the recycle bin?\n\nAll ${d.rows.length} item(s) will be deleted for good. This cannot be undone.`)) return; await api('trash', 'purge', { all: 1 }); toast('Recycle bin emptied'); pgRecycle(); };
+  if ($('#rbempty')) $('#rbempty').onclick = async () => { if (!await ask(`Empty the recycle bin?\n\nAll ${d.rows.length} item(s) will be deleted for good. This cannot be undone.`)) return; await api('trash', 'purge', { all: 1 }); toast('Recycle bin emptied'); pgRecycle(); };
   draw();
 }

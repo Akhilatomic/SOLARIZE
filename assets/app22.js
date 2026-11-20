@@ -131,10 +131,10 @@ function qmkTplBtns() {
   if (d) { d.disabled = !own; d.title = tip || `Delete the template “${t.name}”`; }
 }
 const qmkTplData = () => { const d = QMK.doc, b = qmkBlank(), o = {}; QMK_TPL.forEach(k => { o[k] = qmkCopy(d[k] === undefined ? b[k] : d[k]); }); return o; };
-function qmkUseTpl(id) {
+async function qmkUseTpl(id) {
   const t = qmkTplById(id), sel = $('#qmtpl');
   if (!t) { QMK.tpl = ''; qmkTplBtns(); return; }
-  if ((QMK.touched || QMK.id) && !confirm(`Use the template “${t.name}”?\n\nIts components, price and texts replace the ones on this quotation. The customer and quote details stay.`)) { sel.value = QMK.tpl ? String(QMK.tpl) : ''; return; }
+  if ((QMK.touched || QMK.id) && !await ask(`Use the template “${t.name}”?\n\nIts components, price and texts replace the ones on this quotation. The customer and quote details stay.`)) { sel.value = QMK.tpl ? String(QMK.tpl) : ''; return; }
   const d = QMK.doc, data = qmkObj(qmkCopy(t.data)), next = qmkBlank();
   QMK_TPL.forEach(k => { if (data[k] !== undefined) next[k] = data[k]; });
   QMK.doc = qmkNorm(Object.assign(next, { template_id: t.id, customer: d.customer, number: d.number, date: d.date, valid_days: d.valid_days, sales: d.sales }));
@@ -144,7 +144,7 @@ function qmkUseTpl(id) {
 }
 const qmkTplNew = qmkTry(async () => {
   const t = qmkTplById(QMK.tpl), { calc } = qmkCalc();
-  const name = (prompt('Name for the new template. Everyone who makes quotations will see it.', t ? t.name + ' (copy)' : calc.title.replace(/\s*Quotation$/, '')) || '').trim();
+  const name = (await askText('Name for the new template. Everyone who makes quotations will see it.', t ? t.name + ' (copy)' : calc.title.replace(/\s*Quotation$/, '')) || '').trim();
   if (!name) return;
   const data = qmkTplData(), r = await api('qm', 'tpl_save', { name, data });
   QMK.boot.templates.push({ id: r.id, name, data, created_by: ME.id, created_name: ME.name, updated: '' });
@@ -152,13 +152,13 @@ const qmkTplNew = qmkTry(async () => {
 });
 const qmkTplUpd = qmkTry(async () => {
   const t = qmkTplById(QMK.tpl); if (!t) return;
-  if (!confirm(`Update the template “${t.name}”?\n\nIt will hold this quotation's components, price and texts (not the customer).`)) return;
+  if (!await ask(`Update the template “${t.name}”?\n\nIt will hold this quotation's components, price and texts (not the customer).`)) return;
   const data = qmkTplData(); await api('qm', 'tpl_save', { id: t.id, name: t.name, data });
   t.data = data; toast(`Template “${t.name}” updated`);
 });
 const qmkTplDel = qmkTry(async () => {
   const t = qmkTplById(QMK.tpl); if (!t) return;
-  if (!confirm(`Delete the template “${t.name}”?\n\nIt goes to the Recycle bin. Quotations already made from it do not change.`)) return;
+  if (!await ask(`Delete the template “${t.name}”?\n\nIt goes to the Recycle bin. Quotations already made from it do not change.`)) return;
   await api('qm', 'tpl_delete', { id: t.id });
   QMK.boot.templates = QMK.boot.templates.filter(x => x.id !== t.id); QMK.tpl = ''; QMK.doc.template_id = null; qmkTplSel(); toast(`Template “${t.name}” deleted`);
 });
@@ -562,7 +562,7 @@ function qmkMore(btn) {
     const d = QMK.doc, { calc } = qmkCalc();
     if (a === 'wa') return qmkWa();
     if (a === 'proj') projectModal(0, { customer_id: c.customer_id, title: calc.plantKw + ' kW rooftop solar', cost: Math.round(+d.price || 0), stage: 'Approval' });
-    if (a === 'del' && confirm(`Delete quotation ${d.number}?\n\nIt goes to the Recycle bin.`)) { await api('quotes', 'delete', { id: QMK.id }); QMK.dirty = false; location.hash = '#/quotes'; }
+    if (a === 'del' && await ask(`Delete quotation ${d.number}?\n\nIt goes to the Recycle bin.`)) { await api('quotes', 'delete', { id: QMK.id }); QMK.dirty = false; location.hash = '#/quotes'; }
   }));
 }
 /* Products & rates (Task 7) calls this after its dialog closes: fresh catalogue and settings, same quotation */

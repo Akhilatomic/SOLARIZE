@@ -372,7 +372,7 @@ async function kdDefaults() {
   const g = KDS.g, v = KDS.vals.wcr, d = KDS.defs.wcr; if (!g || !v || KDS.busy) return;
   const fs = kdFields('wcr').filter(f => f.share), ch = fs.filter(f => kdT(v[f.k]) !== kdT(d[f.k]));
   if (!ch.length) { toast('These are already the company defaults'); return; }
-  if (!confirm('Use these details for every customer from now on?\n\n' + ch.map(f => f.g + ' · ' + f.l + ': ' + (kdT(v[f.k]) || '(empty)')).join('\n'))) return;
+  if (!await ask('Use these details for every customer from now on?\n\n' + ch.map(f => f.g + ' · ' + f.l + ': ' + (kdT(v[f.k]) || '(empty)')).join('\n'))) return;
   const data = {}; fs.forEach(f => { data[f.k] = kdT(v[f.k]); });
   KDS.busy = true;
   try {
@@ -432,6 +432,6 @@ function ksebDocsTab(p, wc) {
 function ksebDocsBind(p) {
   /* delete a saved copy: Recycle bin first, as every delete; what was typed into the paper stays, so it can be made again */
   $$('[data-kddel]').forEach(b => b.onclick = async () => {
-    if (!confirm(`Delete the saved copy of “${b.dataset.kdname}”?\n\nIt goes to the Recycle bin. The paper itself is not lost: it can be made again from KSEB documentation.`)) return;
+    if (!await ask(`Delete the saved copy of “${b.dataset.kdname}”?\n\nIt goes to the Recycle bin. The paper itself is not lost: it can be made again from KSEB documentation.`)) return;
     b.disabled = true; try { await api('files', 'delete', { id: +b.dataset.kddel }); toast(b.dataset.kdname + ' — saved copy deleted'); route(); } catch (e) { b.disabled = false; } });
   $$('[data-kdgo]').forEach(b => b.onclick = () => { const book = KD_BOOKS[b.dataset.kdbook] ? b.dataset.kdbook : 'kseb'; TAB[book] = b.dataset.kdgo; location.hash = KD_BOOKS[book].hash + p.customer_id; }); }

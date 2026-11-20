@@ -92,7 +92,7 @@ function acLog(o, addr) {
 async function acMailReady() {
   if (typeof composeMail !== 'function' || !canW('email')) { toast('Email is not available for your role', true); return false; }
   if (!EM.cfg) { try { EM.cfg = await api('mail', 'config'); } catch (e) { return false; } }
-  if (!emAccts().length) { if (confirm('Your email is not connected yet, so the PDF cannot be emailed from the CRM. Open Email to connect your mailbox?')) { $$('.modal').forEach(m => m.remove()); location.hash = '#/email'; } return false; }
+  if (!emAccts().length) { if (await ask('Your email is not connected yet, so the PDF cannot be emailed from the CRM. Open Email to connect your mailbox?')) { $$('.modal').forEach(m => m.remove()); location.hash = '#/email'; } return false; }
   return true;
 }
 

@@ -157,7 +157,7 @@ function shell() {
   $('#lo').onclick = async () => { if (typeof idleOut === 'function') return idleOut(false); await api('auth', 'logout', {}); location.hash = ''; location.reload(); };
   $('#pdp').onclick = () => { $('#acm').classList.add('hide'); pickAvatar(0, ME.name, setMyAvatar); };
   $('#pdr').onclick = () => { $('#acm').classList.add('hide'); removeAvatar(0, setMyAvatar); };
-  $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = prompt('Current password'); if (!o) return; const n = prompt('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); toast('Password changed'); };
+  $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = await askText('Current password'); if (!o) return; const n = await askText('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); toast('Password changed'); };
   $('#mtsw').onclick = () => TABS.setOff(!TABS.off());
   if (APPLITE) appVerBind();
   if (FRAME) return; /* a tab's page-frame: its own menu and top bar stay hidden */
@@ -255,6 +255,27 @@ document.addEventListener('click', e => {
   const el = e.target.closest && e.target.closest('.fxp[title], .clmt[title], .plater[title], .ksd-t small[title], .qla-ba[title], .clmg[title]');
   if (el && el.title && typeof toast === 'function') { e.stopPropagation(); e.preventDefault(); toast(el.title); } /* the tap is for the details, not for opening the row */
 }, true);
+/* The CRM's own question windows, in place of the browser's await ask() / await askText():
+   ask(text) → true / false, askText(text, start) → the typed text, or null on Cancel. The first paragraph of the text is the
+   question, the rest the details. A delete / remove / disconnect question gets a red button named after it ("Delete").
+   Enter = OK, Esc or a click outside = Cancel. Page-leaving guards still use the browser's await ask(): they must answer at once. */
+function askBox(text, input) {
+  return new Promise(res => {
+    const parts = String(text || '').split(/\n\s*\n/), head = parts.shift(), verb = (head.match(/^\s*(Delete|Remove|Empty|Disconnect|Discard|Cancel|Unclaim|Stop|Revert|Reset)\b/i) || [])[1];
+    const danger = !!verb && !input, okTxt = input ? 'OK' : danger ? verb.charAt(0).toUpperCase() + verb.slice(1).toLowerCase() : 'OK';
+    const m = modal(`<div class="askw"><h3>${esc(head)}</h3>${parts.length ? `<p class="mut">${esc(parts.join('\n\n'))}</p>` : ''}${input ? `<input id="askv" ${SPELL} value="${esc(input.v ?? '')}">` : ''}
+      <div class="bar askb"><span class="sp"></span><button class="btn sec" id="askn" type="button">${danger && /^cancel$/i.test(verb) ? 'Keep' : 'Cancel'}</button><button class="btn${danger ? ' bad' : ''}" id="asky" type="button">${esc(okTxt)}</button></div></div>`);
+    m.classList.add('askm'); let done = false;
+    const end = v => { if (done) return; done = true; ob.disconnect(); m.remove(); res(v); };
+    const ob = new MutationObserver(() => { if (!document.body.contains(m)) end(input ? null : false); }); ob.observe(document.body, { childList: true }); /* a click outside closes it = Cancel */
+    const val = () => input ? $('#askv', m).value : true;
+    $('#asky', m).onclick = () => end(val()); $('#askn', m).onclick = () => end(input ? null : false);
+    m.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); end(input ? null : false); } if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); end(val()); } });
+    setTimeout(() => { const f = input ? $('#askv', m) : $('#asky', m); if (f) { f.focus(); if (input) f.select(); } });
+  });
+}
+const ask = text => askBox(text);
+const askText = (text, v = '') => askBox(text, { v });
 function modal(html, wide) {
   const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = `<div ${wide ? 'style="max-width:900px"' : ''}>${html}</div>`;
   m.addEventListener('mousedown', e => { if (e.target === m) m._md = true; }); m.addEventListener('mouseup', e => { if (e.target === m && m._md) m.remove(); m._md = false; });
@@ -591,11 +612,11 @@ const ownerCellRow = l => (l.assigned_to ? ownerDp(l) : ownerCell(l)) + (l.assig
 const ownerCell = l => l.assigned_to ? `<span class="own${l.assigned_to == ME.id ? ' me' : ''}" title="Claimed${l.claimed_at ? ' ' + agoStr(l.claimed_at) : ''}"><i class="i i-lock"></i>${esc(l.assigned_to == ME.id ? 'You' : (l.owner_name || 'Claimed'))}</span>`
   : (ME.can_claim && canW('leads') ? '<button class="btn sm claim" data-a="claim"><i class="i i-userplus"></i> Claim</button>' : '<span class="mut">Unclaimed</span>');
 async function claimLead(id, name) {
-  if (!confirm(`Claim ${name || 'this lead'}?
+  if (!await ask(`Claim ${name || 'this lead'}?
 
 ${claimRule()}`)) return false;
   try { const r = await api('leads', 'claim', { id }); toast('Claimed' + (name ? ': ' + name : '') + (r && r.unlock_at ? ` — locked to you for ${r.hours} hours` : ' — locked to you')); return true; } catch (e) { return false; } }
-async function unlockLead(id, mine) { if (!confirm(mine ? 'Unclaim this lead? It goes back to the unclaimed pool and anyone allowed can claim it.' : 'Unclaim (unlock) this lead? It goes back to the unclaimed pool.')) return false; await api('leads', 'unclaim', { id }); toast('Lead unclaimed — back in the pool'); return true; }
+async function unlockLead(id, mine) { if (!await ask(mine ? 'Unclaim this lead? It goes back to the unclaimed pool and anyone allowed can claim it.' : 'Unclaim (unlock) this lead? It goes back to the unclaimed pool.')) return false; await api('leads', 'unclaim', { id }); toast('Lead unclaimed — back in the pool'); return true; }
 const canReassignLead = l => canW('leads') && OWN.canReassign(l.assigned_to, ME);
 async function assignLead(l) { return !!(await reassignBox('leads', l)); } // picker in app26.js
 async function pgLeads() {
@@ -795,7 +816,7 @@ async function leadModal(id) {
   if ($('#lds', m)) $('#lds', m).onclick = () => { m.remove(); discOpen({ lead_id: id }); };
   if ($('#cv', m)) $('#cv', m).onclick = () => convertBox({ id, name: l.name, phone: l.phone }, r => { m.remove(); location.hash = '#/customers/' + r.customer_id; });
   if ($('#qt', m)) $('#qt', m).onclick = () => { m.remove(); sessionStorage.lead2quote = JSON.stringify({ lead_id: id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; };
-  if ($('#dl', m)) $('#dl', m).onclick = async () => { if (confirm('Delete this lead?')) { await api('leads', 'delete', { id }); m.remove(); route(); } };
+  if ($('#dl', m)) $('#dl', m).onclick = async () => { if (await ask('Delete this lead?')) { await api('leads', 'delete', { id }); m.remove(); route(); } };
   if (w) bindNote('leads', id, () => { m.remove(); leadModal(id); }); else if ($('#an', m)) $('#an', m).closest('.bar').remove();
 }
 
@@ -1001,7 +1022,7 @@ function ksebOfficeFill(m) {
 }
 // Customer → back to Leads. If a project or documents exist, list what will be deleted and ask to type REVERT.
 async function revertToLead(id, name, parent) {
-  const why = prompt(`Revert "${name || 'this customer'}" back to Leads?\n\nThe lead is reopened (or created). Quotes, notes, WhatsApp log and team discussions move to the lead.\n\nReason (optional):`, '');
+  const why = await askText(`Revert "${name || 'this customer'}" back to Leads?\n\nThe lead is reopened (or created). Quotes, notes, WhatsApp log and team discussions move to the lead.\n\nReason (optional):`, '');
   if (why === null) return;
   const done = r => { if (parent) parent.remove(); toast(r.reopened ? 'Reverted — the original lead is reopened' : 'Reverted — a new lead was created'); location.hash = '#/leads'; };
   const r = await api('customers', 'revert', { id, reason: why });
@@ -1073,8 +1094,8 @@ async function pgProject(id) {
   const bindPB = () => {
     /* loan projects: who paid (the customer or the loan bank; mode Loan = the bank), as on the Tax bill tab and in Accounts — the tax bill unlocks on the customer's own payments */
     if ($('#ap')) $('#ap').onclick = () => { const loan = p.loan === 'Yes'; const m = modal(`<h3 style="margin-top:0">Record payment</h3><div class="two">${[{ k: 'amount', l: 'Amount (₹)', t: 'number' }, { k: 'date', l: 'Date', t: 'date', d: today() }, { k: 'mode', l: 'Mode', opts: ['Bank transfer', 'UPI', 'Cash', 'Cheque'].concat(loan ? ['Loan'] : []) }, { k: 'ref_no', l: 'Reference no. (UTR / cheque) — not needed for cash' }, ...(loan ? [{ k: 'src', l: 'From', opts: [['customer', 'Customer'], ['bank', 'Bank (loan)']] }] : []), { k: 'note', l: 'Note' }].map(f => fld(f)).join('')}</div><div class="bar" style="margin-top:12px"><button class="btn" id="sv">Save</button><button class="btn sec" id="cx">Cancel</button></div>`); const md = $('[data-k="mode"]', m), fr = $('[data-k="src"]', m); if (fr) md.onchange = () => { fr.value = ACC.payFrom(md.value, fr.value); }; $('#cx', m).onclick = () => m.remove(); $('#sv', m).onclick = async () => { const o = { project_id: id, ...collect(m) }; if (!(+o.amount > 0)) return sayBad('Enter an amount'); await api('payments', 'save', o); m.remove(); route(); }; };
-    $$('[data-dp]').forEach(a => a.onclick = async e => { e.preventDefault(); if (confirm('Delete this payment?')) { await api('payments', 'delete', { id: +a.dataset.dp }); route(); } });
-    $$('[data-df]').forEach(a => a.onclick = async e => { e.preventDefault(); if (confirm('Delete this file?')) { await api('files', 'delete', { id: +a.dataset.df }); route(); } });
+    $$('[data-dp]').forEach(a => a.onclick = async e => { e.preventDefault(); if (await ask('Delete this payment?')) { await api('payments', 'delete', { id: +a.dataset.dp }); route(); } });
+    $$('[data-df]').forEach(a => a.onclick = async e => { e.preventDefault(); if (await ask('Delete this file?')) { await api('files', 'delete', { id: +a.dataset.df }); route(); } });
     if ($('#up')) $('#up').onclick = async () => { if (await upload({ project_id: id, kind: 'general' })) route(); };
     if ($('#ssv')) $('#ssv').onclick = async () => { await api('projects', 'save', { ...p, application_no: $('#sa').value, subsidy_amount: $('#sm').value }); route(); };
     bindChecklist(id, p); if (typeof ksebDocsBind === 'function') ksebDocsBind(p); bindNote('projects', id, route);
@@ -1084,7 +1105,7 @@ async function pgProject(id) {
    ${canR('accounts') ? `<a class="btn sec" href="#/accounts/cost/${id}"><i class="i i-coin"></i> Project cost</a>` : ''}${w ? `<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>` : pill(p.stage)}</div></div><div id="pstp" style="margin-top:12px"></div><div id="pb" style="margin-top:12px"></div>`;
   renderStepper(p, $('#pstp'));
   if ($('#ed')) $('#ed').onclick = () => projectModal(id, p);
-  if ($('#dl')) $('#dl').onclick = async () => { if (confirm('Delete this project with its payments, checklists and files?')) { await api('projects', 'delete', { id }); location.hash = '#/projects'; } };
+  if ($('#dl')) $('#dl').onclick = async () => { if (await ask('Delete this project with its payments, checklists and files?')) { await api('projects', 'delete', { id }); location.hash = '#/projects'; } };
   draw();
 }
 function checklistHtml(kind, items, files, wc) {
@@ -1206,6 +1227,6 @@ function appVerHtml() {
 function appVerBind() {
   const b = document.getElementById('apvup'); if (!b) return;
   /* from 1.4 the app hands the APK to the phone's browser, which downloads it; older apps cannot, so they are given the link */
-  b.onclick = () => { if (appVerNewer('1.4', appVerNow())) prompt('Copy this link and open it in Chrome to download the new version:', appVerUrl()); else location.href = appVerUrl(); };
+  b.onclick = async () => { if (appVerNewer('1.4', appVerNow())) await askText('Copy this link and open it in Chrome to download the new version:', appVerUrl()); else location.href = appVerUrl(); };
   try { if (sessionStorage.apvSaid !== APP_INFO.latest) { sessionStorage.apvSaid = APP_INFO.latest; setTimeout(() => toast(`New version ${APP_INFO.latest} of the app is available. Open the menu to update.`), 2500); } } catch (e) { }
 }

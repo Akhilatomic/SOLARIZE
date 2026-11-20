@@ -106,7 +106,7 @@ async function openChat(id, poll) {
   if (first) tx.focus();
   $('#winf').onclick = () => { WA.info = !WA.info; $('#wai').classList.toggle('noinfo', !WA.info); };
   $('#wat').onclick = () => $('#wfile').click();
-  $('#wfile').onchange = async e => { const f = e.target.files[0]; if (!f) return; const cap = prompt('Caption (optional):', '') ?? ''; const fd = new FormData(); fd.append('chat_id', id); fd.append('file', f); fd.append('caption', cap); toast('Sending ' + f.name + '…'); await api('wa', 'send_media', fd); WA.sig = ''; openChat(id); };
+  $('#wfile').onchange = async e => { const f = e.target.files[0]; if (!f) return; const cap = await askText('Caption (optional):', '') ?? ''; const fd = new FormData(); fd.append('chat_id', id); fd.append('file', f); fd.append('caption', cap); toast('Sending ' + f.name + '…'); await api('wa', 'send_media', fd); WA.sig = ''; openChat(id); };
   $('#wqr').onclick = e => quickReplies(e.currentTarget, c, tx);
   $('#wtp').onclick = () => templateModal(c);
   $('#wds').onclick = () => datasheetPicker(c);
@@ -128,7 +128,7 @@ function waInfo(c) {
   if ($('#wtake')) $('#wtake').onclick = async e => { e.preventDefault(); await api('wa', 'assign', { chat_id: c.id, user_id: ME.id }); WA.sig = ''; openChat(c.id); loadChats(true); };
   if ($('#wrel')) $('#wrel').onclick = async e => { e.preventDefault(); await api('wa', 'assign', { chat_id: c.id, user_id: 0 }); WA.sig = ''; openChat(c.id); loadChats(true); };
   $('#wopenweb').onclick = () => waLaunch(c.wa_id, '');
-  if ($('#wdel')) $('#wdel').onclick = async () => { if (!confirm('Delete this chat and its messages from the CRM? (Nothing is deleted on WhatsApp.)')) return; await api('wa', 'delete_chat', { chat_id: c.id }); WA.chat = null; toast('Chat deleted'); pgWa(); };
+  if ($('#wdel')) $('#wdel').onclick = async () => { if (!await ask('Delete this chat and its messages from the CRM? (Nothing is deleted on WhatsApp.)')) return; await api('wa', 'delete_chat', { chat_id: c.id }); WA.chat = null; toast('Chat deleted'); pgWa(); };
 }
 function fillTpl(text, c) { return text.replace(/\{name\}/g, (c.name || '').split(' ')[0]).replace(/\{company\}/g, S.company.name).replace(/\{amount\}/g, '').replace(/\{quote_no\}/g, '').replace(/\{date\}/g, ''); }
 function quickReplies(btn, c, tx) {

@@ -181,5 +181,5 @@ async function renderMetaCard(soft) {
     $('#m-res').innerHTML = r.ok ? `<span style="color:var(--ok)">Connected to “${esc(r.page)}”.</span> ${r.forms.length} lead form${r.forms.length === 1 ? '' : 's'} found${r.forms.length ? ': ' + r.forms.map(f => esc(f.name || f.id)).join(', ') : ''}. Click “Refresh now” to import leads.` : `<span class="over">${esc(r.error)}</span>${metaErrHtml(r.detail)}`;
     if (r.ok) { await refreshFeed(); }
   };
-  if ($('#m-clear')) $('#m-clear').onclick = async () => { if (confirm('Disconnect Meta? Existing leads stay; syncing stops.')) { await api('meta', 'save', { page_id: $('#m-page').value, clear_token: 1 }); renderMetaCard(); } };
+  if ($('#m-clear')) $('#m-clear').onclick = async () => { if (await ask('Disconnect Meta? Existing leads stay; syncing stops.')) { await api('meta', 'save', { page_id: $('#m-page').value, clear_token: 1 }); renderMetaCard(); } };
 }

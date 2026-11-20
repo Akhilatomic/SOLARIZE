@@ -149,7 +149,7 @@ async function pgCustomer(id) {
       if (a === 'np2') startModal({ customer_id: id });
       if (a === 'own' && acLeaveOk() && await reassignBox('customers', c)) { acLeft(); route(); }
       if (a === 'rv') revertToLead(id, c.name);
-      if (a === 'dl' && confirm('Delete this customer and all their projects, quotes and files?\n\nIt goes to the Recycle bin and can be restored for ' + RULE('trash_hours') + ' hours.')) { await api('customers', 'delete', { id }); toast('Moved to Recycle bin'); location.hash = '#/customers'; } });
+      if (a === 'dl' && await ask('Delete this customer and all their projects, quotes and files?\n\nIt goes to the Recycle bin and can be restored for ' + RULE('trash_hours') + ' hours.')) { await api('customers', 'delete', { id }); toast('Moved to Recycle bin'); location.hash = '#/customers'; } });
     setTimeout(() => document.addEventListener('click', () => m.remove(), { once: true }));
   };
 }
@@ -231,13 +231,13 @@ async function payTab(box, c, id) {
   $$('[data-pr]', box).forEach(b => b.onclick = () => openRc(+b.dataset.pr));
   $$('[data-pn]', box).forEach(b => b.onclick = () => { const [p, x] = payOf(b.dataset.pn); if (x) acPayForm({ pid: p.id, customer: c.name, kw: p.kw, loan: p.loan }, x, { why: NEEDREF, done: redraw, open: openRc }); });
   $$('[data-pe]', box).forEach(b => b.onclick = () => { const p = projOf(b), x = p && p.payments.find(y => y.id == b.dataset.pe); if (x) acPayForm({ pid: p.id, customer: c.name, kw: p.kw, loan: p.loan }, x, { done: redraw, open: openRc }); });
-  $$('[data-pd]', box).forEach(b => b.onclick = async () => { const [, x] = payOf(b.dataset.pd); if (!x || !confirm(`Delete the payment of ${inr(x.amount)} on ${dmy(x.date)}?\n\nIt goes to the Recycle bin for ${RULE('trash_hours')} hours.`)) return;
+  $$('[data-pd]', box).forEach(b => b.onclick = async () => { const [, x] = payOf(b.dataset.pd); if (!x || !await ask(`Delete the payment of ${inr(x.amount)} on ${dmy(x.date)}?\n\nIt goes to the Recycle bin for ${RULE('trash_hours')} hours.`)) return;
     try { await api('payments', 'delete', { id: x.id }); toast('Payment moved to the Recycle bin'); redraw(); } catch (er) { } });
   /* Show in Accounts: on by default. Off takes the customer off the Accounts lists; nothing else changes. */
   $('#pczshow', box).onchange = async e => { const on = e.target.checked; e.target.disabled = true;
     try { await api('acc', 'track_show', { customer_id: id, show: on ? 1 : 0 }); toast(on ? `${c.name} shows in Accounts` : `${c.name} is taken off Accounts`); redraw(); } catch (er) { e.target.checked = !on; e.target.disabled = false; } };
   $$('[data-done]', box).forEach(b => b.onclick = async () => { const done = b.dataset.done === '1', body = { customer_id: id, done: done ? 1 : 0 };
-    if (done && !full) { if (!confirm(has ? `${inr(s.balance)} is still pending for ${c.name}.\n\nMove to Completed anyway?` : `No plant cost is entered for ${c.name}.\n\nMove to Completed anyway?`)) return; body.force = 1; }
+    if (done && !full) { if (!await ask(has ? `${inr(s.balance)} is still pending for ${c.name}.\n\nMove to Completed anyway?` : `No plant cost is entered for ${c.name}.\n\nMove to Completed anyway?`)) return; body.force = 1; }
     b.disabled = true; try { await api('acc', 'track_set', body); toast(c.name + (done ? ' moved to Completed' : ' moved back to In progress')); redraw(); } catch (er) { b.disabled = false; } });
   $('#pczed', box).onclick = () => {
     const m = modal(`<h2 style="margin-top:0">Plant cost</h2><div class="two"><div><label>Total plant cost (₹)</label><input id="pczc" inputmode="numeric" autocomplete="off" value="${s.agreed > 0 || has ? (multi ? s.agreed || '' : s.cost).toLocaleString('en-IN') : ''}"></div>

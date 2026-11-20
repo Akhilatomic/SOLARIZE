@@ -126,7 +126,7 @@ async function acCostSheet(pid, emb) {
     if (c.checked) ACS.sel.add(l); else ACS.sel.delete(l);
     acSelBar();
   });
-  tb.addEventListener('click', e => {
+  tb.addEventListener('click', async e => {
     const bb = e.target.closest('[data-acx-buy]'), ub = e.target.closest('[data-acx-undo]');
     if (bb || ub) {
       const i = +(bb || ub).closest('tr').dataset.i, l = ACS.lines[i]; if (!l) return;
@@ -137,7 +137,7 @@ async function acCostSheet(pid, emb) {
     }
     const b = e.target.closest('[data-acx-del]'); if (!b) return;
     const i = +b.closest('tr').dataset.i, l = ACS.lines[i]; if (!l) return;
-    if ((l.rate || l.supplier || l.bill_no || l.note || l.bought) && !confirm(`Remove “${l.name}” from this Project cost sheet?`)) return;
+    if ((l.rate || l.supplier || l.bill_no || l.note || l.bought) && !await ask(`Remove “${l.name}” from this Project cost sheet?`)) return;
     ACS.sel.delete(l); ACS.lines.splice(i, 1); acChanged();
   });
   $('#acx_bsel').addEventListener('click', e => {
@@ -302,7 +302,7 @@ async function acCsSave() {
   if (ok) { acDirty(false); toast('Project cost sheet saved'); }
   else if ($('#acx_cs')) acDirty(ACS.dirty);
   if (stale && $('#acx_cs')) {
-    if (confirm(`${stale.error || 'This Project cost sheet was changed since you opened it — reload to see the latest'}.\n\nReload it now? Your changes here are not saved and will be lost. Press Cancel to keep them on screen (note them down, then reload).`)) { ACS.dirty = false; acCostSheet(ACS.pid, ACS.emb && ACS.emb.isConnected ? ACS.emb : undefined); }
+    if (await ask(`${stale.error || 'This Project cost sheet was changed since you opened it — reload to see the latest'}.\n\nReload it now? Your changes here are not saved and will be lost. Press Cancel to keep them on screen (note them down, then reload).`)) { ACS.dirty = false; acCostSheet(ACS.pid, ACS.emb && ACS.emb.isConnected ? ACS.emb : undefined); }
     else toast('Not saved: someone else saved this Project cost sheet. Reload the page to see their lines.', true);
   }
   return ok;
@@ -624,7 +624,7 @@ async function acCsTplSave() {
       try { r = await api('acc', 'tpl_put', { name, items }); }
       catch (er) {
         if (!(er && +er.dup_id)) return; /* any other refusal: api() has shown why */
-        if (!confirm(`Replace the template '${name}'?\n\nIts items are overwritten with the ${acPl(items.length, 'item')} on this sheet.`)) return;
+        if (!await ask(`Replace the template '${name}'?\n\nIts items are overwritten with the ${acPl(items.length, 'item')} on this sheet.`)) return;
         r = await api('acc', 'tpl_put', { name, items, replace: +er.dup_id });
       }
       m.remove(); toast(`Template “${name}” saved (${acPl(items.length, 'item')})`);
@@ -742,7 +742,7 @@ async function acTemplates(box) {
         if (a === 'edit' || a === 'view') { const full = await api('acc', 'ac_tpl_get', undefined, `&id=${t.id}`); b.disabled = false; acTplEdit(full, draw, a === 'view'); return; }
         if (a === 'copy') { const r = await api('acc', 'tpl_copy', { id: t.id }); toast(`Duplicated as “${r.name}”`); }
         if (a === 'del') {
-          if (!confirm(`Delete the template '${t.name}'?\n\nIt goes to the Recycle bin.`)) { b.disabled = false; return; }
+          if (!await ask(`Delete the template '${t.name}'?\n\nIt goes to the Recycle bin.`)) { b.disabled = false; return; }
           await api('acc', 'tpl_del', { id: t.id }); toast('Template deleted. It is in the Recycle bin.');
         }
         await draw();
@@ -823,7 +823,7 @@ async function acMaterials(box) {
       try {
         if (a === 'hide') { await api('acc', 'material_save', { id: x.id, grp: x.grp, name: x.name, unit: x.unit, gst: x.gst, rate: x.rate, profit: acPv(x.profit), hidden: x.hidden ? 0 : 1 }); toast(x.hidden ? `“${x.name}” is offered on Project cost sheets again` : `“${x.name}” hidden from Project cost sheets`); }
         if (a === 'del') {
-          if (!confirm(`Delete “${x.name}” from the price list?\n\nIt goes to the Recycle bin. Project cost sheets that use it keep their lines.`)) { b.disabled = false; return; }
+          if (!await ask(`Delete “${x.name}” from the price list?\n\nIt goes to the Recycle bin. Project cost sheets that use it keep their lines.`)) { b.disabled = false; return; }
           await api('acc', 'material_delete', { id: x.id }); toast('Item deleted. It is in the Recycle bin.');
         }
         await reload();
@@ -915,7 +915,7 @@ function acCatManage(getMats, reload) {
     if (b.dataset.c === 'ren') { acCatName({ mats: getMats(), from: g }, refresh); return; }
     const c = (getMats() || []).filter(x => x.grp === g).length;
     if (c) { toast(`“${g}” still has ${acPl(c, 'product')}. Move them to another category or delete them first.`, true); return; }
-    if (!confirm(`Delete the category “${g}”?\n\nNo product is in it. You can add it again any time.`)) return;
+    if (!await ask(`Delete the category “${g}”?\n\nNo product is in it. You can add it again any time.`)) return;
     b.disabled = true;
     try { const r = await api('acc', 'group_delete', { name: g }); if (r.groups) ACS.grps = r.groups; toast('Category deleted'); draw(); }
     catch (er) { b.disabled = false; }

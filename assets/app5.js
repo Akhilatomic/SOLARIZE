@@ -196,7 +196,7 @@ async function evModal(ev) {
   $('#ecx', m).onclick = () => m.remove();
   if ($('#esv', m)) $('#esv', m).onclick = async () => { const o = collectEv(); if (!o.title.trim()) return sayBad('Title required'); await api('calendar', 'save', o); m.remove(); toast(isNew ? 'Event added' : 'Event saved'); if (location.hash.startsWith('#/calendar')) route(); };
   if ($('#edone', m)) $('#edone', m).onclick = async () => { await api('calendar', 'status', { id: ev.id, status: 'Done' }); m.remove(); toast('Marked done'); route(); };
-  if ($('#edl', m)) $('#edl', m).onclick = async () => { if (confirm('Delete this event?')) { await api('calendar', 'delete', { id: ev.id }); m.remove(); toast('Event deleted'); route(); } };
+  if ($('#edl', m)) $('#edl', m).onclick = async () => { if (await ask('Delete this event?')) { await api('calendar', 'delete', { id: ev.id }); m.remove(); toast('Event deleted'); route(); } };
   if ($('#egc', m)) { const o = collectEv(), z = x => x.replace(/[-:]/g, ''), nd = d => ymd(addD(pdate(d), 1)).replace(/-/g, '');
     const dates = o.all_day ? z(o.start) + '/' + (o.end ? nd(o.end) : nd(o.start)) : z(o.start) + '00/' + z(o.end) + '00';
     $('#egc', m).href = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(o.title)}&dates=${dates}&details=${encodeURIComponent(o.notes || '')}&location=${encodeURIComponent(o.location || '')}&ctz=Asia/Kolkata`; }

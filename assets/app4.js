@@ -23,12 +23,12 @@ const fmWarn = e => { e.preventDefault(); e.returnValue = ''; }; /* closing the 
 const fmUpLive = j => j.st !== 'bad' && j.st !== 'skip';
 const fmUpDone = () => FMU.jobs.reduce((t, j) => t + (j.st === 'ok' ? j.f.size : j.st === 'up' || j.st === 'save' ? Math.min(j.sent, j.f.size) : 0), 0);
 /* list: files; to / toName: target folder; names: lower-case file names already in that folder (same name = replace, asked once for the batch) */
-function fmUpAdd(list, to, toName, names) {
+async function fmUpAdd(list, to, toName, names) {
   if (!FMU.busy) { FMU.jobs = []; FMU.samples = []; }
   clearTimeout(FMU.hideT);
   const fits = f => FM_OK_EXT.includes((f.name.split('.').pop() || '').toLowerCase()) && f.name.includes('.') && f.size <= FM_MAX;
   const dup = list.filter(f => fits(f) && names.has(f.name.toLowerCase()));
-  const replace = !dup.length || confirm(dup.length === 1
+  const replace = !dup.length || await ask(dup.length === 1
     ? `${dup[0].name} is already in ${toName}.\n\nReplace it with the new version? The old one goes to the Recycle bin, and links already sent for it stop working.\n\nCancel keeps the old one.`
     : `${dup.length} of these files are already in ${toName}:\n${dup.slice(0, 8).map(f => '• ' + f.name).join('\n')}${dup.length > 8 ? '\n…' : ''}\n\nReplace them with the new versions? The old ones go to the Recycle bin, and links already sent for them stop working.\n\nCancel keeps the old ones.`);
   for (const f of list) {
@@ -81,10 +81,10 @@ function fmUpPaint() {
   let el = FMU.el;
   if (!el || !document.body.contains(el)) {
     el = FMU.el = document.createElement('div'); el.className = 'fm-up'; el.setAttribute('role', 'status'); document.body.appendChild(el);
-    el.onclick = e => {
+    el.onclick = async e => {
       if (e.target.closest('#fmupmin')) { FMU.min = !FMU.min; fmUpPaint(); }
       else if (e.target.closest('#fmupx')) { clearTimeout(FMU.hideT); el.remove(); FMU.el = null; }
-      else if (e.target.closest('#fmupstop') && confirm('Stop uploading? Files already uploaded stay.')) {
+      else if (e.target.closest('#fmupstop') && await ask('Stop uploading? Files already uploaded stay.')) {
         FMU.jobs.forEach(j => { if (j.st === 'wait' || j.st === 'up' || j.st === 'save') { j.st = 'skip'; j.msg = 'Cancelled'; } });
         if (FMU.xhr) FMU.xhr.abort(); fmUpPaint();
       }
@@ -316,7 +316,7 @@ async function pgFolder(id) {
     };
     if ($('#fmmv')) $('#fmmv').onclick = () => moveDialog();
     if ($('#fmrm')) $('#fmrm').onclick = async () => {
-      if (!confirm(`Delete ${n} item${n === 1 ? '' : 's'}${fo.length ? ' (folders include everything inside them)' : ''}?\n\nThey go to the Recycle bin for ${RULE('trash_hours')} hours, then are removed. Share links already sent stop working.`)) return;
+      if (!await ask(`Delete ${n} item${n === 1 ? '' : 's'}${fo.length ? ' (folders include everything inside them)' : ''}?\n\nThey go to the Recycle bin for ${RULE('trash_hours')} hours, then are removed. Share links already sent stop working.`)) return;
       try { await api('folder', 'delete', { files: fl, folders: fo }); clearSel(); toast('Moved to the Recycle bin'); reload(); } catch (e) { }
     };
   };

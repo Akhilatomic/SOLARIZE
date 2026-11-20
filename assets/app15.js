@@ -66,10 +66,10 @@ async function pgFees() {
   const bind = () => {
     $$('[data-dem]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.dem); await api('fees', 'set', { id: r.id, demanded: +r.demanded ? 0 : 1, demanded_on: today() }); reload(); });
     $$('[data-paid]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.paid);
-      if (+r.paid) { if (!confirm(`Mark ${r.name}'s ${K.title.toLowerCase()} as NOT ${K.paid.toLowerCase()}?`)) return; await api('fees', 'set', { id: r.id, paid: 0 }); reload(); } else payModal(r); });
+      if (+r.paid) { if (!await ask(`Mark ${r.name}'s ${K.title.toLowerCase()} as NOT ${K.paid.toLowerCase()}?`)) return; await api('fees', 'set', { id: r.id, paid: 0 }); reload(); } else payModal(r); });
     $$('[data-renew]').forEach(b => b.onclick = () => payModal(d.rows.find(x => x.id == b.dataset.renew)));
-    $$('[data-amt]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.amt), v = prompt(`${kind === 'stamp' ? 'Stamp value' : 'Amount'} for ${r.name} (₹)`, r.amount); if (v === null || v.trim() === '' || isNaN(+v)) return; await api('fees', 'set', { id: r.id, amount: +v }); reload(); });
-    $$('[data-rm]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.rm); if (!confirm(`Remove ${r.name} from ${K.title}?\n\nIt goes to the Recycle bin for ${RULE('trash_hours')} hours.`)) return; await api('fees', 'remove', { id: r.id }); toast('Removed — in the Recycle bin'); reload(); });
+    $$('[data-amt]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.amt), v = await askText(`${kind === 'stamp' ? 'Stamp value' : 'Amount'} for ${r.name} (₹)`, r.amount); if (v === null || v.trim() === '' || isNaN(+v)) return; await api('fees', 'set', { id: r.id, amount: +v }); reload(); });
+    $$('[data-rm]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.rm); if (!await ask(`Remove ${r.name} from ${K.title}?\n\nIt goes to the Recycle bin for ${RULE('trash_hours')} hours.`)) return; await api('fees', 'remove', { id: r.id }); toast('Removed — in the Recycle bin'); reload(); });
   };
   $('#fq').oninput = e => { FEEQ.q = e.target.value; draw(); };
   $$('[data-ff]').forEach(b => b.onclick = () => { FEEQ.f[kind] = b.dataset.ff; $$('[data-ff]').forEach(x => x.classList.toggle('on', x === b)); draw(); });

@@ -78,7 +78,7 @@ async function moveTo(p, stage, note, skip) {
   if (p.stage === stage) return;
   if (stage === 'Project completed') { const ci = PIPE.findIndex(s => s[1] === p.stage), cur = PIPE[ci];
     const open = pendNames(p).concat(cur && (skip || (cur[3] === 'receipt' && !(p.receipts || {})[cur[0]])) ? [cur[1]] : []);
-    if (open.length && !confirm(`Still to do:\n• ${open.join('\n• ')}\n\nMark the project completed anyway? These stay marked as still to do.`)) return false; }
+    if (open.length && !await ask(`Still to do:\n• ${open.join('\n• ')}\n\nMark the project completed anyway? These stay marked as still to do.`)) return false; }
   let r; try { r = await api('pipeline', 'move', { id: p.id, stage, note: note || '', skip: skip ? 1 : 0 }); } catch (e) { return false; }
   const who = p.customer && typeof p.customer === 'object' ? p.customer.name : p.customer;
   toast((who ? who + ': ' : '') + 'moved to ' + stage + (r.left && r.left.length ? ' · left for later: ' + r.left.join(', ') : '')); route(); return true;
@@ -155,7 +155,7 @@ function serviceModal(pid, s, types, done, p) {
     await api('pipeline', 'service_save', o);
     if ($('#vcal', m) && $('#vcal', m).checked && o.status === 'Scheduled' && canW('calendar')) { try { await api('calendar', 'save', { title: o.type + (p && p.customer ? ' — ' + p.customer : ''), type: 'Other', all_day: 1, start: o.date, project_id: pid, location: p && p.district || '', notes: o.notes }); } catch (e) { } }
     m.remove(); toast('Service saved'); done(); };
-  if ($('#vdl', m)) $('#vdl', m).onclick = async () => { if (confirm('Delete this service record?')) { await api('pipeline', 'service_delete', { id: s.id }); m.remove(); done(); } };
+  if ($('#vdl', m)) $('#vdl', m).onclick = async () => { if (await ask('Delete this service record?')) { await api('pipeline', 'service_delete', { id: s.id }); m.remove(); done(); } };
 }
 
 // ---------- stepper on the project page ----------
@@ -179,10 +179,10 @@ async function renderStepper(p, box) {
   $$('[data-rcu]', box).forEach(a => a.onclick = e => { e.preventDefault(); receiptModal(p.id, a.dataset.rcu, () => route()); });
   $$('[data-skipcur]', box).forEach(a => a.onclick = e => { e.preventDefault(); e.stopPropagation(); const nb = $('[data-next]', box); if (nb) moveTo(pp, nb.dataset.to, '', true); });
   /* click to select: a later step = move there; a step left for later = done now; an earlier step = move back (asks first) */
-  const go = el => { const i = +el.dataset.go, s = PIPE[i]; if (!s) return;
+  const go = async el => { const i = +el.dataset.go, s = PIPE[i]; if (!s) return;
     if (pend.includes(s[0])) return s[3] === 'receipt' ? receiptModal(p.id, s[0], () => route()) : stepDone(p, s[0]);
     if (i === cur) return receiptModal(p.id, s[0], () => route());
-    if (i < cur && !confirm(`Move the project back to “${s[1]}”?\n\nThe steps after it will show as not done yet.`)) return;
+    if (i < cur && !await ask(`Move the project back to “${s[1]}”?\n\nThe steps after it will show as not done yet.`)) return;
     moveTo(pp, s[1]); };
   $$('.psi[data-go]', box).forEach(el => { el.onclick = e => { if (!e.target.closest('a,button')) go(el); }; el.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); go(el); } }; });
 }

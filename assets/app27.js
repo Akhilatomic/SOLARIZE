@@ -187,7 +187,7 @@ function commApprove(r, people, done) {
   m.addEventListener('change', upd); upd();
   $('#apx', m).onclick = () => m.remove();
   const send = async ok => { const uid = +$('#apu', m).value; if (!uid) { $('#ape', m).textContent = 'Choose the staff member'; return; }
-    if (!ok && !confirm(`Mark ${r.name} as not eligible for an incentive?`)) return;
+    if (!ok && !await ask(`Mark ${r.name} as not eligible for an incentive?`)) return;
     $$('button', m).forEach(b => b.disabled = true);
     try { const j = await api('comm', 'approve', { customer_id: r.customer_id, user_id: uid, lead_type: $('#apt', m).value, ok: ok ? 1 : 0, visible: ok && $('#apvis', m).checked ? 1 : 0 });
       m.remove(); toast(ok ? `Approved: ${j.row.name} · ${inr(j.row.amount)}` : `${j.row.name}: not eligible`); done(j.row); }

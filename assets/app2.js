@@ -20,7 +20,7 @@ async function pgQuotes() {
       b.disabled = true; try { await setSt(s); } catch (x) { b.disabled = false; return; }
       if (s === 'Accepted') qmKeepNote(q.id); /* the PDF goes to the customer's Documents (made in the background) */
       return; }
-    const del = async () => { if (!confirm(`Delete quotation ${q.number}?\n\nIt goes to the Recycle bin.`)) return;
+    const del = async () => { if (!await ask(`Delete quotation ${q.number}?\n\nIt goes to the Recycle bin.`)) return;
       await api('quotes', 'delete', { id: q.id }); toast('Deleted · ' + q.number); redraw(); };
     if (a === 'more') return popMenu(b, [q.status !== 'Draft' && ['Draft', 'tag', 'Mark as draft'], q.status !== 'Sent' && ['Sent', 'tag', 'Mark as sent'], ['del', 'trash', 'Delete quotation']], m => m === 'del' ? del() : setSt(m));
     const who = cs.find(c => c.id === q.customer_id) || ls.find(l => l.id === q.lead_id) || {};
@@ -59,14 +59,14 @@ async function pgQuote(id) {
   drawItems(); $('#qg').oninput = $('#qsub').oninput = drawTotals;
   $('#ai').onclick = () => { items.push({ desc: '', qty: 1, rate: 0 }); drawItems(); };
   $('#cat').onchange = e => { if (e.target.value !== '') { const c = S.catalog[e.target.value]; items.push({ desc: c.desc.trim(), qty: 1, rate: c.rate }); drawItems(); } };
-  $('#est').onclick = e => { e.preventDefault(); const kw = prompt('System size in kW?'); if (kw) { $('#qsub').value = subsidyCalc(kw); drawTotals(); } };
+  $('#est').onclick = async e => { e.preventDefault(); const kw = await askText('System size in kW?'); if (kw) { $('#qsub').value = subsidyCalc(kw); drawTotals(); } };
   const payload = () => ({ id: q.id, customer_id: $('#qc').value, lead_id: $('#ql').value, date: $('#qd').value, status: $('#qst').value, gst_rate: $('#qg').value, subsidy: $('#qsub').value, terms: $('#qterms').value, items, number: q.number || '' });
   if ($('#sv')) $('#sv').onclick = async () => { const p = payload(); if (!p.customer_id && !p.lead_id) return sayBad('Select a customer or a lead'); const r = await api('quotes', 'save', p); if (q.id) route(); else location.hash = '#/quotes/' + r.id; };
   const who = () => cs.find(c => c.id == $('#qc').value) || ls.find(l => l.id == $('#ql').value) || {};
   if ($('#pr')) $('#pr').onclick = () => printQuote(q, payload(), who(), calc());
   if ($('#wa')) $('#wa').onclick = () => { const c = who(); waOpen({ name: c.name, phone: c.phone, customer_id: +$('#qc').value || null, lead_id: +$('#ql').value || null, amount: Math.round(calc().tot).toLocaleString('en-IN'), quote_no: q.number }); };
   if ($('#mp')) $('#mp').onclick = () => { projectModal(0, { customer_id: q.customer_id, title: '3 kW rooftop solar', cost: Math.round(calc().tot), stage: 'Approval' }); };
-  if ($('#dl')) $('#dl').onclick = async () => { if (confirm('Delete this quotation?')) { await api('quotes', 'delete', { id: q.id }); location.hash = '#/quotes'; } };
+  if ($('#dl')) $('#dl').onclick = async () => { if (await ask('Delete this quotation?')) { await api('quotes', 'delete', { id: q.id }); location.hash = '#/quotes'; } };
 }
 function printQuote(q, p, who, c) {
   const co = S.company;
@@ -120,7 +120,7 @@ function campModal(c) {
   $('#cx', m).onclick = () => m.remove();
   if (w) $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; if (!o.name) return sayBad('Name required'); await api('campaigns', 'save', o); m.remove(); route(); };
   if ($('#sp', m)) $('#sp', m).onclick = () => { m.remove(); const s = modal(`<h3 style="margin-top:0">Spend entry — ${esc(c.name)}</h3><div class="two">${[{ k: 'date', l: 'Date', t: 'date', d: today() }, { k: 'spend', l: 'Spend (₹)', t: 'number' }, { k: 'impressions', l: 'Impressions', t: 'number' }, { k: 'clicks', l: 'Clicks', t: 'number' }].map(f => fld(f)).join('')}</div><div class="bar" style="margin-top:12px"><button class="btn" id="ok">Save</button><button class="btn sec" id="x">Cancel</button></div>`); $('#x', s).onclick = () => s.remove(); $('#ok', s).onclick = async () => { await api('ad_spend', 'save', { campaign_id: id, ...collect(s) }); s.remove(); route(); }; };
-  if ($('#dl', m)) $('#dl', m).onclick = async () => { if (confirm('Delete campaign and its spend entries?')) { await api('campaigns', 'delete', { id }); m.remove(); route(); } };
+  if ($('#dl', m)) $('#dl', m).onclick = async () => { if (await ask('Delete campaign and its spend entries?')) { await api('campaigns', 'delete', { id }); m.remove(); route(); } };
 }
 
 // ---------- Settings ----------
@@ -313,7 +313,7 @@ async function pgSettings() {
     const put = (key, value) => api('settings', 'save', { key, value }), done = async msg => { S = await api('settings', 'get'); toast(msg); };
     const arr = k => $('#s-' + k).value.split('\n').map(s => s.trim()).filter(Boolean);
     $('#lgup').onclick = async () => { const f = await pickFile('image/jpeg,image/png,image/webp'); if (!f) return; const fd = new FormData(); fd.append('file', f); const r = await api('settings', 'upload_bg', fd); prev(r.brand); toast('Image uploaded'); };
-    $('#lgrm').onclick = async () => { if (confirm('Remove the login background image?')) { const r = await api('settings', 'remove_bg', {}); prev(r.brand); toast('Image removed'); } };
+    $('#lgrm').onclick = async () => { if (await ask('Remove the login background image?')) { const r = await api('settings', 'remove_bg', {}); prev(r.brand); toast('Image removed'); } };
     $('#lgsv').onclick = async () => { await put('login', { ...(S.login || {}), tagline: $('#lgtag').value, dim: Math.max(0, Math.min(80, +$('#lgdim').value || 0)) }); await done('Sign-in text saved'); };
     /* the Company card itself — $('.card') is the hidden bell panel and once saved an empty record */
     $('#s-co').onclick = async () => { await put('company', collect($('#cocard'))); await done('Company details saved'); $$('#cocard [data-k]').forEach(e => e.value = S.company[e.dataset.k] ?? ''); };
@@ -384,9 +384,9 @@ async function usersPanel(box) {
     $$('[data-ue]', box).forEach(b => b.onclick = () => userModal(by(b.dataset.ue)));
     $$('[data-um]', box).forEach(b => b.onclick = () => { const u = by(b.dataset.um), isOn = +u.active;
       popMenu(b, [isOn && ['out', 'lock', 'Sign out on every device'], ['act', isOn ? 'x' : 'check', isOn ? 'Switch the login off' : 'Switch the login on']], async a => {
-        if (a === 'out') { if (!confirm(`Sign ${u.name} out on every device?\n\nThey can sign in again with their password.`)) return;
+        if (a === 'out') { if (!await ask(`Sign ${u.name} out on every device?\n\nThey can sign in again with their password.`)) return;
           try { await api('admin', 'user_signout', { id: u.id }); toast(u.name + ' is signed out everywhere'); } catch (e) { } }
-        if (a === 'act') { if (!confirm(isOn ? `Switch off ${u.name}’s login?\n\nThey are signed out at once and cannot sign in until you switch it on again. Their leads and customers stay with them.` : `Switch ${u.name}’s login back on?`)) return;
+        if (a === 'act') { if (!await ask(isOn ? `Switch off ${u.name}’s login?\n\nThey are signed out at once and cannot sign in until you switch it on again. Their leads and customers stay with them.` : `Switch ${u.name}’s login back on?`)) return;
           try { await api('admin', 'user_active', { id: u.id, active: isOn ? 0 : 1 }); toast(u.name + (isOn ? '’s login is switched off' : '’s login is on again')); reload(); } catch (e) { } }
       }); });
     if (typeof autoFit === 'function') autoFit();
@@ -528,8 +528,8 @@ function userModal(u) {
   const mbx = async () => { const box = $('#umbx', m); if (!box) return; let L; try { L = await api('mail', 'admin_list', undefined, '&user_id=' + id); } catch (e) { box.innerHTML = ''; return; }
     box.innerHTML = L.map(x => `<div class="mbxrow"><i class="i i-${x.problem ? 'alert' : 'mail'}"></i><span class="mbxmi">${esc(x.email)}${x.problem ? ' <small class="mbxn bad">password needed</small>' : ''}</span>
       ${id != ME.id ? `<button class="btn sec sm" type="button" data-mv="${x.id}">Move to my email</button>` : ''}<button class="btn sec sm" type="button" data-rmx="${x.id}">Disconnect</button></div>`).join('') || '<p class="mut" style="font-size:13px;margin:6px 0 0">None connected.</p>';
-    $$('[data-mv]', box).forEach(b => b.onclick = async () => { const x = L.find(y => y.id == b.dataset.mv); if (!confirm(`Move ${x.email} into your own Email list?\n\nYou can then read and answer its mail. ${u.name} no longer sees it in the CRM.`)) return; await api('mail', 'admin_move', { id: x.id }); toast(x.email + ' is now in your Email list'); EM.cfg = null; mbx(); });
-    $$('[data-rmx]', box).forEach(b => b.onclick = async () => { const x = L.find(y => y.id == b.dataset.rmx); if (!confirm(`Disconnect ${x.email} from ${id == ME.id ? 'your' : u.name + '’s'} CRM login?\n\nThe CRM forgets its saved password. The mail stays with the email provider.`)) return; await api('mail', 'admin_remove', { id: x.id }); toast(x.email + ' disconnected'); if (id == ME.id) EM.cfg = null; mbx(); }); };
+    $$('[data-mv]', box).forEach(b => b.onclick = async () => { const x = L.find(y => y.id == b.dataset.mv); if (!await ask(`Move ${x.email} into your own Email list?\n\nYou can then read and answer its mail. ${u.name} no longer sees it in the CRM.`)) return; await api('mail', 'admin_move', { id: x.id }); toast(x.email + ' is now in your Email list'); EM.cfg = null; mbx(); });
+    $$('[data-rmx]', box).forEach(b => b.onclick = async () => { const x = L.find(y => y.id == b.dataset.rmx); if (!await ask(`Disconnect ${x.email} from ${id == ME.id ? 'your' : u.name + '’s'} CRM login?\n\nThe CRM forgets its saved password. The mail stays with the email provider.`)) return; await api('mail', 'admin_remove', { id: x.id }); toast(x.email + ' disconnected'); if (id == ME.id) EM.cfg = null; mbx(); }); };
   if (id) mbx();
   $('#sv', m).onclick = async () => { const o = { id, ...collect(m) }; o.active = o.active === '1' ? 1 : 0; o.can_claim = o.can_claim === '1' ? 1 : 0; await api('admin', 'user_save', o); m.remove(); route(); };
 }
@@ -603,7 +603,7 @@ async function drawAccess() {
     $('#uau', box).onchange = e => { UAF.user = e.target.value; render(); };
     $('#uasv', box).onclick = async () => { await api('settings', 'save', { key: 'role_perms', value: now }); S = await api('settings', 'get'); toast('User access saved'); drawAccess(); };
     $('#uadc', box).onclick = () => { now = JSON.parse(JSON.stringify(was)); render(); };
-    $('#uars', box).onclick = async () => { if (!confirm('Reset every role to its default access?')) return; await api('settings', 'save', { key: 'role_perms', value: {} }); S = await api('settings', 'get'); toast('Defaults restored'); drawAccess(); };
+    $('#uars', box).onclick = async () => { if (!await ask('Reset every role to its default access?')) return; await api('settings', 'save', { key: 'role_perms', value: {} }); S = await api('settings', 'get'); toast('Defaults restored'); drawAccess(); };
     if (typeof autoFit === 'function') autoFit();
   };
   render();

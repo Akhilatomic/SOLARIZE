@@ -105,7 +105,7 @@ async function pgSurvey(id) {
   if ($('#svsave')) $('#svsave').onclick = async e => { e.currentTarget.disabled = true; try { await save(); toast('Survey saved'); pgSurvey(id); } catch (x) { e.currentTarget.disabled = false; } };
   if ($('#svdone')) $('#svdone').onclick = async e => {
     const miss = ['roof', 'inverter', 'earth'].filter(k => !files(k).length).map(k => d.slots[k]).concat(plan.length ? [] : ['Site plan']).concat($('#svok').checked ? [] : ['products not confirmed']);
-    if (miss.length && !confirm('Still missing: ' + miss.join(', ') + '.\n\nMark the survey done anyway?')) return;
+    if (miss.length && !await ask('Still missing: ' + miss.join(', ') + '.\n\nMark the survey done anyway?')) return;
     e.currentTarget.disabled = true; try { await save({ status: 'Done' }); toast('Site survey marked done'); pgSurvey(id); } catch (x) { e.currentTarget.disabled = false; } };
   if ($('#svre')) $('#svre').onclick = async () => { await api('survey', 'save', { id: s.id, status: 'In progress' }); pgSurvey(id); };
   if ($('#svby')) $('#svby').onchange = async e => { if (!await keep()) return; try { await api('survey', 'save', { id: s.id, assigned_to: +e.target.value }); toast('Survey handed to ' + e.target.selectedOptions[0].textContent); } finally { pgSurvey(id); } };
@@ -115,5 +115,5 @@ async function pgSurvey(id) {
       for (const f of list) { b.textContent = `Uploading ${n + 1} of ${list.length}…`; try { const fd = new FormData(); fd.append('id', s.id); fd.append('slot', k); fd.append('file', await svShrink(f)); await api('survey', 'upload', fd); n++; } catch (e) { } }
       if (n) toast(n === 1 ? 'Added to ' + d.slots[k] : `${n} files added to ${d.slots[k]}`); pgSurvey(id); };
     i.click(); });
-  $$('[data-svdel]').forEach(b => b.onclick = async e => { e.preventDefault(); e.stopPropagation(); if (!confirm('Delete this file? It goes to the Recycle bin.')) return; if (!await keep()) return; await api('survey', 'file_del', { id: +b.dataset.svdel }); pgSurvey(id); });
+  $$('[data-svdel]').forEach(b => b.onclick = async e => { e.preventDefault(); e.stopPropagation(); if (!await ask('Delete this file? It goes to the Recycle bin.')) return; if (!await keep()) return; await api('survey', 'file_del', { id: +b.dataset.svdel }); pgSurvey(id); });
 }

@@ -72,7 +72,7 @@ async function discOpen(tgt) {
     $('#xdb', m).scrollTop = $('#xdb', m).scrollHeight;
     $$('[data-pd]', m).forEach(x => x.ontoggle = () => pastOpen[x.dataset.pd] = x.open);
     $('#xdx', m).onclick = close;
-    if ($('#xdend', m)) $('#xdend', m).onclick = async () => { const note = prompt('End this discussion?\n\nAll messages are kept in the History below and can be read any time.\n\nOutcome / summary (optional):', ''); if (note === null) return; await api('disc', 'end', { id: openD.id, note }); toast('Discussion ended · kept in History'); await load(); draw(); };
+    if ($('#xdend', m)) $('#xdend', m).onclick = async () => { const note = await askText('End this discussion?\n\nAll messages are kept in the History below and can be read any time.\n\nOutcome / summary (optional):', ''); if (note === null) return; await api('disc', 'end', { id: openD.id, note }); toast('Discussion ended · kept in History'); await load(); draw(); };
     // @mention picker
     const menu = $('#xdmenu', m); let sel = 0, opts = [];
     const hide = () => { menu.classList.add('hide'); opts = []; };

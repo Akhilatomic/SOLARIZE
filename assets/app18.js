@@ -91,7 +91,7 @@ async function renderWarranty(box, c, id) {
           ${k === 'wa' && c.phone ? `<button class="btn sec sm" data-send="wa"><i class="i i-whatsapp"></i> Send</button>` : ''}${k === 'mail' ? `<button class="btn sec sm" data-send="mail"><i class="i i-mail"></i> Send</button>` : ''}${k === 'req' ? '<button class="btn sec sm" data-send="form">Form</button>' : ''}</div>`; }).join('')}</div>
       <label>Note</label><textarea id="wcn" rows="2" placeholder="e.g. courier details, who collected the card" ${w ? '' : 'disabled'}>${esc(S.note || '')}</textarea>
       ${w ? '<div class="bar" style="margin-top:8px"><button class="btn sec sm" id="wcns">Save note</button></div>' : ''}`;
-    $$('[data-wk]', box).forEach(b => b.onclick = () => { const k = b.dataset.wk; if (S.steps[k]) { if (!confirm('Mark this step as not done?')) return; delete S.steps[k]; } else S.steps[k] = { on: today(), by: (ME || {}).name || '' }; save(S.steps[k] ? 'Status updated' : 'Step cleared'); });
+    $$('[data-wk]', box).forEach(b => b.onclick = async () => { const k = b.dataset.wk; if (S.steps[k]) { if (!await ask('Mark this step as not done?')) return; delete S.steps[k]; } else S.steps[k] = { on: today(), by: (ME || {}).name || '' }; save(S.steps[k] ? 'Status updated' : 'Step cleared'); });
     $$('[data-wd]', box).forEach(e => e.onchange = () => { if (!e.value) return; S.steps[e.dataset.wd].on = e.value; save('Date updated'); });
     if ($('#wcns', box)) $('#wcns', box).onclick = () => { S.note = $('#wcn', box).value.trim(); save('Note saved'); };
     $$('[data-send]', box).forEach(b => b.onclick = async () => { const k = b.dataset.send;
@@ -118,7 +118,7 @@ async function renderWarranty(box, c, id) {
           ${wf && item !== 'Warranty card' ? `<label class="btn sec sm wyup" title="Upload the ${label.toLowerCase()} warranty card"><input type="file" accept="image/*,.pdf" hidden multiple data-item="${item}"><i class="i i-upload"></i> Upload</label>` : ''}</div>
           ${L.length ? `<div class="wyf">${L.map(([f, i]) => card(f, i)).join('')}</div>` : ''}</div>`; }).join('')}`;
     $$('[data-wv]', box).forEach(b => b.onclick = () => docViewer(F, +b.dataset.wv));
-    $$('[data-wx]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this warranty card? It goes to the Recycle bin for ' + RULE('trash_hours') + ' hours.')) return; try { await api('files', 'delete', { id: +b.dataset.wx }); toast('Warranty card deleted'); renderWarranty(box, c, id); } catch (e) { } });
+    $$('[data-wx]', box).forEach(b => b.onclick = async () => { if (!await ask('Delete this warranty card? It goes to the Recycle bin for ' + RULE('trash_hours') + ' hours.')) return; try { await api('files', 'delete', { id: +b.dataset.wx }); toast('Warranty card deleted'); renderWarranty(box, c, id); } catch (e) { } });
     $$('.wyup input', box).forEach(inp => inp.onchange = async () => { const files = [...inp.files]; inp.value = ''; if (!files.length) return; const lab = inp.parentElement; lab.classList.add('busy'); let n = 0;
       for (const f0 of files) { const f = f0.size > 10 * 1024 * 1024 && /^image\//.test(f0.type) ? await shrinkImage(f0) : f0;
         if (f.size > 10 * 1024 * 1024) { toast(`${f0.name} is larger than 10 MB`, true); continue; }
@@ -322,7 +322,7 @@ async function renderTax(box, c, id) {
       if (s) s.value = ACC.payFrom(md, s.value); }; /* mode Loan: from the bank */
     $$('[data-pedit]', box).forEach(b => b.onclick = () => editPayment(b.dataset.pedit));
     $$('[data-prc]', box).forEach(b => b.onclick = () => openReceipt(b.dataset.prc));
-    $$('[data-pdel]', box).forEach(b => b.onclick = async () => { if (!confirm('Delete this payment? It goes to the Recycle bin for ' + RULE('trash_hours') + ' hours.')) return; try { await api('payments', 'delete', { id: +b.dataset.pdel }); toast('Payment deleted'); } catch (x) { } reload(); }); };
+    $$('[data-pdel]', box).forEach(b => b.onclick = async () => { if (!await ask('Delete this payment? It goes to the Recycle bin for ' + RULE('trash_hours') + ' hours.')) return; try { await api('payments', 'delete', { id: +b.dataset.pdel }); toast('Payment deleted'); } catch (x) { } reload(); }); };
   // ---- payment receipt (the receipt window, its PDF and sharing live in app35.js: acReceipt)
   const isCash = p => String(p.mode || '').trim().toLowerCase() === 'cash';
   const REF_PH = 'Reference no. (UTR / cheque / txn)';
@@ -382,7 +382,7 @@ async function renderTax(box, c, id) {
   const noHint = () => { const h = $('#tnoh', box); if (h) h.textContent = g.doc ? 'Change it only to correct a mistake. A number can be on one bill only.' : noAuto ? 'Next number in the series. Type your own to change it — the series then carries on from it.' : 'Your own number. It must not be on any other bill.'; };
   const nextNo = async () => { try { const r = await api('gen', 'next', undefined, `&kind=tax&customer_id=${id}&date=${$('#tdate', box).value}`); $('#tno', box).value = r.number; } catch (e) { } upd(); };
   if ($('#tno', box)) $('#tno', box).addEventListener('input', () => { if (!g.doc) noAuto = false; noHint(); });
-  if ($('#tnoauto', box)) $('#tnoauto', box).onclick = async () => { if (g.doc && !confirm('Give this bill the next number in the series? The old number will no longer be on it.')) return; noAuto = !g.doc; await nextNo(); noHint(); };
+  if ($('#tnoauto', box)) $('#tnoauto', box).onclick = async () => { if (g.doc && !await ask('Give this bill the next number in the series? The old number will no longer be on it.')) return; noAuto = !g.doc; await nextNo(); noHint(); };
   $('#tdate', box).addEventListener('change', () => { if (!g.doc && noAuto) nextNo(); });
   noHint();
   if ($('#tgoplant', box)) $('#tgoplant', box).onclick = () => { const t = document.querySelector('[data-pt="plant"]'); if (t) { t.click(); scrollTo({ top: 0, behavior: 'smooth' }); } };
@@ -398,7 +398,7 @@ async function renderTax(box, c, id) {
     if (!el) return;
     el.innerHTML = `<button class="btn" id="tsv" ${locked ? 'disabled' : ''}>${g.doc ? 'Save changes' : 'Issue tax bill' + (locked ? ' — ' + esc(L.msg || 'payment still due') : '')}</button>${locked && ME && ME.role === 'admin' ? '<button type="button" class="acx-link" id="tearly" title="Admin only: issue the bill although money is still due">Issue early</button>' : ''}`;
     $('#tsv', box).onclick = () => issue(false);
-    if ($('#tearly', box)) $('#tearly', box).onclick = () => { if (confirm('Issue the tax bill before full payment?')) issue(true); }; }
+    if ($('#tearly', box)) $('#tearly', box).onclick = async () => { if (await ask('Issue the tax bill before full payment?')) issue(true); }; }
   /* an issued bill: PDF, Email / WhatsApp to the customer and, on a loan project, to the bank (tax bill template), each share logged */
   const drawShare = () => { const el = $('#tshr', box); if (!el || !g.doc) return;
     const bk = isLoan && canR('loans'), sb = (via, to, icon, label) => `<button class="btn sec sm" data-via="${via}" data-to="${to}"><i class="i i-${icon}"></i> ${label}</button>`;
@@ -514,7 +514,7 @@ async function renderMnre(box, c, id) {
   const hint = () => { $('#mrefh', box).textContent = g.doc ? 'Change it only to correct a mistake. A number can be on one certificate only.' : noAuto ? 'Next number in the series. Type your own to change it.' : 'Your own number. It must not be on any other certificate.'; };
   box.addEventListener('input', e => { if (e.target.dataset.m) D[e.target.dataset.m] = e.target.value; if (e.target.id === 'mref' && !g.doc) { noAuto = false; hint(); } upd(); });
   $('#mdate', box).addEventListener('change', async () => { if (!g.doc && noAuto) { try { $('#mref', box).value = (await api('gen', 'next', undefined, `&kind=warranty&customer_id=${id}&date=${$('#mdate', box).value}`)).number; } catch (e) { } } upd(); });
-  if ($('#mrefauto', box)) $('#mrefauto', box).onclick = async () => { if (g.doc && !confirm('Give this certificate the next number in the series?')) return; noAuto = !g.doc;
+  if ($('#mrefauto', box)) $('#mrefauto', box).onclick = async () => { if (g.doc && !await ask('Give this certificate the next number in the series?')) return; noAuto = !g.doc;
     try { $('#mref', box).value = (await api('gen', 'next', undefined, `&kind=warranty&customer_id=${id}&date=${$('#mdate', box).value}`)).number; } catch (e) { } hint(); upd(); };
   $('#mgoplant', box).onclick = () => { const t = document.querySelector('[data-pt="plant"]'); if (t) { t.click(); scrollTo({ top: 0, behavior: 'smooth' }); } else { PFT = 'plant'; PFT_ID = id; location.hash = '#/customers/' + id; } };
   /* a copy of the issued certificate for the customer's Documents page, kept until someone deletes it (as saved: not while the form has changes) */

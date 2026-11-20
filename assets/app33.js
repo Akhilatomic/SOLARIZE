@@ -210,7 +210,7 @@ function acPayForm(j, p, o = {}) {
   $('#acx_ygo', m).onclick = async e => {
     const a = acNum(amt.value);
     if (!a) { toast('Enter the amount received', true); amt.focus(); return; }
-    if (!p && due > 0 && a > due + 1 && !confirm(`${inrW(a)} is more than the ${inrW(due)} pending on this project.\n\nSave it anyway?`)) return;
+    if (!p && due > 0 && a > due + 1 && !await ask(`${inrW(a)} is more than the ${inrW(due)} pending on this project.\n\nSave it anyway?`)) return;
     const b = e.currentTarget; b.disabled = true;
     /* src is always sent: a save without it would turn a bank payment into a customer one */
     const x = { project_id: j.pid, date: $('#acx_yd', m).value || today(), amount: a, mode: mode.value, ref_no: ref.value.trim(), note: $('#acx_yn', m).value.trim(), src: $('#acx_ys', m) ? $('#acx_ys', m).value : src };
@@ -300,14 +300,14 @@ async function acTrackTab(box, done) {
     let body = { customer_id: r.customer_id, done: a === 'done' ? 1 : 0 };
     if (a === 'done' && !r.full) { /* a balance is left (or no plant cost): only an admin may close it, after a confirm */
       if (ME.role !== 'admin') return toast(r.cost > 0 ? `${inrW(r.due)} is still pending, so this customer stays In progress.` : 'Enter the total plant cost first.', true);
-      if (!confirm(r.cost > 0 ? `${inrW(r.due)} is still pending for ${r.customer}.\n\nMove to Completed anyway?` : `No plant cost is entered for ${r.customer}.\n\nMove to Completed anyway?`)) return;
+      if (!await ask(r.cost > 0 ? `${inrW(r.due)} is still pending for ${r.customer}.\n\nMove to Completed anyway?` : `No plant cost is entered for ${r.customer}.\n\nMove to Completed anyway?`)) return;
       body.force = 1;
     }
     b.disabled = true;
     try { await api('acc', 'track_set', body); toast(r.customer + (a === 'done' ? ' moved to Completed' : ' moved back to In progress')); await reload(); } catch (x) { b.disabled = false; }
   };
   const all = $('[data-acx-all]', box);
-  if (all) all.onclick = async () => { const n = (d.rows || []).filter(r => r.full).length; if (!confirm(`Move ${acPl(n, 'fully paid customer')} to Completed?`)) return;
+  if (all) all.onclick = async () => { const n = (d.rows || []).filter(r => r.full).length; if (!await ask(`Move ${acPl(n, 'fully paid customer')} to Completed?`)) return;
     all.disabled = true; try { const r = await api('acc', 'track_all', {}); toast(`${acPl(+r.moved || 0, 'customer')} moved to Completed`); await reload(); } catch (x) { } finally { all.disabled = false; } };
   const drawSoon = debounce(draw, 120);
   $('[data-acx-q]', box).oninput = e => { ACXT.q = e.target.value; drawSoon(); };
@@ -477,7 +477,7 @@ ACCT_TABS.expenses = async (box, P) => {
     if (!x) return;
     if (a === 'edit') return acExpForm(x, d.cats || [], P, reload);
     if (a !== 'del' || b.disabled) return;
-    if (!confirm(`Delete this expense (${x.cat}, ${inrW(x.amount)} on ${acDt(x.date)})?\n\nIt goes to the Recycle bin.`)) return;
+    if (!await ask(`Delete this expense (${x.cat}, ${inrW(x.amount)} on ${acDt(x.date)})?\n\nIt goes to the Recycle bin.`)) return;
     b.disabled = true;
     try { await api('acc', 'expense_delete', { id: x.id }); } catch (er) { b.disabled = false; return; }
     toast('Expense deleted. It is in the Recycle bin.');

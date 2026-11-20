@@ -106,7 +106,7 @@ async function sdyBox(cid, reload) {
 
 /* delete = take the customer off the subsidy list (the customer stays; the status history goes to the Recycle bin) */
 async function sdyRemove(r, reload) {
-  if (!confirm(`Delete ${r.name} from the subsidy list?\nThe customer stays in the CRM. The subsidy status history goes to the Recycle bin.`)) return false;
+  if (!await ask(`Delete ${r.name} from the subsidy list?\nThe customer stays in the CRM. The subsidy status history goes to the Recycle bin.`)) return false;
   await api('subsidy', 'remove', { customer_id: r.customer_id }); if (typeof toast === 'function') toast('Deleted from the subsidy list'); if (reload) await reload(); return true;
 }
 /* the customer's team discussion (app9.js); when its window closes the list shows the new live / unread mark */

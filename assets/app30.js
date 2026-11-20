@@ -30,7 +30,7 @@ function custImport(done) {
     try { show(await api('import', 'preview', file)); $('#imgo', m).disabled = false; } catch (err) { file = null; $('#imv', m).innerHTML = ''; }
   };
   $('#imgo', m).onclick = async () => {
-    if (!file || !confirm('Import these customers now?')) return;
+    if (!file || !await ask('Import these customers now?')) return;
     $('#imgo', m).disabled = true;
     try { const res = await api('import', 'run', file); show(res, true); toast(`${res.counts.new} customers added · ${res.counts.update} updated`); $('#imgo', m).remove(); $('#imx', m).textContent = 'Close'; $('#imx', m).onclick = () => { m.remove(); done && done(); }; }
     catch (err) { $('#imgo', m).disabled = false; }

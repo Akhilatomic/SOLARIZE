@@ -71,7 +71,7 @@ function acSupManage(reload) {
       const b = e.target.closest('[data-s]'), row = b && b.closest('[data-id]'), s = row && acSups().find(x => x.id === +row.dataset.id);
       if (!s) return;
       if (b.dataset.s === 'edit') { acSupForm(s, () => { changed = true; if (m.isConnected) draw(); }); return; }
-      if (!confirm(`Delete the supplier “${s.name}”?\n\n${s.n ? `Its ${acPl(s.n, 'price')} on the price list go with it. Items that use one of them keep their dealer price.` : 'It has no prices on the price list.'}\n\nIt goes to the Recycle bin.`)) return;
+      if (!await ask(`Delete the supplier “${s.name}”?\n\n${s.n ? `Its ${acPl(s.n, 'price')} on the price list go with it. Items that use one of them keep their dealer price.` : 'It has no prices on the price list.'}\n\nIt goes to the Recycle bin.`)) return;
       b.disabled = true;
       try { const r = await api('acc', 'supplier_delete', { id: s.id }); ACS.sups = r.suppliers || []; ACS.mats = null; changed = true; toast('Supplier deleted. It is in the Recycle bin.'); draw(); }
       catch (er) { b.disabled = false; }
@@ -145,12 +145,12 @@ async function acOfferAct(a, x, oid, reload) {
   const who = s ? s.name : 'this supplier';
   if (a === 'edit') return acOfferForm(x, o, reload);
   if (a === 'use') {
-    if (+x.rate && Math.abs(+x.rate - o.rate) > 0.005 && !confirm(`Use the price from ${who} for “${x.name}”?\n\nThe dealer price changes from ${inr2(x.rate)} to ${inr2(o.rate)}. Project cost sheets already made keep their prices.`)) return;
+    if (+x.rate && Math.abs(+x.rate - o.rate) > 0.005 && !await ask(`Use the price from ${who} for “${x.name}”?\n\nThe dealer price changes from ${inr2(x.rate)} to ${inr2(o.rate)}. Project cost sheets already made keep their prices.`)) return;
     await api('acc', 'offer_pick', { material_id: x.id, offer_id: o.id });
     toast(`“${x.name}” now uses the price from ${who}`);
   }
   if (a === 'del') {
-    if (!confirm(`Delete the price from ${who} for “${x.name}”?\n\nIt goes to the Recycle bin.`)) return;
+    if (!await ask(`Delete the price from ${who} for “${x.name}”?\n\nIt goes to the Recycle bin.`)) return;
     await api('acc', 'offer_delete', { id: o.id });
     toast('Supplier price deleted. It is in the Recycle bin.');
   }

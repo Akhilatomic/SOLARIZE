@@ -22,7 +22,7 @@ async function qmOpenSettings() {
   root.addEventListener('click', qmgClick); root.addEventListener('input', qmgInput); root.addEventListener('change', qmgChange);
   qmgShell();
 }
-function qmgClose() { if (QMG.m && (!QMG.dirty || confirm('You have changes that are not saved. Close anyway?'))) QMG.m.remove(); }
+async function qmgClose() { if (QMG.m && (!QMG.dirty || await ask('You have changes that are not saved. Close anyway?'))) QMG.m.remove(); }
 
 function qmgShell() {
   const root = $('#qmg', QMG.m);
@@ -212,14 +212,14 @@ async function qmgClick(e) {
   const el = e.target.closest('[data-a]'); if (!el || !QMG.m) return;
   const a = el.dataset.a, k = el.dataset.k, E = QMG.E;
   if (a === 'close') return qmgClose();
-  if (a === 'tab') { if (QMG.E && QMG.dirty && !confirm('Discard this unsaved product?')) return; QMG.E = null; QMG.tab = k; return qmgShell(); }
+  if (a === 'tab') { if (QMG.E && QMG.dirty && !await ask('Discard this unsaved product?')) return; QMG.E = null; QMG.tab = k; return qmgShell(); }
   if (a === 'cat') { QMG.cat = k; return qmgProducts(); }
   if (a === 'kseb') { QMG.tab = 'set'; QMG.open = 'kseb'; qmgShell(); const s = $('#qmgs-kseb', QMG.m); if (s) s.scrollIntoView({ block: 'nearest' }); return; }
   if (a === 'add') { QMG.picTouched = false; QMG.E = qmgBlank(QMG.cat); QMG.dirty = false; return qmgProducts(); }
   if (a === 'edit') { const p = QMG.b.products.find(x => x.id == k); if (!p) return; QMG.E = Object.assign(qmgBlank(p.cat), qmgClone(p)); QMG.E.brands.forEach(br => { br.logos = br.logos || []; }); if (!QMG.E.brands.length) QMG.E.brands.push({ label: '', logos: [] }); QMG.dirty = false; return qmgProducts(); }
   if (a === 'def') { const p = QMG.b.products.find(x => x.id == k); if (!p) return; try { await api('qm', 'product_save', { id: p.id, is_default: p.is_default ? 0 : 1 }); } catch (x) { return; } await qmgReload(); return qmgProducts(); }
   if (a === 'hide') { const p = QMG.b.products.find(x => x.id == k); if (!p) return; try { await api('qm', 'product_save', { id: p.id, hidden: p.hidden ? 0 : 1 }); } catch (x) { return; } await qmgReload(); toast(p.hidden ? 'Shown in the maker' : 'Hidden from the maker'); return qmgProducts(); }
-  if (a === 'pcancel') { if (QMG.dirty && !confirm('Discard your changes to this product?')) return; QMG.E = null; QMG.dirty = false; return qmgProducts(); }
+  if (a === 'pcancel') { if (QMG.dirty && !await ask('Discard your changes to this product?')) return; QMG.E = null; QMG.dirty = false; return qmgProducts(); }
   if (a === 'psave') return qmgSaveProduct();
   if (a === 'up') { const r = await qmgPick(); if (r) { E[k] = r; if (k === 'picture') QMG.picTouched = true; QMG.dirty = true; qmgForm($('#qmgbody', QMG.m)); } return; }
   if (a === 'clr') { E[k] = ''; if (k === 'picture') QMG.picTouched = true; QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
@@ -231,7 +231,7 @@ async function qmgClick(e) {
   if (a === 'lgtxt') { const inp = $(`[data-txt="${k}"]`, QMG.m), v = inp.value.trim().slice(0, 60); if (!v) return toast('Type the brand name first'); E.brands[+k].logos.push('text:' + v); QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
   if (a === 'lgdel') { const [i, j] = k.split('|'); E.brands[+i].logos.splice(+j, 1); QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
   if (a === 'ssave') return qmgSaveSettings();
-  if (a === 'sreset') { if (QMG.dirty && !confirm('Discard all unsaved changes to the settings?')) return; QMG.ST = qmgClone(QMG.b.settings); QMG.nextN = QMG.next0; QMG.dirty = false; return qmgSettings(); }
+  if (a === 'sreset') { if (QMG.dirty && !await ask('Discard all unsaved changes to the settings?')) return; QMG.ST = qmgClone(QMG.b.settings); QMG.nextN = QMG.next0; QMG.dirty = false; return qmgSettings(); }
   if (a === 'ladd') {
     const [path, keys] = k.split('|'), arr = qmgGet(path); if (!Array.isArray(arr)) return;
     arr.push(keys ? Object.fromEntries(keys.split(',').map(x => [x, ''])) : (path === 'loan.months' ? 60 : '')); QMG.dirty = true; QMG.open = (e.target.closest('details') || {}).id.replace('qmgs-', ''); return qmgSettings();

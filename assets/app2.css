@@ -1332,3 +1332,7 @@ button.pill.stbtn{border:0;font:inherit;font-size:12px;font-weight:500;cursor:po
 .pghd-s{font-size:14px;line-height:1.35}
 .fhead.pghd .pghd-s{font-size:14px}
 @media(max-width:820px){.bar.pghd,.fhead.pghd{min-height:0}.pghd-s{font-size:13px}}
+
+/* the CRM's own question window (app.js askBox) */
+.askm>div{max-width:440px}.askw h3{margin:0 0 6px;font-size:17px;line-height:1.35;white-space:pre-line}.askw p{margin:0 0 4px;font-size:14px;white-space:pre-line;line-height:1.5}.askw input{margin-top:12px;width:100%}.askb{margin:18px 0 0}
+@media(max-width:820px){.askb .btn{flex:1;justify-content:center}}

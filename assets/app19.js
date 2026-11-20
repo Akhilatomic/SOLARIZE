@@ -109,7 +109,7 @@ function emAccountForm(box, acc, done, note) {
       toast(acc ? 'Email settings saved' : 'Email connected'); done(r.id); }
     catch (x) { b.disabled = false; b.textContent = acc ? 'Save' : 'Connect'; } };
   if ($('#mbx_rm', box)) $('#mbx_rm', box).onclick = async () => {
-    if (!confirm(`Remove ${acc.email} from the CRM?\n\nThe CRM forgets its password. Your emails stay with your email provider.`)) return;
+    if (!await ask(`Remove ${acc.email} from the CRM?\n\nThe CRM forgets its password. Your emails stay with your email provider.`)) return;
     await api('mail', 'remove', { id: acc.id }); toast(acc.email + ' removed'); done(0); };
 }
 
@@ -182,7 +182,7 @@ function emFoldersCounts() { $$('.emfi').forEach(b => { const f = EM.folders.fin
   emInboxCount(); }
 async function emMove(to) {
   const uid = EM.uid, del = to === 'trash';
-  if (del && emRole() === 'trash' && !confirm('Delete this email forever? It cannot be recovered.')) return;
+  if (del && emRole() === 'trash' && !await ask('Delete this email forever? It cannot be recovered.')) return;
   try { const r = await api('mail', 'move', { folder: EM.f, uids: [uid], to }, emQ()); toast(del ? (r.forever ? 'Email deleted forever' : 'Moved to Trash') : 'Email moved'); } catch (e) { return; }
   const li = $(`.emi[data-uid="${uid}"]`), nx = li && (li.nextElementSibling || li.previousElementSibling); if (li) li.remove();
   if (EM.list) EM.list.items = EM.list.items.filter(x => x.uid !== uid);
@@ -237,7 +237,7 @@ async function composeMail(o = {}) {
   setTimeout(() => (o.to ? $('#emc_bd', m) : $('#emc_to', m)).focus(), 50); if (o.to) $('#emc_bd', m).setSelectionRange(0, 0);
   $('#emc_go', m).onclick = async e => { const b = e.currentTarget;
     if (!$('#emc_to', m).value.trim()) return toast('Add a recipient', true);
-    if (!$('#emc_su', m).value.trim() && !confirm('Send without a subject?')) return;
+    if (!$('#emc_su', m).value.trim() && !await ask('Send without a subject?')) return;
     const fd = new FormData(); fd.append('data', JSON.stringify({ to: $('#emc_to', m).value, cc: $('#emc_cc', m).value, bcc: $('#emc_bcc', m).value, subject: $('#emc_su', m).value, body: $('#emc_bd', m).value, file_ids: crm.map(f => f.id), reply: o.reply || null, fwd: o.fwd ? { folder: o.fwd.folder, uid: o.fwd.uid, acct: o.fwd.acct } : null }));
     local.forEach(f => fd.append('att[]', f, f.name));
     b.disabled = true; b.innerHTML = 'Sending…';

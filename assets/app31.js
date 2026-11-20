@@ -213,7 +213,7 @@ async function docRead(f, id, done) {
     const pick = rows.filter((x, i) => { const cb = $(`[data-i="${i}"]`, body); return cb && cb.checked; });
     const ser = showSerials && $('#krser', body) && $('#krser', body).checked;
     if (!pick.length && !ser) { toast('Nothing ticked', 1); return; }
-    if (pick.some(x => x.k === 'name') && !confirm(`Change the customer name to “${r.fields.name}”?\n\nThe name is printed on every KSEB paper.`)) return;
+    if (pick.some(x => x.k === 'name') && !await ask(`Change the customer name to “${r.fields.name}”?\n\nThe name is printed on every KSEB paper.`)) return;
     $('#krgo', m).disabled = true;
     const by = {}; pick.forEach(x => { (by[x.pg] = by[x.pg] || {})[x.k] = x.v; });
     try {

@@ -35,7 +35,7 @@ function setMyAvatar(av) {
   $$('.acav').forEach(x => x.innerHTML = avImg(ME.id, ME.avatar, ME.name));
   const rm = $('#pdr'); if (rm) rm.hidden = !ME.avatar;
 }
-async function removeAvatar(userId, done) { if (!confirm('Remove this photo?')) return; await api('user', 'avatar_remove', { user_id: userId || 0 }); toast('Photo removed'); done && done(''); }
+async function removeAvatar(userId, done) { if (!await ask('Remove this photo?')) return; await api('user', 'avatar_remove', { user_id: userId || 0 }); toast('Photo removed'); done && done(''); }
 
 /* ---- Presence: a coloured ring on people's pictures.
    Green: using the CRM now (mouse / keyboard in the last 5 minutes) · Yellow: CRM open but idle, or checked in for attendance

@@ -27,7 +27,7 @@ async function renderKsebLogin(box, c, id) {
       $('#kbls', box).onclick = async e => { const b = e.currentTarget; b.disabled = true;
         try { const body = { customer_id: id, user_id: u.value.trim() }; if (dirty) body.password = p.value;
           d = Object.assign(d, await api('profile', 'kl_save', body)); if (dirty) pw = p.value; dirty = false; shown = false; toast('KSEB login saved'); draw(); } catch (x) { b.disabled = false; } };
-      const rm = $('#kblx', box); if (rm) rm.onclick = async e => { e.preventDefault(); if (!confirm(`Remove the saved KSEB login of ${c.name}?`)) return;
+      const rm = $('#kblx', box); if (rm) rm.onclick = async e => { e.preventDefault(); if (!await ask(`Remove the saved KSEB login of ${c.name}?`)) return;
         try { d = Object.assign(d, await api('profile', 'kl_save', { customer_id: id, user_id: '', password: '' })); pw = ''; dirty = false; toast('KSEB login removed'); draw(); } catch (x) { } };
       u.onkeydown = p.onkeydown = e => { if (e.key === 'Enter') $('#kbls', box).click(); };
     }
