@@ -106,6 +106,7 @@ async function api(m, a, body, qs = '') {
      normal answer, so the form reloaded and "Wrong username or password" / "Too many wrong attempts" never appeared).
      quiet: the page shows its own prompt (e.g. email password changed). */
   if (j.error) { if (!j.quiet && !(m === 'auth' && (a === 'login' || a === 'setup'))) sayBad(j.error); throw j; }
+  if (body !== undefined && typeof moSaved === 'function') moSaved(a); /* a short green tick on the button that saved (app49.js) */
   if (m === 'leads' && a === 'save' && typeof refreshFeed === 'function') setTimeout(refreshFeed, 0); // edited leads leave "New leads to contact"
   return j;
 }
@@ -239,12 +240,12 @@ async function route() {
   $('#side')?.classList.remove('open'); document.body.classList.remove('drawer');
   const t = MODS.find(m => m[0] === mod);
   $('#title').innerHTML = t ? `<span class="ft t-${t[0]}">${t[2]}</span><span class="ttl">${esc(t[1])}</span>` : '';
-  const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
+  const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = typeof moSkeleton === 'function' ? moSkeleton() : '<p class="mut">Loading…</p>';
   navTrack(); /* the Back button above every page */
   const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, survey: id ? pgSurvey : pgSurveys, subsidy: pgSubsidy, kseb: pgKseb, bank: pgBank, mnre: pgMnre, comm: pgComm, accounts: pgAccounts, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
-  try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { if (nav === ROUTE_N) main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
+  try { await fn(id && id !== 'new' ? +id : id); if (nav === ROUTE_N && typeof moPage === 'function') moPage(); } catch (e) { if (!e.error) { if (nav === ROUTE_N) main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
 }
 
 // ---------- fit-to-window: no horizontal scrolling anywhere ----------

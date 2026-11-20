@@ -1423,3 +1423,38 @@ button.pill.stbtn{border:0;font:inherit;font-size:12px;font-weight:500;cursor:po
 .navbk-b .i{width:15px;height:15px;transform:rotate(180deg)}
 .navbk+main{padding-top:12px!important}
 @media(max-width:820px){.navbk{padding:10px 14px 0}}
+
+/* ---- Motion (app49.js): short and quiet; nothing here delays a click ---- */
+@keyframes moIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes moFade{from{opacity:0}to{opacity:1}}
+@keyframes moPop{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes moMenu{from{opacity:0;transform:translateY(-4px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes moToast{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+@keyframes moBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes moShine{from{background-position:-200% 0}to{background-position:200% 0}}
+@keyframes moTick{0%{opacity:0;transform:scale(.4)}40%{opacity:1;transform:scale(1.15)}100%{opacity:1;transform:scale(1)}}
+/* page: fades and rises a little once drawn; the first rows of a list and the cards follow one after another */
+main.mo-in{animation:moIn .22s ease-out both}
+main.mo-in tbody tr:nth-child(-n+18){animation:moIn .28s ease-out both}
+main.mo-in tbody tr:nth-child(2){animation-delay:.02s}main.mo-in tbody tr:nth-child(3){animation-delay:.04s}main.mo-in tbody tr:nth-child(4){animation-delay:.06s}main.mo-in tbody tr:nth-child(5){animation-delay:.08s}main.mo-in tbody tr:nth-child(6){animation-delay:.1s}main.mo-in tbody tr:nth-child(7){animation-delay:.12s}main.mo-in tbody tr:nth-child(8){animation-delay:.14s}main.mo-in tbody tr:nth-child(n+9){animation-delay:.16s}
+main.mo-in .dg>*{animation:moIn .3s ease-out both}main.mo-in .dg>*:nth-child(2){animation-delay:.03s}main.mo-in .dg>*:nth-child(3){animation-delay:.06s}main.mo-in .dg>*:nth-child(n+4){animation-delay:.09s}
+/* bars fill from the left */
+main.mo-in .prog>i,main.mo-in .pfbar>i,main.mo-in .pp-bar>i{transform-origin:left;animation:moBar .6s cubic-bezier(.2,.8,.2,1) both .1s}
+/* windows, menus and notices ease in */
+.modal{animation:moFade .16s ease-out}.modal>div{animation:moPop .2s cubic-bezier(.2,.8,.2,1)}
+.card.menu,#lmenu,#pmenu{animation:moMenu .14s ease-out;transform-origin:top right}
+#toasts .toast{animation:moToast .22s cubic-bezier(.2,.8,.2,1)}
+/* tabs and buttons: smooth highlight, a small press */
+.tabs button,.pfsub button,.navbk-b{transition:background-color .18s,box-shadow .18s,color .18s}
+.btn,.ib{transition:transform .08s,background-color .15s,box-shadow .15s,color .15s}.btn:active:not(:disabled),.ib:active{transform:scale(.97)}
+/* dashboard cards lift a touch under the mouse */
+@media(hover:hover){.dg>a.card,.dg>.card{transition:transform .18s,box-shadow .18s}.dg>a.card:hover{transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,0,0,.08)}}
+/* the button that just saved: a quick green tick */
+.btn.mo-ok{position:relative}.btn.mo-ok::after{content:"";position:absolute;right:-7px;top:-7px;width:18px;height:18px;border-radius:50%;background:var(--green) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/12px no-repeat;box-shadow:0 0 0 2px var(--white);animation:moTick .35s ease-out both}
+/* loading placeholder */
+.mo-sk{display:flex;flex-direction:column;gap:14px}.mo-sk-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.mo-skb{border-radius:14px;background:linear-gradient(90deg,var(--fill-2) 25%,var(--page) 50%,var(--fill-2) 75%);background-size:200% 100%;animation:moShine 1.3s linear infinite}
+.mo-sk-bar{height:38px;width:min(520px,70%);border-radius:10px}.mo-sk-card{height:96px}.mo-sk-big{height:320px}
+@media(max-width:820px){.mo-sk-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* the device asked for less motion: none of the above moves */
+@media (prefers-reduced-motion: reduce){main.mo-in,main.mo-in *,.modal,.modal>div,.card.menu,#lmenu,#pmenu,#toasts .toast,.btn.mo-ok::after,.mo-skb{animation:none!important}.btn:active,.ib:active,.dg>a.card:hover{transform:none!important}}
