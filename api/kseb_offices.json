@@ -2161,7 +2161,7 @@
 },
 {
 "code": "6666",
-"section": "kolachery",
+"section": "Kolachery",
 "subdivision": "Valapattanam",
 "division": "Kannur",
 "circle": "Kannur",
@@ -3627,8 +3627,8 @@
 "code": "4567",
 "section": "Oachira",
 "subdivision": "Oachira",
-"division": "karunagappally",
-"circle": "kollam",
+"division": "Karunagappally",
+"circle": "Kollam",
 "region": "DS"
 },
 {
@@ -4618,7 +4618,7 @@
 {
 "code": "6597",
 "section": "Pottammal",
-"subdivision": "kovoor",
+"subdivision": "Kovoor",
 "division": "Feroke",
 "circle": "Kozhikode",
 "region": "DN"
@@ -4946,7 +4946,7 @@
 {
 "code": "6776",
 "section": "Sivapuram",
-"subdivision": "sivapuram",
+"subdivision": "Sivapuram",
 "division": "Iritty",
 "circle": "Sreekandapuram",
 "region": "DN"

@@ -12,7 +12,7 @@ const mapsLink = c => c.lat && c.lng ? `https://www.google.com/maps?q=${c.lat},$
 
 /* a value on one line: line breaks (an address) become commas */
 /* All details card: empty fields hidden (remembered in this browser) */
-const pfaHide = () => { try { return localStorage.pfaHide === '1'; } catch (e) { return false; } };
+const pfaHide = () => { try { return localStorage.pfaHide !== '0'; } catch (e) { return true; } }; /* empty fields hidden unless the person chose Show empty */
 const pfaLine = v => String(v).split(String.fromCharCode(10)).map(x => x.trim()).filter(Boolean).join(', ');
 let PFT = 'overview', PFT_ID = 0;
 /* set by the Customers list (Edit): { id, key, edit } - pgCustomer opens that page once, in edit mode, then clears it */
@@ -30,7 +30,8 @@ async function pgCustomer(id) {
   const st = { c, p: (pl && pl.data) || {}, j: (c.projects && c.projects[0]) || null, prog: p0 || null, pipe: tl.pipe, refs: tl.refs || [], id };
   const pgKeys = PFP.PAGES.map(x => x.key);
   const cnt0 = PFP.counts(pfCtx(st));
-  const sumHtml = n => PFP.PAGES.map((pg, i) => `<button class="pp-sum" data-goto="${esc(pg.key)}"><i class="i i-${esc(pg.icon)}"></i><span>${i + 1} · ${esc(pg.tab)}</span>${n[pg.key] > 0 ? `<b class="pp-need">${n[pg.key]} missing</b>` : '<b class="pp-ok">Complete</b>'}</button>`).join('');
+  const fillN = {}; /* per page [filled, total], from the All details card below */
+  const sumHtml = n => PFP.PAGES.map((pg, i) => { const f = fillN[pg.key]; return `<button class="pp-sum" data-goto="${esc(pg.key)}"><i class="i i-${esc(pg.icon)}"></i><span>${i + 1} · ${esc(pg.tab)}</span>${n[pg.key] > 0 ? `<b class="pp-need">${n[pg.key]} missing</b>` : !f || f[0] >= f[1] ? '<b class="pp-ok">Complete</b>' : `<b class="pp-later">Nothing due yet · ${f[0]} of ${f[1]} filled</b>`}</button>`; }).join('');
   /* Overview: every detail of the customer in one card (the five pages' fields, in page order), each value click to copy; a hidden
      value (masked account numbers) is shown as it is, without copy. "Copy all" = the filled ones as "Label: value" lines. */
   const allCtx = pfCtx(st), allTxt = [];
@@ -43,6 +44,7 @@ async function pgCustomer(id) {
       if (v) { filled++; if (!pfMasked(v)) allTxt.push(l + ': ' + pfaLine(v)); }
       return `<div class="pfa-f${v ? '' : ' pfa-e'}"><span>${esc(l)}</span>${!v ? '<em class="mut">—</em>' : pfMasked(v) ? `<b>${esc(v)}</b>` : pfCopy(v, l)}</div>`;
     }).join('');
+    fillN[pg.key] = [filled, fs.length];
     return cells ? `<div class="pfa-s"><button class="pfa-h" data-goto="${esc(pg.key)}" title="Open this page"><i class="i i-${esc(pg.icon)}"></i>${i + 1} · ${esc(pg.tab)}<small>${filled} of ${fs.length} filled</small></button><div class="pfa-g">${cells}</div></div>` : '';
   }).join('');
   const allCard = `<div class="card pfc pfa${pfaHide() ? ' pfa-hide' : ''}"><div class="pfch"><i class="i i-user"></i><h3>All details</h3><span class="sp"></span><small class="mut">Click a value to copy it</small><button class="btn sec sm" id="pfaem">${pfaHide() ? 'Show empty' : 'Hide empty'}</button><button class="btn sec sm" id="pfacp"><i class="i i-copy"></i> Copy all</button></div>${allSecs}</div>`;
@@ -80,7 +82,7 @@ async function pgCustomer(id) {
     </div>`;
   // click to copy
   $$('[data-cp]').forEach(b => b.onclick = e => { e.preventDefault(); copyText(b.dataset.cp, b.dataset.l || ''); b.classList.add('ok'); setTimeout(() => b.classList.remove('ok'), 900); });
-  if ($('#pfaem')) $('#pfaem').onclick = e => { const on = !pfaHide(); try { localStorage.pfaHide = on ? '1' : ''; } catch (er) { } $('.pfa').classList.toggle('pfa-hide', on); e.currentTarget.textContent = on ? 'Show empty' : 'Hide empty'; };
+  if ($('#pfaem')) $('#pfaem').onclick = e => { const on = !pfaHide(); try { localStorage.pfaHide = on ? '1' : '0'; } catch (er) { } $('.pfa').classList.toggle('pfa-hide', on); e.currentTarget.textContent = on ? 'Show empty' : 'Hide empty'; };
   if ($('#pfacp')) $('#pfacp').onclick = () => copyText(allTxt.join(String.fromCharCode(10)), 'all details');
   // location sharing
   const locText = () => `${c.name}${c.landmark ? ' — ' + c.landmark : ''}\n${[c.address, c.district].filter(Boolean).join(', ')}\n${ml}`;

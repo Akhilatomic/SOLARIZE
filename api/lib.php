@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 77; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 78; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -390,6 +390,9 @@ function migrate($db) {
         foreach (($d['rows'] ?? []) as $tr) if (($tr[0] ?? '') === 'leads') foreach (($tr[1] ?? []) as $r) if (trim((string)($r['meta_id'] ?? '')) !== '') $ins->execute([trim((string)$r['meta_id'])]); }
       $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('meta_gone_v74','1')"); } catch (Throwable $e) { }
   }
+  /* v78: five KSEB office names came in lower case from KSEB's office list (fixed in api/kseb_offices.json); customers filled from it follow */
+  foreach (['kseb_section' => 'kolachery', 'kseb_division' => 'karunagappally', 'kseb_circle' => 'kollam', 'kseb_subdivision' => ['kovoor', 'sivapuram']] as $col => $bad)
+    foreach ((array)$bad as $b) { try { $db->prepare("UPDATE customers SET $col=? WHERE $col=?")->execute([ucfirst($b), $b]); } catch (Throwable $e) { } }
   /* v77: Subsidy tracker - customers staff put on the Subsidy list, their current status and every change (api/subsidy.php).
      The old project status is carried over once: Under review / Approved / Released become rows on the list. */
   $db->exec("CREATE TABLE IF NOT EXISTS subsidy_track(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER UNIQUE, status TEXT DEFAULT '', status_date TEXT DEFAULT '', note TEXT DEFAULT '', added_by TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, updated_by TEXT DEFAULT '')");

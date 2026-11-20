@@ -57,7 +57,7 @@ const MODS = [ // id, label, icon, perm
   ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['calendar', 'Calendar', '<i class="i i-calendar"></i>', 'calendar'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['survey', 'Site survey', '<i class="i i-pin"></i>', 'survey'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
   ['projects', 'Project pipeline', '<i class="i i-project"></i>', 'projects'], ['folder', 'Folder', '<i class="i i-file"></i>', 'folder'], ['quotes', 'Quotations', '<i class="i i-receipt"></i>', 'quotes'],
   ['subsidy', 'Subsidy (PM Surya Ghar)', '<i class="i i-coin"></i>', 'checklist'], ['kseb', 'KSEB documentation', '<i class="i i-folder"></i>', 'checklist'], ['bank', 'Bank documentation', '<i class="i i-bank"></i>', 'loans'], ['mnre', 'MNRE Agreement', '<i class="i i-award"></i>', 'loans'],
-  ['fees', 'Finance', '<i class="i i-coin"></i>', 'fees'], ['accounts', 'Accounts', '<i class="i i-coin"></i>', 'accounts'], ['whatsapp', 'WhatsApp', '<i class="i i-whatsapp"></i>', 'whatsapp'], ['email', 'Email', '<i class="i i-mail"></i>', 'email'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['attendance', 'Attendance', '<i class="i i-clock"></i>', 'attendance'], ['leaves', 'Leaves', '<i class="i i-leave"></i>', 'leaves'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['recycle', 'Recycle bin', '<i class="i i-trash"></i>', 'recycle'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
+  ['fees', 'Finance', '<i class="i i-wallet"></i>', 'fees'], ['accounts', 'Accounts', '<i class="i i-ledger"></i>', 'accounts'], ['whatsapp', 'WhatsApp', '<i class="i i-whatsapp"></i>', 'whatsapp'], ['email', 'Email', '<i class="i i-mail"></i>', 'email'], ['ads', 'Meta Ads', '<i class="i i-megaphone"></i>', 'ads'], ['attendance', 'Attendance', '<i class="i i-clock"></i>', 'attendance'], ['leaves', 'Leaves', '<i class="i i-leave"></i>', 'leaves'], ['settings', 'Settings', '<i class="i i-gear"></i>', 'settings'], ['recycle', 'Recycle bin', '<i class="i i-trash"></i>', 'recycle'], ['admin', 'Admin panel', '<i class="i i-shield"></i>', 'admin']];
 const canW = m => ME && (ME.write === '*' || ME.write.includes(m));
 const FIN = () => canR('finance');
 const canR = m => ME && (ME.read === '*' || ME.read.includes(m));
@@ -335,6 +335,19 @@ function waOpen(ctx) {
 }
 
 // ---------- Dashboard ----------
+/* Recent activity in plain words: "added a lead", "moved a project", … (audit_log action + entity) */
+const RECENT_WORDS = { create: 'added', update: 'updated', delete: 'deleted', convert: 'converted a lead to a customer', claim: 'claimed a lead', unclaim: 'released a lead', assign: 'assigned a lead', reassign: 'reassigned a customer',
+  stage: 'moved a project', checklist: 'updated a checklist', receipt: 'added a receipt', payment_receipt: 'issued a payment receipt', quote_save: 'saved a quotation', quote_status: 'changed a quotation status',
+  survey_add: 'added a site survey', survey_status: 'updated a site survey', survey_assign: 'assigned a site survey', survey_upload: 'uploaded survey photos', upload: 'uploaded a file', callback: 'set a call back',
+  reschedule: 'rescheduled', add: 'added', status: 'changed the status', remove: 'removed', fees_add: 'added to a fee list', plant: 'updated plant details', import: 'imported', revert: 'reverted a customer to a lead', amc: 'updated AMC', service: 'logged a service' };
+const RECENT_THING = { leads: 'a lead', customers: 'a customer', projects: 'a project', payments: 'a payment', quotes: 'a quotation', subsidy: 'subsidy', surveys: 'a site survey', files: 'a file', fees: 'a fee', events: 'an event', receipts: 'a receipt' };
+function recentTxt(r) {
+  const w = RECENT_WORDS[r.action], t = RECENT_THING[r.entity] || r.entity.replace(/_/g, ' ');
+  if (!w) return r.action.replace(/_/g, ' ') + ' · ' + t;
+  return ['added', 'updated', 'deleted', 'removed', 'imported', 'rescheduled', 'changed the status'].includes(w) ? (w === 'changed the status' ? w + ' of ' + t : w + ' ' + t) : w;
+}
+const recentWhen = c => { const d = new Date(String(c || '').replace(' ', 'T') + 'Z'); if (isNaN(d)) return esc(c || ''); /* audit times are UTC */
+  return (d.toDateString() === new Date().toDateString() ? 'Today' : dfmt(DF.dm, d)) + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }); };
 async function pgDashboard() {
   const d = await api('dashboard', 'get');
   const first = (ME.name || '').split(' ')[0];
@@ -387,7 +400,7 @@ async function pgDashboard() {
 
    <div class="s12 card">${head('Quick Actions')}<div class="qa">${QA.map(q => `<button class="qb" data-qa="${q[3]}" data-go="${q[1]}"><span class="ft t-${q[3].startsWith('#/') ? q[3].slice(2) : q[3] === 'quote' ? 'quotes' : q[2]}">${q[0]}</span>${q[1]}</button>`).join('')}</div></div>
 
-   ${d.finance ? [['Pipeline value', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="s2 card stat"><b>${v}</b><span>${l}</span></div>`).join('') : ''}
+   ${d.finance ? [['Pipeline value', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding · all projects', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="s2 card stat"><b>${v}</b><span>${l}</span></div>`).join('') : ''}
 
    <div class="${BA() ? 's8' : 's6'} card">${head('Lead Trend · 30 days', '<small class="mut"><span style="color:#0071e3">●</span> Leads &nbsp;<span style="color:#30a14e">●</span> Won</small>')}${trend}</div>
    <div class="${BA() ? 's4' : 's3'} card">${head('Lead by Source')}${src}</div>
@@ -396,9 +409,9 @@ async function pgDashboard() {
    <div class="s4 card">${head('Lead → Customer Conversion', `<b style="font-size:24px;color:var(--ok)">${conv}%</b>`)}<div class="mut" style="font-size:12px;margin-bottom:10px">${d.converted} of ${d.leads_all} leads converted</div><div class="prog" style="height:10px"><i style="width:${Math.min(100, conv)}%"></i></div>
      <h3 style="margin-top:20px">Projects by stage</h3>${bars(d.stages.map(s => [s.stage, s.n]), S.project_stages)}</div>
    <div class="s4 card" id="cal"></div>
-   <div class="s4 card">${head(BA() ? 'Your Recent Activity' : 'Recent Activity')}${lst(d.recent, r => `<div class="act"><b>${esc(r.user)}</b> ${esc(r.action)} ${esc(r.entity)} <span class="mut">${esc(r.detail || '')}</span><br><small>${r.created}</small></div>`, 'No recent activity')}</div>
+   <div class="s4 card">${head(BA() ? 'Your Recent Activity' : 'Recent Activity')}${lst(d.recent, r => `<div class="act"><b>${esc(r.name || r.user)}</b> ${esc(recentTxt(r))} <span class="mut">${esc(r.detail || '')}</span><br><small>${recentWhen(r.created)}</small></div>`, 'No recent activity')}</div>
 
-   <div class="s4 card ${d.finance ? '' : 'hide'}">${head('Payments pending', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}${lst(d.dues.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
+   <div class="s4 card ${d.finance ? '' : 'hide'}">${head('Payments due', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}<small class="mut dsh-sub">Projects past the early stages with a balance (as in Accounts › Pending)</small>${lst(d.dues.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
    <div class="s4 card">${head('KSEB documents pending', `<span class="pill">${d.kseb_pending.length}</span>`)}${lst(d.kseb_pending.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`, 'All documents complete')}</div>
    <div class="s4 card">${head('Subsidy in progress', `<span class="pill">${d.subsidy_open.length}</span>`)}${lst(d.subsidy_open, p => `<div class="act"><a href="#/subsidy/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status, stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`, 'None')}</div>
   </div>`;
@@ -466,7 +479,7 @@ const dmy = s => s ? dfmt(DF.dmy, new Date(s.slice(0, 10) + 'T00:00:00')) : '';
 const isActiveLead = l => !['Won', 'Lost'].includes(l.status);
 const dshort = s => { if (!s) return ''; const d = new Date(s.slice(0, 10) + 'T00:00:00'); return dfmt(d.getFullYear() === new Date().getFullYear() ? DF.dm : DF.dmyy, d); };
 function apptBadge(l) {
-  if (!l.appt) return '<span class="pill" style="color:var(--mut)">Not scheduled</span>';
+  if (!l.appt) return '<span class="mut apnone">Not scheduled</span>';
   const od = l.appt < today() && isActiveLead(l), days = Math.round((new Date(today()) - new Date(l.appt)) / 864e5);
   return `<span class="pill ${od ? 'r' : 'g'}" title="${dmy(l.appt)}${od ? ' — overdue by ' + days + ' day' + (days > 1 ? 's' : '') : ''}">${od ? '<i class="i i-alert"></i> ' : '● '}${dshort(l.appt)}${od ? ' · ' + days + 'd' : ''}</span>`;
 }
@@ -593,7 +606,7 @@ async function pgLeads() {
   if (LF.ownFor !== ME.id) { LF.ownFor = ME.id; LF.own = ownView('leads') === 'me' ? 'me' : ''; } // Me / All remembered per person
   const cities = [...new Set(leads.map(l => l.city).filter(Boolean))].sort();
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Leads</h2><div class="mut" id="lcount"></div></div><span class="sp"></span>
-   <button class="btn sec" id="lref"><i class="i i-refresh"></i> Refresh</button>${w ? `<button class="btn sec" id="ledit"><i class="i i-pencil"></i> Edit ${LF.edit ? 'ON' : 'OFF'}</button><button class="btn" id="lnew"><i class="i i-plus"></i> Add Lead</button>` : ''}</div>
+   <button class="btn sec" id="lref"><i class="i i-refresh"></i> Refresh</button>${w ? `<button class="btn sec${LF.edit ? ' on' : ''}" id="ledit" aria-pressed="${LF.edit ? 'true' : 'false'}" title="Edit any cell right in the table"><i class="i i-pencil"></i> Quick edit: ${LF.edit ? 'On' : 'Off'}</button><button class="btn" id="lnew"><i class="i i-plus"></i> Add Lead</button>` : ''}</div>
    <div class="bar lbar${APPLITE && appFiltersOpen() ? ' fopen' : ''}" style="margin-top:12px">${ownSwitch('leads', LF.own === 'me' ? 'me' : 'all')}<input id="lq" placeholder="Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">${APPLITE ? `<button class="btn sec apflt${LF.status || LF.city || LF.appt || LF.active !== 'active' ? ' has' : ''}" id="lflt" type="button"><i class="i i-menu"></i> Filters</button>` : ''}
    <select id="ls" title="Status"><option value="">All status</option>${S.lead_statuses.map(s => `<option ${LF.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
    <select id="la">${[['active', 'Active'], ['all', 'All leads'], ['won', 'Won'], ['lost', 'Lost']].map(([v, l]) => `<option value="${v}" ${LF.active === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
@@ -602,7 +615,7 @@ async function pgLeads() {
    <select id="lown" title="Claimed by"><option value="">All owners</option><option value="me" ${LF.own === 'me' ? 'selected' : ''}>My leads</option><option value="none" ${LF.own === 'none' ? 'selected' : ''}>Unclaimed</option>${isAdm() ? [...new Map(leads.filter(l => l.assigned_to).map(l => [l.assigned_to, l.owner_name])).entries()].map(([id, n]) => `<option value="${id}" ${LF.own == id ? 'selected' : ''}>Claimed by ${esc(n)}</option>`).join('') : ''}</select>
    <div style="position:relative"><button class="btn sec" id="lcol"><i class="i i-menu"></i> Columns</button><div id="lcm" class="card hide" style="position:absolute;z-index:9;top:42px;left:0;width:190px;padding:10px">${LCOLS.map(([k, l]) => `<label style="margin:4px 0;display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-col="${k}" ${LHIDE.includes(k) ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
    <span class="sp"></span>${canExport() ? '<button class="btn sec" id="lex" title="Export CSV"><i class="i i-download"></i> Export</button>' : ''}${w ? '<button class="btn sec" id="lim" title="Import CSV"><i class="i i-upload"></i> Import</button>' : ''}</div>
-   ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px"><i class="i i-pencil"></i> ${LF.edit ? 'Click any cell to edit it inline.' : 'Click a Remark or Appt cell to edit it. Turn Edit ON to edit the other columns.'} Click the column headers to sort.</p>` : ''}
+   ${w ? `<p class="mut" style="font-size:13px;margin:0 0 10px"><i class="i i-pencil"></i> ${LF.edit ? 'Click any cell to edit it inline.' : 'Click a Remark or Appt cell to edit it. Turn Quick edit on to edit the other columns.'} Click the column headers to sort.</p>` : ''}
    <div class="card tw fitbox" style="padding:0"><table id="ltb" data-min="1000"></table></div>`;
 
   const filtered = () => {
@@ -635,7 +648,7 @@ async function pgLeads() {
       city: l => ed(l, 'city', `<span class="clip">${esc(loc(l))}</span>`, loc(l)),
       owner: l => `<td class="ownc">${ownerCellRow(l)}</td>`,
       /* the history button carries the number of entries in the history; it stays when the remark was removed but a history exists */
-      remark: l => { const n = +l.rm_n || 0, add = l.can_edit ? '<span class="mut"><i>Add remark</i></span>' : '';
+      remark: l => { const n = +l.rm_n || 0, add = l.can_edit ? '<span class="mut rmadd"><i>Add remark</i></span>' : '';
         const hb = `<button type="button" class="rmh-b${n ? ' n' : ''}" data-rmh aria-label="Remark history${n ? ', ' + n + (n === 1 ? ' entry' : ' entries') : ''}" title="Remark history: ${n ? n + (n === 1 ? ' entry' : ' entries') + ' - ' : ''}every remark, who wrote it and when"><i class="i i-clock"></i>${n ? `<b>${n > 99 ? '99+' : n}</b>` : ''}</button>`;
         return ed(l, 'remark', l.remark ? `<span class="rmh-c"><span class="clamp">${esc(l.remark)}</span>${hb}</span>` : (n ? `<span class="rmh-c"><span class="clamp">${add}</span>${hb}</span>` : add), l.remark); },
       appt: l => ed(l, 'appt', apptBadge(l)),
@@ -856,7 +869,7 @@ async function pgCustomers() {
    <div class="bar cbar" style="margin-top:12px">${ownSwitch('customers', CUF.own)}<input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
    <select id="csort">${[['feas', 'Feasibility expiry'], ['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity']].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
-   <label class="hsw" title="Show status, next step and feasibility when you point at a customer"><input type="checkbox" id="chov" ${hoverOn() ? 'checked' : ''}><span class="hswt"></span>Hover info</label><span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex">Export CSV</button>' : ''}${w && ME.role === 'admin' ? '<button class="btn sec" id="cim">Import CSV</button>' : ''}</div>
+   <label class="hsw" title="Show status, next step and feasibility when you point at a customer"><input type="checkbox" id="chov" ${hoverOn() ? 'checked' : ''}><span class="hswt"></span>Hover info</label><span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex" title="Export CSV"><i class="i i-download"></i> Export</button>' : ''}</div>
    <div class="card tw fitbox" style="padding:0"><table id="ctb" class="ctb2" data-min="680"></table></div>`;
   const ic = (a, i, t) => `<button class="ib" data-a="${a}" title="${t}" aria-label="${t}"><i class="i i-${i}"></i></button>`;
   let onScreen = 0; // rows on screen; a refresh (resize, discussion update) keeps at least this many
@@ -940,7 +953,6 @@ async function pgCustomers() {
   if ($('#cconv')) $('#cconv').onclick = convertLeadModal;
   if ($('#cex')) $('#cex').onclick = () => csvDownload('customers-' + today() + '.csv', ['name', 'phone', 'email', 'address', 'district', 'consumer_no', 'kseb_section', 'sanctioned_load', 'roof_type', 'gst_no', 'status', 'kw', 'owner_name', 'added_by', 'created', 'notes'], cs);
   if ($('#cnew')) $('#cnew').onclick = () => customerModal(0);
-  if ($('#cim')) $('#cim').onclick = async () => { const f = await pickFile('.csv'); if (!f) return; let n = 0; for (const r of csvObjs(await f.text())) { if (!r.name) continue; await api('customers', 'save', r); n++; } toast('Imported ' + n + ' customers'); route(); };
   draw(); DISC.redraw = draw;
   if (!window._custRz) { window._custRz = 1; let tm; addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(() => { if (/^#\/customers\/?$/.test(location.hash) && DISC.redraw) DISC.redraw(); }, 150); }); }
 }
@@ -1048,7 +1060,7 @@ async function pgProject(id) {
     let body = '';
     if (t === 'overview') body = `<div class="grid cols2"><div class="card"><h3>Details</h3><p class="mut" style="margin:0">Panels: ${esc(p.panel)}<br>Inverter: ${esc(p.inverter)}<br>Engineer: ${esc(p.engineer) || '—'}<br>Start: ${esc(p.start) || '—'} · Completion: ${esc(p.end) || '—'}<br>${esc(p.notes)}</p>${p.survey ? `<p style="margin:10px 0 0"><a href="#/survey/${+p.survey.id}"><i class="i i-pin"></i> Site survey</a> ${pill(p.survey.status, { 'To visit': 'y', 'In progress': 'b', Done: 'g' }[p.survey.status])} <span class="mut">${p.survey.assigned_name ? '· ' + esc(p.survey.assigned_name) : ''}${p.survey.visit_date && p.survey.status !== 'Done' ? ' · visit ' + dmy(p.survey.visit_date) : ''}</span></p>` : ''}</div>
       ${!FIN() ? '<div class="card"><h3>Payments</h3><p class="mut">Finance details are hidden for your role.</p></div>' : ''}<div class="card ${FIN() ? '' : 'hide'}"><h3>Payments ${canW('payments') ? '<button class="btn sm" id="ap" style="float:right">+ Payment</button>' : ''}</h3><p>Value <b>${inr(p.cost)}</b> · Received <b>${inr(paid)}</b> · Balance <b class="${p.cost - paid > 0 ? 'over' : ''}">${inr(p.cost - paid)}</b></p>
-      ${p.payments.map(x => `<div class="act">${inr(x.amount)} ${x.mode ? '· ' + esc(x.mode) : ''} <small>${esc(x.date)}${x.ref_no ? ' · Ref ' + esc(x.ref_no) : ''}${x.note ? ' · ' + esc(x.note) : ''}${x.src === 'bank' ? ' · From the bank (loan)' : ''}</small> ${canW('payments') ? `<a href="#" data-dp="${x.id}"><i class="i i-x"></i></a>` : ''}</div>`).join('') || '<p class="mut">No payments recorded</p>'}</div></div>
+      ${p.payments.map(x => `<div class="act">${inr(x.amount)} ${x.mode ? '· ' + esc(x.mode) : ''} <small>${dmy(x.date)}${x.ref_no ? ' · Ref ' + esc(x.ref_no) : ''}${x.note ? ' · ' + esc(x.note) : ''}${x.src === 'bank' ? ' · From the bank (loan)' : ''}</small> ${canW('payments') ? `<a href="#" data-dp="${x.id}"><i class="i i-x"></i></a>` : ''}</div>`).join('') || '<p class="mut">No payments recorded</p>'}</div></div>
       <div style="margin-top:12px">${noteBox('projects', id, p.notes_log)}</div>`;
     if (t === 'subsidy') body = `<div class="card"><h3>PM Surya Ghar subsidy</h3><div class="two">
       <div><label>Application no.</label><input id="sa" value="${esc(p.application_no)}" ${w ? '' : 'disabled'}></div><div><label>Status</label><div class="sdy-pick">${typeof SUBSIDY !== 'undefined' && SUBSIDY.CLS[p.subsidy_status] ? pill(p.subsidy_status, SUBSIDY.cls(p.subsidy_status)) + (canR('checklist') ? `<a href="#/subsidy/${p.customer_id}">Open in Subsidy</a>` : '') : '<span class="mut">Not on the subsidy list</span>' + (canR('checklist') ? '<a href="#/subsidy">Subsidy list</a>' : '')}</div></div>
@@ -1069,7 +1081,7 @@ async function pgProject(id) {
     bindChecklist(id, p); if (typeof ksebDocsBind === 'function') ksebDocsBind(p); bindNote('projects', id, route);
   };
   $('#main').innerHTML = `<p><a href="#/projects">← Pipeline</a> · <a href="#/customers/${p.customer_id}">${esc(p.customer?.name || '')}</a></p>
-   <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(p.title)} <span class="mut" style="font-size:14px">${p.kw} kW</span></h2>
+   <div class="card"><div class="bar" style="margin:0"><h2 style="margin:0;margin-right:auto">${esc(p.title)}${new RegExp('\\b' + String(p.kw).replace('.', '\\.') + '\\s*kw\\b', 'i').test(p.title || '') ? '' : ` <span class="mut" style="font-size:14px">${p.kw} kW</span>`}</h2>
    ${canR('accounts') ? `<a class="btn sec" href="#/accounts/cost/${id}"><i class="i i-coin"></i> Project cost</a>` : ''}${w ? `<button class="btn sec" id="ed">Edit</button><button class="btn bad" id="dl">Delete</button>` : pill(p.stage)}</div></div><div id="pstp" style="margin-top:12px"></div><div id="pb" style="margin-top:12px"></div>`;
   renderStepper(p, $('#pstp'));
   if ($('#ed')) $('#ed').onclick = () => projectModal(id, p);

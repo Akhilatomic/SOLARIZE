@@ -40,7 +40,7 @@ async function pgPipeline() {
   const cols = PIPE.filter(s => s[2] === PL.step);
   if (PL.view === 'list') {
     const rows = ps.filter(p => stepOf(p.stage) === PL.step);
-    body.innerHTML = `<div class="card tw fitbox" style="padding:0"><table id="ptb"><thead><tr><th>Customer</th><th>Project</th><th>Stage</th><th>In stage</th><th>AF/RF</th><th>Receipts</th><th>Engineer</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(p => `<tr class="row" data-id="${p.id}"><td><b>${esc(p.customer)}</b><br><small class="mut">${esc(p.phone || '')}</small></td><td>${esc(p.title)}<br><small class="mut">${p.kw} kW${FIN() ? ' · ' + inr(p.cost) : ''}</small></td><td>${pill(p.stage, stepCls(p.stage))}${pendPill(p)}</td><td>${daysSince(p.since)}d</td><td>${feasCol(p.customer_id)}</td><td>${rcBadges(p)}</td><td>${esc(p.engineer) || '—'}</td><td class="right">${w ? nextBtn(p) : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="mut">No projects in this step</td></tr>'}</tbody></table></div>`;
+    body.innerHTML = `<div class="card tw fitbox" style="padding:0"><table id="ptb"><thead><tr><th>Customer</th><th>Project</th><th>Stage</th><th>In stage</th><th>AF/RF</th><th>Receipts</th><th>Engineer</th><th class="right">Actions</th></tr></thead><tbody>${rows.map(p => `<tr class="row" data-id="${p.id}"><td><b>${esc(p.customer)}</b><br><small class="mut">${esc(p.phone || '')}</small></td><td>${projOwnTitle(p) ? `${esc(p.title)}<br><small class="mut">${p.kw} kW${FIN() ? ' · ' + inr(p.cost) : ''}</small>` : `<b>${p.kw} kW</b>${FIN() ? `<br><small class="mut">${inr(p.cost)}</small>` : ''}`}</td><td>${pill(p.stage, stepCls(p.stage))}${pendPill(p)}</td><td>${daysSince(p.since)}d</td><td>${feasCol(p.customer_id)}</td><td>${rcBadges(p)}</td><td>${esc(p.engineer) || '—'}</td><td class="right">${w ? nextBtn(p) : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="mut">No projects in this step</td></tr>'}</tbody></table></div>`;
     $$('#ptb tr.row').forEach(r => r.onclick = e => { if (!e.target.closest('button')) location.hash = '#/projects/' + r.dataset.id; });
     bindNext(body, ps); return;
   }
@@ -213,3 +213,6 @@ async function pipeOffer(of, key) {
   $('[data-no]', t).onclick = () => { clearTimeout(tm); t.remove(); };
   $('[data-go]', t).onclick = async () => { clearTimeout(tm); t.remove(); await moveTo({ id: o.id, stage: o.from, customer: o.customer }, o.to); };
 }
+
+/* a project name someone typed (not the automatic "<customer name> <kW> kW") is worth showing in lists */
+function projOwnTitle(p) { const t = String(p.title || '').trim().toLowerCase(), c = String(p.customer || '').trim().toLowerCase(); return !!t && !(c && t.startsWith(c)); }

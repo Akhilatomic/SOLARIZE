@@ -33,7 +33,7 @@ async function pgAccounts() {
   const part = location.hash.replace(/^#\/?/, '').split('/');
   if (part[1] === 'cost') return acCostSheet(parseInt(part[2], 10) || 0);
   const tab = ACCT_TAB_NAMES.some(t => t[0] === part[1]) ? part[1] : 'overview', label = ACCT_TAB_NAMES.find(t => t[0] === tab)[1];
-  $('#title').innerHTML = `<span class="ft t-accounts"><i class="i i-coin"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› ${esc(label)}</span>`;
+  $('#title').innerHTML = `<span class="ft t-accounts"><i class="i i-ledger"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› ${esc(label)}</span>`;
   const main = $('#main');
   main.innerHTML = `<div class="acx-pg"><div class="acx-hd"><div class="tabs acx-tabs" role="tablist">${ACCT_TAB_NAMES.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-acx-tab="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>${ME.role === 'admin' ? '<button type="button" class="btn sec sm" data-acx-tpl title="Edit the email and WhatsApp wording"><i class="i i-gear"></i> Templates</button>' : ''}</div>
     <div class="acx-per" id="acx_per"></div><div id="acx_box"><p class="mut">Loading…</p></div></div>`;
@@ -84,7 +84,9 @@ const acDays = s => Math.round((Date.parse(today()) - Date.parse(String(s).slice
 const acAgo = n => n <= 0 ? 'today' : n === 1 ? '1 day' : `${n} days`;
 /* a log time (UTC 'YYYY-MM-DD HH:MM:SS', SQLite CURRENT_TIMESTAMP) as the local date */
 const acDay = s => { const d = new Date(String(s || '').replace(' ', 'T') + 'Z'); return isNaN(d) ? String(s || '').slice(0, 10) : `${d.getFullYear()}-${acP2(d.getMonth() + 1)}-${acP2(d.getDate())}`; };
-const acSigned = n => (+n < 0 ? '−' : '') + inr2(Math.abs(+n || 0));
+/* Accounts screens: whole rupees without the .00 (as on the dashboard); paise only when there are some. Printed bills and receipts keep inr2. */
+const inrW = n => { const v = +n || 0; return Math.abs(v - Math.round(v)) < 0.005 ? inr(v) : inr2(v); };
+const acSigned = n => (+n < 0 ? '−' : '') + inrW(Math.abs(+n || 0));
 const acPct = n => `${ACC.r2(n)}%`;
 const acLoan = r => r.loan === 'Yes' ? ' <span class="pill acx-tag">Loan</span>' : '';
 const acCanRemind = () => canW('payments') || canW('accounts'); /* the reminder is logged (acc/log needs payments or accounts write) */
@@ -118,12 +120,12 @@ const acRemCell = r => r.last_remind ? `${acDt(acDay(r.last_remind.at))}${r.last
    where only the bank's part is left: no reminder (the customer owes nothing) */
 function acPendRow(r, rem) {
   const kw = acKw(r.kw), n = r.last_pay ? acDays(r.last_pay) : 0, part = r.loan === 'Yes' && !r.bank_only && +r.cust_due < +r.due;
-  const acts = (!r.early && !r.bank_only && acCanRemind() ? `<button type="button" class="btn sec sm" data-acx-a="remind" title="WhatsApp payment reminder for ${esc(inr2(ACC.remindDue(r)))}: opens WhatsApp with the message ready"><i class="i i-whatsapp"></i> Reminder</button>` : '')
+  const acts = (!r.early && !r.bank_only && acCanRemind() ? `<button type="button" class="btn sec sm" data-acx-a="remind" title="WhatsApp payment reminder for ${esc(inrW(ACC.remindDue(r)))}: opens WhatsApp with the message ready"><i class="i i-whatsapp"></i> Reminder</button>` : '')
     + (canW('payments') ? '<button type="button" class="btn sec sm" data-acx-a="pay" title="Record a payment received"><i class="i i-plus"></i> Payment</button>' : '')
     + acExpBtn(r.id)
     + `<a class="ib" href="#/customers/${+r.customer_id}" title="Open customer" aria-label="Open customer"><i class="i i-user"></i></a>`;
   return `<tr data-id="${+r.id}"><td class="acx-cn"><a href="#/customers/${+r.customer_id}">${esc(r.customer || r.title || '')}</a>${acLoan(r)}${r.bank_only ? ' <span class="pill b acx-tag" title="The customer has paid their share; the rest comes from the loan bank, so there is no reminder">Bank\'s part only</span>' : ''}${r.stage ? `<small>${esc(r.stage)}</small>` : ''}</td>
-    <td class="num">${kw ? esc(kw) + ' kW' : '<span class="mut">—</span>'}</td><td class="num">${inr2(r.cost)}</td><td class="num">${inr2(r.paid)}</td><td class="num over">${inr2(r.due)}${part ? `<small class="acx-cp" title="The customer's own share (price − loan amount) still unpaid; the rest comes from the bank">customer ${inr2(r.cust_due)}</small>` : ''}</td>
+    <td class="num">${kw ? esc(kw) + ' kW' : '<span class="mut">—</span>'}</td><td class="num">${inrW(r.cost)}</td><td class="num">${inrW(r.paid)}</td><td class="num over">${inrW(r.due)}${part ? `<small class="acx-cp" title="The customer's own share (price − loan amount) still unpaid; the rest comes from the bank">customer ${inrW(r.cust_due)}</small>` : ''}</td>
     <td>${r.last_pay ? `${acDt(r.last_pay)} <span class="${n > 30 ? 'acx-late' : 'mut'}">· ${acAgo(n)}</span>` : '<span class="mut">None yet</span>'}</td>
     ${rem ? `<td data-acx-rm>${acRemCell(r)}</td>` : ''}<td class="acx-act">${acts}</td></tr>`;
 }
@@ -186,11 +188,11 @@ async function acProjectFor(customerId, cost) {
 function acPayForm(j, p, o = {}) {
   const loan = j.loan === 'Yes', src = p && p.src === 'bank' ? 'bank' : 'customer', due = +j.due || 0, kw = acKw(j.kw);
   const modes = p && p.mode && !ACX_MODES.includes(p.mode) ? ACX_MODES.concat(p.mode) : ACX_MODES;
-  const info = [kw && kw + ' kW', loan && 'Loan project', due > 0 && inr2(due) + ' pending'].filter(Boolean);
+  const info = [kw && kw + ' kW', loan && 'Loan project', due > 0 && inrW(due) + ' pending'].filter(Boolean);
   const m = modal(`<div class="mh"><h3>${p ? 'Edit payment' : 'Add payment'} · ${esc(j.customer || '')}</h3><button type="button" class="ib" data-x title="Close" aria-label="Close"><i class="i i-x"></i></button></div>
     ${o.why ? `<p class="mfw acx-top0">${esc(o.why)}</p>` : !p && info.length ? `<p class="mut acx-small acx-top0">${info.map(esc).join(' · ')}</p>` : ''}
     <div class="two"><div><label for="acx_yd">Date</label><input type="date" id="acx_yd" value="${esc(p ? p.date : today())}"></div>
-     <div><label for="acx_ya">Amount (₹)</label><input id="acx_ya" inputmode="decimal" autocomplete="off" value="${p ? acV(p.amount) : ''}">${!p && due > 0 ? `<button type="button" class="acx-link acx-small" id="acx_yfull">Whole pending amount, ${inr2(due)}</button>` : ''}</div>
+     <div><label for="acx_ya">Amount (₹)</label><input id="acx_ya" inputmode="decimal" autocomplete="off" value="${p ? acV(p.amount) : ''}">${!p && due > 0 ? `<button type="button" class="acx-link acx-small" id="acx_yfull">Whole pending amount, ${inrW(due)}</button>` : ''}</div>
      <div><label for="acx_ym">Mode</label><select id="acx_ym">${modes.map(x => `<option ${p && x === p.mode ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
      <div><label for="acx_yr">Reference no.</label><input id="acx_yr" maxlength="60" autocomplete="off" value="${esc(p ? p.ref_no || '' : '')}"></div>
      ${loan || src === 'bank' ? `<div><label for="acx_ys">From</label><select id="acx_ys"><option value="customer">Customer</option><option value="bank" ${src === 'bank' ? 'selected' : ''}>Bank (loan)</option></select></div>` : ''}
@@ -208,7 +210,7 @@ function acPayForm(j, p, o = {}) {
   $('#acx_ygo', m).onclick = async e => {
     const a = acNum(amt.value);
     if (!a) { toast('Enter the amount received', true); amt.focus(); return; }
-    if (!p && due > 0 && a > due + 1 && !confirm(`${inr2(a)} is more than the ${inr2(due)} pending on this project.\n\nSave it anyway?`)) return;
+    if (!p && due > 0 && a > due + 1 && !confirm(`${inrW(a)} is more than the ${inrW(due)} pending on this project.\n\nSave it anyway?`)) return;
     const b = e.currentTarget; b.disabled = true;
     /* src is always sent: a save without it would turn a bank payment into a customer one */
     const x = { project_id: j.pid, date: $('#acx_yd', m).value || today(), amount: a, mode: mode.value, ref_no: ref.value.trim(), note: $('#acx_yn', m).value.trim(), src: $('#acx_ys', m) ? $('#acx_ys', m).value : src };
@@ -233,9 +235,9 @@ ACCT_TABS.overview = async (box, P) => {
   const pSub = `before GST · ${acPl(+d.profit_n || 0, 'project')} counted${nc ? ` · <span class="acx-late">${acPl(nc, 'billed project')} without cost — left out</span>` : ''}`;
   box.innerHTML = `<div class="acx-view"><div class="acx-tiles acx-t5">
       ${acTile('Customers in progress', +d.track_open_n || 0, `${+d.track_done_n || 0} completed`, '', '#/accounts/progress', 'Every customer shown in Accounts, until they are moved to Completed')}
-      ${acTile('Received', inr2(d.received), `${acPl(+d.received_n || 0, 'payment')} in ${esc(P.label)}`, '', '#/accounts/received')}
-      ${acTile('Pending', inr2(d.pending), `${acPl(n, 'project')} · ${+d.pending_loan_n || 0} loan`, +d.pending > 0 ? 'acx-neg' : '', '#/accounts/pending', 'Still due today, whatever the period')}
-      ${acTile('Expenses', inr2(x.total), `Ads ${inr2(x.ads)} · AI ${inr2(x.ai)} · Other ${inr2(x.other)}`, '', '#/accounts/expenses', 'Before GST. Ads include the campaign spend from Meta Ads.')}
+      ${acTile('Received', inrW(d.received), `${acPl(+d.received_n || 0, 'payment')} in ${esc(P.label)}`, '', '#/accounts/received')}
+      ${acTile('Pending', inrW(d.pending), `${acPl(n, 'project')} · ${+d.pending_loan_n || 0} loan`, +d.pending > 0 ? 'acx-neg' : '', '#/accounts/pending', 'Still due today, whatever the period')}
+      ${acTile('Expenses', inrW(x.total), `Ads ${inrW(x.ads)} · AI ${inrW(x.ai)} · Other ${inrW(x.other)}`, '', '#/accounts/expenses', 'Before GST. Ads include the campaign spend from Meta Ads.')}
       ${acTile('Profit (projects billed − expenses)', acSigned(d.profit), pSub, acTone(d.profit), '#/accounts/profit', 'Profit of the projects whose tax bill was issued in the period, less the company expenses' + (nc ? '. Projects billed without a Project cost sheet are left out until their cost is entered (see Project profit).' : ''))}</div>
     <div class="acx-ch"><h3>Pending payments</h3><span class="mut acx-small">${n ? 'biggest first' : ''}</span><span class="sp"></span>${n > top.length ? `<a class="btn sec sm" href="#/accounts/pending">See all ${n}</a>` : ''}</div>
     <div class="card tw"><table class="acx-pt" data-min="990">${acPendHead(false)}</table></div></div>`;
@@ -258,9 +260,9 @@ function acTrackRow(r, done) {
       + (canW('accounts') ? `<button type="button" class="btn ${r.full ? '' : 'sec'} sm" data-acx-a="done" title="${r.full ? 'The payment is complete: move to Completed' : 'Move to Completed'}"><i class="i i-check"></i> Completed</button>` : '');
   return `<tr data-id="${r.customer_id}"><td class="acx-cn"><a href="#/customers/${r.customer_id}">${esc(r.customer || '')}</a>${acLoan(r)}${r.full && !done ? ' <span class="pill g acx-tag">Fully paid</span>' : ''}${done && r.due > 1 ? ' <span class="pill r acx-tag">Balance due</span>' : ''}<small>${[r.phone, kw && kw + ' kW', r.projects > 1 && r.projects + ' projects'].filter(Boolean).map(esc).join(' · ')}</small></td>
     <td class="acx-ip-sc">${acStage(r)}</td>
-    <td class="num">${r.cost > 0 ? inr2(r.cost) : '<span class="mut" title="Enter the total plant cost on the customer’s Overview">Not entered</span>'}</td>
-    <td class="num">${inr2(r.paid)}${r.cost > 0 ? `<small class="acx-ip-pc">${pct}%</small>` : ''}</td>
-    <td class="num ${r.due > 1 ? 'over' : ''}">${r.cost > 0 ? inr2(r.due) : '<span class="mut">—</span>'}</td>
+    <td class="num">${r.cost > 0 ? inrW(r.cost) : '<span class="mut" title="Enter the total plant cost on the customer’s Overview">Not entered</span>'}</td>
+    <td class="num">${inrW(r.paid)}${r.cost > 0 ? `<small class="acx-ip-pc">${pct}%</small>` : ''}</td>
+    <td class="num ${r.due > 1 ? 'over' : ''}">${r.cost > 0 ? inrW(r.due) : '<span class="mut">—</span>'}</td>
     <td>${done ? `${acDt(acDay(r.done_at))}${r.done_by ? `<span class="mut"> · ${esc(r.done_by)}</span>` : ''}` : r.last_pay ? `${acDt(r.last_pay)} <span class="mut">· ${acAgo(n)}</span>` : '<span class="mut">No payment yet</span>'}</td>
     <td class="acx-act">${acts}${acExpBtn(r.project_id)}<a class="ib" href="#/customers/${r.customer_id}" title="Open customer" aria-label="Open customer"><i class="i i-user"></i></a></td></tr>`;
 }
@@ -283,8 +285,8 @@ async function acTrackTab(box, done) {
     $$('[data-acx-f]', box).forEach(b => { b.classList.toggle('on', b.dataset.acxF === ACXT.f); $('.acx-n', b).textContent = hit.filter(r => pass(r, b.dataset.acxF)).length; });
     const sum = k => ACC.r2(rows.reduce((s, r) => s + (+r[k] || 0), 0)), full = rows.filter(r => r.full).length;
     $('[data-acx-tiles]', box).innerHTML = done
-      ? acTile('Completed', rows.length, `${acPl(rows.length, 'customer')} with the payment complete`) + acTile('Plant cost', inr2(sum('cost')), 'of these customers') + acTile('Received', inr2(sum('paid')), 'in all', 'acx-pos') + acTile('In progress', +d.open_n || 0, 'still being paid', '', '#/accounts/progress')
-      : acTile('In progress', rows.length, `${acPl(rows.length, 'customer')} · ${full} fully paid`) + acTile('Plant cost', inr2(sum('cost')), 'of these customers') + acTile('Received', inr2(sum('paid')), 'so far', 'acx-pos') + acTile('Pending', inr2(sum('due')), `still to come · ${+d.done_n || 0} completed`, sum('due') > 0 ? 'acx-neg' : '', '#/accounts/done', 'Open Completed');
+      ? acTile('Completed', rows.length, `${acPl(rows.length, 'customer')} with the payment complete`) + acTile('Plant cost', inrW(sum('cost')), 'of these customers') + acTile('Received', inrW(sum('paid')), 'in all', 'acx-pos') + acTile('In progress', +d.open_n || 0, 'still being paid', '', '#/accounts/progress')
+      : acTile('In progress', rows.length, `${acPl(rows.length, 'customer')} · ${full} fully paid`) + acTile('Plant cost', inrW(sum('cost')), 'of these customers') + acTile('Received', inrW(sum('paid')), 'so far', 'acx-pos') + acTile('Pending', inrW(sum('due')), `still to come · ${+d.done_n || 0} completed`, sum('due') > 0 ? 'acx-neg' : '', '#/accounts/done', 'Open Completed');
     const all = $('[data-acx-all]', box); if (all) { all.hidden = !full; all.innerHTML = `<i class="i i-check"></i> Move ${acPl(full, 'fully paid customer')} to Completed`; }
     acFill(tb, L, r => acTrackRow(r, done), rows.length ? 'Nothing matches.' : done ? 'No customer has been moved to Completed yet.' : 'No customer is in progress.');
   };
@@ -297,8 +299,8 @@ async function acTrackTab(box, done) {
       return acPayForm({ pid, customer: r.customer, kw: r.kw, loan: r.loan, due: r.due }, null, { done: reload }); }
     let body = { customer_id: r.customer_id, done: a === 'done' ? 1 : 0 };
     if (a === 'done' && !r.full) { /* a balance is left (or no plant cost): only an admin may close it, after a confirm */
-      if (ME.role !== 'admin') return toast(r.cost > 0 ? `${inr2(r.due)} is still pending, so this customer stays In progress.` : 'Enter the total plant cost first.', true);
-      if (!confirm(r.cost > 0 ? `${inr2(r.due)} is still pending for ${r.customer}.\n\nMove to Completed anyway?` : `No plant cost is entered for ${r.customer}.\n\nMove to Completed anyway?`)) return;
+      if (ME.role !== 'admin') return toast(r.cost > 0 ? `${inrW(r.due)} is still pending, so this customer stays In progress.` : 'Enter the total plant cost first.', true);
+      if (!confirm(r.cost > 0 ? `${inrW(r.due)} is still pending for ${r.customer}.\n\nMove to Completed anyway?` : `No plant cost is entered for ${r.customer}.\n\nMove to Completed anyway?`)) return;
       body.force = 1;
     }
     b.disabled = true;
@@ -334,7 +336,7 @@ ACCT_TABS.pending = async box => {
     const q = acQ(ACXP.q), hit = q.length ? rows.filter(r => q.every(t => [r.customer, r.phone, r.title, r.stage, r.kw && r.kw + ' kw'].join(' ').toLowerCase().includes(t))) : rows;
     L = hit.filter(r => acPendPass(r, ACXP.f));
     $$('[data-acx-f]', box).forEach(b => { b.classList.toggle('on', b.dataset.acxF === ACXP.f); $('.acx-n', b).textContent = hit.filter(r => acPendPass(r, b.dataset.acxF)).length; });
-    $('.acx-sum', box).textContent = `${acPl(L.length, 'project')} · ${inr2(ACC.r2(L.reduce((s, r) => s + (+r.due || 0), 0)))} pending`;
+    $('.acx-sum', box).textContent = `${acPl(L.length, 'project')} · ${inrW(ACC.r2(L.reduce((s, r) => s + (+r.due || 0), 0)))} pending`;
     $('[data-acx-note]', box).textContent = ACXP.f === 'early'
       ? 'Projects still in an early stage (Customer, KSEB feasibility check, Loan registration, KSEB feasibility payment, KSEB registration fee payment, PMSG portal registration). They are not in the pending total and get no reminder.'
       : "Projects past the early stages with money still due: the same list as the Dashboard, biggest first. Reminder opens WhatsApp with the message ready; press send there. On a loan project it asks only for the customer's own share (price − loan amount); Bank's part only = the customer has paid theirs, so there is no reminder.";
@@ -366,7 +368,7 @@ function acTicks(sh) {
 function acRecvRow(r) {
   const ref = String(r.ref_no || '').trim();
   return `<tr data-id="${+r.id}"><td>${acDt(r.date)}</td><td class="acx-cn"><a href="#/customers/${+r.customer_id}">${esc(r.customer)}</a>${acLoan(r)}</td>
-    <td>${r.src === 'bank' ? 'Bank (loan)' : 'Customer'}</td><td class="num">${inr2(r.amount)}</td>
+    <td>${r.src === 'bank' ? 'Bank (loan)' : 'Customer'}</td><td class="num">${inrW(r.amount)}</td>
     <td>${esc(r.mode || '—')}${ref ? `<span class="mut"> · ${esc(ref)}</span>` : ''}</td>
     <td>${r.receipt_no ? esc(r.receipt_no) : !acIsCash(r) && !ref ? '<span class="acx-late">Needs reference no.</span>' : '<span class="mut">Not made yet</span>'}</td>
     <td class="acx-tks">${acTicks(r.shared)}</td>
@@ -385,11 +387,11 @@ ACCT_TABS.received = async (box, P) => {
   const draw = () => {
     const rows = d.rows || [], q = acQ(ACXR.q), bank = rows.filter(r => r.src === 'bank'), made = rows.filter(r => r.receipt_no).length, sent = rows.filter(r => (r.shared || []).some(s => s.via !== 'pdf')).length;
     const L = q.length ? rows.filter(r => q.every(t => [r.customer, r.mode, r.ref_no, r.receipt_no, r.src === 'bank' ? 'bank loan' : 'customer', acDt(r.date)].join(' ').toLowerCase().includes(t))) : rows;
-    $('[data-acx-tiles]', box).innerHTML = acTile('Received', inr2(d.total), `${acPl(rows.length, 'payment')} in ${esc(P.label)}`)
-      + acTile('From customers', inr2(sum(rows.filter(r => r.src !== 'bank'))), acPl(rows.length - bank.length, 'payment'))
-      + acTile('From banks (loan)', inr2(sum(bank)), acPl(bank.length, 'payment'))
+    $('[data-acx-tiles]', box).innerHTML = acTile('Received', inrW(d.total), `${acPl(rows.length, 'payment')} in ${esc(P.label)}`)
+      + acTile('From customers', inrW(sum(rows.filter(r => r.src !== 'bank'))), acPl(rows.length - bank.length, 'payment'))
+      + acTile('From banks (loan)', inrW(sum(bank)), acPl(bank.length, 'payment'))
       + acTile('Receipts', `${made} of ${rows.length}`, `made · ${sent} sent`);
-    $('.acx-sum', box).textContent = q.length ? `${L.length} of ${rows.length} · ${inr2(sum(L))}` : '';
+    $('.acx-sum', box).textContent = q.length ? `${L.length} of ${rows.length} · ${inrW(sum(L))}` : '';
     acFill(tb, L, acRecvRow, rows.length ? 'Nothing matches.' : `No payments in ${esc(P.label)}.`);
   };
   const reload = async () => { try { d = await load(); } catch (e) { return; } if (box.isConnected) draw(); };
@@ -415,8 +417,8 @@ ACCT_TABS.received = async (box, P) => {
 function acProfRow(r) {
   const kw = acKw(r.kw);
   return `<tr data-id="${+r.project_id}"><td class="acx-cn"><a href="#/accounts/cost/${+r.project_id}">${esc(r.customer)}</a></td><td class="num">${kw ? esc(kw) + ' kW' : '<span class="mut">—</span>'}</td>
-    <td>${esc(r.bill_no || '')}<span class="mut"> · ${acDt(r.bill_on)}</span></td><td class="num">${inr2(r.before)}</td><td class="num">${inr2(r.cost)}</td>
-    <td class="num">${+r.comm ? inr2(r.comm) : '<span class="mut">—</span>'}</td><td class="num ${+r.profit < 0 ? 'over' : ''}">${acSigned(r.profit)}</td><td class="num">${acPct(r.margin)}</td>
+    <td>${esc(r.bill_no || '')}<span class="mut"> · ${acDt(r.bill_on)}</span></td><td class="num">${inrW(r.before)}</td><td class="num">${inrW(r.cost)}</td>
+    <td class="num">${+r.comm ? inrW(r.comm) : '<span class="mut">—</span>'}</td><td class="num ${+r.profit < 0 ? 'over' : ''}">${acSigned(r.profit)}</td><td class="num">${acPct(r.margin)}</td>
     <td>${acPl(+r.lines || 0, 'line')}${+r.missing ? ` <span class="pill y acx-tag" title="${acPl(+r.missing, 'line')} without a dealer price">Incomplete</span>` : ''}</td><td class="acx-act">${acExpBtn(r.project_id)}</td></tr>`;
 }
 ACCT_TABS.profit = async (box, P) => {
@@ -424,8 +426,8 @@ ACCT_TABS.profit = async (box, P) => {
   if (!box.isConnected) return;
   const c = d.counted || {}, rows = d.rows || [], nc = d.no_cost || [], inc = rows.filter(r => +r.missing > 0).length;
   box.innerHTML = `<div class="acx-view"><div class="acx-tiles">
-      ${acTile('Project price (before GST)', inr2(c.before), `${acPl(rows.length, 'project')} billed in ${esc(P.label)}`)}
-      ${acTile('Cost (before GST)', inr2(c.cost), +c.comm ? `+ ${inr2(c.comm)} incentive / commission` : 'materials and services')}
+      ${acTile('Project price (before GST)', inrW(c.before), `${acPl(rows.length, 'project')} billed in ${esc(P.label)}`)}
+      ${acTile('Cost (before GST)', inrW(c.cost), +c.comm ? `+ ${inrW(c.comm)} incentive / commission` : 'materials and services')}
       ${acTile('Profit', acSigned(c.profit), `${acPct(+c.before ? c.profit / c.before * 100 : 0)} margin${inc ? ` · ${inc} incomplete` : ''}`, acTone(c.profit))}
       ${acTile('Cost not entered', nc.length ? acPl(nc.length, 'project') : 'None', nc.length ? 'left out of the profit' : 'every billed project has costs', nc.length ? 'acx-warn' : '')}</div>
     <div class="card tw"><table class="acx-pf" data-min="1040"><thead><tr><th>Customer</th><th class="num">Plant</th><th>Tax bill</th><th class="num">Price before GST</th><th class="num">Cost before GST</th><th class="num">Incentive</th><th class="num">Profit</th><th class="num">Margin</th><th>Cost lines</th><th><span class="acx-sr">Actions</span></th></tr></thead><tbody></tbody></table></div>
@@ -449,19 +451,19 @@ ACCT_TABS.expenses = async (box, P) => {
     <p class="acx-note">Company running costs. Profit uses the amount before GST. Ads (from campaigns) is the Meta Ads campaign spend of the month, added automatically; type an Ads expense only for ad costs not entered as campaign spend.${w ? ' A deleted expense goes to the Recycle bin.' : ''}</p></div>`;
   const tb = $('table', box);
   const row = x => x.auto
-    ? `<tr class="acx-auto"><td>${esc(ACC.period(x.date).label)}</td><td>Ads (from campaigns) <span class="pill acx-tag">auto</span></td><td>Meta Ads</td><td><span class="mut">—</span></td><td class="mut">Campaign spend for the month</td><td class="num">${inr2(x.amount)}</td><td class="num"><span class="mut">—</span></td><td class="num">${inr2(x.before)}</td>${w ? '<td></td>' : ''}</tr>`
+    ? `<tr class="acx-auto"><td>${esc(ACC.period(x.date).label)}</td><td>Ads (from campaigns) <span class="pill acx-tag">auto</span></td><td>Meta Ads</td><td><span class="mut">—</span></td><td class="mut">Campaign spend for the month</td><td class="num">${inrW(x.amount)}</td><td class="num"><span class="mut">—</span></td><td class="num">${inrW(x.before)}</td>${w ? '<td></td>' : ''}</tr>`
     : `<tr data-id="${+x.id}"><td>${acDt(x.date)}</td><td>${esc(x.cat)}</td><td>${esc(x.paid_to) || '<span class="mut">—</span>'}</td><td>${esc(x.mode) || '<span class="mut">—</span>'}</td><td class="acx-nt">${esc(x.note)}</td>
-      <td class="num">${inr2(x.amount)}</td><td class="num">${+x.gst}%</td><td class="num">${inr2(x.before)}</td>
+      <td class="num">${inrW(x.amount)}</td><td class="num">${+x.gst}%</td><td class="num">${inrW(x.before)}</td>
       ${w ? '<td class="acx-act"><button type="button" class="ib" data-acx-a="edit" title="Edit" aria-label="Edit"><i class="i i-pencil"></i></button><button type="button" class="ib" data-acx-a="del" title="Delete" aria-label="Delete"><i class="i i-trash"></i></button></td>' : ''}</tr>`;
   const draw = () => {
     const ads = (d.ads || []).map(a => ({ auto: 1, k: a.month + '-32', date: a.month, amount: +a.spend || 0, before: +a.spend || 0 }));
     const L = ads.concat((d.rows || []).map(x => Object.assign({ k: x.date, before: ACC.exBefore(x) }, x))).sort((a, b) => a.k < b.k ? 1 : a.k > b.k ? -1 : 0);
     const s = { ads: 0, ai: 0, other: 0, paid: 0 };
     L.forEach(x => { s.paid += +x.amount || 0; s[x.auto || x.cat === 'Ads' ? 'ads' : x.cat === 'AI tools' ? 'ai' : 'other'] += x.before; });
-    $('[data-acx-tiles]', box).innerHTML = acTile('Total (before GST)', inr2(ACC.r2(s.ads + s.ai + s.other)), `${inr2(ACC.r2(s.paid))} paid, GST included`)
-      + acTile('Ads', inr2(ACC.r2(s.ads)), (d.ads || []).length ? 'campaign spend + typed' : 'typed')
-      + acTile('AI tools', inr2(ACC.r2(s.ai)), 'subscriptions and credits')
-      + acTile('Other', inr2(ACC.r2(s.other)), 'every other category');
+    $('[data-acx-tiles]', box).innerHTML = acTile('Total (before GST)', inrW(ACC.r2(s.ads + s.ai + s.other)), `${inrW(ACC.r2(s.paid))} paid, GST included`)
+      + acTile('Ads', inrW(ACC.r2(s.ads)), (d.ads || []).length ? 'campaign spend + typed' : 'typed')
+      + acTile('AI tools', inrW(ACC.r2(s.ai)), 'subscriptions and credits')
+      + acTile('Other', inrW(ACC.r2(s.other)), 'every other category');
     $('[data-acx-n]', box).textContent = (d.rows || []).length ? acPl(d.rows.length, 'entry', 'entries') : '';
     acFill(tb, L, row, `No expenses in ${esc(P.label)}.`);
   };
@@ -475,7 +477,7 @@ ACCT_TABS.expenses = async (box, P) => {
     if (!x) return;
     if (a === 'edit') return acExpForm(x, d.cats || [], P, reload);
     if (a !== 'del' || b.disabled) return;
-    if (!confirm(`Delete this expense (${x.cat}, ${inr2(x.amount)} on ${acDt(x.date)})?\n\nIt goes to the Recycle bin.`)) return;
+    if (!confirm(`Delete this expense (${x.cat}, ${inrW(x.amount)} on ${acDt(x.date)})?\n\nIt goes to the Recycle bin.`)) return;
     b.disabled = true;
     try { await api('acc', 'expense_delete', { id: x.id }); } catch (er) { b.disabled = false; return; }
     toast('Expense deleted. It is in the Recycle bin.');
@@ -499,7 +501,7 @@ function acExpForm(x, cats, P, done) {
     <div class="bar acx-mft"><button type="button" class="btn" id="acx_xs">Save</button><button type="button" class="btn sec" data-x>Cancel</button></div>`);
   const amt = $('#acx_xa', m), gst = $('#acx_xg', m);
   const upd = () => { const a = acNum(amt.value);
-    $('#acx_xb', m).textContent = a ? `Before GST: ${inr2(ACC.exBefore({ amount: a, gst: +gst.value }))}. Profit uses this amount.` : 'Type the amount as paid, GST included. Profit uses the amount before GST.'; };
+    $('#acx_xb', m).textContent = a ? `Before GST: ${inrW(ACC.exBefore({ amount: a, gst: +gst.value }))}. Profit uses this amount.` : 'Type the amount as paid, GST included. Profit uses the amount before GST.'; };
   amt.oninput = upd; gst.onchange = upd; upd();
   $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
   $('#acx_xs', m).onclick = async e => {

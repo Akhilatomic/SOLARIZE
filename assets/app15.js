@@ -11,7 +11,7 @@ const feesNavItems = () => [...(canR('fees') ? Object.entries(FEES).map(([k, v])
   ...(typeof COMM !== 'undefined' ? COMM.nav(ME).map(([k, l]) => [`#/comm/${k}`, 'comm-' + k, l, COMM_ICON[k], COMM_TC[k]]) : [])];
 function feesNav() {
   const L = feesNavItems(); if (!L.length) return '';
-  return `<div class="sgrp ${feeOpen() ? 'open' : ''}" id="feesg"><a href="${L[0][0]}" class="sgh" data-g="fees" title="Finance"><span class="ft t-fees"><i class="i i-coin"></i></span><span class="lbl">Finance</span><i class="i i-chev"></i></a>
+  return `<div class="sgrp ${feeOpen() ? 'open' : ''}" id="feesg"><a href="${L[0][0]}" class="sgh" data-g="fees" title="Finance"><span class="ft t-fees"><i class="i i-wallet"></i></span><span class="lbl">Finance</span><i class="i i-chev"></i></a>
     <div class="sgc">${L.map(([h, k, t, ic, tc]) => `<a href="${h}" data-sub="${k}" title="${t}"><span class="ft ${tc}"><i class="i i-${ic}"></i></span><span class="lbl">${t}</span></a>`).join('')}</div></div>`;
 }
 document.addEventListener('click', e => { const h = e.target.closest('.sgh'); if (!h) return;
@@ -23,7 +23,7 @@ const fdate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { d
 async function pgFees() {
   const kind = FEES[(location.hash.split('/')[2] || '')] ? location.hash.split('/')[2] : 'feasibility', K = FEES[kind];
   $$('aside [data-sub]').forEach(a => a.classList.toggle('on', a.dataset.sub === kind)); const g = $('#feesg'); if (g) g.classList.add('open');
-  $('#title').innerHTML = `<span class="ft t-fees"><i class="i i-coin"></i></span><span class="ttl">Finance</span><span class="mut ttls">› ${K.title}</span>`;
+  $('#title').innerHTML = `<span class="ft t-fees"><i class="i i-wallet"></i></span><span class="ttl">Finance</span><span class="mut ttls">› ${K.title}</span>`;
   const d = await api('fees', 'list', undefined, '&kind=' + kind), w = canW('fees');
   if (!FEEQ.f[kind]) FEEQ.f[kind] = 'all';
   const st = r => +r.paid ? (kind === 'feasibility' && r.days_left < 0 ? 'expired' : 'paid') : +r.demanded ? 'demanded' : 'pending';
@@ -32,7 +32,7 @@ async function pgFees() {
     : [['Total', d.rows.length, ''], ['Pending', cnt('pending'), 'o'], ['Demanded', cnt('demanded'), 'b'], ['Paid', cnt('paid'), 'g'], ...(kind === 'feasibility' ? [['Expiring in 3 days', cnt('expiring'), 'r'], ['Expired', d.rows.filter(r => st(r) === 'expired').length, 'r']] : [])];
   $('#main').innerHTML = `<div class="fhead"><span class="ft ftl ${K.tc}"><i class="i i-${K.icon}"></i></span><div><h2>${K.title}</h2><div class="mut">${K.sub}</div></div><span class="sp"></span>
      <button class="btn sec" id="frf"><i class="i i-refresh"></i> Refresh</button><button class="btn sec" id="fpdf"><i class="i i-download"></i> Download PDF</button>${w ? '<button class="btn" id="fadd"><i class="i i-plus"></i> Add customers</button>' : ''}</div>
-   <div class="fstats">${stats.map(([l, v, c]) => `<div class="card fst ${c}"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+   <div class="fstats">${stats.map(([l, v, c]) => `<div class="card fst ${c === 'r' && !v ? '' : c}"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
    <div class="bar fbar"><input id="fq" placeholder="Search by name, phone, consumer no., address, section…" value="${esc(FEEQ.q)}"><div class="tabs" style="margin:0">${K.filters.map(([k, l]) => `<button data-ff="${k}" class="${FEEQ.f[kind] === k ? 'on' : ''}">${l}</button>`).join('')}</div><span class="mut" id="fcnt"></span></div>
    <div class="card tw" style="padding:0"><table id="ftb" class="ftb" data-min="900"></table></div>
    ${kind === 'feasibility' ? `<p class="mut" style="font-size:12px;margin:10px 2px">Feasibility is valid for ${d.valid_days} days from the payment date. Everyone with Finance access gets a notification ${d.alert_days} days before it expires and again when it expires. Uploading the KSEB feasibility receipt in the pipeline marks it paid here automatically.</p>` : kind === 'registration' ? '<p class="mut" style="font-size:12px;margin:10px 2px">Uploading the KSEB registration fee receipt in the pipeline marks it paid here automatically.</p>' : ''}`;

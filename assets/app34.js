@@ -71,7 +71,7 @@ const acBSum = l => [l.bought_on ? fdt(l.bought_on) : '', l.supplier, l.bill_no 
 /* emb: a box element = the sheet inside the customer profile's Purchases and services tab (no page title, no back link to Accounts, an
    "Open as full page" link); omitted = the Project cost page in #main */
 async function acCostSheet(pid, emb) {
-  if (!emb) $('#title').innerHTML = '<span class="ft t-accounts"><i class="i i-coin"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› Project cost</span>';
+  if (!emb) $('#title').innerHTML = '<span class="ft t-accounts"><i class="i i-ledger"></i></span><span class="ttl">Accounts</span><span class="mut ttls">› Project cost</span>';
   const main = emb || $('#main'), nav = ROUTE_N, seq = ++ACS.seq; /* seq: a later sheet load (project picker) wins over a slower earlier one */
   if (!pid) { main.innerHTML = '<p class="over">No project chosen. Open a customer or a project and press Project cost.</p>'; return; }
   let d;
@@ -116,7 +116,7 @@ async function acCostSheet(pid, emb) {
       if (l.bought && (f === 'bought_on' || f === 'supplier' || f === 'bill_no')) { const sm = $('.acx-bsum', tr); if (sm) sm.textContent = acBSum(l); }
       return;
     }
-    $('.acx-amt', tr).textContent = inr2(ACC.lineExpense(l)); $('.acx-cpr', tr).textContent = inr2(ACC.lineCust(l, acDef()));
+    $('.acx-amt', tr).textContent = inrW(ACC.lineExpense(l)); $('.acx-cpr', tr).textContent = inrW(ACC.lineCust(l, acDef()));
     acGsum(); acCsTiles(); acDirty(true);
   };
   tb.addEventListener('input', onEdit); tb.addEventListener('change', onEdit);
@@ -176,7 +176,7 @@ function acCsTable() {
   let body = '', g = null, gi = -1;
   ACS.lines.forEach((l, i) => {
     if (gi < 0 || l.grp !== g) { g = l.grp; gi++; body += `<tr class="acx-grp"><td colspan="${n}"><b>${esc(g || 'Other')}</b><span class="acx-gsum" data-acx-g="${gi}"></span></td></tr>`; }
-    const exp = inr2(ACC.lineExpense(l)), cp = inr2(ACC.lineCust(l, def));
+    const exp = inrW(ACC.lineExpense(l)), cp = inrW(ACC.lineCust(l, def));
     body += w ? `<tr data-i="${i}" data-g="${gi}"${l.bought ? ' class="acx-bgt"' : ''}><td class="acx-nm">${l.bought ? '' : `<input type="checkbox" class="acx-bck" data-acx-sel${ACS.sel.has(l) ? ' checked' : ''} aria-label="Choose ${esc(l.name)} for Mark purchased"> `}${esc(l.name)}${l.material_id ? '' : ' <span class="pill acx-new" title="Goes on the price list when you save">new</span>'}</td>
       <td class="acx-bt">${acBCell(l, true)}</td>
       <td class="num"><input data-f="qty" inputmode="decimal" value="${acV(l.qty)}" placeholder="Qty" class="${l.qty > 0 ? '' : 'acx-need'}" aria-label="Quantity of ${esc(l.name)}"></td>
@@ -191,7 +191,7 @@ function acCsTable() {
       <td><input data-f="bill_date" type="date" value="${esc(l.bill_date)}" aria-label="Bill date"></td>
       <td><input data-f="note" value="${esc(l.note)}" maxlength="300" aria-label="Note" ${SPELL}></td>
       <td><button type="button" class="ib" data-acx-del title="Remove this line" aria-label="Remove ${esc(l.name)}"><i class="i i-trash"></i></button></td></tr>`
-      : `<tr data-i="${i}" data-g="${gi}"${l.bought ? ' class="acx-bgt"' : ''}><td class="acx-nm">${esc(l.name)}</td><td class="acx-bt">${acBCell(l, false)}</td><td class="num">${l.qty > 0 ? esc(acV(l.qty)) : '<span class="acx-late">—</span>'}</td><td>${esc(l.unit)}</td><td class="num">${l.rate ? inr2(l.rate) : '<span class="mut">—</span>'}</td>
+      : `<tr data-i="${i}" data-g="${gi}"${l.bought ? ' class="acx-bgt"' : ''}><td class="acx-nm">${esc(l.name)}</td><td class="acx-bt">${acBCell(l, false)}</td><td class="num">${l.qty > 0 ? esc(acV(l.qty)) : '<span class="acx-late">—</span>'}</td><td>${esc(l.unit)}</td><td class="num">${l.rate ? inrW(l.rate) : '<span class="mut">—</span>'}</td>
       <td class="num acx-amt">${exp}</td><td class="num">${ACC.pctSet(l.profit) ? esc(acPctTxt(l.profit)) : `<span class="mut">${esc(acPctTxt(def))}</span>`}</td><td class="num acx-cpr">${cp}</td><td class="num">${l.gst}</td>
       <td>${esc(l.supplier)}</td><td>${esc(l.bill_no)}</td><td>${l.bill_date ? fdt(l.bill_date) : ''}</td><td>${esc(l.note)}</td></tr>`;
   });
@@ -219,11 +219,11 @@ function acSelBar() {
 /* the automatic commission (Business Associate) / incentive (staff) line, from Finance › Commission / Incentive; counts in the expense */
 function acCommRow(n) {
   const c = acComm(), st = ACC.commStatus(c), adm = ME.role === 'admin' && (c.kind === 'commission' || c.kind === 'incentive');
-  const why = c.person ? `<span class="pill ${ACX_CST[st] || ''} acx-tag">${esc(st)}</span>${+c.p1 || +c.p2 ? ` <span class="mut">paid ${inr2(ACC.r2((+c.p1 || 0) + (+c.p2 || 0)))}</span>` : ''}`
+  const why = c.person ? `<span class="pill ${ACX_CST[st] || ''} acx-tag">${esc(st)}</span>${+c.p1 || +c.p2 ? ` <span class="mut">paid ${inrW(ACC.r2((+c.p1 || 0) + (+c.p2 || 0)))}</span>` : ''}`
     : `<span class="mut">${+c.amount ? 'From Finance' : 'No Business Associate or staff owner, so no commission or incentive'}</span>`;
   /* data-label set here: the stacked (narrow) layout labels cells by position, which the colspans would throw off */
   return `<tr class="acx-auto"><td class="acx-nm" data-label="">${esc(ACC.commLabel(c))} <span class="pill acx-tag">auto</span></td><td colspan="4">${why}${adm ? ` <a class="acx-link acx-small" href="#/comm/${c.kind}">Open in Finance</a>` : ''}</td>
-    <td class="num acx-amt" data-label="Cost">${inr2(c.amount)}</td><td colspan="${n - 6}"></td></tr>`;
+    <td class="num acx-amt" data-label="Cost">${inrW(c.amount)}</td><td colspan="${n - 6}"></td></tr>`;
 }
 /* the commission / incentive of the open sheet: ac_cost's comm, or auto.comm from an older answer */
 const acComm = () => { const d = ACS.d || {}; return d.comm || { amount: +(d.auto || {}).comm || 0, kind: '', person: '', p1: 0, p2: 0 }; };
@@ -233,7 +233,7 @@ function acGsum() {
   ACS.lines.forEach(l => { const k = l.grp; (s[k] = s[k] || [0, 0])[0]++; s[k][1] += ACC.lineExpense(l); });
   let gi = -1, g = null;
   const keys = []; ACS.lines.forEach(l => { if (gi < 0 || l.grp !== g) { g = l.grp; gi++; keys.push(g); } });
-  $$('#acx_tb [data-acx-g]').forEach(el => { const v = s[keys[+el.dataset.acxG]]; if (v) el.textContent = `${acPl(v[0], 'line')} · ${inr2(ACC.r2(v[1]))}`; });
+  $$('#acx_tb [data-acx-g]').forEach(el => { const v = s[keys[+el.dataset.acxG]]; if (v) el.textContent = `${acPl(v[0], 'line')} · ${inrW(ACC.r2(v[1]))}`; });
 }
 /* Income (payments for this project), Expense (purchases · services · commission / incentive), Profit (before GST, same rule as
    Accounts › Project profit) and the customer price from the list against the agreed price before GST */
@@ -243,11 +243,11 @@ function acCsTiles() {
   const T = ACC.sheetTotals(ACS.lines, c.amount, acDef()), P = ACC.profit({ price: p.cost, taxable: d.taxable, lines: ACS.lines, comm: c.amount }), G = ACC.listGap(P.before, T.cust);
   const paid = +d.paid || 0, priced = +p.cost > 0 || +d.taxable > 0;
   const t = (k, label, val, sub, cls, tip) => `<div class="card acx-t ${cls || ''}" data-acx-t="${k}"${tip ? ` title="${esc(tip)}"` : ''}><small>${label}</small><b>${val}</b><em>${sub}</em></div>`;
-  box.innerHTML = t('income', 'Income', inr2(paid), +p.cost ? `of ${inr2(p.cost)} price${paid >= +p.cost - 1 ? ' · fully paid' : ''}` : 'project price not set', '', 'Payments received for this project (Tax bill tab and Accounts)')
-    + t('expense', 'Project cost', inr2(T.expense), `purchases ${inr2(T.purchases)} · services ${inr2(T.services)} · ${ck} ${inr2(T.comm)}${T.n ? `<br><span class="acx-bpt">Purchased ${inr2(T.bought)} · To buy ${inr2(T.tobuy)}</span>` : ''}${T.missing ? ` · <span class="acx-late">${acPl(T.missing, 'line')} without a dealer price</span>` : ''}`, T.missing ? 'acx-warn' : '', 'Before GST: quantity × dealer price of every line, plus the commission / incentive')
-    + t('profit', 'Profit', P.profit < 0 ? '−' + inr2(-P.profit) : inr2(P.profit), priced ? `${P.margin.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% margin · before GST` : 'project price not set', P.profit < 0 ? 'acx-neg' : P.profit > 0 ? 'acx-pos' : '',
-      `Project price before GST ${inr2(P.before)}${+d.taxable > 0 ? ' (from the tax bill)' : +p.cost ? ` (${inr2(p.cost)} ÷ ${ACC.GST_DIV})` : ''} − expense ${inr2(T.expense)}`)
-    + t('list', 'Customer price from the list', inr2(T.cust), (!priced ? 'project price not set' : G.word === 'matches' ? `matches the agreed ${inr2(P.before)} before GST` : `agreed price (${inr2(P.before)} before GST) is ${inr2(Math.abs(G.diff))} ${G.word}`) + ' (before commission / incentive)',
+  box.innerHTML = t('income', 'Income', inrW(paid), +p.cost ? `of ${inrW(p.cost)} price${paid >= +p.cost - 1 ? ' · fully paid' : ''}` : 'project price not set', '', 'Payments received for this project (Tax bill tab and Accounts)')
+    + t('expense', 'Project cost', inrW(T.expense), `purchases ${inrW(T.purchases)} · services ${inrW(T.services)} · ${ck} ${inrW(T.comm)}${T.n ? `<br><span class="acx-bpt">Purchased ${inrW(T.bought)} · To buy ${inrW(T.tobuy)}</span>` : ''}${T.missing ? ` · <span class="acx-late">${acPl(T.missing, 'line')} without a dealer price</span>` : ''}`, T.missing ? 'acx-warn' : '', 'Before GST: quantity × dealer price of every line, plus the commission / incentive')
+    + t('profit', 'Profit', P.profit < 0 ? '−' + inrW(-P.profit) : inrW(P.profit), priced ? `${P.margin.toLocaleString('en-IN', { maximumFractionDigits: 2 })}% margin · before GST` : 'project price not set', P.profit < 0 ? 'acx-neg' : P.profit > 0 ? 'acx-pos' : '',
+      `Project price before GST ${inrW(P.before)}${+d.taxable > 0 ? ' (from the tax bill)' : +p.cost ? ` (${inrW(p.cost)} ÷ ${ACC.GST_DIV})` : ''} − expense ${inrW(T.expense)}`)
+    + t('list', 'Customer price from the list', inrW(T.cust), (!priced ? 'project price not set' : G.word === 'matches' ? `matches the agreed ${inrW(P.before)} before GST` : `agreed price (${inrW(P.before)} before GST) is ${inrW(Math.abs(G.diff))} ${G.word}`) + ' (before commission / incentive)',
       priced && G.word === 'less' ? 'acx-warn' : '', 'Every line: quantity × dealer price + its profit %. The commission / incentive is not in it.');
 }
 
@@ -257,7 +257,7 @@ function acFeeBar() {
   const have = new Set(ACS.lines.map(l => l.name.trim().toLowerCase()));
   const miss = (((ACS.d || {}).auto || {}).fees || []).filter(f => !have.has(String(f.name).trim().toLowerCase()));
   box.innerHTML = ACS.w && miss.length ? `<div class="acx-fee"><button type="button" class="btn sec sm" id="acx_feeadd"><i class="i i-plus"></i> Add KSEB fees from Finance</button>
-    <span class="mut">${miss.map(f => `${esc(f.name)} ${inr2(f.amount)}`).join(' · ')} paid (with GST), added before GST</span></div>` : '';
+    <span class="mut">${miss.map(f => `${esc(f.name)} ${inrW(f.amount)}`).join(' · ')} paid (with GST), added before GST</span></div>` : '';
   if (box.firstChild) $('#acx_feeadd').onclick = async () => {
     let mats = []; try { mats = await acMats(); } catch (e) { }
     miss.forEach(f => {
@@ -365,7 +365,7 @@ async function acCsAdd(ctx) {
     $('#acx_ch', m).innerHTML = nn.value.trim() ? `<b>${esc(nn.value.trim())}</b><small>${esc($('#acx_ng', m).value)}</small>` : '<span class="mut">Fill in the new product, then type its quantity.</span>';
     {
       const r = acNum(nr.value), pc = acPctIn(np.value);
-      $('#acx_ncp', m).textContent = r && !Number.isNaN(pc) ? `Customer price ${inr2(ACC.custPrice(r, ACC.pctOf(pc, def)))} per ${$('#acx_nu', m).value.trim() || 'Nos'} (${acPctTxt(ACC.pctOf(pc, def))} profit)` : '';
+      $('#acx_ncp', m).textContent = r && !Number.isNaN(pc) ? `Customer price ${inrW(ACC.custPrice(r, ACC.pctOf(pc, def)))} per ${$('#acx_nu', m).value.trim() || 'Nos'} (${acPctTxt(ACC.pctOf(pc, def))} profit)` : '';
     }
   };
   /* category tabs: All + every group that has products + the added categories (even while empty) + New category; each shows how many match the search and how many are ticked */
@@ -388,7 +388,7 @@ async function acCsAdd(ctx) {
     L.slice(0, 300).forEach(x => {
       if (x.grp !== cur) { cur = x.grp; h += `<div class="acx-pgh">${esc(cur || 'Other')}</div>`; }
       const on = ctx.lines().filter(l => l.material_id === x.id).length, tk = sel.has(x.id);
-      h += `<label class="acx-pi acx-pc${tk ? ' acx-on' : ''}"><input type="checkbox" data-mid="${x.id}"${tk ? ' checked' : ''}><span>${esc(x.name)}</span><small>${esc(x.unit)} · GST ${+x.gst}%${+x.rate ? ' · dealer ' + inr2(x.rate) + ' · profit ' + esc(acPctTxt(ACC.pctOf(x.profit, def))) : ' · no dealer price yet'}${acOfferHint(x)}${on ? ` · <b>already ${ctx.sheet ? 'on the sheet' : 'in the template'}${on > 1 ? ' ×' + on : ''}</b>` : ''}</small></label>`;
+      h += `<label class="acx-pi acx-pc${tk ? ' acx-on' : ''}"><input type="checkbox" data-mid="${x.id}"${tk ? ' checked' : ''}><span>${esc(x.name)}</span><small>${esc(x.unit)} · GST ${+x.gst}%${+x.rate ? ' · dealer ' + inrW(x.rate) + ' · profit ' + esc(acPctTxt(ACC.pctOf(x.profit, def))) : ' · no dealer price yet'}${acOfferHint(x)}${on ? ` · <b>already ${ctx.sheet ? 'on the sheet' : 'in the template'}${on > 1 ? ' ×' + on : ''}</b>` : ''}</small></label>`;
     });
     const none = cat && !mats.some(x => !x.hidden && x.grp === cat); /* a category with no products yet */
     $('#acx_pl', m).innerHTML = h || (none ? `<p class="mut acx-pe">No products in <b>${esc(cat)}</b> yet. <button type="button" class="acx-link" data-acx-first>Add its first product</button></p>`
@@ -407,7 +407,7 @@ async function acCsAdd(ctx) {
   const drawSel = () => {
     $('#acx_sl', m).innerHTML = [...sel.keys()].map(id => {
       const x = mats.find(y => y.id === id); if (!x) return '';
-      return `<div class="acx-srow" data-sid="${x.id}"><span class="acx-sn"><b>${esc(x.name)}</b><small>${esc(x.grp)} · dealer ${+x.rate ? inr2(x.rate) : 'price not set'}</small></span><input data-sq inputmode="decimal" autocomplete="off" placeholder="Qty" value="${esc(sel.get(id))}" aria-label="Quantity of ${esc(x.name)}"><span class="mut acx-su">${esc(x.unit)}</span><button type="button" class="ib" data-rm title="Remove" aria-label="Remove ${esc(x.name)}"><i class="i i-x"></i></button></div>`;
+      return `<div class="acx-srow" data-sid="${x.id}"><span class="acx-sn"><b>${esc(x.name)}</b><small>${esc(x.grp)} · dealer ${+x.rate ? inrW(x.rate) : 'price not set'}</small></span><input data-sq inputmode="decimal" autocomplete="off" placeholder="Qty" value="${esc(sel.get(id))}" aria-label="Quantity of ${esc(x.name)}"><span class="mut acx-su">${esc(x.unit)}</span><button type="button" class="ib" data-rm title="Remove" aria-label="Remove ${esc(x.name)}"><i class="i i-x"></i></button></div>`;
     }).join('') || '<span class="mut">Tick the products above, then type each quantity here.</span>';
     updSel();
   };
@@ -525,7 +525,7 @@ function acCsBuy(chosen) {
     const f = form(), why = ACC.boughtCheck(idxs, f);
     $('#acx_bwg', m).disabled = !!why; $('#acx_bwg', m).title = why;
     const tot = ACC.r2(idxs.reduce((a, i) => a + ACC.r2((ACS.lines[i].qty || 0) * (f.rates[i] || 0)), 0));
-    $('#acx_bwm', m).textContent = why || `Total paid before GST ${inr2(tot)}`;
+    $('#acx_bwm', m).textContent = why || `Total paid before GST ${inrW(tot)}`;
   };
   m.addEventListener('input', upd); m.addEventListener('change', upd);
   $$('[data-x]', m).forEach(b => b.onclick = () => m.remove());
@@ -784,8 +784,8 @@ async function acMaterials(box) {
       if (x.grp !== cur) { cur = x.grp; body += `<tr class="acx-grp"><td colspan="${nc}"><b>${esc(cur || 'Other')}</b><span class="acx-gsum">${acPl(L.filter(y => y.grp === cur).length, 'item')}</span></td></tr>`; }
       const own = ACC.pctSet(x.profit), pc = ACC.pctOf(x.profit, def), v = ACC.offerView(x, sups), best = v.save ? v.all[0] : null;
       body += `<tr class="${x.hidden ? 'acx-hid' : ''}${v.others.length ? ' acs-has' : ''}" data-id="${x.id}"><td class="acx-nm">${esc(x.name)}${x.hidden ? ' <span class="pill acx-tag">Hidden</span>' : ''}${acOfferBy(v)}</td><td>${esc(x.unit)}</td>
-        <td class="num">${+x.rate ? inr2(x.rate) : '<span class="mut">—</span>'}${v.used && v.used.low ? ' <span class="pill acs-lowp">Lowest</span>' : ''}${best ? `<small class="acs-save">${inr2(v.save)} less at ${esc(best.tag)}</small>` : ''}</td><td class="num">${own ? esc(acPctTxt(pc)) : `<span class="mut" title="Blank: the default">${esc(acPctTxt(pc))}</span>`}</td>
-        <td class="num">${+x.rate ? `<b>${inr2(ACC.custPrice(x.rate, pc))}</b>` : '<span class="mut">—</span>'}</td><td class="num">${+x.gst}</td>
+        <td class="num">${+x.rate ? inrW(x.rate) : '<span class="mut">—</span>'}${v.used && v.used.low ? ' <span class="pill acs-lowp">Lowest</span>' : ''}${best ? `<small class="acs-save">${inrW(v.save)} less at ${esc(best.tag)}</small>` : ''}</td><td class="num">${own ? esc(acPctTxt(pc)) : `<span class="mut" title="Blank: the default">${esc(acPctTxt(pc))}</span>`}</td>
+        <td class="num">${+x.rate ? `<b>${inrW(ACC.custPrice(x.rate, pc))}</b>` : '<span class="mut">—</span>'}</td><td class="num">${+x.gst}</td>
         ${w ? `<td class="acx-act"><button type="button" class="ib" data-acx-m="offer" title="Add a supplier's price" aria-label="Add a supplier's price for ${esc(x.name)}"><i class="i i-plus"></i></button><button type="button" class="ib" data-acx-m="edit" title="Edit" aria-label="Edit ${esc(x.name)}"><i class="i i-pencil"></i></button><button type="button" class="ib" data-acx-m="hide" title="${x.hidden ? 'Offer on Project cost sheets again' : 'Hide from Project cost sheets'}" aria-label="${x.hidden ? 'Show' : 'Hide'} ${esc(x.name)}"><i class="i i-eye"></i></button><button type="button" class="ib" data-acx-m="del" title="Delete" aria-label="Delete ${esc(x.name)}"><i class="i i-trash"></i></button></td>` : ''}</tr>` + acOfferRows(x, v, w, def);
     });
     tb.innerHTML = `<colgroup><col><col style="width:64px"><col style="width:150px"><col style="width:110px"><col style="width:120px"><col style="width:64px">${w ? '<col style="width:150px">' : ''}</colgroup>
@@ -944,7 +944,7 @@ function acMatForm(x, mats, done) {
   const calc = () => {
     const r = acNum(fr.value), p = acPctIn(fp.value);
     fr.classList.toggle('acx-bad', r === null); fp.classList.toggle('acx-bad', Number.isNaN(p));
-    $('#acx_fcp', m).innerHTML = r && !Number.isNaN(p) ? `Customer price <b>${inr2(ACC.custPrice(r, ACC.pctOf(p, def)))}</b> <span class="mut">= ${inr2(r)} + ${esc(acPctTxt(ACC.pctOf(p, def)))}${p === null ? ' (the default)' : ''}</span>`
+    $('#acx_fcp', m).innerHTML = r && !Number.isNaN(p) ? `Customer price <b>${inrW(ACC.custPrice(r, ACC.pctOf(p, def)))}</b> <span class="mut">= ${inrW(r)} + ${esc(acPctTxt(ACC.pctOf(p, def)))}${p === null ? ' (the default)' : ''}</span>`
       : `<span class="mut">${r === null ? 'The dealer price is not a number.' : Number.isNaN(p) ? 'Profit % is 0 to 500, or blank for the default.' : 'Type the dealer price to see the customer price.'}</span>`;
   };
   fr.oninput = calc; fp.oninput = calc; calc();

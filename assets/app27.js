@@ -62,7 +62,7 @@ async function pgComm() {
   /* adm = managing the whole list (admin, or Incentive "Edit"); boss = the admin; a manager's own rows are read-only for them */
   const d = await api('comm', 'list', undefined, want === 'mine' ? '&kind=incentive&mine=1' : '&kind=' + want), kind = d.kind, adm = !!d.manage, boss = !!d.admin, W = COMM.words(kind, adm), inc = kind === 'incentive';
   $$('aside [data-sub]').forEach(a => a.classList.toggle('on', a.dataset.sub === 'comm-' + want)); const g = $('#feesg'); if (g) g.classList.add('open');
-  $('#title').innerHTML = `<span class="ft t-fees"><i class="i i-coin"></i></span><span class="ttl">Finance</span><span class="mut ttls">› ${W.title}</span>`;
+  $('#title').innerHTML = `<span class="ft t-fees"><i class="i i-wallet"></i></span><span class="ttl">Finance</span><span class="mut ttls">› ${W.title}</span>`;
   if (!COMMQ.st[kind]) COMMQ.st[kind] = inc && boss && d.rows.some(r => r.pending) ? 'approve' : 'all';
   const people = (d.people || []).filter(p => p.kind === kind), who = () => adm ? +COMMQ.who[kind] || 0 : 0;
   const sub = adm ? (kind === 'commission' ? 'Customers brought in by Business Associates. Type the commission, record it paid in two parts, and choose who can see it.'

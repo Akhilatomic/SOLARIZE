@@ -1,6 +1,8 @@
 <?php
 // Dashboard, ads, whatsapp, settings, admin
 
+/* the dashboard's Recent activity: work on leads, customers and projects (not sign-ins, settings, security, backups or commissions) */
+const RECENT_ENTITIES = "'leads','customers','projects','payments','quotes','subsidy','surveys','files','fees','events','receipts'";
 function handle_dashboard() {
   need('dashboard');
   $today = date('Y-m-d'); $month = date('Y-m');
@@ -43,8 +45,8 @@ function handle_dashboard() {
     'trend' => rows("SELECT $loc d, COUNT(*) n, SUM(status='Won') won FROM leads WHERE $loc>=date('now','+330 minutes','-29 day')$L GROUP BY d"),
     'sources' => rows("SELECT COALESCE(NULLIF(source,''),'Unknown') s, COUNT(*) n FROM leads WHERE 1=1$L GROUP BY s ORDER BY n DESC"),
     'appts' => rows("SELECT id,name,appt d,status FROM leads WHERE appt<>'' AND appt BETWEEN date('now','-62 day') AND date('now','+180 day')$L"),
-    'recent' => $ba ? rows('SELECT user,action,entity,detail,created FROM audit_log WHERE user=? ORDER BY id DESC LIMIT 8', [$_SESSION['username'] ?? '']) // a BA sees only what they did
-      : rows('SELECT user,action,entity,detail,created FROM audit_log ORDER BY id DESC LIMIT 8'),
+    'recent' => rows("SELECT a.user, COALESCE(u.name, a.user) name, a.action, a.entity, a.detail, a.created FROM audit_log a LEFT JOIN users u ON u.username=a.user
+      WHERE a.entity IN (" . RECENT_ENTITIES . ") AND a.action NOT IN ('kseb_login_view','download','download_all','kyc_pdf','doc_autosave')" . ($ba ? ' AND a.user=?' : '') . " ORDER BY a.id DESC LIMIT 8", $ba ? [$_SESSION['username'] ?? ''] : []), // a BA sees only what they did
     'lead_year' => $cnt("SELECT COUNT(*) v FROM leads WHERE substr($loc,1,4)=?$L", [date('Y')]),
     'lead_target' => (int)settings()['lead_target'], 'customer_target' => (int)settings()['customer_target'],
     'cust_year' => $cnt("SELECT COUNT(*) v FROM customers WHERE substr($loc,1,4)=?" . $SC['customers'], [date('Y')]),
