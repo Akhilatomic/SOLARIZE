@@ -19,7 +19,9 @@ function handle_dashboard() {
   $stages = rows("SELECT stage, COUNT(*) n FROM projects WHERE 1=1$P GROUP BY stage");
   $lstat = rows("SELECT status, COUNT(*) n FROM leads WHERE 1=1$L GROUP BY status");
   $follow = rows("SELECT id,name,phone,status,appt followup,'lead' type FROM leads WHERE appt<>'' AND appt<=? AND status NOT IN ('Won','Lost')$L ORDER BY appt LIMIT 15", [$today]);
-  $sub = rows("SELECT id,title,subsidy_status,subsidy_amount FROM projects WHERE stage<>'Project completed' AND (subsidy_status IS NULL OR subsidy_status NOT IN ('Released')) AND application_no<>''$P LIMIT 10");
+  $sub = rows("SELECT c.id, c.name title, st.status subsidy_status, COALESCE(pj.amt,0) subsidy_amount FROM subsidy_track st JOIN customers c ON c.id=st.customer_id
+    LEFT JOIN (SELECT customer_id, MAX(subsidy_amount) amt FROM projects GROUP BY customer_id) pj ON pj.customer_id=c.id
+    WHERE st.status NOT IN ('Subsidy disbursed','Subsidy rejected')" . ($ba ? " AND c.owner_id=$u" : '') . " ORDER BY st.status_date, st.id LIMIT 10"); /* the Subsidy list (api/subsidy.php): everyone still being followed, longest-waiting first */
   if (!can('finance')) foreach ($sub as &$x) unset($x['subsidy_amount']); unset($x);
   $S = settings();
   $ks = rows("SELECT p.id,p.title,cu.name customer, (SELECT COUNT(*) FROM checklist c WHERE c.project_id=p.id AND c.kind='kseb' AND c.status IN ('Approved','NA')) done FROM projects p LEFT JOIN customers cu ON cu.id=p.customer_id WHERE p.stage<>'Project completed'$P");

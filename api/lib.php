@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 76; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 77; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -389,6 +389,22 @@ function migrate($db) {
       foreach ($db->query("SELECT data FROM trash WHERE data LIKE '%meta_id%'")->fetchAll() as $t) { $d = json_decode((string)$t['data'], true);
         foreach (($d['rows'] ?? []) as $tr) if (($tr[0] ?? '') === 'leads') foreach (($tr[1] ?? []) as $r) if (trim((string)($r['meta_id'] ?? '')) !== '') $ins->execute([trim((string)$r['meta_id'])]); }
       $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('meta_gone_v74','1')"); } catch (Throwable $e) { }
+  }
+  /* v77: Subsidy tracker - customers staff put on the Subsidy list, their current status and every change (api/subsidy.php).
+     The old project status is carried over once: Under review / Approved / Released become rows on the list. */
+  $db->exec("CREATE TABLE IF NOT EXISTS subsidy_track(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER UNIQUE, status TEXT DEFAULT '', status_date TEXT DEFAULT '', note TEXT DEFAULT '', added_by TEXT DEFAULT '', created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, updated_by TEXT DEFAULT '')");
+  $db->exec("CREATE TABLE IF NOT EXISTS subsidy_log(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, status TEXT DEFAULT '', date TEXT DEFAULT '', note TEXT DEFAULT '', by TEXT DEFAULT '', at TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec('CREATE INDEX IF NOT EXISTS subsidy_log_c ON subsidy_log(customer_id)');
+  if (!$db->query("SELECT 1 FROM settings WHERE k='subsidy_map_v77'")->fetch()) {
+    foreach (['Under review' => 'Subsidy redeem stage', 'Approved' => 'Subsidy redeemed', 'Released' => 'Subsidy disbursed'] as $was => $now) {
+      $st = $db->prepare("SELECT customer_id, MAX(date(updated,'+330 minutes')) d FROM projects WHERE subsidy_status=? AND customer_id>0 AND customer_id IN (SELECT id FROM customers) GROUP BY customer_id"); $st->execute([$was]);
+      foreach ($st->fetchAll() as $r) {
+        $ins = $db->prepare("INSERT OR IGNORE INTO subsidy_track(customer_id, status, status_date, note, added_by, updated_by) VALUES(?,?,?,?,'System','System')"); $ins->execute([$r['customer_id'], $now, (string)$r['d'], "Carried over from the old status \"$was\""]);
+        if ($ins->rowCount()) { $db->prepare("INSERT INTO subsidy_log(customer_id, status, date, note, by) VALUES(?,?,?,?,'System')")->execute([$r['customer_id'], $now, (string)$r['d'], "Carried over from the old status \"$was\""]);
+          $db->prepare('UPDATE projects SET subsidy_status=? WHERE customer_id=?')->execute([$now, $r['customer_id']]); }
+      }
+    }
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('subsidy_map_v77','1')");
   }
   /* v76: active / idle time per person per day, counted from the presence heartbeat (api/user.php presence_time_add) */
   $db->exec('CREATE TABLE IF NOT EXISTS presence_day(user_id INTEGER, day TEXT, active_s INTEGER DEFAULT 0, idle_s INTEGER DEFAULT 0, first_at INTEGER DEFAULT 0, last_at INTEGER DEFAULT 0, act_at INTEGER DEFAULT 0, PRIMARY KEY(user_id, day))');

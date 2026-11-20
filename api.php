@@ -31,6 +31,7 @@ require __DIR__ . '/api/bank.php';
 require __DIR__ . '/api/mail.php';
 require __DIR__ . '/api/quotemaker.php';
 require __DIR__ . '/api/comm.php';
+require __DIR__ . '/api/subsidy.php';
 require __DIR__ . '/api/accounts.php';
 require __DIR__ . '/api/import.php';
 require __DIR__ . '/api/onboard.php';
@@ -87,6 +88,7 @@ try {
     case 'mail': handle_mail($a);
     case 'qm': handle_qm($a);
     case 'comm': handle_comm($a);
+    case 'subsidy': handle_subsidy($a);
     case 'acc': handle_acc($a);
     case 'import': handle_import($a);
   }

@@ -53,7 +53,6 @@ const PHONE_NOTES = {};
 })();
 /* Menu tabs (app43.js): true inside a tab's page-frame. The outer window keeps the side menu, the top bar and every alert. */
 let FRAME = false; try { FRAME = window !== window.parent && !!window.frameElement && window.frameElement.classList.contains('mt-f') && !!window.parent.TABS; } catch (e) { }
-const SUB_STATUS = ['Not applied', 'Applied', 'Under review', 'Approved', 'Released'];
 const MODS = [ // id, label, icon, perm
   ['dashboard', 'Dashboard', '<i class="i i-dashboard"></i>', 'dashboard'], ['calendar', 'Calendar', '<i class="i i-calendar"></i>', 'calendar'], ['leads', 'Leads', '<i class="i i-target"></i>', 'leads'], ['survey', 'Site survey', '<i class="i i-pin"></i>', 'survey'], ['customers', 'Customers', '<i class="i i-users"></i>', 'customers'],
   ['projects', 'Project pipeline', '<i class="i i-project"></i>', 'projects'], ['folder', 'Folder', '<i class="i i-file"></i>', 'folder'], ['quotes', 'Quotations', '<i class="i i-receipt"></i>', 'quotes'],
@@ -110,7 +109,7 @@ async function api(m, a, body, qs = '') {
 const list = (m, qs = '') => api(m, 'list', undefined, qs);
 const waNum = p => { const d = String(p || '').replace(/\D/g, ''); return d.length === 10 ? '91' + d : d; };
 const pill = (t, c = '') => `<span class="pill ${c}">${esc(t)}</span>`;
-const stageCls = s => ({ Won: 'g', Commissioned: 'g', Closed: 'g', Released: 'g', Approved: 'g', Lost: 'r', New: 'b', Survey: 'b', Submitted: 'y', Applied: 'y', 'Under review': 'y' }[s] || '');
+const stageCls = s => (typeof SUBSIDY !== 'undefined' && SUBSIDY.CLS[s]) || ({ Won: 'g', Commissioned: 'g', Closed: 'g', Released: 'g', Approved: 'g', Lost: 'r', New: 'b', Survey: 'b', Submitted: 'y', Applied: 'y', 'Under review': 'y' }[s] || '');
 
 async function boot() {
   const s = await api('auth', 'status', undefined, '&boot=1');
@@ -208,7 +207,7 @@ async function route() {
   const t = MODS.find(m => m[0] === mod);
   $('#title').innerHTML = t ? `<span class="ft t-${t[0]}">${t[2]}</span><span class="ttl">${esc(t[1])}</span>` : '';
   const main = $('#main'); main.className = 'pg-' + mod; main.innerHTML = '<p class="mut">Loading…</p>';
-  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, survey: id ? pgSurvey : pgSurveys, subsidy: () => pgOverview('subsidy'), kseb: pgKseb, bank: pgBank, mnre: pgMnre, comm: pgComm, accounts: pgAccounts, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
+  const pages = { dashboard: pgDashboard, leads: pgLeads, customers: id ? pgCustomer : pgCustomers, projects: id ? pgProject : pgPipeline, quotes: id ? pgQuote : pgQuotes, folder: pgFolder, recycle: pgRecycle, email: pgEmail, fees: pgFees, calendar: pgCalendar, attendance: pgAttendance, leaves: pgLeaves, survey: id ? pgSurvey : pgSurveys, subsidy: pgSubsidy, kseb: pgKseb, bank: pgBank, mnre: pgMnre, comm: pgComm, accounts: pgAccounts, whatsapp: pgWa, ads: pgAds, settings: pgSettings, admin: pgAdmin };
   const fn = pages[mod] || pgDashboard;
   if (t && t[0] !== 'admin' && !canR(t[3])) { main.innerHTML = '<p>Not allowed.</p>'; return; }
   try { await fn(id && id !== 'new' ? +id : id); } catch (e) { if (!e.error) { if (nav === ROUTE_N) main.innerHTML = `<p class="over">Error: ${esc(e.message || e)}</p>`; console.error(e); } }
@@ -401,7 +400,7 @@ async function pgDashboard() {
 
    <div class="s4 card ${d.finance ? '' : 'hide'}">${head('Payments pending', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}${lst(d.dues.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
    <div class="s4 card">${head('KSEB documents pending', `<span class="pill">${d.kseb_pending.length}</span>`)}${lst(d.kseb_pending.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`, 'All documents complete')}</div>
-   <div class="s4 card">${head('Subsidy in progress', `<span class="pill">${d.subsidy_open.length}</span>`)}${lst(d.subsidy_open, p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status || 'Not applied', stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`, 'None')}</div>
+   <div class="s4 card">${head('Subsidy in progress', `<span class="pill">${d.subsidy_open.length}</span>`)}${lst(d.subsidy_open, p => `<div class="act"><a href="#/subsidy/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status, stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`, 'None')}</div>
   </div>`;
   $$('[data-qa]').forEach(b => b.onclick = () => { const q = b.dataset.qa; if (q === 'new') leadModal(0); else if (q === 'quote') { sessionStorage.removeItem('lead2quote'); location.hash = '#/quotes/new'; } else location.hash = q; });
   if ($('#vod')) $('#vod').onclick = () => { LF.appt = 'overdue'; LF.active = 'active'; location.hash = '#/leads'; };
@@ -1052,7 +1051,7 @@ async function pgProject(id) {
       ${p.payments.map(x => `<div class="act">${inr(x.amount)} ${x.mode ? '· ' + esc(x.mode) : ''} <small>${esc(x.date)}${x.ref_no ? ' · Ref ' + esc(x.ref_no) : ''}${x.note ? ' · ' + esc(x.note) : ''}${x.src === 'bank' ? ' · From the bank (loan)' : ''}</small> ${canW('payments') ? `<a href="#" data-dp="${x.id}"><i class="i i-x"></i></a>` : ''}</div>`).join('') || '<p class="mut">No payments recorded</p>'}</div></div>
       <div style="margin-top:12px">${noteBox('projects', id, p.notes_log)}</div>`;
     if (t === 'subsidy') body = `<div class="card"><h3>PM Surya Ghar subsidy</h3><div class="two">
-      <div><label>Application no.</label><input id="sa" value="${esc(p.application_no)}" ${w ? '' : 'disabled'}></div><div><label>Status</label><select id="ss" ${w ? '' : 'disabled'}>${SUB_STATUS.map(s => `<option ${p.subsidy_status === s || (!p.subsidy_status && s === 'Not applied') ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+      <div><label>Application no.</label><input id="sa" value="${esc(p.application_no)}" ${w ? '' : 'disabled'}></div><div><label>Status</label><div class="sdy-pick">${typeof SUBSIDY !== 'undefined' && SUBSIDY.CLS[p.subsidy_status] ? pill(p.subsidy_status, SUBSIDY.cls(p.subsidy_status)) + (canR('checklist') ? `<a href="#/subsidy/${p.customer_id}">Open in Subsidy</a>` : '') : '<span class="mut">Not on the subsidy list</span>' + (canR('checklist') ? '<a href="#/subsidy">Subsidy list</a>' : '')}</div></div>
       <div><label>Subsidy amount (₹) — estimate for ${p.kw} kW: ${inr(subsidyCalc(p.kw))}</label><input id="sm" type="number" value="${p.subsidy_amount || ''}" ${w ? '' : 'disabled'}></div>${w ? '<div style="align-self:end"><button class="btn" id="ssv">Save subsidy details</button></div>' : ''}</div></div>
       <div class="card" style="margin-top:12px"><h3>Subsidy steps</h3>${checklistHtml('subsidy', p.checklist_subsidy, p.files, wc)}</div>`;
     if (t === 'amc') body = '<div id="amcbox"></div>';
@@ -1066,7 +1065,7 @@ async function pgProject(id) {
     $$('[data-dp]').forEach(a => a.onclick = async e => { e.preventDefault(); if (confirm('Delete this payment?')) { await api('payments', 'delete', { id: +a.dataset.dp }); route(); } });
     $$('[data-df]').forEach(a => a.onclick = async e => { e.preventDefault(); if (confirm('Delete this file?')) { await api('files', 'delete', { id: +a.dataset.df }); route(); } });
     if ($('#up')) $('#up').onclick = async () => { if (await upload({ project_id: id, kind: 'general' })) route(); };
-    if ($('#ssv')) $('#ssv').onclick = async () => { await api('projects', 'save', { ...p, application_no: $('#sa').value, subsidy_status: $('#ss').value, subsidy_amount: $('#sm').value }); route(); };
+    if ($('#ssv')) $('#ssv').onclick = async () => { await api('projects', 'save', { ...p, application_no: $('#sa').value, subsidy_amount: $('#sm').value }); route(); };
     bindChecklist(id, p); if (typeof ksebDocsBind === 'function') ksebDocsBind(p); bindNote('projects', id, route);
   };
   $('#main').innerHTML = `<p><a href="#/projects">← Pipeline</a> · <a href="#/customers/${p.customer_id}">${esc(p.customer?.name || '')}</a></p>
