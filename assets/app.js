@@ -605,7 +605,7 @@ async function pgLeads() {
   const cities = [...new Set(leads.map(l => l.city).filter(Boolean))].sort();
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Leads</h2><div class="mut" id="lcount"></div></div><span class="sp"></span>
    <button class="btn sec" id="lref"><i class="i i-refresh"></i> Refresh</button>${w ? `<button class="btn sec${LF.edit ? ' on' : ''}" id="ledit" aria-pressed="${LF.edit ? 'true' : 'false'}" title="Edit any cell right in the table"><i class="i i-pencil"></i> Quick edit: ${LF.edit ? 'On' : 'Off'}</button><button class="btn" id="lnew"><i class="i i-plus"></i> Add Lead</button>` : ''}</div>
-   <div class="bar lbar${APPLITE && appFiltersOpen() ? ' fopen' : ''}" style="margin-top:12px">${ownSwitch('leads', LF.own === 'me' ? 'me' : 'all')}<input id="lq" placeholder="Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">${APPLITE ? `<button class="btn sec apflt${LF.status || LF.city || LF.appt || LF.active !== 'active' ? ' has' : ''}" id="lflt" type="button"><i class="i i-menu"></i> Filters</button>` : ''}
+   <div class="bar lbar fltbar${fltOpen('leads') ? ' fopen' : ''}" data-fk="leads" style="margin-top:12px">${ownSwitch('leads', LF.own === 'me' ? 'me' : 'all')}<input id="lq" placeholder="Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">${fltBtn([LF.status, LF.city, LF.appt, LF.active !== 'active', LF.own && LF.own !== 'me'].filter(Boolean).length, 'lflt')}
    <select id="ls" title="Status"><option value="">All status</option>${S.lead_statuses.map(s => `<option ${LF.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
    <select id="la">${[['active', 'Active'], ['all', 'All leads'], ['won', 'Won'], ['lost', 'Lost']].map(([v, l]) => `<option value="${v}" ${LF.active === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
    <select id="lc" title="City"><option value="">All cities</option>${cities.map(c => `<option ${LF.city === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
@@ -864,7 +864,7 @@ async function pgCustomers() {
   if (CUF.ownFor !== ME.id) { CUF.ownFor = ME.id; CUF.own = ownView('customers'); } // Me / All remembered per person
   $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Customers</h2><div class="mut" id="ccount"></div></div><span class="sp"></span>
    <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${ME.role === 'admin' ? '<button class="btn sec" id="cimp" title="Import customers from a prepared file"><i class="i i-upload"></i> Import</button>' : ''}${canW('leads') ? '<button class="btn sec" id="cconv"><i class="i i-userplus"></i> Convert lead</button>' : ''}${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
-   <div class="bar cbar" style="margin-top:12px">${ownSwitch('customers', CUF.own)}<input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">
+   <div class="bar cbar fltbar${fltOpen('customers') ? ' fopen' : ''}" data-fk="customers" style="margin-top:12px">${ownSwitch('customers', CUF.own)}<input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">${fltBtn([CUF.st, CUF.sort && CUF.sort !== 'feas'].filter(Boolean).length, 'cflt')}
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
    <select id="csort">${[['feas', 'Feasibility expiry'], ['recent', 'Recent'], ['oldest', 'Oldest'], ['name', 'Name A–Z'], ['kw', 'Capacity']].map(([v, t]) => `<option value="${v}" ${CUF.sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
    <label class="hsw" title="Show status, next step and feasibility when you point at a customer"><input type="checkbox" id="chov" ${hoverOn() ? 'checked' : ''}><span class="hswt"></span>Hover info</label><span class="sp"></span>${canExport() ? '<button class="btn sec" id="cex" title="Export CSV"><i class="i i-download"></i> Export</button>' : ''}</div>
@@ -1126,9 +1126,15 @@ async function remarkHist(l) {
 function appOffline() { app.innerHTML = '<div class="lg"><div class="lg-card" style="text-align:center"><img src="assets/logo.png" alt="Jasper" class="lg-logo"><h2>No connection</h2><p class="lg-sub">The CRM could not be reached. Check the internet and try again.</p><button class="btn lg-go" id="aprt" type="button">Try again</button></div></div>'; document.getElementById('aprt').onclick = () => location.reload(); }
 
 /* ---- Android app: helpers the app's own buttons use ---- */
-const appFiltersOpen = () => { try { return sessionStorage.apFlt === '1'; } catch (e) { return false; } };
-document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('#lflt'); if (!b) return;
-  const bar = b.closest('.lbar'), on = !bar.classList.contains('fopen'); bar.classList.toggle('fopen', on); try { sessionStorage.apFlt = on ? '1' : '0'; } catch (x) { } });
+/* Phones (and the Android app): a list's filters fold behind one "Filters (n)" button; n = filters that are on. Open / closed is
+   remembered per list for this browser tab. On a computer the button is hidden and the filters always show (app2.css .pflt). */
+const fltOpen = k => { try { return sessionStorage['flt_' + k] === '1'; } catch (e) { return false; } };
+const fltBtn = (n, id) => `<button class="btn sec apflt pflt${n ? ' has' : ''}" id="${id}" type="button" aria-expanded="false"><i class="i i-menu"></i> Filters${n ? ` <b class="pfltn">${n}</b>` : ''}</button>`;
+/* the count follows a changed filter right away (a filter is "on" when it is not on its first choice) */
+document.addEventListener('change', e => { const bar = e.target.closest && e.target.closest('.fltbar'), b = bar && $('.pflt', bar); if (!b || e.target.tagName !== 'SELECT') return;
+  const n = $$(':scope>select', bar).filter(x => x.selectedIndex > 0).length; b.classList.toggle('has', n > 0); b.innerHTML = `<i class="i i-menu"></i> Filters${n ? ` <b class="pfltn">${n}</b>` : ''}`; });
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.pflt'); if (!b) return;
+  const bar = b.closest('.fltbar'), on = !bar.classList.contains('fopen'); bar.classList.toggle('fopen', on); b.setAttribute('aria-expanded', on); try { sessionStorage['flt_' + bar.dataset.fk] = on ? '1' : '0'; } catch (x) { } });
 /* The phone's Back button (called by the app): closes what is open on top - a window, a menu, the side menu - and says so.
    'no' = nothing was open, the app may leave the page. */
 function appBack() {
