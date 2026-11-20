@@ -354,9 +354,8 @@ async function pgDashboard() {
   const hr = new Date().getHours(), gm = hr < 12 ? 'Morning' : hr < 17 ? 'Afternoon' : 'Evening';
   const vs = n => `${n >= 0 ? '+' : '-'}${Math.abs(n)}% vs last month`;
   const card = (ic, label, val, tdy, v, col, go) => `<a class="s3 card sc" href="${go}"><div class="sch"><span class="ic ft t-${String(go).replace('#/', '').split('/')[0]}">${ic}</span>${label}</div><b>${val}</b><small>${tdy} today</small><div class="line"></div><small class="mut">${v}</small></a>`;
-  const QA = [['<i class="i i-plus"></i>', 'Add Lead', 'leads', 'new'], ['<i class="i i-target"></i>', 'View Leads', 'leads', '#/leads'], ['<i class="i i-users"></i>', 'Customers', 'customers', '#/customers'], ['<i class="i i-project"></i>', 'Projects', 'projects', '#/projects'], ['<i class="i i-receipt"></i>', 'Quotations', 'quotes', '#/quotes'], ['<i class="i i-note"></i>', 'New Quote', 'quotes', 'quote'],
-    ['<i class="i i-coin"></i>', 'Subsidy', 'checklist', '#/subsidy'], ['<i class="i i-folder"></i>', 'KSEB Docs', 'checklist', '#/kseb'], ['<i class="i i-whatsapp"></i>', 'WhatsApp', 'whatsapp', '#/whatsapp'], ['<i class="i i-mail"></i>', 'Email', 'email', '#/email'], ['<i class="i i-megaphone"></i>', 'Meta Ads', 'ads', '#/ads'], ['<i class="i i-gear"></i>', 'Settings', 'settings', '#/settings'], ['<i class="i i-shield"></i>', 'Admin', 'admin', '#/admin']]
-    .filter(q => q[2] === 'admin' ? ME.role === 'admin' : canR(q[2]) && (q[3] !== 'new' || canW('leads')) && (q[3] !== 'quote' || canW('quotes')));
+  /* create actions beside the greeting (the old Quick Actions card repeated the side menu); each only for people allowed to use it */
+  const QA = [['new', 'Lead', canW('leads')], ['quote', 'Quote', canW('quotes')], ['cust', 'Customer', canW('customers')], ['proj', 'Project', canW('projects')]].filter(q => q[2]);
   // lead trend (30 days)
   const days = [...Array(30)].map((_, i) => { const x = new Date(); x.setDate(x.getDate() - 29 + i); return x.toISOString().slice(0, 10); });
   const tm = Object.fromEntries(d.trend.map(t => [t.d, t])), max = Math.max(3, ...days.map(k => tm[k]?.n || 0));
@@ -389,33 +388,32 @@ async function pgDashboard() {
     ['<i class="i i-folder"></i>', d.kseb_pending.length, 'Docs pending', 'docs'],
     ['<i class="i i-clipboard"></i>', feeDue('feasibility').length, 'Feasibility fee pending', 'fee-feasibility'], ['<i class="i i-receipt"></i>', feeDue('registration').length, 'Registration fee pending', 'fee-registration']]
     .filter(t => +t[1] > 0);
-  $('#main').innerHTML =`<div class="dhead"><div><h2>Hello, ${esc(first)}!</h2><div class="mut">${BA() ? 'Here’s how your leads and customers are doing today.' : 'Here’s how Jasper Solar is doing today.'}</div></div><div class="dhr"><div class="dteam" id="dteam" role="button" tabindex="0" title="Who is online"></div><div class="mut dtime">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div></div>
+  $('#main').innerHTML =`<div class="dhead"><div><h2>Hello, ${esc(first)}!</h2><div class="mut">${BA() ? 'Here’s how your leads and customers are doing today.' : 'Here’s how Jasper Solar is doing today.'}</div></div><div class="dhr">${QA.length ? `<div class="dqa">${QA.map(q => `<button class="btn sec sm" data-qa="${q[0]}"><i class="i i-plus"></i> ${q[1]}</button>`).join('')}</div>` : ''}<div class="dteam" id="dteam" role="button" tabindex="0" title="Who is online"></div><div class="mut dtime">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div></div>
   <div class="dg">
    <div class="s8" id="newleads"></div>
-   <div class="s4 card"><div style="display:flex;gap:12px;align-items:center"><div class="avatar"><i class="i i-sun"></i></div><div><b style="font-size:16px">Good ${gm}, ${esc(first)}</b><div class="mut" style="font-size:12px">Your daily summary</div></div></div>
+   <div class="s4 card"><div style="display:flex;gap:12px;align-items:center"><div class="avatar"><i class="i i-calendar"></i></div><div><b style="font-size:16px">Today</b><div class="mut" style="font-size:12px">What is waiting for you</div></div></div>
     ${sumTiles.length ? `<div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">${sumTiles.map(([i, n, l, k], x) => `<div class="tile go" role="button" tabindex="0" data-dt="${k}" title="Open ${esc(l.toLowerCase())}"${x === sumTiles.length - 1 && x % 2 === 0 ? ' style="grid-column:1/-1"' : ''}><span>${i}</span><div><b>${n}</b><small>${l}</small></div><i class="i i-chev tgo"></i></div>`).join('')}</div>` : '<div class="mut" style="font-size:13px;margin-top:14px"><i class="i i-check"></i> Nothing pending — all clear</div>'}
     ${d.overdue ? `<div class="warn"><span>${d.overdue + ' follow-up' + (d.overdue > 1 ? 's are' : ' is') + ' overdue'}</span><button class="btn sm" id="vod">View Overdue</button></div>` : ''}</div>
 
    ${card('<i class="i i-target"></i>', 'Active Leads', d.leads_total, d.leads_today, vs(d.leads_vs), '', '#/leads')}${card('<i class="i i-users"></i>', 'Customers', d.cust_total, d.cust_today, vs(d.cust_vs), '', '#/customers')}${card('<i class="i i-project"></i>', 'Active Projects', d.proj_active, d.proj_today, vs(d.proj_vs), '', '#/projects')}${card('<i class="i i-alert"></i>', 'Overdue Follow-ups', d.overdue, d.due_today, d.due_today + ' due today', '', '#/leads')}
 
-   <div class="s12 card">${head('Quick Actions')}<div class="qa">${QA.map(q => `<button class="qb" data-qa="${q[3]}" data-go="${q[1]}"><span class="ft t-${q[3].startsWith('#/') ? q[3].slice(2) : q[3] === 'quote' ? 'quotes' : q[2]}">${q[0]}</span>${q[1]}</button>`).join('')}</div></div>
+   <div class="s4 card ${d.finance ? '' : 'hide'}">${head('Payments due', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}<small class="mut dsh-sub">Projects past the early stages with a balance (as in Accounts › Pending)</small>${lst(d.dues.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
+   <div class="s4 card">${head('KSEB documents pending', `<span class="pill">${d.kseb_pending.length}</span>`)}${lst(d.kseb_pending.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`, 'All documents complete')}</div>
+   <div class="s4 card">${head('Subsidy in progress', `<span class="pill">${d.subsidy_open.length}</span>`)}${lst(d.subsidy_open, p => `<div class="act"><a href="#/subsidy/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status, stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`, 'None')}</div>
 
    ${d.finance ? [['Pipeline value', inr(d.pipeline)], ['Billed', inr(d.billed)], ['Received', inr(d.paid)], ['Outstanding · all projects', inr(d.outstanding)], ['Ad spend (month)', inr(d.spend_month)], ['Cost per lead', inr(d.cpl)]].map(([l, v]) => `<div class="s2 card stat"><b>${v}</b><span>${l}</span></div>`).join('') : ''}
 
-   <div class="${BA() ? 's8' : 's6'} card">${head('Lead Trend · 30 days', '<small class="mut"><span style="color:#0071e3">●</span> Leads &nbsp;<span style="color:#30a14e">●</span> Won</small>')}${trend}</div>
-   <div class="${BA() ? 's4' : 's3'} card">${head('Lead by Source')}${src}</div>
-   <div class="s3 card ${BA() ? 'hide' : ''}" style="text-align:center">${head('Targets')}${gauge}</div>
+   <div class="${BA() ? 's8' : 's6'} card dtop">${head('Lead Trend · 30 days', '<small class="mut"><span style="color:#0071e3">●</span> Leads &nbsp;<span style="color:#30a14e">●</span> Won</small>')}${trend}</div>
+   <div class="${BA() ? 's4' : 's3'} card dtop">${head('Lead by Source')}${src}</div>
+   <div class="s3 card dtop ${BA() ? 'hide' : ''}" style="text-align:center">${head('Targets')}<div class="tggs">${gauge}</div></div>
 
-   <div class="s4 card">${head('Lead → Customer Conversion', `<b style="font-size:24px;color:var(--ok)">${conv}%</b>`)}<div class="mut" style="font-size:12px;margin-bottom:10px">${d.converted} of ${d.leads_all} leads converted</div><div class="prog" style="height:10px"><i style="width:${Math.min(100, conv)}%"></i></div>
+   <div class="s4 card dtop">${head('Lead → Customer Conversion', `<b style="font-size:24px;color:var(--ok)">${conv}%</b>`)}<div class="mut" style="font-size:12px;margin-bottom:10px">${d.converted} of ${d.leads_all} leads converted</div><div class="prog" style="height:10px"><i style="width:${Math.min(100, conv)}%"></i></div>
      <h3 style="margin-top:20px">Projects by stage</h3>${bars(d.stages.map(s => [s.stage, s.n]), S.project_stages)}</div>
    <div class="s4 card" id="cal"></div>
    <div class="s4 card">${head(BA() ? 'Your Recent Activity' : 'Recent Activity')}${lst(d.recent, r => `<div class="act"><b>${esc(r.name || r.user)}</b> ${esc(recentTxt(r))} <span class="mut">${esc(r.detail || '')}</span><br><small>${recentWhen(r.created)}</small></div>`, 'No recent activity')}</div>
 
-   <div class="s4 card ${d.finance ? '' : 'hide'}">${head('Payments due', `<span class="pill ${d.dues.length ? 'r' : ''}">${d.dues.length}</span>`)}<small class="mut dsh-sub">Projects past the early stages with a balance (as in Accounts › Pending)</small>${lst(d.dues.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.customer || p.title)}</b></a> <b class="over">${inr(p.due)}</b><br><small>${esc(p.title)}</small></div>`, 'All clear')}</div>
-   <div class="s4 card">${head('KSEB documents pending', `<span class="pill">${d.kseb_pending.length}</span>`)}${lst(d.kseb_pending.slice(0, 10), p => `<div class="act"><a href="#/projects/${p.id}"><b>${esc(p.title)}</b></a> ${p.done}/${p.total} done</div>`, 'All documents complete')}</div>
-   <div class="s4 card">${head('Subsidy in progress', `<span class="pill">${d.subsidy_open.length}</span>`)}${lst(d.subsidy_open, p => `<div class="act"><a href="#/subsidy/${p.id}"><b>${esc(p.title)}</b></a> ${pill(p.subsidy_status, stageCls(p.subsidy_status))} ${p.subsidy_amount ? inr(p.subsidy_amount) : ''}</div>`, 'None')}</div>
   </div>`;
-  $$('[data-qa]').forEach(b => b.onclick = () => { const q = b.dataset.qa; if (q === 'new') leadModal(0); else if (q === 'quote') { sessionStorage.removeItem('lead2quote'); location.hash = '#/quotes/new'; } else location.hash = q; });
+  $$('[data-qa]').forEach(b => b.onclick = () => { const q = b.dataset.qa; if (q === 'new') leadModal(0); else if (q === 'quote') { sessionStorage.removeItem('lead2quote'); location.hash = '#/quotes/new'; } else if (q === 'cust') customerModal(0); else if (q === 'proj') startModal({}); });
   if ($('#vod')) $('#vod').onclick = () => { LF.appt = 'overdue'; LF.active = 'active'; location.hash = '#/leads'; };
   /* daily summary tiles: follow-ups open the leads filtered to them; payments due and docs pending open their list,
      where a project opens its Payments (overview) or KSEB documents tab */
