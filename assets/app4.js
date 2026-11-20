@@ -175,7 +175,7 @@ async function pgFolder(id) {
   const crumbs = fmPath(folders, cur);
   const crumbHtml = `<nav class="fm-crumbs"><a href="#/folder" data-fid="0">Folder</a>${crumbs.map((c, i) => ` <span class="fm-sep">›</span> ${i === crumbs.length - 1 ? `<b>${esc(c.name)}</b>` : `<a href="#/folder/${c.id}" data-fid="${c.id}">${esc(c.name)}</a>`}`).join('')}</nav>`;
   $('#main').innerHTML = `<div class="fm" id="fm">
-   <div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Folder</h2><div class="mut">Datasheets, BIS certificates and test reports</div></div><span class="sp"></span>
+   <div class="bar pghd"><div><div class="mut pghd-s">Datasheets, BIS certificates and test reports</div></div><span class="sp"></span>
     ${w ? '<button class="btn sec" id="fmnew"><i class="i i-folder"></i> New folder</button><button class="btn" id="fmup"><i class="i i-upload"></i> Upload</button><input type="file" id="fmfile" multiple class="hide" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx">' : ''}</div>
    <div class="fm-top"><div class="fm-nav"><button class="ib" id="fmback" title="Back" aria-label="Back" ${FM.pos > 0 ? '' : 'disabled'}><i class="i i-chev fm-l"></i></button><button class="ib" id="fmfwd" title="Forward" aria-label="Forward" ${FM.pos < H.length - 1 ? '' : 'disabled'}><i class="i i-chev"></i></button><button class="ib" id="fmupl" title="Up one level" aria-label="Up one level" ${cur ? '' : 'disabled'}><i class="i i-chev fm-u"></i></button></div>
     ${crumbHtml}<input id="fmq" type="search" placeholder="Search all folders…" value="${esc(FM.q)}">

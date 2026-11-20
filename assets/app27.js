@@ -70,7 +70,7 @@ async function pgComm() {
     : `Your customers the admin has approved and shared with you, and the ${W.K.toLowerCase()} received for each.`;
   const tabs = [['all', 'All'], ...(adm && inc ? [['approve', boss ? 'To approve' : 'Waiting approval']] : []), ...(adm ? [['unset', 'Not set']] : []), ['due', 'Due'], ['paid', W.done]];
   if (!tabs.some(t => t[0] === COMMQ.st[kind])) COMMQ.st[kind] = 'all';
-  $('#main').innerHTML = `<div class="fhead"><span class="ft ftl ${COMM_TC[kind]}"><i class="i i-${COMM_ICON[kind]}"></i></span><div><h2>${W.title}</h2><div class="mut">${sub}</div></div><span class="sp"></span>
+  $('#main').innerHTML = `<div class="fhead pghd"><div><div class="mut pghd-s">${sub}</div></div><span class="sp"></span>
      <button class="btn sec" id="cmrf"><i class="i i-refresh"></i> Refresh</button>${adm ? '<button class="btn" id="cmadd"><i class="i i-plus"></i> Add customer</button>' : ''}</div>
    ${inc ? '<div id="cmms"></div>' : ''}
    <div class="fstats" id="cmst"></div>

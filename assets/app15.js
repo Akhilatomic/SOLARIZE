@@ -30,7 +30,7 @@ async function pgFees() {
   const cnt = k => d.rows.filter(r => k === 'all' ? true : k === 'expiring' ? (+r.paid && r.days_left >= 0 && r.days_left <= d.alert_days) : k === 'paid' ? +r.paid : st(r) === k).length;
   const stats = kind === 'stamp' ? [['Total', d.rows.length, ''], ['Pending', cnt('pending') + cnt('demanded'), 'o'], ['Purchased', cnt('paid'), 'g']]
     : [['Total', d.rows.length, ''], ['Pending', cnt('pending'), 'o'], ['Demanded', cnt('demanded'), 'b'], ['Paid', cnt('paid'), 'g'], ...(kind === 'feasibility' ? [['Expiring in 3 days', cnt('expiring'), 'r'], ['Expired', d.rows.filter(r => st(r) === 'expired').length, 'r']] : [])];
-  $('#main').innerHTML = `<div class="fhead"><span class="ft ftl ${K.tc}"><i class="i i-${K.icon}"></i></span><div><h2>${K.title}</h2><div class="mut">${K.sub}</div></div><span class="sp"></span>
+  $('#main').innerHTML = `<div class="fhead pghd"><div><div class="mut pghd-s">${K.sub}</div></div><span class="sp"></span>
      <button class="btn sec" id="frf"><i class="i i-refresh"></i> Refresh</button><button class="btn sec" id="fpdf"><i class="i i-download"></i> Download PDF</button>${w ? '<button class="btn" id="fadd"><i class="i i-plus"></i> Add customers</button>' : ''}</div>
    <div class="fstats">${stats.map(([l, v, c]) => `<div class="card fst ${c === 'r' && !v ? '' : c}"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
    <div class="bar fbar"><input id="fq" placeholder="Search by name, phone, consumer no., address, section…" value="${esc(FEEQ.q)}"><div class="tabs" style="margin:0">${K.filters.map(([k, l]) => `<button data-ff="${k}" class="${FEEQ.f[kind] === k ? 'on' : ''}">${l}</button>`).join('')}</div><span class="mut" id="fcnt"></span></div>

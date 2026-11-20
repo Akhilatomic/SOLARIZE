@@ -18,7 +18,7 @@ const prettyNum = w => w && w.length === 12 && w.startsWith('91') ? '+91 ' + w.s
 async function pgWa() {
   clearInterval(WA.timer);
   const st = await api('wa', 'status'); WA.on = st.connected; if (!WA.tab) WA.tab = st.connected ? 'inbox' : 'web';
-  $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:8px"><div><h2 style="margin:0;font-size:26px">WhatsApp</h2><div class="mut">${st.connected ? 'Business inbox connected' + (st.display ? ' · ' + esc(st.display) : '') : 'Business inbox not connected — WhatsApp Web works now'}</div></div><span class="sp"></span>
+  $('#main').innerHTML = `<div class="bar pghd"><div><div class="mut pghd-s">${st.connected ? 'Business inbox connected' + (st.display ? ' · ' + esc(st.display) : '') : 'Business inbox not connected — WhatsApp Web works now'}</div></div><span class="sp"></span>
    <div class="tabs" style="margin:0">${[['inbox', 'Inbox'], ['web', 'WhatsApp Web'], ['log', 'Message log']].map(([k, l]) => `<button data-wt="${k}" class="${WA.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
    ${ME.role === 'admin' && st.connected ? '<button class="btn sec" id="wcfg" title="Connection settings, webhook URL and verify token"><i class="i i-gear"></i> Connection</button>' : ''}<button class="btn ok" id="wweb"><i class="i i-chat"></i> Open WhatsApp Web</button></div><div id="wab"></div>`;
   $$('[data-wt]').forEach(b => b.onclick = () => { WA.tab = b.dataset.wt; pgWa(); });

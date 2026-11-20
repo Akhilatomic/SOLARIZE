@@ -6,7 +6,7 @@ async function pgRecycle() {
   const leftMs = t => new Date(t.deleted_at.replace(' ', 'T') + 'Z').getTime() + d.hours * 36e5 - (Date.now() - skew);
   const fmtLeft = ms => { if (ms <= 0) return 'removing…'; const h = Math.floor(ms / 36e5), m = Math.floor(ms % 36e5 / 6e4); return h >= 1 ? `${h} h ${m} min left` : `${m} min left`; };
   const kinds = [...new Set(d.rows.map(r => r.kind))].sort();
-  $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:10px"><div><h2 style="margin:0;font-size:26px">Recycle bin</h2><div class="mut" id="rbc"></div></div><span class="sp"></span>
+  $('#main').innerHTML = `<div class="bar pghd"><div><div class="mut pghd-s" id="rbc"></div></div><span class="sp"></span>
      ${adm && d.rows.length ? '<button class="btn bad" id="rbempty"><i class="i i-trash"></i> Empty bin</button>' : ''}</div>
    <div class="rbh"><i class="i i-alert"></i><div>Deleted items stay here for <b>${d.hours} hours</b> and can be restored — after that they are removed for good.
      Uploaded documents are kept for <b>${d.doc_days} days</b> and papers made in the CRM for <b>${GEN_DAYS} days</b>, then they move here automatically. Tax bills and warranty cards are kept until someone deletes them.</div></div>

@@ -603,7 +603,7 @@ async function pgLeads() {
   CACHE.leads = leads; CACHE.camps = camps; const w = canW('leads');
   if (LF.ownFor !== ME.id) { LF.ownFor = ME.id; LF.own = ownView('leads') === 'me' ? 'me' : ''; } // Me / All remembered per person
   const cities = [...new Set(leads.map(l => l.city).filter(Boolean))].sort();
-  $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Leads</h2><div class="mut" id="lcount"></div></div><span class="sp"></span>
+  $('#main').innerHTML = `<div class="bar pghd"><div><div class="mut pghd-s" id="lcount"></div></div><span class="sp"></span>
    <button class="btn sec" id="lref"><i class="i i-refresh"></i> Refresh</button>${w ? `<button class="btn sec${LF.edit ? ' on' : ''}" id="ledit" aria-pressed="${LF.edit ? 'true' : 'false'}" title="Edit any cell right in the table"><i class="i i-pencil"></i> Quick edit: ${LF.edit ? 'On' : 'Off'}</button><button class="btn" id="lnew"><i class="i i-plus"></i> Add Lead</button>` : ''}</div>
    <div class="bar lbar fltbar${fltOpen('leads') ? ' fopen' : ''}" data-fk="leads" style="margin-top:12px">${ownSwitch('leads', LF.own === 'me' ? 'me' : 'all')}<input id="lq" placeholder="Search by name, phone, city, location…" style="max-width:340px" value="${esc(LF.q)}">${fltBtn([LF.status, LF.city, LF.appt, LF.active !== 'active', LF.own && LF.own !== 'me'].filter(Boolean).length, 'lflt')}
    <select id="ls" title="Status"><option value="">All status</option>${S.lead_statuses.map(s => `<option ${LF.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
@@ -862,7 +862,7 @@ async function pgCustomers() {
   const [cs] = await Promise.all([list('customers'), discSummary(), feeMembers(), feasLoad()]); cs.forEach(c => c.status = c.stage || 'New');
   const w = canW('customers');
   if (CUF.ownFor !== ME.id) { CUF.ownFor = ME.id; CUF.own = ownView('customers'); } // Me / All remembered per person
-  $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:6px"><div><h2 style="margin:0;font-size:26px">Customers</h2><div class="mut" id="ccount"></div></div><span class="sp"></span>
+  $('#main').innerHTML = `<div class="bar pghd"><div><div class="mut pghd-s" id="ccount"></div></div><span class="sp"></span>
    <button class="btn sec" id="cref"><i class="i i-refresh"></i> Refresh</button>${ME.role === 'admin' ? '<button class="btn sec" id="cimp" title="Import customers from a prepared file"><i class="i i-upload"></i> Import</button>' : ''}${canW('leads') ? '<button class="btn sec" id="cconv"><i class="i i-userplus"></i> Convert lead</button>' : ''}${w ? '<button class="btn" id="cnew"><i class="i i-userplus"></i> Add Customer</button>' : ''}</div>
    <div class="bar cbar fltbar${fltOpen('customers') ? ' fopen' : ''}" data-fk="customers" style="margin-top:12px">${ownSwitch('customers', CUF.own)}<input id="cq" placeholder="Search by name, consumer no, phone, district…" value="${esc(CUF.q)}">${fltBtn([CUF.st, CUF.sort && CUF.sort !== 'feas'].filter(Boolean).length, 'cflt')}
    <select id="cst"><option value="">All statuses</option>${['New', ...S.project_stages].map(x => `<option ${CUF.st === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>

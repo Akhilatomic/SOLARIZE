@@ -1326,3 +1326,9 @@ button.pill.stbtn{border:0;font:inherit;font-size:12px;font-weight:500;cursor:po
   .fltbar .hsw{display:none!important}
   main.pg-leads>p.mut{display:none}
 }
+
+/* One page header everywhere: no big title (the top bar names the page); one row with the count or a short line on the left, buttons on the right */
+.bar.pghd,.fhead.pghd{align-items:center;margin-bottom:10px;min-height:40px;gap:8px}
+.pghd-s{font-size:14px;line-height:1.35}
+.fhead.pghd .pghd-s{font-size:14px}
+@media(max-width:820px){.bar.pghd,.fhead.pghd{min-height:0}.pghd-s{font-size:13px}}

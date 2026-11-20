@@ -27,7 +27,7 @@ async function svAddBox(who) {
 async function pgSurveys() {
   const d = await api('survey', 'list'), rows = d.rows, open = rows.filter(r => r.status !== 'Done'), mine = open.filter(r => r.assigned_to == ME.id);
   const show = SV.tab === 'done' ? rows.filter(r => r.status === 'Done') : SV.tab === 'mine' ? mine : SV.tab === 'all' ? rows : open;
-  $('#main').innerHTML = `<div class="bar" style="align-items:flex-start;margin-bottom:10px"><div><h2 style="margin:0;font-size:26px">Site survey</h2><div class="mut">First stage of a project: site photos, products and structure, site plan. Add a lead or customer from its action menu.</div></div><span class="sp"></span>
+  $('#main').innerHTML = `<div class="bar pghd"><div><div class="mut pghd-s">First stage of a project: site photos, products and structure, site plan. Add a lead or customer from its action menu.</div></div><span class="sp"></span>
     <button class="btn sec" id="svblank" title="A blank site survey form to print: fill it on paper at the site, then enter the details here"><i class="i i-download"></i> Blank form (PDF)</button>
     <div class="tabs" style="margin:0">${[['open', `To do (${open.length})`], ...(d.all ? [['mine', `Mine (${mine.length})`]] : []), ['done', 'Done'], ['all', 'All']].map(([k, l]) => `<button data-svt="${k}" class="${SV.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
    <div class="card tw" style="padding:0"><table id="svt"><thead><tr><th>Name</th><th>Place</th><th>Survey by</th><th>Visit</th><th>Status</th><th class="num">Files</th></tr></thead><tbody>

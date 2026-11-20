@@ -44,7 +44,7 @@ async function pgCalendar() {
     : CAL.view === 'week' ? `${f.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
     : CAL.view === 'day' ? d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Next 60 days from ' + d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const types = [...CAL.data.types, 'Lead appointment', 'Project'];
-  $('#main').innerHTML = `<div class="bar calbar"><h2 style="margin:0;font-size:26px">Calendar</h2>
+  $('#main').innerHTML = `<div class="bar calbar pghd">
     <button class="btn sec sm" id="ctoday">Today</button><button class="btn sec sm" id="cprev" title="Previous">‹</button><button class="btn sec sm" id="cnext" title="Next">›</button><b class="clabel">${label}</b>
     <span class="sp"></span><div class="tabs" style="margin:0">${[['month', 'Month'], ['week', 'Week'], ['day', 'Day'], ['agenda', 'Agenda']].map(([k, l]) => `<button data-v="${k}" class="${CAL.view === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <button class="btn sec sm" id="cics" title="Download these events as .ics"><i class="i i-download"></i> .ics</button>${w ? '<button class="btn" id="cnew"><i class="i i-plus"></i> New event</button>' : ''}</div>
