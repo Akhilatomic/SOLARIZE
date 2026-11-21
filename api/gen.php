@@ -58,7 +58,8 @@ function gen_qm_info() {
   $co = (array)($s['company'] ?? []); $addr = '';
   foreach ((array)($co['lines'] ?? []) as $l) if (preg_match('/office|address/i', (string)($l['label'] ?? ''))) { $addr = (string)($l['text'] ?? ''); break; }
   return ['name' => (string)($co['name'] ?? ''), 'address' => $addr, 'phone' => (string)($co['phone'] ?? ''), 'email' => (string)($co['email'] ?? ''), 'site' => (string)($s['site'] ?? ''),
-    'bank' => $s['bank'] ?? null, 'kseb' => $s['kseb'] ?? null];
+    'bank' => $s['bank'] ?? null, 'kseb' => $s['kseb'] ?? null,
+    'signoff' => $s['signoff'] ?? null]; /* seal + signature uploaded in the quotation settings (qm- refs, login-only); the tax bill prints them when ticked */
 }
 function gen_clean($v, $depth = 0) { // keep plain text / numbers / small nested lists only
   if (is_array($v)) { if ($depth > 3) return []; $o = []; foreach (array_slice($v, 0, 200, true) as $k => $x) $o[is_int($k) ? $k : mb_substr(preg_replace('/[^\w]/', '', (string)$k), 0, 40)] = gen_clean($x, $depth + 1); return $o; }

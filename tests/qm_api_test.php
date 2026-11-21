@@ -405,6 +405,14 @@ chk($n1 !== '' && $n2 !== '' && $n1 !== $n2, "tax bill: two bills get different 
 $gb = call($admin, 'gen', 'get', null, "&kind=tax&customer_id={$tb[0]}");
 chk(($gb['doc']['data']['parts']['a']['gst'] ?? 0) === 5 && ($gb['doc']['data']['parts']['b']['hsn'] ?? '') === '995461' && ($gb['doc']['data']['parts']['total'] ?? 0) === 320000, 'tax bill: Part A / Part B saved as entered');
 chk(($gb['qm']['bank']['ifsc'] ?? '') === 'SBIN0064970' && ($gb['qm']['kseb']['reg_per_kw'] ?? 0) == 1000 && strpos($gb['qm']['address'] ?? '', 'Nedumangad') !== false && ($gb['qm']['site'] ?? '') === 'www.jasper.solar', 'tax bill: gets the company address, website, bank and KSEB fees from the quotation settings');
+/* seal & signature on the tax bill: the pictures come from the quotation settings; the tick (show_seal) is kept with the bill, off unless set */
+chk(($gb['qm']['signoff'] ?? null) === ['sign' => '', 'seal' => ''] && empty($gb['doc']['data']['show_seal']), 'tax bill: seal & signature off by default, pictures from the quotation settings');
+$so2 = call($admin, 'qm', 'boot')['settings']; $so2['signoff'] = ['sign' => $up['ref'] ?? '', 'seal' => $up2['ref'] ?? ''];
+call($admin, 'qm', 'settings_save', ['settings' => $so2]);
+call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[1], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill Two', 'items' => [], 'parts' => $parts, 'show_seal' => 1]]);
+$gs2 = call($admin, 'gen', 'get', null, "&kind=tax&customer_id={$tb[1]}");
+chk(($gs2['qm']['signoff'] ?? null) === $so2['signoff'] && ($gs2['doc']['data']['show_seal'] ?? 0) === 1 && empty(call($admin, 'gen', 'get', null, "&kind=tax&customer_id={$tb[0]}")['doc']['data']['show_seal']), 'tax bill: seal tick saved with that bill only');
+$so2['signoff'] = ['sign' => '', 'seal' => '']; call($admin, 'qm', 'settings_save', ['settings' => $so2]);
 $re = call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[0], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill One', 'items' => [], 'parts' => $parts]])['number'] ?? '';
 chk($re === $n1, 'tax bill: saving changes keeps the bill\'s number');
 if ($dbPath !== '' && is_file($dbPath)) { // a counter left stuck by the old bug ("1" stored as JSON text) must not hand out a used number again
