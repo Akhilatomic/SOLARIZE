@@ -322,7 +322,7 @@ function qm_seed(PDO $db): void {
 /* Products added after the first seed. qm_seed() only fills an empty catalogue, so these go into every database once
    (unique code, INSERT OR IGNORE), after the last product of their category; settings qm_added_rev remembers it,
    so an admin's later edits or Hide are kept. Add a product here = add a row and bump QM_ADDED_REV. */
-const QM_ADDED_REV = 1;
+const QM_ADDED_REV = 2;
 function qm_added(): array {
   $w = fn($years, $label) => ['years' => (string)$years, 'label' => $label];
   $panelW = [$w(12, 'Panels product'), $w(30, 'Panels performance')];
@@ -332,6 +332,12 @@ function qm_added(): array {
     ['pan-emmvee-600', 'Emmvee Titanium Duo 600+ Wp TOPCon', 'panels', 'Solar panels', 'Make electricity from sunlight.',
       'Emmvee Titanium Duo G12R DCR, 600+ Wp, N-type TOPCon bifacial glass-to-glass, 132 half-cut cells, ALMM approved. Size 2382 × 1134 × 35 mm. 12-year product warranty and 30-year power warranty (87.4% power after 30 years).',
       ['wp' => 600, 'qty' => 4, 'picture' => 'assets/quote/pic-panels.png', 'warranty' => $panelW, 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-emmvee.png']]]]],
+    /* Waaree Elite R Series datasheet WEL/E&PD/600-635/132/BiN-21/HC/03 (16.10.2024): BiN-21-600 to 635, framed dual-glass bifacial, 132 half-cut
+       G12R N-type TOPCon cells, 22.21–23.51%, bifacial 80 ± 10%, 2382 × 1134 × 35 mm, 33.8 kg, 12 / 30-year warranty, 87.4% after 30 years.
+       Rev 2. DCR + ALMM and "600+" follow the owner's choice for the Emmvee panel ("also add this"). */
+    ['pan-waaree-600', 'Waaree Elite R 600+ Wp TOPCon', 'panels', 'Solar panels', 'Make electricity from sunlight.',
+      'Waaree Elite R Series BiN-21 DCR, 600+ Wp, N-type TOPCon bifacial dual-glass, 132 half-cut cells, ALMM approved. Size 2382 × 1134 × 35 mm. 12-year product warranty and 30-year power warranty (87.4% power after 30 years).',
+      ['wp' => 600, 'qty' => 4, 'picture' => 'assets/quote/pic-panels.png', 'warranty' => $panelW, 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-waaree.png']]]]],
   ];
 }
 function qm_add_new(PDO $db): void {

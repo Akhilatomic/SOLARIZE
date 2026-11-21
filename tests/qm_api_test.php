@@ -36,16 +36,27 @@ $boot = call($admin, 'qm', 'boot');
 chk(($boot['_code'] ?? 0) === 200 && isset($boot['products']), 'admin boot works');
 chk(count($boot['templates'] ?? []) === 14, 'seed: 14 templates');
 chk(count(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'panels')) >= 4, 'seed: panels');
-/* products added after the first seed (qm_added): Emmvee Titanium Duo, right after the last panel */
-$em = array_values(array_filter($boot['products'] ?? [], fn($p) => ($p['code'] ?? '') === 'pan-emmvee-600'));
-chk(count($em) === 1 && $em[0]['cat'] === 'panels' && $em[0]['wp'] == 600 && !$em[0]['is_default'] && !$em[0]['hidden']
-  && $em[0]['brands'][0]['logos'] === ['assets/quote/logo-emmvee.png'] && is_file(__DIR__ . '/../assets/quote/logo-emmvee.png'), 'added product: Emmvee 600+ Wp with its logo');
+/* products added after the first seed (qm_added): Emmvee Titanium Duo then Waaree Elite R, right after the last panel */
+$byCode = fn($b, $code) => array_values(array_filter($b['products'] ?? [], fn($p) => ($p['code'] ?? '') === $code));
+foreach (['pan-emmvee-600' => 'logo-emmvee.png', 'pan-waaree-600' => 'logo-waaree.png'] as $code => $logo) {
+  $ap = $byCode($boot, $code);
+  chk(count($ap) === 1 && $ap[0]['cat'] === 'panels' && $ap[0]['wp'] == 600 && !$ap[0]['is_default'] && !$ap[0]['hidden']
+    && $ap[0]['brands'][0]['logos'] === ["assets/quote/$logo"] && is_file(__DIR__ . "/../assets/quote/$logo"), "added product: $code 600+ Wp with its logo");
+}
 $pans = array_values(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'panels'));
 usort($pans, fn($x, $y) => $x['sort'] <=> $y['sort'] ?: $x['id'] <=> $y['id']);
-chk(($pans[count($pans) - 1]['code'] ?? '') === 'pan-emmvee-600', 'added product sits after the other panels');
+chk(array_column(array_slice($pans, -2), 'code') === ['pan-emmvee-600', 'pan-waaree-600'], 'added products sit after the other panels, in list order');
+$em = $byCode($boot, 'pan-emmvee-600');
 if ($em) call($admin, 'qm', 'product_save', ['id' => $em[0]['id'], 'hidden' => 1]);
-$again = array_values(array_filter(call($admin, 'qm', 'boot')['products'] ?? [], fn($p) => ($p['code'] ?? '') === 'pan-emmvee-600'));
+$again = $byCode(call($admin, 'qm', 'boot'), 'pan-emmvee-600');
 chk(count($again) === 1 && $again[0]['hidden'] === 1, 'added once; an admin Hide is kept on the next open');
+if ($dbPath && is_file($dbPath)) { /* a database that had rev 1 (Emmvee only, as on the live site): rev 2 adds just the Waaree panel */
+  $pdo = new PDO('sqlite:' . $dbPath);
+  $pdo->exec("DELETE FROM qm_products WHERE code='pan-waaree-600'"); $pdo->exec("UPDATE settings SET v='1' WHERE k='qm_added_rev'"); $pdo = null;
+  $b2 = call($admin, 'qm', 'boot');
+  $e2 = $byCode($b2, 'pan-emmvee-600'); $w2 = $byCode($b2, 'pan-waaree-600');
+  chk(count($e2) === 1 && $e2[0]['hidden'] === 1 && count($w2) === 1 && $w2[0]['sort'] > $e2[0]['sort'], 'rev 1 database: Waaree added once after Emmvee, Emmvee left as the admin set it');
+}
 if ($em) call($admin, 'qm', 'product_save', ['id' => $em[0]['id'], 'hidden' => 0]);
 chk(count($boot['cats'] ?? []) === 14 && ($boot['cats'][0][0] ?? '') === 'panels', 'categories');
 chk(($boot['settings']['kseb']['reg_per_kw'] ?? 0) === 1000 && ($boot['settings']['loan']['rate'] ?? 0) == 6.0, 'defaults');
