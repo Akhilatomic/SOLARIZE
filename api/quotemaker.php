@@ -146,6 +146,8 @@ function handle_qm($a) {
       $clean = qm_coerce(qm_merge(QM_DEFAULTS, $in['settings']), QM_DEFAULTS);
       if ($clean['valid_days'] < 1) $clean['valid_days'] = QM_DEFAULTS['valid_days'];
       if (strpos($clean['number_format'], '{NNNN}') === false) $clean['number_format'] = QM_DEFAULTS['number_format'];
+      /* seal and signature: only pictures uploaded here (data/uploads, served to signed-in staff), never a public file — the repository is public */
+      foreach (['sign', 'seal'] as $k) if (!preg_match('/^qm-[0-9a-f]{24}\.(png|jpg|webp)$/', $clean['signoff'][$k])) $clean['signoff'][$k] = '';
       kv_set('qm_settings', $clean);
       if (array_key_exists('next_number', $in)) {
         $nn = $in['next_number'];

@@ -67,6 +67,7 @@ if ($dbPath && is_file($dbPath)) { /* a database that had rev 1 (Emmvee only, as
   chk(count($e2) === 1 && $e2[0]['hidden'] === 1 && count($w2) === 1 && $w2[0]['sort'] > $e2[0]['sort'], 'rev 1 database: Waaree added once after Emmvee, Emmvee left as the admin set it');
 }
 if ($em) call($admin, 'qm', 'product_save', ['id' => $em[0]['id'], 'hidden' => 0]);
+chk(($boot['settings']['signoff'] ?? null) === ['sign' => '', 'seal' => ''], 'seal and signature start empty');
 chk(count($boot['cats'] ?? []) === 14 && ($boot['cats'][0][0] ?? '') === 'panels', 'categories');
 chk(($boot['settings']['kseb']['reg_per_kw'] ?? 0) === 1000 && ($boot['settings']['loan']['rate'] ?? 0) == 6.0, 'defaults');
 chk(($boot['settings']['kseb']['reg_gst'] ?? null) === 18 && ($boot['settings']['kseb']['reg_label'] ?? '') === 'Registration fee (₹1,000 per kW + 18% GST, 80% refundable)', 'registration fee carries 18% GST by default');
@@ -146,6 +147,18 @@ chk($im['_code'] === 200 && $im['_body'] === $png && stripos($im['_head'], 'imag
 chk(call($sales, 'qm', 'img', null, '&f=' . rawurlencode('../crm.sqlite'), true)['_code'] === 404, 'only qm- names are served');
 chk(call($sales, 'qm', 'img', null, '&f=qm-' . str_repeat('0', 24) . '.png', true)['_code'] === 404, 'missing image is 404');
 chk(call($anon, 'qm', 'img', null, '&f=qm-x.png')['_code'] === 401, 'images need sign-in');
+/* seal and signature (settings.signoff): only uploaded pictures (kept out of the public repository), never a public asset path */
+$up2 = call($admin, 'qm', 'upload', $mp);
+$so = $boot['settings']; $so['signoff'] = ['sign' => $up['ref'] ?? '', 'seal' => 'assets/quote/logo-tsun.png'];
+chk(call($sales, 'qm', 'settings_save', ['settings' => $so])['_code'] === 403, 'only an admin sets the seal and signature');
+call($admin, 'qm', 'settings_save', ['settings' => $so]);
+chk((call($admin, 'qm', 'boot')['settings']['signoff'] ?? null) === ['sign' => $up['ref'] ?? '', 'seal' => ''], 'signature saved; a public file as the seal is refused');
+$so['signoff'] = ['sign' => '../../data/crm.sqlite', 'seal' => $up2['ref'] ?? ''];
+call($admin, 'qm', 'settings_save', ['settings' => $so]);
+$sb = call($sales, 'qm', 'boot');
+chk(($sb['settings']['signoff'] ?? null) === ['sign' => '', 'seal' => $up2['ref'] ?? ''] && call($sales, 'qm', 'img', null, '&f=' . ($up2['ref'] ?? 'x'), true)['_code'] === 200, 'seal saved, a path as the signature refused; staff can load the seal');
+$so['signoff'] = ['sign' => '', 'seal' => ''];
+call($admin, 'qm', 'settings_save', ['settings' => $so]);
 @unlink($tmpf);
 
 /* templates and saving quotations */
@@ -191,6 +204,11 @@ call($sales, 'qm', 'status', ['id' => $q1['id'], 'status' => 'Sent']);
 call($admin, 'qm', 'product_save', ['id' => $panelId, 'name' => 'Changed name'] + $panel);
 chk(json_decode(call($sales, 'quotes', 'get', null, '&id=' . $q1['id'])['doc'], true)['snap']['panels'][0]['name'] === $panel['name'], 'saved quote keeps its snapshot');
 chk(call($sales, 'quotes', 'list')[0]['total'] == $doc['price'], 'list shows the package price');
+/* "Add the company seal and signature" is kept per quotation (off unless ticked) */
+$qs1 = call($sales, 'qm', 'save', ['id' => $q1['id'], 'customer_id' => $cid, 'status' => 'Sent', 'subsidy' => 67200, 'doc' => ['seal' => true] + $doc]);
+$gq = json_decode(call($sales, 'quotes', 'get', null, '&id=' . $q1['id'])['doc'] ?? '{}', true);
+$gq2 = json_decode(call($sales, 'quotes', 'get', null, '&id=' . $q2['id'])['doc'] ?? '{}', true);
+chk(($qs1['id'] ?? 0) == $q1['id'] && ($gq['seal'] ?? null) === true && empty($gq2['seal']), 'seal tick saved with its quotation only');
 /* the list leaves out the doc (and old-style items/terms); get still has it */
 $ql = array_values(array_filter(call($sales, 'quotes', 'list'), 'is_array'));
 $qr = null; foreach ($ql as $r) if ($r['id'] == $q1['id']) $qr = $r;

@@ -14,7 +14,7 @@ const qmkTplById = id => QMK.boot.templates.find(t => t.id == id);
 const qmkNum = v => { const n = parseFloat(String(v == null ? '' : v).replace(/[^\d.]/g, '')); return isFinite(n) ? n : 0; };
 const qmkOn = () => !!$('#qmk');
 const qmkWide = () => matchMedia('(min-width:1100px)').matches;
-const qmkBlank = () => ({ items: {}, price: 0, subsidy: null, loan: false, title: '', project: '', pill: '', kseb: null, pay: null, terms: null, delivery: null });
+const qmkBlank = () => ({ items: {}, price: 0, subsidy: null, loan: false, seal: false, title: '', project: '', pill: '', kseb: null, pay: null, terms: null, delivery: null });
 const qmkGet = (o, path) => path.split('.').reduce((v, k) => v == null ? '' : v[k], o);
 const qmkSet = (o, path, v) => { const ks = path.split('.'), last = ks.pop(); ks.reduce((x, k) => (x[k] = qmkObj(x[k])), o)[last] = v; };
 /* run an async handler; API errors were already shown by api(), anything else becomes a red toast */
@@ -137,7 +137,7 @@ async function qmkUseTpl(id) {
   if ((QMK.touched || QMK.id) && !await ask(`Use the template “${t.name}”?\n\nIts components, price and texts replace the ones on this quotation. The customer and quote details stay.`)) { sel.value = QMK.tpl ? String(QMK.tpl) : ''; return; }
   const d = QMK.doc, data = qmkObj(qmkCopy(t.data)), next = qmkBlank();
   QMK_TPL.forEach(k => { if (data[k] !== undefined) next[k] = data[k]; });
-  QMK.doc = qmkNorm(Object.assign(next, { template_id: t.id, customer: d.customer, number: d.number, date: d.date, valid_days: d.valid_days, sales: d.sales }));
+  QMK.doc = qmkNorm(Object.assign(next, { template_id: t.id, customer: d.customer, number: d.number, date: d.date, valid_days: d.valid_days, sales: d.sales, seal: !!d.seal }));
   QMK.tpl = t.id; QMK.snapOld = false;
   qmkChanged(false, true); QMK.touched = false;
   qmkTplBtns(); qmkTab(QMK.tab);
@@ -239,7 +239,7 @@ function qmkEdHead() {
     <input id="qmh_${k}" data-h="${k}" maxlength="${k === 'pill' ? 60 : 120}" value="${esc(qmkHeadCustom(k, D[k]) ? QMK.doc[k] : D[k])}"><small class="qm-hint" id="qmhh_${k}">${qmkHeadHint(k, D[k])}</small></div>`).join('')}</div></section>`;
 }
 function qmkEdCustomer() {
-  const d = QMK.doc, co = qmkSt().company || {}, has = QMK.cust.customer_id || QMK.cust.lead_id, pick = !has || QMK.picking;
+  const d = QMK.doc, co = qmkSt().company || {}, so = qmkSt().signoff || {}, has = QMK.cust.customer_id || QMK.cust.lead_id, pick = !has || QMK.picking;
   const f = (k, l, o = {}) => `<div class="${o.full ? 'full' : ''}"><label>${esc(l)}</label>${o.ta ? `<textarea rows="2" data-f="${k}">${esc(qmkGet(d, k))}</textarea>`
     : `<input data-f="${k}" type="${o.t || 'text'}" value="${esc(qmkGet(d, k))}"${o.ph ? ` placeholder="${esc(o.ph)}"` : ''}${o.t === 'number' ? ' min="1" step="1"' : ''}>`}</div>`;
   return `${qmkEdHead()}<section class="qm-sec"><h3>Customer</h3>${has ? qmkWhoHtml() : ''}
@@ -248,7 +248,9 @@ function qmkEdCustomer() {
     <p class="qm-hint">Changes here only change this quotation, not the customer record.</p></section>
    <section class="qm-sec"><h3>Quote details</h3><div class="two">
     <div><label>Quote number</label><input value="${esc(d.number || QMK.boot.next_number)}" readonly>${d.number ? '' : '<small class="qm-hint">The next free number, given when you save</small>'}</div>
-    ${f('date', 'Date', { t: 'date' })}${f('valid_days', 'Valid for (days)', { t: 'number' })}${f('sales.name', 'Sales / engineer')}${f('sales.phone', 'Phone', { ph: co.phone })}${f('sales.email', 'Email', { ph: co.email })}</div></section>`;
+    ${f('date', 'Date', { t: 'date' })}${f('valid_days', 'Valid for (days)', { t: 'number' })}${f('sales.name', 'Sales / engineer')}${f('sales.phone', 'Phone', { ph: co.phone })}${f('sales.email', 'Email', { ph: co.email })}</div>
+    <label class="qm-sw"><input type="checkbox" id="qmseal" ${d.seal ? 'checked' : ''}${so.sign || so.seal || d.seal ? '' : ' disabled'}><span>Add the company seal and signature (on the first page, over “authorised signatory”)</span></label>
+    ${so.sign || so.seal ? '' : `<p class="qm-hint">${QMK.boot.admin ? 'Upload the seal and signature first: gear button › Quotation settings › Seal and signature.' : 'An admin uploads the seal and signature in the quotation settings first.'}</p>`}</section>`;
 }
 function qmkFind(qs) {
   const box = $('#qmres'); if (!box) return;
@@ -650,6 +652,7 @@ function qmkOnChange(e) {
   if (t.id === 'qmtpl') qmkUseTpl(t.value);
   else if (t.id === 'qmst') { QMK.status = t.value; qmkChanged(false); }
   else if (t.id === 'qmloan') { QMK.doc.loan = t.checked; qmkChanged(true); if (t.checked) setTimeout(() => qmkPvShow($('#qmpages .qp-loan')), 450); }
+  else if (t.id === 'qmseal') { QMK.doc.seal = t.checked; qmkChanged(false); setTimeout(() => qmkPvShow($('#qmpages .qp-sign')), 450); }
 }
 function qmkOnBlur(e) {
   const t = e.target;

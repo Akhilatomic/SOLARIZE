@@ -63,6 +63,12 @@ function qmPagesHtml(doc, lines, calc, settings) {
   return pages.map((h, i) => h.replace('<span class="qp-pno"></span>', `<span class="qp-pno">Page ${i + 1} of ${pages.length}</span>`));
 }
 
+/* company signature + seal over the signatory line: only when the quotation's box is ticked (doc.seal, off by default) and an admin
+   has uploaded them in the quotation settings (settings.signoff; uploaded refs only, served to signed-in staff) */
+function qpSeal(doc, st) {
+  const so = (st && st.signoff) || {}, sg = doc.seal ? qmImgUrl(so.sign) : '', se = doc.seal ? qmImgUrl(so.seal) : '';
+  return sg || se ? `<span class="qp-ssi">${sg ? `<img class="qp-sgn" src="${esc(sg)}" alt="">` : '<span></span>'}${se ? `<img class="qp-seal" src="${esc(se)}" alt="">` : ''}</span>` : '';
+}
 function qpCover(doc, lines, calc, st, ctx) {
   const co = ctx.co, cu = doc.customer || {}, sa = doc.sales || {}, bank = st.bank || {};
   const days = doc.valid_days != null && doc.valid_days !== '' ? doc.valid_days : st.valid_days;
@@ -78,7 +84,7 @@ function qpCover(doc, lines, calc, st, ctx) {
   const gl = [[calc.dcKwp + plus + ' kWp', 'Solar panels', `(${calc.panelCount} × ${calc.panelWp}${plus} Wp)`], [calc.plantKw + ' kW', inv2[0], inv2[1]]];
   if (war) gl.push([yrs(war.years), warL[0], warL[1]]);
   gl.push([qpRs(calc.subsidy), 'Government subsidy', '(PM Surya Ghar)']);
-  const right = (co.lines || []).map(l => `<tr><th>${esc(l.label)}</th><td>${esc(l.text)}</td></tr>`).join('');
+  const right = (co.lines || []).map(l => `<tr><th>${esc(l.label)}</th><td>${esc(l.text)}</td></tr>`).join(''), seal = qpSeal(doc, st);
   return qpPage('qp-cover', ctx,
     `<div class="qp-top"><img class="qp-logo" src="assets/quote/jasper-logo.png" alt=""><div class="qp-brand"><div class="qp-b1">${esc(co.line1 || '')}</div><div class="qp-b2">${esc(co.line2 || '')}</div><div class="qp-b3">${esc(co.gstin || '')}</div></div><table class="qp-co" data-nofit="1">${right}</table></div>`
     + `<div class="qp-title"><h1>${esc(calc.title)}</h1><span class="qp-pill">${esc(st.pill || '')}</span></div>`
@@ -94,7 +100,7 @@ function qpCover(doc, lines, calc, st, ctx) {
     + `<div class="qp-pr2"><div class="qp-sub2"><small>SUBSIDY</small><b>− ${qpRs(calc.subsidy)}</b><span>Credited to your bank account after commissioning</span></div>`
     + `<div class="qp-net"><small>COST AFTER SUBSIDY</small><b>${qpRs(calc.net)}</b><span>${qpRs(doc.price)} − ${qpRs(calc.subsidy)}</span></div></div>`
     + (calc.kseb.total > 0 && +doc.price > calc.kseb.total ? `<p class="qp-gnote">Gross amount = plant cost ${qpRs(doc.price - calc.kseb.total)} + KSEB charges ${qpRs(calc.kseb.total)}<span class="qp-kpg"></span>.</p>` : '') + '</div></div>'
-    + `<div class="qp-sign"><div>For ${esc(qpTitleCase(co.name || ''))} (authorised signatory)</div><div>Customer acceptance (signature and date)</div></div>`);
+    + `<div class="qp-sign${seal ? ' qp-ss' : ''}"><div>${seal}For ${esc(qpTitleCase(co.name || ''))} (authorised signatory)</div><div>Customer acceptance (signature and date)</div></div>`);
 }
 
 const qpLogo = r => {

@@ -22,6 +22,8 @@ const QM_DEFAULTS = [
   ],
   'footer' => 'MNRE Empanelled · KSEB registered company · Class A Supervisor & Class B Contractor Works',
   'site' => 'www.jasper.solar',
+  /* company signature and seal, uploaded by an admin in the quotation settings (qm-….png refs); printed only on quotations with "seal" ticked */
+  'signoff' => ['sign' => '', 'seal' => ''],
   'bank' => ['bank' => 'State Bank of India', 'name' => 'JASPER SOLAR SOLUTIONS', 'account' => '44819757689', 'ifsc' => 'SBIN0064970'],
   'pill' => 'PM SURYA GHAR (PMSGY) · ON-GRID',
   'valid_days' => 5,

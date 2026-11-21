@@ -82,6 +82,16 @@
 .qp-gnote{font-size:10px;line-height:14px;color:#6b7280}
 .qp-sign{display:flex;gap:34px;margin-top:64px}
 .qp-sign>div{flex:1;border-top:1px solid #1e2638;padding-top:4px;font-size:10.5px;line-height:15px;color:#6b7280}
+/* seal and signature (ticked per quotation): the signature sits on the signatory line, the seal across the line at its right end
+   (past the label text) like a hand stamp; both stay inside the gap above the line, which is smaller on a tight page */
+.qp-sign.qp-ss{margin-top:104px}
+.qp-sign>div:first-child{position:relative}
+.qp-ssi{position:absolute;left:0;right:0;bottom:100%;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none}
+.qp-sgn{height:84px;width:auto;margin-bottom:1px}
+.qp-seal{height:96px;width:auto;margin-bottom:-4px;opacity:.92}
+.qp-tight .qp-sign.qp-ss{margin-top:40px}
+.qp-tight .qp-sgn{height:38px}
+.qp-tight .qp-seal{height:44px}
 
 /* items */
 .qp-tb{width:100%;table-layout:fixed;border-collapse:separate !important;border-spacing:0;border:1px solid #e4e7ec;border-radius:12px;margin-top:12px}
@@ -345,6 +355,7 @@ small.qm-hint{display:block}
 .qm-guide .i{flex:none;width:15px;height:15px;margin-top:1px}
 .qm-sw{display:flex;align-items:center;gap:10px;margin:0;font-size:14px;color:var(--tx);cursor:pointer}
 .qm-sw input{flex:none;width:20px;height:20px;margin:0;accent-color:var(--pri)}
+.qm-sec .two+.qm-sw{margin-top:16px}
 .qm-row{display:flex;align-items:flex-start;gap:6px;margin-top:6px}
 .qm-row>input,.qm-row>textarea{flex:1;min-width:0}
 .qm-row>.qm-amt{flex:0 0 124px}

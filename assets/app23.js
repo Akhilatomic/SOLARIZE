@@ -156,6 +156,12 @@ function qmgList(path, label, keys) {
   }).join('');
   return `<div class="full qmg-ls"><label>${esc(label)}</label>${rows}<button type="button" class="btn sec sm" data-a="ladd" data-k="${esc(path)}${keys ? '|' + keys.join(',') : ''}">${qmgI('plus')} Add</button></div>`;
 }
+/* seal / signature picture in the settings (settings.signoff.sign|seal): upload, replace or remove; saved with Save settings */
+function qmgSignImg(k, label) {
+  const v = (QMG.ST.signoff || {})[k] || '';
+  return `<div class="qmg-up"><label>${esc(label)}</label><div class="qmg-upr">${v ? `<img src="${esc(qmImgUrl(v))}" alt="">` : '<span class="qmg-none">None</span>'}
+    <div><button type="button" class="btn sec sm" data-a="sgup" data-k="${k}">${qmgI('upload')} ${v ? 'Replace' : 'Upload'}</button>${v ? ` <button type="button" class="btn sec sm" data-a="sgclr" data-k="${k}">${qmgI('x')} Remove</button>` : ''}</div></div></div>`;
+}
 const qmgSec = (id, title, body, bold) => `<details class="qmg-sec" id="qmgs-${id}" ${QMG.open === id || (QMG.open == null && id === 'num') ? 'open' : ''}><summary>${esc(title)}${bold ? '<span class="qmg-tag">**bold** works</span>' : ''}</summary><div class="qmg-g">${body}</div></details>`;
 function qmgSettings() {
   const body = $('#qmgbody', QMG.m), S = QMG.ST, L = S.loan, T = L.texts;
@@ -167,6 +173,8 @@ function qmgSettings() {
     qmgSec('co', 'Company header', ['line1', 'line2', 'gstin', 'name', 'phone', 'email', 'site'].map(k => qmgField(k === 'site' ? 'site' : 'company.' + k, qmgLbl(k))).join('') + qmgList('company.lines', 'Header lines (label and text)', ['label', 'text'])),
     qmgSec('bank', 'Bank block', ['bank', 'name', 'account', 'ifsc'].map(k => qmgField('bank.' + k, k === 'bank' ? 'Bank' : k === 'name' ? 'Account name' : qmgLbl(k))).join('')),
     qmgSec('foot', 'Footer', qmgField('footer', 'Footer line', true)),
+    qmgSec('seal', 'Seal and signature', '<p class="qm-hint full">Printed on the first page over “authorised signatory”, only on quotations where the box “Add the company seal and signature” is ticked (it starts unticked). Use PNG pictures with a clear (transparent) background. They are kept in the CRM and shown only to signed-in staff.</p>'
+      + qmgSignImg('sign', 'Signature') + qmgSignImg('seal', 'Seal')),
     qmgSec('del', 'Delivery and installation', qmgList('delivery', 'Delivery texts'), true),
     qmgSec('pay', 'Payment schedule', qmgList('pay', 'Payment steps (amount and text)', ['amt', 'text']), true),
     qmgSec('kseb', 'KSEB charges', ['feas', 'reg_per_kw', 'reg_gst', 'stamp', 'feas_label', 'reg_label', 'stamp_label'].map(k => qmgField('kseb.' + k, qmgLbl(k))).join('')),
@@ -180,7 +188,8 @@ function qmgSettings() {
   ].join('');
   body.innerHTML = `<div class="qmg-hintbox"><b>Placeholders</b> that fill in automatically (loan texts, delivery, payment and terms): <code>${esc(QMG_PH)}</code><br>
     <b>**Bold**</b>: put two stars round words to print them bold. It works in the delivery texts, payment step texts, terms and the loan texts (title, labels, notes, helpline, steps, lists), but not in the loan sub-line or the four loan headings (EMI, terms, who can apply, how to apply), and not in the company, bank, footer, pill or KSEB label fields.</div>
-    ${sections}<div class="qmg-bar"><button type="button" class="btn" data-a="ssave">${qmgI('check')} Save settings</button><button type="button" class="btn sec" data-a="sreset">Discard changes</button></div>`;
+    ${sections}<div class="qmg-bar"><button type="button" class="btn" data-a="ssave">${qmgI('check')} Save settings</button><button type="button" class="btn sec" data-a="sreset">Discard changes</button></div>
+    <input type="file" id="qmgfile" accept="image/png,image/jpeg,image/webp" hidden>`;
 }
 async function qmgSaveSettings() {
   const body = { settings: QMG.ST };
@@ -230,6 +239,11 @@ async function qmgClick(e) {
   if (a === 'lgup') { const r = await qmgPick(); if (r) { E.brands[+k].logos.push(r); QMG.dirty = true; qmgForm($('#qmgbody', QMG.m)); toast('Logo added — Save product to keep it'); } return; }
   if (a === 'lgtxt') { const inp = $(`[data-txt="${k}"]`, QMG.m), v = inp.value.trim().slice(0, 60); if (!v) return toast('Type the brand name first'); E.brands[+k].logos.push('text:' + v); QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
   if (a === 'lgdel') { const [i, j] = k.split('|'); E.brands[+i].logos.splice(+j, 1); QMG.dirty = true; return qmgForm($('#qmgbody', QMG.m)); }
+  if (a === 'sgup' || a === 'sgclr') {
+    const r = a === 'sgup' ? await qmgPick() : ''; if (a === 'sgup' && !r) return;
+    QMG.ST.signoff = Object.assign({ sign: '', seal: '' }, QMG.ST.signoff); qmgSet('signoff.' + k, r); QMG.open = 'seal';
+    if (r) toast(`${k === 'sign' ? 'Signature' : 'Seal'} added — Save settings to keep it`); return qmgSettings();
+  }
   if (a === 'ssave') return qmgSaveSettings();
   if (a === 'sreset') { if (QMG.dirty && !await ask('Discard all unsaved changes to the settings?')) return; QMG.ST = qmgClone(QMG.b.settings); QMG.nextN = QMG.next0; QMG.dirty = false; return qmgSettings(); }
   if (a === 'ladd') {
