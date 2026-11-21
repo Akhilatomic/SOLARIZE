@@ -143,8 +143,13 @@ async function acShareBtn(btn, make) {
   btn.disabled = false;
 }
 
+/* the signature box; seal = print the company seal and signature (admin only: r.company.signoff is empty for anyone else) */
+function acRcStamp(CN, so, seal) {
+  const url = x => { const u = seal && typeof qmImgUrl === 'function' ? qmImgUrl(x) : ''; return u ? location.origin + '/' + u : ''; }, sg = url(so.sign), se = url(so.seal);
+  return `<div class="dstamp${sg || se ? ' dss' : ''}${sg ? ' dssg' : ''}"><div class="dfor">For ${esc(CN)}</div><div class="dsp">${sg || se ? `<span class="dssi">${sg ? `<img class="dsgn" src="${esc(sg)}" alt="">` : '<span></span>'}${se ? `<img class="dseal" src="${esc(se)}" alt="">` : ''}</span>` : ''}</div><div class="dsl">Authorised signatory</div><small>Seal &amp; signature</small></div>`;
+}
 /* receipt layout (same markup as the Tax bill tab always used): r = ac_receipt answer */
-function acRcHtml(r) {
+function acRcHtml(r, seal) {
   const p = r.payment, cu = r.customer || {}, co = r.company || {}, pr = r.project || {}, bill = r.bill;
   const CN = co.name || 'Jasper Solar Solutions', ph = co.phone || '', em = co.email || '', web = co.site || '', kw = acKw(pr.kw);
   const list = r.payments || [], i = list.findIndex(x => x.id === p.id);
@@ -155,7 +160,7 @@ function acRcHtml(r) {
     <div class="drc"><div class="rf"><span>Receipt no.</span><b>${esc(p.receipt_no)}</b><span>Payment date</span><b>${fdt(p.date)}</b><span>Reference number</span><b>${esc(p.ref_no || (acIsCash(p) ? 'Cash' : ''))}</b><span>Payment mode</span><b>${esc(p.mode || '')}</b><span>Amount received in words</span><b>${rupeeWords(amt)}</b></div>
      <div class="drbox"><small>Amount Received</small><b>${inr2(amt)}</b></div></div>
     <div class="drfrom"><div><h4>Received from</h4><b>${esc(cu.name || '')}</b><br>${esc([cu.address, cu.district, cu.pincode].filter(Boolean).join(', '))}${cu.phone ? '<br>Ph: ' + esc(cu.phone) : ''}${p.src === 'bank' ? `<br><span class="dlbl">Paid by ${esc(cu.loan_bank || 'the bank')} (loan disbursement)</span>` : ''}</div>
-     <div class="dstamp"><div class="dfor">For ${esc(CN)}</div><div class="dsp"></div><div class="dsl">Authorised signatory</div><small>Seal &amp; signature</small></div></div>
+     ${acRcStamp(CN, co.signoff || {}, seal)}</div>
     <table class="dt"><thead><tr><th>Payment for</th><th>Date</th><th class="r">Amount</th><th class="r">Received earlier</th><th class="r">This payment</th><th class="r">Balance due</th></tr></thead>
      <tbody><tr><td>${bill ? 'Tax invoice ' + esc(bill.no) : `Solar power plant${kw ? ' (' + esc(kw) + ' kW)' : ''} — plant cost`}</td><td>${bill ? fdt(bill.date) : '—'}</td><td class="r">${inr2(total)}</td><td class="r">${inr2(before)}</td><td class="r">${inr2(amt)}</td><td class="r"><b>${inr2(Math.max(0, bal))}</b></td></tr></tbody></table>
     ${bal < 0 ? `<div class="dsmall">Received ${inr2(-bal)} more than the ${bill ? 'invoice amount' : 'plant cost'}.</div>` : ''}`;
@@ -174,12 +179,15 @@ async function acReceipt(pid, opt = {}) {
     if (opt.onChange) opt.onChange();
   }
   acCss();
-  const cu = r.customer || {}, co = r.company || {}, loan = (r.project || {}).loan === 'Yes' && canR('loans'), doc = acRcHtml(r), name = acFileName('Receipt', p.receipt_no, cu.name);
+  const cu = r.customer || {}, co = r.company || {}, loan = (r.project || {}).loan === 'Yes' && canR('loans'), name = acFileName('Receipt', p.receipt_no, cu.name);
+  /* seal and signature: an admin's choice per print / send, off each time the window opens; nobody else gets the box (or the pictures) */
+  const so = co.signoff || {}, adm = !!(ME && ME.role === 'admin'), hasSo = !!(so.sign || so.seal);
+  let doc = acRcHtml(r, false);
   const list = r.payments || [], i = list.findIndex(y => y.id === p.id), recv = list.slice(0, i + 1).reduce((t, y) => t + (+y.amount || 0), 0);
   const vars = acVars({ customer: cu, company: co, payment: p, bill: r.bill, received_total: recv, kw: (r.project || {}).kw });
   const b = (via, to, icon, label, main) => `<button class="btn ${main ? '' : 'sec'}" data-via="${via}" data-to="${to}"><i class="i i-${icon}"></i> ${label}</button>`;
   const m = modal(`<div class="mh"><h3>Payment receipt ${esc(p.receipt_no)}</h3><button class="ib" data-x title="Close"><i class="i i-x"></i></button></div>
-    <div class="bar acx-rcb">${b('pdf', 'customer', 'download', 'PDF', 1)}${b('whatsapp', 'customer', 'whatsapp', 'WhatsApp')}${b('email', 'customer', 'mail', 'Email')}${loan ? b('email', 'bank', 'bank', 'Email to bank') + b('whatsapp', 'bank', 'whatsapp', 'WhatsApp to bank') : ''}<span class="sp"></span><button class="btn sec" data-print>Print</button></div>
+    <div class="bar acx-rcb">${b('pdf', 'customer', 'download', 'PDF', 1)}${b('whatsapp', 'customer', 'whatsapp', 'WhatsApp')}${b('email', 'customer', 'mail', 'Email')}${loan ? b('email', 'bank', 'bank', 'Email to bank') + b('whatsapp', 'bank', 'whatsapp', 'WhatsApp to bank') : ''}<span class="sp"></span>${adm ? `<label class="acx-seal" title="${hasSo ? 'Print the company seal and signature on this receipt' : 'Upload the seal and signature first: Quotations › gear button › Quotation settings › Seal and signature'}"><input type="checkbox" data-seal ${hasSo ? '' : 'disabled'}> Seal &amp; signature</label>` : ''}<button class="btn sec" data-print>Print</button></div>
     <div class="acx-shl" id="acx_sh"></div>
     <div class="gdp acx-pv"><div class="acx-doc"><div class="doc drcpt">${doc}</div></div></div>`, true);
   const shared = (r.shared || []).slice(), drawSh = () => { $('#acx_sh', m).innerHTML = acSharedHtml(shared); };
@@ -196,6 +204,9 @@ async function acReceipt(pid, opt = {}) {
   let kept = false; const keep = f => { if (!kept && f) { kept = true; docKeep(cu.id, 'receipt:' + p.id, 'Payment receipt ' + p.receipt_no, name, f); } return f; };
   getPdf().then(f => fresh && keep(f)).catch(() => { });
   if (loan) acTpl().catch(() => { });
+  /* ticking / unticking the seal redraws the receipt; the PDF is made again, and the next print or send keeps that copy in Documents */
+  const sb = $('[data-seal]', m);
+  if (sb) sb.onchange = () => { doc = acRcHtml(r, sb.checked); pd.innerHTML = doc; pdfP = null; kept = false; getPdf().catch(() => { }); };
   $('[data-x]', m).onclick = () => m.remove();
   $('[data-print]', m).onclick = () => { printDoc(`Payment receipt ${p.receipt_no} — ${cu.name || ''}`, `<div class="doc drcpt">${doc}</div>`); getPdf().then(keep).catch(() => { }); };
   $$('[data-via]', m).forEach(btn => btn.onclick = () => acShareBtn(btn, async () => ({ kind: 'receipt', via: btn.dataset.via, to_whom: btn.dataset.to, blob: keep(await getPdf()), name, vars, cust: cu,

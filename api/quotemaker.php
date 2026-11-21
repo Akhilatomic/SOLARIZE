@@ -38,6 +38,14 @@ function qm_coerce($v, $def, $depth = 0) {
   if (is_float($def)) return is_numeric($v) ? (float)$v : $def;
   return is_scalar($v) ? mb_substr(trim((string)$v), 0, 2000) : $def;
 }
+/* Seal and signature are the admin's alone (owner's rule, 21 Nov 2026: "add option is only for admin, other users not available"):
+   only an admin is sent the picture refs, can load the pictures and can save a quotation / tax bill with them; for anyone else they are empty. */
+function qm_signoff_mine($s = null): array {
+  $none = ['sign' => '', 'seal' => ''];
+  if (!is_admin()) return $none;
+  $so = (array)((is_array($s) ? $s : qm_settings())['signoff'] ?? []);
+  return ['sign' => (string)($so['sign'] ?? ''), 'seal' => (string)($so['seal'] ?? '')];
+}
 function qm_next_n(): int { $r = row("SELECT v FROM settings WHERE k='qm_next'"); $n = $r ? (int)json_decode($r['v'], true) : 144; return $n < 1 ? 144 : $n; }
 function qm_number($n = null): string {
   if ($n === null) { $r = row("SELECT v FROM settings WHERE k='qm_next'"); $n = $r ? (int)json_decode($r['v'], true) : 144; if ($n < 1) $n = 144; }
@@ -91,7 +99,8 @@ function handle_qm($a) {
       $products =array_map(fn($p) => qm_product_out($p, $fin), rows('SELECT * FROM qm_products ORDER BY sort, id'));
       $templates = array_map(function ($t) { $t['id'] = (int)$t['id']; $t['data'] = json_decode((string)$t['data'], true) ?: new stdClass(); $t['created_by'] = $t['created_by'] === null ? null : (int)$t['created_by']; $t['created_name'] = (string)($t['created_name'] ?? ''); return $t; },
         rows('SELECT t.id,t.name,t.data,t.created_by,u.name AS created_name,t.updated FROM qm_templates t LEFT JOIN users u ON u.id=t.created_by ORDER BY t.id'));
-      out(['cats' => QM_CATS, 'products' => $products, 'templates' => $templates, 'settings' => qm_settings(), 'admin' => is_admin() ? 1 : 0, 'finance' => $fin ? 1 : 0, 'next_number' => qm_number(), 'next_n' => qm_next_n()]);
+      $st = qm_settings(); $st['signoff'] = qm_signoff_mine($st);
+      out(['cats' => QM_CATS, 'products' => $products, 'templates' => $templates, 'settings' => $st, 'admin' => is_admin() ? 1 : 0, 'finance' => $fin ? 1 : 0, 'next_number' => qm_number(), 'next_n' => qm_next_n()]);
     }
     case 'product_save': {
       if (!is_admin()) fail('Only an admin can change the product list', 403);
@@ -138,6 +147,7 @@ function handle_qm($a) {
     case 'img': {
       $f = basename((string)($_GET['f'] ?? ''));
       if (!preg_match('/^qm-[0-9a-f]{24}\.(png|jpg|webp)$/', $f) || !is_file(up_dir() . '/' . $f)) fail('Not found', 404);
+      if (!is_admin() && in_array($f, array_values((array)(qm_settings()['signoff'] ?? [])), true)) fail('Not found', 404); /* the seal and signature: admin only */
       serve_file(up_dir() . '/' . $f, $f, ['cache' => 'private, max-age=604800']);
     }
     case 'settings_save': {
@@ -207,6 +217,7 @@ function handle_qm($a) {
       if ($lead && !row('SELECT id FROM leads WHERE id=?', [$lead])) fail('Lead not found', 404);
       $doc = $in['doc'] ?? null;
       if (!is_array($doc)) fail('Nothing to save');
+      if (!is_admin()) unset($doc['seal']); /* only an admin puts the seal and signature on a quotation; a change by anyone else takes it off */
       $price = $doc['price'] ?? 0;
       if (!is_numeric($price) || (float)$price <= 0) fail('Enter the package price');
       $status = (string)($in['status'] ?? 'Draft');

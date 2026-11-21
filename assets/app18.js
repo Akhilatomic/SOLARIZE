@@ -55,6 +55,7 @@ const TAXDOC_CSS = `.dhead{display:flex;justify-content:space-between;align-item
 .dss{width:300px}.dss .dsp{position:relative}.dssg .dfor{visibility:hidden}
 .dssi{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none}
 .dssi .dsgn{height:88px;width:auto;margin-bottom:1px}.dssi .dseal{height:92px;width:auto;margin-bottom:-8px;opacity:.92}
+.drfrom .dss{width:260px}.drfrom .dssi .dsgn{height:74px}.drfrom .dssi .dseal{height:84px}
 .dpage{width:186mm;height:271mm;overflow:hidden}.dpage .doc{max-width:none;padding:0;margin:0}
 .dpage .dtax{font-size:11px;line-height:1.36;box-sizing:border-box;display:flex;flex-direction:column}.dpage .dtax .dsign{margin-top:auto;padding-top:10px}
 .dpage .dt{margin:4px 0 8px}.dpage .dt th,.dpage .dt td{padding:3px 5px}.dpage .dbox{padding:5px 8px;margin-bottom:6px}.dpage .dtax .dmeta{margin:6px 0 8px}
@@ -200,7 +201,8 @@ async function renderTax(box, c, id) {
       subject: kwN ? `${kwN} kW on-grid solar power plant` : 'On-grid solar power plant',
       notes: (fee ? `Customer scope: KSEB feasibility and registration fee ₹${fee.toLocaleString('en-IN')} (registration fee 80% refundable by KSEB).\n` : '') + 'Goods once sold will not be taken back. Subject to Thiruvananthapuram jurisdiction.' }; }
   D.ser = D.ser || { p: 1, i: 1, m: 1 }; D.show_paid = +D.show_paid || 0; D.show_seal = +D.show_seal || 0; /* seal & signature: off unless ticked */
-  const SO = (g.qm || {}).signoff || {}, soUrl = r => { const u = typeof qmImgUrl === 'function' ? qmImgUrl(r) : ''; return u ? location.origin + '/' + u : ''; };
+  /* seal and signature: admin only — the server sends the pictures to an admin alone and takes the tick off a bill anyone else saves */
+  const ADM = !!(ME && ME.role === 'admin'), SO = (g.qm || {}).signoff || {}, soUrl = r => { const u = typeof qmImgUrl === 'function' ? qmImgUrl(r) : ''; return u ? location.origin + '/' + u : ''; };
   let A = g.acct || { project_id: 0, cost: 0, payments: [], paid: 0 };
   /* Part A / Part B bill (solar plant under the GST 70:30 rule): the total (incl. GST) is split so that 70% of the taxable value is
      Part A — supply of the plant (panels + inverter, goods at 5%) and 30% is Part B — installation and the rest (service at 18%):
@@ -234,8 +236,8 @@ async function renderTax(box, c, id) {
       <label>Serial numbers on the bill</label><div class="tbo">${[['p', `Solar panels — ${pn.length ? pn.length + ' entered' : 'none entered'}`], ['i', `Inverter — ${iv.length ? iv.length + ' entered' : 'none entered'}`], ['m', `Energy meter — ${P.meter_serial ? 'entered' : 'not entered'}`]].map(([k, l]) => `<label><input type="checkbox" data-o="${k}" ${D.ser[k] ? 'checked' : ''} ${w ? '' : 'disabled'}> ${l}</label>`).join('')}</div>
       ${!pn.length || !iv.length || !P.meter_serial ? `<p class="mut" style="font-size:12.5px;margin:4px 0 0">Serial numbers come from <b>Plant details</b>${[!pn.length && 'panels', !iv.length && 'inverter', !P.meter_serial && 'energy meter'].filter(Boolean).length ? ' — still missing: ' + [!pn.length && 'panels', !iv.length && 'inverter', !P.meter_serial && 'energy meter'].filter(Boolean).join(', ') : ''}. <button class="btn sec sm" id="tgoplant" type="button">Open Plant details</button></p>` : ''}
       <label>Also print</label><div class="tbo"><label><input type="checkbox" data-o="paid" ${D.show_paid ? 'checked' : ''} ${w ? '' : 'disabled'}> Payment made & balance due</label>
-       <label title="For a bill sent by email or WhatsApp, so it need not be printed, signed and scanned"><input type="checkbox" data-o="seal" ${D.show_seal ? 'checked' : ''} ${w && (SO.sign || SO.seal || D.show_seal) ? '' : 'disabled'}> Company seal &amp; signature</label></div>
-      ${SO.sign || SO.seal ? '' : `<p class="mut u-fs12-m6_0_0">To print the seal and signature, an admin uploads them once: Quotations › gear button › Quotation settings › Seal and signature.</p>`}
+       ${ADM ? `<label title="For a bill sent by email or WhatsApp, so it need not be printed, signed and scanned"><input type="checkbox" data-o="seal" ${D.show_seal ? 'checked' : ''} ${w && (SO.sign || SO.seal || D.show_seal) ? '' : 'disabled'}> Company seal &amp; signature</label>` : ''}</div>
+      ${ADM && !SO.sign && !SO.seal ? `<p class="mut u-fs12-m6_0_0">To print the seal and signature, upload them once: Quotations › gear button › Quotation settings › Seal and signature.</p>` : ''}
       <div class="bar" style="margin:12px 0 0">${w ? '<span class="acx-iss" id="tiss"></span>' : ''}<button class="btn sec" id="tpr"><i class="i i-download"></i> ${g.doc ? 'Print' : 'Print / PDF'}</button></div>
       <small class="acx-lkn" id="tlkn"></small><div id="tshr"></div>
       <p class="mut u-fs12-m8_0_0">HSN codes and GST rates are suggestions — confirm them with your accountant. The invoice number is issued once and never reused.</p></div>

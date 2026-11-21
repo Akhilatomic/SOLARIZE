@@ -1,5 +1,6 @@
 /* Accounts (assets/acc.css): receipt window, sharing buttons and the tax bill lock. Every class starts with .acx */
 .acx-rcb{margin:0 0 8px}
+.acx-seal{display:inline-flex;align-items:center;gap:6px;margin:0 6px 0 0;font-size:13px;color:var(--tx);cursor:pointer;white-space:nowrap}.acx-seal input{margin:0;width:16px;height:16px;accent-color:var(--pri)}.acx-seal:has(input:disabled){opacity:.55;cursor:default}
 .acx-shl{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:12px;color:var(--mut);margin:0 0 12px}
 .acx-shl b{color:var(--tx);font-weight:600;margin-right:2px}
 .acx-sh{display:inline-flex;align-items:center;gap:5px;background:var(--fill-2);border-radius:999px;padding:3px 10px;color:var(--tx);white-space:nowrap}

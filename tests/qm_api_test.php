@@ -155,8 +155,11 @@ call($admin, 'qm', 'settings_save', ['settings' => $so]);
 chk((call($admin, 'qm', 'boot')['settings']['signoff'] ?? null) === ['sign' => $up['ref'] ?? '', 'seal' => ''], 'signature saved; a public file as the seal is refused');
 $so['signoff'] = ['sign' => '../../data/crm.sqlite', 'seal' => $up2['ref'] ?? ''];
 call($admin, 'qm', 'settings_save', ['settings' => $so]);
+chk((call($admin, 'qm', 'boot')['settings']['signoff'] ?? null) === ['sign' => '', 'seal' => $up2['ref'] ?? ''] && call($admin, 'qm', 'img', null, '&f=' . ($up2['ref'] ?? 'x'), true)['_code'] === 200, 'seal saved, a path as the signature refused; the admin loads the seal');
+/* admin only (owner's rule): staff get no picture refs and cannot load the pictures; other uploaded pictures still load */
 $sb = call($sales, 'qm', 'boot');
-chk(($sb['settings']['signoff'] ?? null) === ['sign' => '', 'seal' => $up2['ref'] ?? ''] && call($sales, 'qm', 'img', null, '&f=' . ($up2['ref'] ?? 'x'), true)['_code'] === 200, 'seal saved, a path as the signature refused; staff can load the seal');
+chk(($sb['settings']['signoff'] ?? null) === ['sign' => '', 'seal' => ''] && call($sales, 'qm', 'img', null, '&f=' . ($up2['ref'] ?? 'x'), true)['_code'] === 404
+  && call($sales, 'qm', 'img', null, '&f=' . ($up['ref'] ?? 'x'), true)['_code'] === 200, 'staff: no seal or signature, the seal picture is refused, other pictures load');
 $so['signoff'] = ['sign' => '', 'seal' => ''];
 call($admin, 'qm', 'settings_save', ['settings' => $so]);
 @unlink($tmpf);
@@ -204,11 +207,14 @@ call($sales, 'qm', 'status', ['id' => $q1['id'], 'status' => 'Sent']);
 call($admin, 'qm', 'product_save', ['id' => $panelId, 'name' => 'Changed name'] + $panel);
 chk(json_decode(call($sales, 'quotes', 'get', null, '&id=' . $q1['id'])['doc'], true)['snap']['panels'][0]['name'] === $panel['name'], 'saved quote keeps its snapshot');
 chk(call($sales, 'quotes', 'list')[0]['total'] == $doc['price'], 'list shows the package price');
-/* "Add the company seal and signature" is kept per quotation (off unless ticked) */
-$qs1 = call($sales, 'qm', 'save', ['id' => $q1['id'], 'customer_id' => $cid, 'status' => 'Sent', 'subsidy' => 67200, 'doc' => ['seal' => true] + $doc]);
-$gq = json_decode(call($sales, 'quotes', 'get', null, '&id=' . $q1['id'])['doc'] ?? '{}', true);
-$gq2 = json_decode(call($sales, 'quotes', 'get', null, '&id=' . $q2['id'])['doc'] ?? '{}', true);
-chk(($qs1['id'] ?? 0) == $q1['id'] && ($gq['seal'] ?? null) === true && empty($gq2['seal']), 'seal tick saved with its quotation only');
+/* "Add the company seal and signature" is kept per quotation (off unless ticked) and is the admin's alone */
+$qdoc = fn($id) => json_decode(call($admin, 'quotes', 'get', null, '&id=' . $id)['doc'] ?? '{}', true);
+call($sales, 'qm', 'save', ['id' => $q1['id'], 'customer_id' => $cid, 'status' => 'Sent', 'subsidy' => 67200, 'doc' => ['seal' => true] + $doc]);
+chk(!isset($qdoc($q1['id'])['seal']), 'staff cannot put the seal on a quotation');
+$qs1 = call($admin, 'qm', 'save', ['id' => $q1['id'], 'customer_id' => $cid, 'status' => 'Sent', 'subsidy' => 67200, 'doc' => ['seal' => true] + $doc]);
+chk(($qs1['id'] ?? 0) == $q1['id'] && ($qdoc($q1['id'])['seal'] ?? null) === true && empty($qdoc($q2['id'])['seal']), 'admin: seal tick saved with its quotation only');
+call($sales, 'qm', 'save', ['id' => $q1['id'], 'customer_id' => $cid, 'status' => 'Sent', 'subsidy' => 67200, 'doc' => ['seal' => true, 'valid_days' => 7] + $doc]);
+chk(!isset($qdoc($q1['id'])['seal']), 'a staff change to a sealed quotation takes the seal off');
 /* the list leaves out the doc (and old-style items/terms); get still has it */
 $ql = array_values(array_filter(call($sales, 'quotes', 'list'), 'is_array'));
 $qr = null; foreach ($ql as $r) if ($r['id'] == $q1['id']) $qr = $r;
@@ -412,6 +418,15 @@ call($admin, 'qm', 'settings_save', ['settings' => $so2]);
 call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[1], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill Two', 'items' => [], 'parts' => $parts, 'show_seal' => 1]]);
 $gs2 = call($admin, 'gen', 'get', null, "&kind=tax&customer_id={$tb[1]}");
 chk(($gs2['qm']['signoff'] ?? null) === $so2['signoff'] && ($gs2['doc']['data']['show_seal'] ?? 0) === 1 && empty(call($admin, 'gen', 'get', null, "&kind=tax&customer_id={$tb[0]}")['doc']['data']['show_seal']), 'tax bill: seal tick saved with that bill only');
+/* admin only: Accounts (here also allowed to edit customers, so it can save the bill) gets no pictures, and its save takes the seal off */
+$accU = actor('accts'); call($admin, 'admin', 'user_save', ['name' => 'Acc Test', 'username' => 'qmacc', 'role' => 'accounts', 'active' => 1, 'can_claim' => 0, 'password' => $pw]);
+call($accU, 'auth', 'login', ['username' => 'qmacc', 'password' => $pw]);
+$rp = call($admin, 'settings', 'get')['roles_now'] ?? []; $rp['accounts']['write'][] = 'customers'; call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => $rp]);
+$ga = call($accU, 'gen', 'get', null, "&kind=tax&customer_id={$tb[1]}");
+chk(($ga['_code'] ?? 0) === 200 && ($ga['qm']['signoff'] ?? null) === ['sign' => '', 'seal' => ''] && call($accU, 'qm', 'img', null, '&f=' . ($up['ref'] ?? 'x'), true)['_code'] === 404, 'tax bill for staff: no seal or signature pictures');
+chk((call($accU, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[1], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill Two', 'items' => [], 'parts' => $parts, 'show_seal' => 1]])['_code'] ?? 0) === 200
+  && empty(call($admin, 'gen', 'get', null, "&kind=tax&customer_id={$tb[1]}")['doc']['data']['show_seal']), 'tax bill: a staff save takes the seal off');
+call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => []]);
 $so2['signoff'] = ['sign' => '', 'seal' => '']; call($admin, 'qm', 'settings_save', ['settings' => $so2]);
 $re = call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[0], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill One', 'items' => [], 'parts' => $parts]])['number'] ?? '';
 chk($re === $n1, 'tax bill: saving changes keeps the bill\'s number');

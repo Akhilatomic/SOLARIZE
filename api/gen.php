@@ -59,7 +59,7 @@ function gen_qm_info() {
   foreach ((array)($co['lines'] ?? []) as $l) if (preg_match('/office|address/i', (string)($l['label'] ?? ''))) { $addr = (string)($l['text'] ?? ''); break; }
   return ['name' => (string)($co['name'] ?? ''), 'address' => $addr, 'phone' => (string)($co['phone'] ?? ''), 'email' => (string)($co['email'] ?? ''), 'site' => (string)($s['site'] ?? ''),
     'bank' => $s['bank'] ?? null, 'kseb' => $s['kseb'] ?? null,
-    'signoff' => $s['signoff'] ?? null]; /* seal + signature uploaded in the quotation settings (qm- refs, login-only); the tax bill prints them when ticked */
+    'signoff' => qm_signoff_mine($s)]; /* seal + signature from the quotation settings: an admin's only (empty for anyone else); tax bill and receipts print them when ticked */
 }
 function gen_clean($v, $depth = 0) { // keep plain text / numbers / small nested lists only
   if (is_array($v)) { if ($depth > 3) return []; $o = []; foreach (array_slice($v, 0, 200, true) as $k => $x) $o[is_int($k) ? $k : mb_substr(preg_replace('/[^\w]/', '', (string)$k), 0, 40)] = gen_clean($x, $depth + 1); return $o; }
@@ -125,6 +125,7 @@ function handle_gen($a) {
     case 'save':
       need('customers', true); if ($kind === 'tax') need('finance');
       $data = gen_clean((array)($in['data'] ?? []));
+      if ($kind === 'tax' && !is_admin()) $data['show_seal'] = 0; /* seal and signature on the tax bill: admin only; a save by anyone else takes it off */
       $issued = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['issued_on'] ?? '')) ? $in['issued_on'] : date('Y-m-d');
       $r = row('SELECT * FROM gen_docs WHERE customer_id=? AND kind=?', [$cid, $kind]);
       /* a typed invoice number (tax bill): any text, but never one another bill already has */

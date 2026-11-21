@@ -249,8 +249,8 @@ function qmkEdCustomer() {
    <section class="qm-sec"><h3>Quote details</h3><div class="two">
     <div><label>Quote number</label><input value="${esc(d.number || QMK.boot.next_number)}" readonly>${d.number ? '' : '<small class="qm-hint">The next free number, given when you save</small>'}</div>
     ${f('date', 'Date', { t: 'date' })}${f('valid_days', 'Valid for (days)', { t: 'number' })}${f('sales.name', 'Sales / engineer')}${f('sales.phone', 'Phone', { ph: co.phone })}${f('sales.email', 'Email', { ph: co.email })}</div>
-    <label class="qm-sw"><input type="checkbox" id="qmseal" ${d.seal ? 'checked' : ''}${so.sign || so.seal || d.seal ? '' : ' disabled'}><span>Add the company seal and signature (on the first page, over “authorised signatory”)</span></label>
-    ${so.sign || so.seal ? '' : `<p class="qm-hint">${QMK.boot.admin ? 'Upload the seal and signature first: gear button › Quotation settings › Seal and signature.' : 'An admin uploads the seal and signature in the quotation settings first.'}</p>`}</section>`;
+    ${QMK.boot.admin ? `<label class="qm-sw"><input type="checkbox" id="qmseal" ${d.seal ? 'checked' : ''}${so.sign || so.seal || d.seal ? '' : ' disabled'}><span>Add the company seal and signature (on the first page, over “authorised signatory”)</span></label>
+    ${so.sign || so.seal ? '' : '<p class="qm-hint">Upload the seal and signature first: gear button › Quotation settings › Seal and signature.</p>'}` : ''}</section>`; /* seal and signature: admin only (the server sends nobody else the pictures) */
 }
 function qmkFind(qs) {
   const box = $('#qmres'); if (!box) return;
