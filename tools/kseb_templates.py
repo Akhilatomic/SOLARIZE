@@ -3,10 +3,11 @@
 Usage: python -I tools/kseb_templates.py <letterhead.pdf> <form1.pdf> <outdir>
 Needs PyMuPDF.  Writes:
   outdir/letterhead.pdf    the letterhead, copied unchanged
-  outdir/annexure-1.pdf    Form 1 with the "ROOF-TOP" and "30 DAYS" FreeText annotations removed,
-                           then row 3 sub-rows (a) panel / (b) on-grid-hybrid inverter capacity added (an1_rows)
+  outdir/annexure-1.pdf    Form 1 with the "ROOF-TOP" and "30 DAYS" FreeText annotations removed
+  outdir/annexure-1-v2.pdf the same with row 3 sub-rows (a) panel / (b) on-grid-hybrid inverter capacity (an1_rows)
   outdir/letterhead.png, outdir/annexure-1.png   page 1 of each at 150 dpi
-Checks that nothing but those two annotations was removed before adding the sub-rows.
+Checks that nothing but those two annotations was removed.
+A changed form always gets a new file name: CRM tabs opened before an update still fetch the old one.
 
 Blank forms with nothing typed on them (Annexure 2, 3):
   python -I tools/kseb_templates.py --copy <form.pdf> annexure-2 <outdir>
@@ -64,7 +65,7 @@ def main(letterhead, form1, outdir):
         print(label, ok)
     if not all(ok for _, ok in checks):
         sys.exit(1)
-    an1_rows(os.path.join(outdir, 'annexure-1.pdf'))
+    an1_rows(os.path.join(outdir, 'annexure-1.pdf'), os.path.join(outdir, 'annexure-1-v2.pdf'))
 
 
 AN1_LINE = 285.5   # top of the 0.48 pt rule under row 3 (plant capacity) of Form 1
@@ -81,12 +82,12 @@ AN1_ML_S = 13
 AN1_FONT = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Microsoft', 'Windows', 'Fonts', 'Meera.ttf')
 
 
-def an1_rows(path, font=AN1_FONT):
+def an1_rows(path, dst, font=AN1_FONT):
     """Annexure 1: row 3 (capacity of the plant) gets two sub-rows, (a) panel capacity and (b) on-grid / hybrid
     inverter capacity, labelled in Malayalam; the S.No cell "3" spans all three. Rows 4-6, the Place/Date row and
     the acknowledgement slip move down by the sub-rows' height; the form's own rules and text stay the original
-    vectors. In place; refused if the sub-rows are there already.
-      python -I tools/kseb_templates.py --an1-rows assets/kseb/annexure-1.pdf [Meera.ttf]"""
+    vectors. Reads the original form at path, writes dst (+ its PNG); refused if path has the sub-rows already.
+      python -I tools/kseb_templates.py --an1-rows assets/kseb/annexure-1.pdf assets/kseb/annexure-1-v2.pdf [Meera.ttf]"""
     src = pymupdf.open(path)
     page = src[0]
     if any('Meera' in f[3] for f in page.get_fonts()):   # our labels are the only Meera text on the form
@@ -138,11 +139,10 @@ def an1_rows(path, font=AN1_FONT):
             print('refusing: label does not fit on one line', label)
             sys.exit(1)
     out.subset_fonts()
-    out.save(path + '.tmp', garbage=3, deflate=True)
+    out.save(dst, garbage=3, deflate=True)
     out.close(); src.close(); top.close(); bot.close()
-    os.replace(path + '.tmp', path)
-    d = pymupdf.open(path)
-    d[0].get_pixmap(dpi=150).save(os.path.splitext(path)[0] + '.png')
+    d = pymupdf.open(dst)
+    d[0].get_pixmap(dpi=150).save(os.path.splitext(dst)[0] + '.png')
     print('an1 row 3 sub-rows added; rows 4-6, place/date and slip moved down', round(D, 2), 'pt')
 
 
@@ -172,8 +172,8 @@ def blank(outdir):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) in (3, 4) and sys.argv[1] == '--an1-rows':
-        an1_rows(*sys.argv[2:])  # python -I tools/kseb_templates.py --an1-rows assets/kseb/annexure-1.pdf [Meera.ttf]
+    if len(sys.argv) in (4, 5) and sys.argv[1] == '--an1-rows':
+        an1_rows(*sys.argv[2:])  # python -I tools/kseb_templates.py --an1-rows assets/kseb/annexure-1.pdf assets/kseb/annexure-1-v2.pdf [Meera.ttf]
     elif len(sys.argv) == 3 and sys.argv[1] == '--blank':
         blank(sys.argv[2])  # python -I tools/kseb_templates.py --blank assets/kseb
     elif len(sys.argv) == 5 and sys.argv[1] == '--copy':

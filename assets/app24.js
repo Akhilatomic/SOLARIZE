@@ -869,8 +869,10 @@ var KD = (function () {
   K.PAGES = {
     letterhead: { pdf: 'assets/kseb/letterhead.pdf', png: 'assets/kseb/letterhead.png', w: 595.92, h: 841.92 },
     cover: { pdf: 'assets/kseb/cover.pdf', png: 'assets/kseb/cover.png', w: 595.92, h: 841.92 }, /* letterhead footer, hairline header */
-    /* ?v= changes whenever the template changes (the PNG is cached 30 days): v2 = row 3 (a)/(b) sub-rows */
-    an1: { pdf: 'assets/kseb/annexure-1.pdf?v=2', png: 'assets/kseb/annexure-1.png?v=2', w: 595.32, h: 841.92 },
+    /* a changed form gets a NEW file name, never an edit in place: a CRM tab opened before an update keeps its old
+       script, which fetches the old name and draws the old positions (annexure-1.pdf = the original 6-row form, kept
+       for those tabs). v2 = row 3 (a) panel / (b) inverter sub-rows. */
+    an1: { pdf: 'assets/kseb/annexure-1-v2.pdf', png: 'assets/kseb/annexure-1-v2.png', w: 595.32, h: 841.92 },
     an2: { pdf: 'assets/kseb/annexure-2.pdf', png: 'assets/kseb/annexure-2.png', w: 595.32, h: 841.92 },
     an3: { pdf: 'assets/kseb/annexure-3.pdf', png: 'assets/kseb/annexure-3.png', w: 595.32, h: 841.92 },
     blank: { pdf: 'assets/kseb/blank.pdf', png: 'assets/kseb/blank.png', w: 595.28, h: 841.89 }

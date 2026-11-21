@@ -204,7 +204,7 @@ test('an1 values stay inside their cells', async () => {
 
 test('buildPdf writes on the template', async () => {
   const measure = await KD.measurer(PDFLib);
-  const tpl = fs.readFileSync(path.join(ROOT, 'assets/kseb/annexure-1.pdf'));
+  const tpl = fs.readFileSync(path.join(ROOT, 'assets/kseb/annexure-1-v2.pdf'));
   const { ops } = KD.layout('an1', KD.values('an1', RAJ, {}), measure);
   const out = await KD.buildPdf(PDFLib, tpl, ops);
   const doc = await PDFLib.PDFDocument.load(out);
@@ -274,6 +274,21 @@ test('an2 and an3 defaults', () => {
     const keys = KD.DOCS[d].groups.flatMap(g => g.fields.map(f => f.k));
     assert.deepEqual(Object.keys(KD.defaults(d, RAJ)).sort(), keys.slice().sort(), d + ' default keys');
   }
+});
+
+/* A CRM tab opened before an update keeps its old script, which still fetches the old template file name and
+   draws with the old positions. So a template file is never changed in place: a changed form gets a new file name,
+   and the old file stays byte for byte for those tabs (2026-11-21: old positions on the new Annexure 1 misprinted). */
+test('old template files stay unchanged; a changed form has its own file', () => {
+  const sha = f => require('node:crypto').createHash('sha256').update(fs.readFileSync(path.join(ROOT, f))).digest('hex');
+  assert.equal(sha('assets/kseb/annexure-1.pdf'), 'd979a01eff6bb188f05ca12c6ab916d0689396df4b1d535a8173d9f850fe10d3', 'original 6-row Annexure 1');
+  assert.equal(sha('assets/kseb/annexure-1.png'), '53f023f06506c5bfcfc4ac3a248a03884816170652be15bbd834ed40ca67d307');
+  assert.equal(KD.PAGES.an1.pdf.replace(/\?.*$/, ''), 'assets/kseb/annexure-1-v2.pdf');
+  assert.equal(KD.PAGES.an1.png.replace(/\?.*$/, ''), 'assets/kseb/annexure-1-v2.png');
+  assert.ok(fs.readFileSync(path.join(ROOT, 'assets/kseb/annexure-1-v2.pdf')).includes('Meera'), 'v2 has the (a)/(b) labels');
+  /* the script live for a while on 2026-11-21 asked for annexure-1.pdf?v=2 / .png?v=2 with the v2 positions */
+  const ht = fs.readFileSync(path.join(ROOT, '.htaccess'), 'utf8');
+  assert.match(ht, /RewriteCond %\{QUERY_STRING\} \(\^\|&\)v=2\(&\|\$\)\s+RewriteRule \^assets\/kseb\/annexure-1\\\.\(pdf\|png\)\$ assets\/kseb\/annexure-1-v2\.\$1 \[L\]/);
 });
 
 test('every document has a template on disk', () => {

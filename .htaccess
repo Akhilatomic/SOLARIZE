@@ -59,6 +59,10 @@ RedirectMatch 404 /\.git
 <IfModule mod_rewrite.c>
   RewriteCond %{QUERY_STRING} (^|&)v=[0-9]+
   RewriteRule \.(js|css)$ - [E=LONGCACHE:1]
+  # KSEB form templates are never changed in place (old scripts keep fetching the old name). The script live for a while
+  # on 2026-11-21 asked for annexure-1.pdf?v=2 with the row 3 (a)/(b) positions, so that request gets the v2 form.
+  RewriteCond %{QUERY_STRING} (^|&)v=2(&|$)
+  RewriteRule ^assets/kseb/annexure-1\.(pdf|png)$ assets/kseb/annexure-1-v2.$1 [L]
 </IfModule>
 <IfModule mod_headers.c>
   Header set Cache-Control "public, max-age=31536000, immutable" env=LONGCACHE
