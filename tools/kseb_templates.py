@@ -4,7 +4,7 @@ Usage: python -I tools/kseb_templates.py <letterhead.pdf> <form1.pdf> <outdir>
 Needs PyMuPDF.  Writes:
   outdir/letterhead.pdf    the letterhead, copied unchanged
   outdir/annexure-1.pdf    Form 1 with the "ROOF-TOP" and "30 DAYS" FreeText annotations removed
-  outdir/annexure-1-v2.pdf the same with row 3 sub-rows (a) panel / (b) on-grid-hybrid inverter capacity (an1_rows)
+  outdir/annexure-1-v3.pdf the same with a taller row 1 and row 3 sub-rows (എ) panel / (ബി) inverter capacity (an1_v3)
   outdir/letterhead.png, outdir/annexure-1.png   page 1 of each at 150 dpi
 Checks that nothing but those two annotations was removed.
 A changed form always gets a new file name: CRM tabs opened before an update still fetch the old one.
@@ -65,85 +65,123 @@ def main(letterhead, form1, outdir):
         print(label, ok)
     if not all(ok for _, ok in checks):
         sys.exit(1)
-    an1_rows(os.path.join(outdir, 'annexure-1.pdf'), os.path.join(outdir, 'annexure-1-v2.pdf'))
+    an1_v3(os.path.join(outdir, 'annexure-1.pdf'), os.path.join(outdir, 'annexure-1-v3.pdf'))
 
 
-AN1_LINE = 285.5   # top of the 0.48 pt rule under row 3 (plant capacity) of Form 1
-AN1_ROW_H = 22.4   # one-line row, as rows 2 and 6
+# Annexure 1 v3 (2026-11-21), built from the ORIGINAL Form 1. Every form change gets a new file name (CRM tabs opened
+# before an update keep fetching the old one): annexure-1.pdf = original, -v2 = first (a)/(b) version (Meera labels,
+# built by an earlier an1_rows, see git history), -v3 = this.
 AN1_RULE = 0.48
-AN1_COLS = [43.4, 85.9, 369.5, 553.8]   # left edges of the vertical rules
-AN1_BASE = 11.6    # Malayalam baseline below a row's top rule (rows 2 and 6 of the form)
-# row 3 sub-items, in Malayalam like the rest of the form: (a) capacity of the solar panels,
-# (b) on-grid / hybrid inverter capacity
-AN1_SUBS = ['(a) സോളാർ പാനലുകളുടെ ശേഷി', '(b) ഓൺ-ഗ്രിഡ് / ഹൈബ്രിഡ് ഇൻവെർട്ടർ ശേഷി']
-# Meera (SIL OFL): the installed Unicode Malayalam font closest to the form's FML-TTIndulekha 14 pt;
-# at 13 pt its letters are the same height (compared by eye against row 3)
+AN1_COLS = [43.44, 85.94, 369.55, 553.78]   # left edges of the vertical rules
+AN1_CUT1, AN1_D1 = 231.0, 18.0   # row 1 grows by D1: cut in its blank band (label text ends 228.2, rule under it 233.66)
+AN1_CUT3, AN1_ROW_H = 285.4, 22.4   # row 3 sub-rows go in just above the rule under row 3 (285.46); one-line rows
+AN1_BASE = 11.6    # Malayalam baseline below a row's top rule, as on rows 2 and 6
+# Row 3 sub-items in the form's own FML-TTIndulekha 14 pt, written in its legacy encoding (glyph codes read off the
+# font embedded in the form: m = ാ, s = െ, t = േ, { = ്ര, \xc0 = ർ, \xac = ൺ, \xb3 = ൻ, \xab = ട്ട, ss = ൈ ...).
+# That font is a subset: it has no Latin letters (hence (എ)/(ബി)), no visible hyphen, and no ഹ, which comes from
+# Meera 13 pt (same letter height). ('F', text) = form font run, ('M', text) = Meera run.
+AN1_SUBS = [
+    [('F', '(F) tkmfm\xc0 ]m\x5cepIfpsS tijn')],                                          # (എ) സോളാർ പാനലുകളുടെ ശേഷി
+    [('F', '(_n) Hm\xac {KnUv / ss'), ('M', 'ഹ'), ('F', '{_nUv C\xb3sh\xc0\xab\xc0 tijn')],   # (ബി) ഓൺ ഗ്രിഡ് / ഹൈബ്രിഡ് ഇൻവെർട്ടർ ശേഷി
+]
 AN1_ML_S = 13
 AN1_FONT = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Microsoft', 'Windows', 'Fonts', 'Meera.ttf')
 
 
-def an1_rows(path, dst, font=AN1_FONT):
-    """Annexure 1: row 3 (capacity of the plant) gets two sub-rows, (a) panel capacity and (b) on-grid / hybrid
-    inverter capacity, labelled in Malayalam; the S.No cell "3" spans all three. Rows 4-6, the Place/Date row and
-    the acknowledgement slip move down by the sub-rows' height; the form's own rules and text stay the original
-    vectors. Reads the original form at path, writes dst (+ its PNG); refused if path has the sub-rows already.
-      python -I tools/kseb_templates.py --an1-rows assets/kseb/annexure-1.pdf assets/kseb/annexure-1-v2.pdf [Meera.ttf]"""
+def an1_v3(path, dst, font=AN1_FONT):
+    """Annexure 1 v3 from the original Form 1 at path: row 1 (consumer details) 18 pt taller so they print bigger;
+    row 3 (capacity of the plant) gets sub-rows (എ) panel capacity and (ബി) on-grid / hybrid inverter capacity, the
+    S.No cell "3" spanning all three. Everything below moves down; the form's own rules and text stay the original
+    vectors. Writes dst + its PNG and checks the original text is all there, moved by the right amount.
+      python -I tools/kseb_templates.py --an1-v3 assets/kseb/annexure-1.pdf assets/kseb/annexure-1-v3.pdf [Meera.ttf]"""
     src = pymupdf.open(path)
     page = src[0]
-    if any('Meera' in f[3] for f in page.get_fonts()):   # our labels are the only Meera text on the form
-        print('refusing: the sub-rows are there already')
+    if any('Meera' in f[3] for f in page.get_fonts()):
+        print('refusing: not the original form (it has our sub-rows already)')
         sys.exit(1)
     W, H = page.rect.width, page.rect.height
-    D = AN1_ROW_H * len(AN1_SUBS)
+    D3 = AN1_ROW_H * len(AN1_SUBS)
+    D = AN1_D1 + D3
     low = [s for s in spans(page) if s[0].strip() and s[2][3] > H - D - 40]
     if low:
         print('refusing: text too near the page foot to move down', low)
         sys.exit(1)
+    fml = [src.extract_font(f[0])[3] for f in page.get_fonts() if f[3].endswith('+FML-TTIndulekha')]
+    if not fml:
+        print('refusing: the form font FML-TTIndulekha is not embedded')
+        sys.exit(1)
+    fml = fml[0]
 
-    # two copies: the top keeps rows 1-3 (clipped just above the rule under row 3), the bottom keeps that rule and
-    # everything below; redacting each leaves no hidden duplicate text or rules under the clips
-    def part(rect):
+    def piece(y0, y1):
+        # a copy with the text outside y0..y1 removed, so nothing hides under the clips (rules are only clipped:
+        # every cut runs through blank space or just above a rule, never through one)
         d = pymupdf.open(path)
-        d[0].add_redact_annot(rect, fill=False)
-        d[0].apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE, graphics=pymupdf.PDF_REDACT_LINE_ART_REMOVE_IF_TOUCHED,
+        if y0 > 0:
+            d[0].add_redact_annot(pymupdf.Rect(0, 0, W, y0 - 0.05), fill=False)
+        if y1 < H:
+            d[0].add_redact_annot(pymupdf.Rect(0, y1 + 0.05, W, H), fill=False)
+        d[0].apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE, graphics=pymupdf.PDF_REDACT_LINE_ART_NONE,
                               text=pymupdf.PDF_REDACT_TEXT_REMOVE)
         return d
-    top = part(pymupdf.Rect(0, AN1_LINE + AN1_RULE + 0.1, W, H))
-    bot = part(pymupdf.Rect(0, 0, W, AN1_LINE - 0.1))
-
+    bands = [(0, AN1_CUT1, 0), (AN1_CUT1, AN1_CUT3, AN1_D1), (AN1_CUT3, H - D, D)]
     out = pymupdf.open()
     new = out.new_page(width=W, height=H)
-    new.show_pdf_page(pymupdf.Rect(0, 0, W, AN1_LINE), top, 0, clip=pymupdf.Rect(0, 0, W, AN1_LINE))
-    new.show_pdf_page(pymupdf.Rect(0, AN1_LINE + D, W, H), bot, 0, clip=pymupdf.Rect(0, AN1_LINE, W, H - D))
+    parts = []
+    for y0, y1, dy in bands:
+        parts.append(piece(y0, y1))
+        new.show_pdf_page(pymupdf.Rect(0, y0 + dy, W, y1 + dy), parts[-1], 0, clip=pymupdf.Rect(0, y0, W, y1))
 
     black = (0, 0, 0)
-    for x in AN1_COLS:   # the four column rules through the new band (the S.No cell stays open)
-        new.draw_rect(pymupdf.Rect(x, AN1_LINE, x + AN1_RULE, AN1_LINE + D), color=None, fill=black, width=0)
-    css = '@font-face {font-family: ml; src: url("%s");} body {font-family: ml; font-size: %gpt; margin: 0}' % (os.path.basename(font), AN1_ML_S)
-    arch = pymupdf.Archive(os.path.dirname(font))
-    # where the font puts the baseline below the top of an HTML box, measured once on a scratch page
-    probe = pymupdf.open()
-    pp = probe.new_page(width=W, height=100)
-    pp.insert_htmlbox(pymupdf.Rect(0, 0, W, 100), AN1_SUBS[0], css=css, archive=arch, scale_low=1)
-    first = pp.get_text('dict')['blocks'][0]['lines'][0]['spans'][0]
-    off = first['origin'][1]
-    probe.close()
-    for i, label in enumerate(AN1_SUBS):
-        y0 = AN1_LINE + i * AN1_ROW_H
-        # rules above (a) and (b) across the label and value columns only: the S.No cell "3" spans all three
+
+    def vrules(a, b):   # the four column rules through a new band, overlapping the cut a little (no hairline gaps)
+        for x in AN1_COLS:
+            new.draw_rect(pymupdf.Rect(x, a - 0.3, x + AN1_RULE, b + 0.3), color=None, fill=black, width=0)
+    vrules(AN1_CUT1, AN1_CUT1 + AN1_D1)
+    vrules(AN1_CUT3 + AN1_D1, AN1_CUT3 + D)
+    new.insert_font(fontname='fml', fontbuffer=fml)
+    new.insert_font(fontname='mee', fontfile=font)
+    ffml, fmee = pymupdf.Font(fontbuffer=fml), pymupdf.Font(fontfile=font)
+    top3 = AN1_CUT3 + AN1_D1 + 0.06   # where the rule under row 3 sat (285.46), moved down with row 1
+    for i, runs in enumerate(AN1_SUBS):
+        y0 = top3 + i * AN1_ROW_H
+        # rules above (എ) and (ബി) across the label and value columns only: the S.No cell "3" spans all three
         new.draw_rect(pymupdf.Rect(AN1_COLS[1], y0, AN1_COLS[-1] + AN1_RULE, y0 + AN1_RULE), color=None, fill=black, width=0)
-        top_y = y0 + AN1_BASE - off   # baseline AN1_BASE below the row's top rule, as on rows 2 and 6
-        # a box one line high (13 pt x 1.2 = 15.6 pt), no shrinking: a label that would wrap is refused
-        spare, _ = new.insert_htmlbox(pymupdf.Rect(91.58, top_y, AN1_COLS[2] - 2, top_y + 20), label, css=css, archive=arch, scale_low=1)
-        if spare < 0:
-            print('refusing: label does not fit on one line', label)
+        x = 91.58
+        for kind, t in runs:
+            if kind == 'F':
+                miss = [hex(ord(c)) for c in t if c != ' ' and not ffml.has_glyph(ord(c))]
+                if miss:
+                    print('refusing: the form font has no glyph for', miss)
+                    sys.exit(1)
+                new.insert_text((x, y0 + AN1_BASE), t, fontname='fml', fontsize=14, color=black)
+                x += ffml.text_length(t, 14)
+            else:
+                new.insert_text((x, y0 + AN1_BASE), t, fontname='mee', fontsize=AN1_ML_S, color=black)
+                x += fmee.text_length(t, AN1_ML_S)
+        if x > AN1_COLS[2] - 3:
+            print('refusing: label wider than its cell', i)
             sys.exit(1)
     out.subset_fonts()
     out.save(dst, garbage=3, deflate=True)
-    out.close(); src.close(); top.close(); bot.close()
+    out.close()
+
+    # every original span is there once, moved by its band's offset; the only new text is in the two sub-rows
+    def shifted(s):
+        t, f, b = s
+        dy = next(dy for y0, y1, dy in bands if y0 <= (b[1] + b[3]) / 2 < y1)
+        return (t, f, (b[0], round(b[1] + dy, 1), b[2], round(b[3] + dy, 1)))
+    want = [shifted(s) for s in spans(page)]
+    got = spans(pymupdf.open(dst)[0])
+    extra = [g for g in got if g not in want]
+    missing = [w for w in want if w not in got]
+    ok = not missing and all(g[2][1] > top3 - 1 and g[2][3] < top3 + D3 + 1 for g in extra)
+    print('original text kept and moved:', not missing, '| new text only in the sub-rows:', ok)
+    if not ok:
+        print('missing', missing[:5], 'extra', extra[:5])
+        sys.exit(1)
     d = pymupdf.open(dst)
     d[0].get_pixmap(dpi=150).save(os.path.splitext(dst)[0] + '.png')
-    print('an1 row 3 sub-rows added; rows 4-6, place/date and slip moved down', round(D, 2), 'pt')
+    print('an1 v3 written: row 1 +%g pt, row 3 sub-rows at %.2f / %.2f, rows below moved %g pt' % (AN1_D1, top3, top3 + AN1_ROW_H, D))
 
 
 def copy_blank(form, name, outdir):
@@ -172,8 +210,8 @@ def blank(outdir):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) in (4, 5) and sys.argv[1] == '--an1-rows':
-        an1_rows(*sys.argv[2:])  # python -I tools/kseb_templates.py --an1-rows assets/kseb/annexure-1.pdf assets/kseb/annexure-1-v2.pdf [Meera.ttf]
+    if len(sys.argv) in (4, 5) and sys.argv[1] == '--an1-v3':
+        an1_v3(*sys.argv[2:])  # python -I tools/kseb_templates.py --an1-v3 assets/kseb/annexure-1.pdf assets/kseb/annexure-1-v3.pdf [Meera.ttf]
     elif len(sys.argv) == 3 and sys.argv[1] == '--blank':
         blank(sys.argv[2])  # python -I tools/kseb_templates.py --blank assets/kseb
     elif len(sys.argv) == 5 and sys.argv[1] == '--copy':

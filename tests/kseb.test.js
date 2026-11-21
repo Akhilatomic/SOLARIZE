@@ -174,8 +174,8 @@ test('wcr overflow', async () => {
 
 test('an1 values stay inside their cells', async () => {
   const measure = await KD.measurer(PDFLib);
-  /* row 3 with its (a) panel / (b) inverter sub-rows, then rows 4-6 moved down 44.8 pt */
-  const rows = [[155.7, 233.7], [233.7, 256.1], [256.1, 285.5], [285.5, 307.9], [307.9, 330.3], [330.3, 388.6], [388.6, 425.1], [425.1, 446.8]];
+  /* v3 form: row 1 18 pt taller; row 3 with its (a) panel / (b) inverter sub-rows; rows below moved 62.8 pt */
+  const rows = [[155.7, 251.7], [251.7, 274.1], [274.1, 303.5], [303.5, 325.9], [325.9, 348.3], [348.3, 406.6], [406.6, 443.1], [443.1, 464.8]];
   const r = KD.layout('an1', KD.values('an1', RAJ, { panels: '10 × 550 Wp (5.5 kWp)' }), measure);
   assert.equal(r.overflow, false);
   const cellOps = r.ops.filter(o => o.x > 300);
@@ -188,23 +188,57 @@ test('an1 values stay inside their cells', async () => {
   const inRow = (o, i) => o.y > rows[i][0] && o.y <= rows[i][1];
   const roof = r.ops.find(o => o.t === 'ROOF-TOP');
   const days = r.ops.find(o => o.t === '30 DAYS');
-  assert.ok(roof && roof.s === 10.5 && inRow(roof, 6), 'ROOF-TOP');
-  assert.ok(days && days.s === 10.5 && inRow(days, 7), '30 DAYS');
+  assert.ok(roof && inRow(roof, 6), 'ROOF-TOP');
+  assert.ok(days && inRow(days, 7), '30 DAYS');
   const pan = r.ops.find(o => o.t === '10 × 550 Wp (5.5 kWp)');
   const inv = r.ops.find(o => o.t === '5 kW, ON-GRID');
-  assert.ok(pan && pan.s === 10.5 && inRow(pan, 3), 'panel capacity in row 3 (a)');
-  assert.ok(inv && inv.s === 10.5 && inRow(inv, 4), 'inverter capacity in row 3 (b)');
+  assert.ok(pan && inRow(pan, 3), 'panel capacity in row 3 (a)');
+  assert.ok(inv && inRow(inv, 4), 'inverter capacity in row 3 (b)');
   assert.ok(cellOps.filter(o => inRow(o, 0)).length >= 6);
-  /* Place / Date sit on the template's labels, moved down 44.8 pt with the two new rows */
+  /* Place / Date sit on the template's labels, moved down 62.8 pt */
   const place = r.ops.find(o => o.t === 'Thiruvananthapuram' && o.x < 369.5);
   const date = r.ops.find(o => o.t === '10-11-2026' && o.x < 369.5);
-  assert.ok(place && Math.abs(place.y - 458.13) < 0.01, 'place');
-  assert.ok(date && Math.abs(date.y - 472.65) < 0.01, 'date');
+  assert.ok(place && Math.abs(place.y - 476.13) < 0.01, 'place');
+  assert.ok(date && Math.abs(date.y - 490.65) < 0.01, 'date');
+});
+
+/* owner, 2026-11-21: "the text size is not uniform; make the customer details slightly bigger, give importance to
+   consumer number" -> one size for every value on Annexure 1, the consumer number bold and 1.5 pt larger */
+test('an1 prints every value in one size, consumer number bold', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const ctx = Object.assign({}, RAJ, { customer: Object.assign({}, RAJ.customer, { email: 'someone.test@example.com' }) });
+  const r = KD.layout('an1', KD.values('an1', ctx, { panels: '10 × 550 Wp (5.5 kWp)' }), measure);
+  assert.equal(r.overflow, false);
+  const cno = r.ops.filter(o => o.f === 'HB');
+  assert.equal(cno.length, 1, 'one bold run');
+  assert.equal(cno[0].t, '1145389020951');
+  const plain = r.ops.filter(o => o.f === 'H');
+  const sizes = [...new Set(plain.map(o => o.s))];
+  assert.equal(sizes.length, 1, 'one size: ' + sizes.join(', '));
+  assert.ok(sizes[0] >= 9, 'customer details at least 9 pt, got ' + sizes[0]);
+  assert.equal(cno[0].s, sizes[0] + 1.5);
+  const label = r.ops.find(o => o.t === 'Consumer No: ');
+  assert.ok(label && label.f === 'H' && Math.abs(label.y - cno[0].y) < 0.01, 'label then number on one line');
+  assert.ok(Math.abs(cno[0].x - (label.x + measure(label.t, 'H', label.s))) < 0.01, 'number right after the label');
+  /* a long address makes the whole form smaller together, never only row 1 */
+  const long = Object.assign({}, KD.values('an1', ctx, {}), { address: 'HOUSE NAME, '.repeat(9) + 'THIRUVANANTHAPURAM' });
+  const rl = KD.layout('an1', long, measure);
+  const ls = [...new Set(rl.ops.filter(o => o.f === 'H').map(o => o.s))];
+  assert.equal(ls.length, 1, 'still one size: ' + ls.join(', '));
+  assert.ok(ls[0] < sizes[0]);
+});
+
+/* Annexure 2 and 3 keep their own layout: each cell its largest size, no bold */
+test('an2 keeps per-cell sizes', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const r = KD.layout('an2', KD.values('an2', RAJ, {}), measure);
+  assert.ok(!r.ops.some(o => o.f === 'HB'));
+  assert.ok(r.ops.some(o => o.t === 'YES' && o.s === 10.5));
 });
 
 test('buildPdf writes on the template', async () => {
   const measure = await KD.measurer(PDFLib);
-  const tpl = fs.readFileSync(path.join(ROOT, 'assets/kseb/annexure-1-v2.pdf'));
+  const tpl = fs.readFileSync(path.join(ROOT, 'assets/kseb/annexure-1-v3.pdf'));
   const { ops } = KD.layout('an1', KD.values('an1', RAJ, {}), measure);
   const out = await KD.buildPdf(PDFLib, tpl, ops);
   const doc = await PDFLib.PDFDocument.load(out);
@@ -283,9 +317,12 @@ test('old template files stay unchanged; a changed form has its own file', () =>
   const sha = f => require('node:crypto').createHash('sha256').update(fs.readFileSync(path.join(ROOT, f))).digest('hex');
   assert.equal(sha('assets/kseb/annexure-1.pdf'), 'd979a01eff6bb188f05ca12c6ab916d0689396df4b1d535a8173d9f850fe10d3', 'original 6-row Annexure 1');
   assert.equal(sha('assets/kseb/annexure-1.png'), '53f023f06506c5bfcfc4ac3a248a03884816170652be15bbd834ed40ca67d307');
-  assert.equal(KD.PAGES.an1.pdf.replace(/\?.*$/, ''), 'assets/kseb/annexure-1-v2.pdf');
-  assert.equal(KD.PAGES.an1.png.replace(/\?.*$/, ''), 'assets/kseb/annexure-1-v2.png');
-  assert.ok(fs.readFileSync(path.join(ROOT, 'assets/kseb/annexure-1-v2.pdf')).includes('Meera'), 'v2 has the (a)/(b) labels');
+  /* v2 (row 3 (a)/(b), Meera labels) is what the scripts of 21-11-2026 afternoon fetch: kept as it was too */
+  assert.equal(sha('assets/kseb/annexure-1-v2.pdf'), '2f36f79879030f03011eafae85fad435342d0e3d4442df6edca8579bad18e068', 'v2 Annexure 1');
+  assert.equal(sha('assets/kseb/annexure-1-v2.png'), 'c5a9510c2faaa89b65c472b031faad01d732fcb2175594f5b859b85de39e2b30');
+  assert.equal(KD.PAGES.an1.pdf.replace(/\?.*$/, ''), 'assets/kseb/annexure-1-v3.pdf');
+  assert.equal(KD.PAGES.an1.png.replace(/\?.*$/, ''), 'assets/kseb/annexure-1-v3.png');
+  assert.ok(fs.readFileSync(path.join(ROOT, 'assets/kseb/annexure-1-v3.pdf')).includes('FML-TTIndulekha'), 'v3 labels in the form font');
   /* the script live for a while on 2026-11-21 asked for annexure-1.pdf?v=2 / .png?v=2 with the v2 positions */
   const ht = fs.readFileSync(path.join(ROOT, '.htaccess'), 'utf8');
   assert.match(ht, /RewriteCond %\{QUERY_STRING\} \(\^\|&\)v=2\(&\|\$\)\s+RewriteRule \^assets\/kseb\/annexure-1\\\.\(pdf\|png\)\$ assets\/kseb\/annexure-1-v2\.\$1 \[L\]/);

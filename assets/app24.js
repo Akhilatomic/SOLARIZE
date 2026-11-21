@@ -871,8 +871,9 @@ var KD = (function () {
     cover: { pdf: 'assets/kseb/cover.pdf', png: 'assets/kseb/cover.png', w: 595.92, h: 841.92 }, /* letterhead footer, hairline header */
     /* a changed form gets a NEW file name, never an edit in place: a CRM tab opened before an update keeps its old
        script, which fetches the old name and draws the old positions (annexure-1.pdf = the original 6-row form, kept
-       for those tabs). v2 = row 3 (a) panel / (b) inverter sub-rows. */
-    an1: { pdf: 'assets/kseb/annexure-1-v2.pdf', png: 'assets/kseb/annexure-1-v2.png', w: 595.32, h: 841.92 },
+       for those tabs). v2 = row 3 (a) panel / (b) inverter sub-rows (Meera labels; kept for tabs of 21-11-2026
+       afternoon); v3 = row 1 18 pt taller + the sub-rows labelled in the form's own font (tools/kseb_templates.py --an1-v3). */
+    an1: { pdf: 'assets/kseb/annexure-1-v3.pdf', png: 'assets/kseb/annexure-1-v3.png', w: 595.32, h: 841.92 },
     an2: { pdf: 'assets/kseb/annexure-2.pdf', png: 'assets/kseb/annexure-2.png', w: 595.32, h: 841.92 },
     an3: { pdf: 'assets/kseb/annexure-3.pdf', png: 'assets/kseb/annexure-3.png', w: 595.32, h: 841.92 },
     blank: { pdf: 'assets/kseb/blank.pdf', png: 'assets/kseb/blank.png', w: 595.28, h: 841.89 }
@@ -1009,23 +1010,23 @@ var KD = (function () {
   var FORM = { x0: 369.5, x1: 553.8, pad: 5, max: 10.5, min: 6, labelX: 136.6, labelRight: 364.5,
     r1: ['name', 'consumer_no', 'category', 'phone', 'email', 'address'] };
   var FORMS = {
-    /* row 3 sub-rows (a) panels, (b) inverter added by tools/kseb_templates.py --an1-rows: 22.4 pt each,
-       rows 4-6 and Place/Date moved down 44.8 pt */
-    an1: { placeY: 458.13, dateY: 472.65, rows: [['r1', 155.7, 233.7], ['load', 233.7, 256.1], ['capacity', 256.1, 285.5],
-      ['panels', 285.5, 307.9], ['inverter', 307.9, 330.3],
-      ['other', 330.3, 388.6], ['mount', 388.6, 425.1], ['days', 425.1, 446.8]] },
+    /* v3 form (tools/kseb_templates.py --an1-v3): row 1 18 pt taller, row 3 sub-rows (a) panels / (b) inverter 22.4 pt
+       each, everything below row 3 moved 62.8 pt. even: one size for every value (layoutForm) */
+    an1: { even: true, placeY: 476.13, dateY: 490.65, rows: [['r1', 155.7, 251.7], ['load', 251.7, 274.1], ['capacity', 274.1, 303.5],
+      ['panels', 303.5, 325.9], ['inverter', 325.9, 348.3],
+      ['other', 348.3, 406.6], ['mount', 406.6, 443.1], ['days', 443.1, 464.8]] },
     an2: { placeY: 471.67, dateY: 486.19, rows: [['r1', 155.7, 233.7], ['load', 233.7, 256.1], ['capacity', 256.1, 285.5],
       ['specs', 285.5, 343.8], ['meters', 343.8, 402.2], ['drawings', 402.2, 438.6], ['days', 438.6, 460.1]] },
     an3: { placeY: 476.35, dateY: 490.75, rows: [['r1', 125.3, 203.3], ['reg_no', 203.3, 225.6], ['capacity', 225.6, 246.3],
       ['type_test', 246.3, 348.0], ['specs', 348.0, 406.4], ['inspector', 406.4, 464.8]] }
   };
 
-  /* paragraphs in Helvetica, left-aligned, block centred vertically, largest size 10.5 -> 6 that fits the cell */
-  var formCell = function (paras, top, bottom, measure, lh) {
+  /* paragraphs in Helvetica, left-aligned, block centred vertically, largest size max (10.5) -> 6 that fits the cell */
+  var formCell = function (paras, top, bottom, measure, lh, max) {
     lh = lh || 1.2;
     var x = FORM.x0 + FORM.pad, w = FORM.x1 - FORM.x0 - 2 * FORM.pad, room = bottom - top - 2 * FORM.pad;
     var lines, s, bh, fit = false;
-    for (s = FORM.max; s >= FORM.min; s -= 0.5) {
+    for (s = max || FORM.max; s >= FORM.min; s -= 0.5) {
       lines = [];
       paras.forEach(function (p) { lines = lines.concat(K.wrap(p, w, 'H', s, measure)); });
       bh = (lines.length - 1) * lh * s + s;
@@ -1037,21 +1038,65 @@ var KD = (function () {
     return { ops: ops, s: s, fit: fit };
   };
 
+  /* Row 1 of an `even` form: "Label: value" lines, the consumer number bold and R1.big larger (owner, 2026-11-21:
+     "give importance to consumer number"). Each line = parts [text, font, size] drawn one after another. */
+  var R1 = { big: 1.5, lh: 1.12 };
+  var r1Lines = function (docKey, v, s, w, measure) {
+    var out = [];
+    FORM.r1.forEach(function (k) {
+      var lab = labelOf(docKey, k) + ': ', val = clean(v[k]);
+      if (k === 'consumer_no' && val) { out.push({ parts: [[lab, 'H', s], [val, 'HB', s + R1.big]], h: s + R1.big }); return; }
+      K.wrap((lab + val).trim(), w, 'H', s, measure).forEach(function (t) { out.push({ parts: [[t, 'H', s]], h: s }); });
+    });
+    return out;
+  };
+  /* cap of the first line to descent of the last; baselines lh x the taller of two neighbouring lines apart */
+  var blockH = function (lines) {
+    var h = 0.8 * lines[0].h;
+    for (var i = 1; i < lines.length; i++) h += R1.lh * Math.max(lines[i - 1].h, lines[i].h);
+    return h + 0.2 * lines[lines.length - 1].h;
+  };
+  /* the largest size 10.5 -> 6 at which row 1 fits, and its ops (block centred vertically, like formCell) */
+  var r1Cell = function (docKey, v, top, bottom, measure) {
+    var x = FORM.x0 + FORM.pad, w = FORM.x1 - FORM.x0 - 2 * FORM.pad, room = bottom - top - 2 * FORM.pad;
+    var s, lines, fit = false;
+    for (s = FORM.max; s >= FORM.min; s -= 0.5) {
+      lines = r1Lines(docKey, v, s, w, measure);
+      if (blockH(lines) <= room) { fit = true; break; }
+    }
+    if (!fit) { s = FORM.min; lines = r1Lines(docKey, v, s, w, measure); }
+    var y = top + (bottom - top - blockH(lines)) / 2 + 0.8 * lines[0].h, ops = [];
+    lines.forEach(function (ln, i) {
+      if (i) y += R1.lh * Math.max(lines[i - 1].h, ln.h);
+      var cx = x;
+      ln.parts.forEach(function (p) { if (p[0]) ops.push(op(p[0], cx, y, p[1], p[2])); cx += measure(p[0], p[1], p[2]); });
+    });
+    return { ops: ops, s: s, fit: fit };
+  };
+
+  /* Each value in its cell's largest size that fits; an `even` form (Annexure 1; owner, 2026-11-21: "the text size is
+     not uniform") prints every value in ONE size: the size row 1 fits at, used as the largest for the other cells and
+     Place / Date (a cell that still cannot fit shrinks on its own). */
   var layoutForm = function (docKey, v, measure) {
-    var F = FORMS[docKey], ops = [], ok = true, size = FORM.max;
+    var F = FORMS[docKey], ops = [], ok = true, size = FORM.max, even = null;
+    if (F.even) {
+      even = r1Cell(docKey, v, F.rows[0][1], F.rows[0][2], measure);
+      ops = even.ops; ok = even.fit; size = even.s;
+    }
     F.rows.forEach(function (row) {
+      if (even && row[0] === 'r1') return;
       var paras = row[0] === 'r1'
         ? FORM.r1.map(function (k) { return (labelOf(docKey, k) + ': ' + clean(v[k])).trim(); })
         : (clean(v[row[0]]) ? [clean(v[row[0]])] : []);
       if (!paras.length) return;
-      var c = formCell(paras, row[1], row[2], measure, row[0] === 'r1' ? 1.1 : 1.2);
+      var c = formCell(paras, row[1], row[2], measure, row[0] === 'r1' ? 1.1 : 1.2, even && even.s);
       ops = ops.concat(c.ops);
       ok = ok && c.fit;
       size = Math.min(size, c.s);
     });
     [[clean(v.place), F.placeY], [K.dmy(v.date) || clean(v.date), F.dateY]].forEach(function (p) {
       if (!p[0]) return;
-      var r = fitOne(p[0], 'H', FORM.max, FORM.min, FORM.labelRight - FORM.labelX, measure);
+      var r = fitOne(p[0], 'H', even ? even.s : FORM.max, FORM.min, FORM.labelRight - FORM.labelX, measure);
       ok = ok && r.fit;
       ops.push(op(p[0], FORM.labelX, p[1], 'H', r.s));
     });
