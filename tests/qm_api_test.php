@@ -46,6 +46,15 @@ foreach (['pan-emmvee-600' => 'logo-emmvee.png', 'pan-waaree-600' => 'logo-waare
 $pans = array_values(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'panels'));
 usort($pans, fn($x, $y) => $x['sort'] <=> $y['sort'] ?: $x['id'] <=> $y['id']);
 chk(array_column(array_slice($pans, -2), 'code') === ['pan-emmvee-600', 'pan-waaree-600'], 'added products sit after the other panels, in list order');
+foreach ([8, 10] as $k) { /* rev 3: SolarEdge SE8K / SE10K three-phase, like the seeded SE5K */
+  $ap = $byCode($boot, "inv-se-$k-3ph");
+  chk(count($ap) === 1 && $ap[0]['cat'] === 'inverter' && $ap[0]['kw'] == $k && $ap[0]['needs_opt'] === 1 && !$ap[0]['kw_line'] && !$ap[0]['is_default'] && !$ap[0]['hidden']
+    && $ap[0]['qty_note'] === "$k kW · 3-phase" && $ap[0]['brands'][0]['logos'] === ['assets/quote/logo-solaredge.png']
+    && is_file(__DIR__ . '/../' . $ap[0]['picture']) && str_contains($ap[0]['details'], "SE{$k}K"), "added product: SolarEdge SE{$k}K $k kW three-phase");
+}
+$invs = array_values(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'inverter'));
+usort($invs, fn($x, $y) => $x['sort'] <=> $y['sort'] ?: $x['id'] <=> $y['id']);
+chk(array_column(array_slice($invs, -2), 'code') === ['inv-se-8-3ph', 'inv-se-10-3ph'], 'added inverters sit after the other inverters, 8 kW then 10 kW');
 $em = $byCode($boot, 'pan-emmvee-600');
 if ($em) call($admin, 'qm', 'product_save', ['id' => $em[0]['id'], 'hidden' => 1]);
 $again = $byCode(call($admin, 'qm', 'boot'), 'pan-emmvee-600');

@@ -322,7 +322,7 @@ function qm_seed(PDO $db): void {
 /* Products added after the first seed. qm_seed() only fills an empty catalogue, so these go into every database once
    (unique code, INSERT OR IGNORE), after the last product of their category; settings qm_added_rev remembers it,
    so an admin's later edits or Hide are kept. Add a product here = add a row and bump QM_ADDED_REV. */
-const QM_ADDED_REV = 2;
+const QM_ADDED_REV = 3;
 function qm_added(): array {
   $w = fn($years, $label) => ['years' => (string)$years, 'label' => $label];
   $panelW = [$w(12, 'Panels product'), $w(30, 'Panels performance')];
@@ -338,6 +338,14 @@ function qm_added(): array {
     ['pan-waaree-600', 'Waaree Elite R 600+ Wp TOPCon', 'panels', 'Solar panels', 'Make electricity from sunlight.',
       'Waaree Elite R Series BiN-21 DCR, 600+ Wp, N-type TOPCon bifacial dual-glass, 132 half-cut cells, ALMM approved. Size 2382 × 1134 × 35 mm. 12-year product warranty and 30-year power warranty (87.4% power after 30 years).',
       ['wp' => 600, 'qty' => 4, 'picture' => 'assets/quote/pic-panels.png', 'warranty' => $panelW, 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-waaree.png']]]]],
+    /* Rev 3: SolarEdge Home Wave three-phase for India, SE8K / SE10K datasheet DS-000184-IND (22 Jul 2025; the SE5K is already in the seed as
+       inv-se-5-3ph): 400 / 230 V, 3 / N / PE, 98% max (97.6% EU) efficiency, max DC 12 / 15 kW, 900 V max, 750 V nominal, 13 / 16 A per phase,
+       integrated arc-fault protection, IP65 outdoor and indoor, 540 × 315 × 191 mm, 16.4 kg, 8-year warranty. Worded like the SE5K item. */
+    ...array_map(fn($k) => ["inv-se-$k-3ph", "SolarEdge SE{$k}K $k kW three-phase", 'inverter', 'SolarEdge inverter',
+      'Changes the panels’ DC power into three-phase AC power for your home, and sends extra units to the grid.',
+      "SolarEdge SE{$k}K three-phase (400 V, 3 / N / PE), $k kW, Home Wave, 98% peak efficiency, IP65 (outdoor and indoor). Fixed-voltage DC for long strings, built-in module-level monitoring, export limitation and arc-fault protection. Commissioned and monitored from your phone (SetApp). 8-year warranty.",
+      ['title' => 'SolarEdge 3-Phase Inverter', 'kw' => $k, 'qty_note' => "$k kW · 3-phase", 'needs_opt' => 1, 'picture' => 'assets/quote/pic-inverter-solaredge-3ph.png',
+        'warranty' => [$w(8, 'SolarEdge inverter')], 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-solaredge.png']]]]], [8, 10]),
   ];
 }
 function qm_add_new(PDO $db): void {
