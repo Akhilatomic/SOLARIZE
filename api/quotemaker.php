@@ -86,8 +86,9 @@ function handle_qm($a) {
   switch ($a) {
     case 'boot': {
       need('quotes');
+      qm_add_new(db()); /* products added after the first seed, once per database */
       $fin = can('finance');
-      $products = array_map(fn($p) => qm_product_out($p, $fin), rows('SELECT * FROM qm_products ORDER BY sort, id'));
+      $products =array_map(fn($p) => qm_product_out($p, $fin), rows('SELECT * FROM qm_products ORDER BY sort, id'));
       $templates = array_map(function ($t) { $t['id'] = (int)$t['id']; $t['data'] = json_decode((string)$t['data'], true) ?: new stdClass(); $t['created_by'] = $t['created_by'] === null ? null : (int)$t['created_by']; $t['created_name'] = (string)($t['created_name'] ?? ''); return $t; },
         rows('SELECT t.id,t.name,t.data,t.created_by,u.name AS created_name,t.updated FROM qm_templates t LEFT JOIN users u ON u.id=t.created_by ORDER BY t.id'));
       out(['cats' => QM_CATS, 'products' => $products, 'templates' => $templates, 'settings' => qm_settings(), 'admin' => is_admin() ? 1 : 0, 'finance' => $fin ? 1 : 0, 'next_number' => qm_number(), 'next_n' => qm_next_n()]);

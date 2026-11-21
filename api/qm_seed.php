@@ -318,3 +318,35 @@ function qm_seed(PDO $db): void {
   foreach ($T as [$name, $data]) $ti->execute([$name, json_encode($data, JSON_UNESCAPED_UNICODE)]);
   $db->commit();
 }
+
+/* Products added after the first seed. qm_seed() only fills an empty catalogue, so these go into every database once
+   (unique code, INSERT OR IGNORE), after the last product of their category; settings qm_added_rev remembers it,
+   so an admin's later edits or Hide are kept. Add a product here = add a row and bump QM_ADDED_REV. */
+const QM_ADDED_REV = 1;
+function qm_added(): array {
+  $w = fn($years, $label) => ['years' => (string)$years, 'label' => $label];
+  $panelW = [$w(12, 'Panels product'), $w(30, 'Panels performance')];
+  return [
+    /* Emmvee Titanium Duo datasheet (Nov 2026): E610–E635HCBG132-T, 132 half-cut G12R N-type TOPCon cells, bifacial 80 ± 5%, up to 23.51%,
+       2382 × 1134 × 35 mm, 34 kg, 12 / 30-year warranty, 1% first year then 0.4% a year, 87.4% after 30 years. DCR + ALMM: owner's word. */
+    ['pan-emmvee-600', 'Emmvee Titanium Duo 600+ Wp TOPCon', 'panels', 'Solar panels', 'Make electricity from sunlight.',
+      'Emmvee Titanium Duo G12R DCR, 600+ Wp, N-type TOPCon bifacial glass-to-glass, 132 half-cut cells, ALMM approved. Size 2382 × 1134 × 35 mm. 12-year product warranty and 30-year power warranty (87.4% power after 30 years).',
+      ['wp' => 600, 'qty' => 4, 'picture' => 'assets/quote/pic-panels.png', 'warranty' => $panelW, 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-emmvee.png']]]]],
+  ];
+}
+function qm_add_new(PDO $db): void {
+  $r = $db->query("SELECT v FROM settings WHERE k='qm_added_rev'")->fetchColumn();
+  if ($r !== false && (int)json_decode((string)$r, true) >= QM_ADDED_REV) return;
+  $db->beginTransaction();
+  try {
+    $ins = $db->prepare('INSERT OR IGNORE INTO qm_products(code,label,cat,name,line,details,title,unit,qty,qty_note,wp,kw,kw_line,needs_opt,warranty,brands,picture,page,rate,is_default,hidden,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,0,?)');
+    $last = $db->prepare('SELECT COALESCE(MAX(sort),0) FROM qm_products WHERE cat=?');
+    foreach (qm_added() as [$code, $label, $cat, $name, $line, $details, $f]) {
+      $last->execute([$cat]); $sort = (int)$last->fetchColumn() + 1;
+      $ins->execute([$code, $label, $cat, $name, $line, $details, $f['title'] ?? '', $f['unit'] ?? 'no', $f['qty'] ?? 1, $f['qty_note'] ?? '', $f['wp'] ?? 0, $f['kw'] ?? 0, $f['kw_line'] ?? 0, $f['needs_opt'] ?? 0,
+        json_encode($f['warranty'] ?? [], JSON_UNESCAPED_UNICODE), json_encode($f['brands'] ?? [], JSON_UNESCAPED_UNICODE), $f['picture'] ?? '', $f['page'] ?? '', $sort]);
+    }
+    $db->prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v')->execute(['qm_added_rev', json_encode(QM_ADDED_REV)]);
+    $db->commit();
+  } catch (Throwable $e) { if ($db->inTransaction()) $db->rollBack(); throw $e; }
+}

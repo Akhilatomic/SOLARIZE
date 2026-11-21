@@ -36,6 +36,17 @@ $boot = call($admin, 'qm', 'boot');
 chk(($boot['_code'] ?? 0) === 200 && isset($boot['products']), 'admin boot works');
 chk(count($boot['templates'] ?? []) === 14, 'seed: 14 templates');
 chk(count(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'panels')) >= 4, 'seed: panels');
+/* products added after the first seed (qm_added): Emmvee Titanium Duo, right after the last panel */
+$em = array_values(array_filter($boot['products'] ?? [], fn($p) => ($p['code'] ?? '') === 'pan-emmvee-600'));
+chk(count($em) === 1 && $em[0]['cat'] === 'panels' && $em[0]['wp'] == 600 && !$em[0]['is_default'] && !$em[0]['hidden']
+  && $em[0]['brands'][0]['logos'] === ['assets/quote/logo-emmvee.png'] && is_file(__DIR__ . '/../assets/quote/logo-emmvee.png'), 'added product: Emmvee 600+ Wp with its logo');
+$pans = array_values(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'panels'));
+usort($pans, fn($x, $y) => $x['sort'] <=> $y['sort'] ?: $x['id'] <=> $y['id']);
+chk(($pans[count($pans) - 1]['code'] ?? '') === 'pan-emmvee-600', 'added product sits after the other panels');
+if ($em) call($admin, 'qm', 'product_save', ['id' => $em[0]['id'], 'hidden' => 1]);
+$again = array_values(array_filter(call($admin, 'qm', 'boot')['products'] ?? [], fn($p) => ($p['code'] ?? '') === 'pan-emmvee-600'));
+chk(count($again) === 1 && $again[0]['hidden'] === 1, 'added once; an admin Hide is kept on the next open');
+if ($em) call($admin, 'qm', 'product_save', ['id' => $em[0]['id'], 'hidden' => 0]);
 chk(count($boot['cats'] ?? []) === 14 && ($boot['cats'][0][0] ?? '') === 'panels', 'categories');
 chk(($boot['settings']['kseb']['reg_per_kw'] ?? 0) === 1000 && ($boot['settings']['loan']['rate'] ?? 0) == 6.0, 'defaults');
 chk(($boot['settings']['kseb']['reg_gst'] ?? null) === 18 && ($boot['settings']['kseb']['reg_label'] ?? '') === 'Registration fee (₹1,000 per kW + 18% GST, 80% refundable)', 'registration fee carries 18% GST by default');
