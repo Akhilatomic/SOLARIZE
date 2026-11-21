@@ -36,6 +36,24 @@ test('an1 defaults', () => {
   assert.equal(v.place, 'Thiruvananthapuram');
 });
 
+test('an1 panel and inverter capacity rows', () => {
+  const an = plant => KD.defaults('an1', Object.assign({}, RAJ, { plant: Object.assign({}, RAJ.plant, plant) }));
+  assert.equal(KD.defaults('an1', RAJ).panels, '550 Wp', 'no panel count yet');
+  assert.equal(KD.defaults('an1', RAJ).inverter, '5 kW, ON-GRID');
+  assert.equal(an({ panel_count: '10' }).panels, '10 × 550 Wp (5.5 kWp)');
+  assert.equal(an({ panel_count: 0, panels: [{ serial: 'A' }, { serial: 'B' }, { serial: '' }] }).panels, '2 × 550 Wp (1.1 kWp)', 'serials count');
+  assert.equal(an({ panel_wattage: '' }).panels, '');
+  assert.equal(an({ system_type: 'Hybrid' }).inverter, '5 kW, HYBRID');
+  assert.equal(an({ inverter_type: 'Hybrid' }).inverter, '5 kW, HYBRID');
+  assert.equal(an({ inverter_count: '2' }).inverter, '2 × 5 kW (10 kW), ON-GRID');
+  assert.equal(an({ inverter_capacity: '', inverters: [{ capacity: '3' }] }).inverter, '3 kW, ON-GRID');
+  assert.equal(an({ inverter_capacity: '', inverters: [{ capacity: '3' }, { capacity: '2' }] }).inverter, '3 kW, 2 kW, ON-GRID');
+  assert.equal(an({ inverter_capacity: '0', inverters: [] }).inverter, '', 'no size, no row');
+  assert.equal(KD.panelCapacity('545', '1'), '1 × 545 Wp (0.545 kWp)');
+  assert.equal(KD.panelCapacity('0', '4'), '');
+  assert.equal(KD.panelCapacity('550 Wp', '4'), '550 Wp');
+});
+
 test('every field has a default key and the shared keys are the seven', () => {
   for (const key of ['wcr', 'an1']) {
     const v = KD.defaults(key, RAJ);
@@ -156,8 +174,9 @@ test('wcr overflow', async () => {
 
 test('an1 values stay inside their cells', async () => {
   const measure = await KD.measurer(PDFLib);
-  const rows = [[155.7, 233.7], [233.7, 256.1], [256.1, 285.5], [285.5, 343.8], [343.8, 380.3], [380.3, 402]];
-  const r = KD.layout('an1', KD.values('an1', RAJ, {}), measure);
+  /* row 3 with its (a) panel / (b) inverter sub-rows, then rows 4-6 moved down 44.8 pt */
+  const rows = [[155.7, 233.7], [233.7, 256.1], [256.1, 285.5], [285.5, 307.9], [307.9, 330.3], [330.3, 388.6], [388.6, 425.1], [425.1, 446.8]];
+  const r = KD.layout('an1', KD.values('an1', RAJ, { panels: '10 × 550 Wp (5.5 kWp)' }), measure);
   assert.equal(r.overflow, false);
   const cellOps = r.ops.filter(o => o.x > 300);
   assert.ok(cellOps.length >= 11);
@@ -169,11 +188,18 @@ test('an1 values stay inside their cells', async () => {
   const inRow = (o, i) => o.y > rows[i][0] && o.y <= rows[i][1];
   const roof = r.ops.find(o => o.t === 'ROOF-TOP');
   const days = r.ops.find(o => o.t === '30 DAYS');
-  assert.ok(roof && roof.s === 10.5 && inRow(roof, 4), 'ROOF-TOP');
-  assert.ok(days && days.s === 10.5 && inRow(days, 5), '30 DAYS');
+  assert.ok(roof && roof.s === 10.5 && inRow(roof, 6), 'ROOF-TOP');
+  assert.ok(days && days.s === 10.5 && inRow(days, 7), '30 DAYS');
+  const pan = r.ops.find(o => o.t === '10 × 550 Wp (5.5 kWp)');
+  const inv = r.ops.find(o => o.t === '5 kW, ON-GRID');
+  assert.ok(pan && pan.s === 10.5 && inRow(pan, 3), 'panel capacity in row 3 (a)');
+  assert.ok(inv && inv.s === 10.5 && inRow(inv, 4), 'inverter capacity in row 3 (b)');
   assert.ok(cellOps.filter(o => inRow(o, 0)).length >= 6);
-  assert.ok(r.ops.some(o => o.t === 'Thiruvananthapuram' && o.x < 369.5), 'place');
-  assert.ok(r.ops.some(o => o.t === '10-11-2026' && o.x < 369.5), 'date');
+  /* Place / Date sit on the template's labels, moved down 44.8 pt with the two new rows */
+  const place = r.ops.find(o => o.t === 'Thiruvananthapuram' && o.x < 369.5);
+  const date = r.ops.find(o => o.t === '10-11-2026' && o.x < 369.5);
+  assert.ok(place && Math.abs(place.y - 458.13) < 0.01, 'place');
+  assert.ok(date && Math.abs(date.y - 472.65) < 0.01, 'date');
 });
 
 test('buildPdf writes on the template', async () => {
@@ -254,7 +280,8 @@ test('every document has a template on disk', () => {
   for (const d of Object.keys(KD.DOCS)) {
     const P = KD.PAGES[KD.DOCS[d].page];
     assert.ok(P, d + ' page');
-    assert.ok(fs.existsSync(path.join(ROOT, P.pdf)) && fs.existsSync(path.join(ROOT, P.png)), d + ' files');
+    const file = u => path.join(ROOT, u.replace(/\?.*$/, ''));   /* a ?v= cache tag is not part of the file name */
+    assert.ok(fs.existsSync(file(P.pdf)) && fs.existsSync(file(P.png)), d + ' files');
   }
 });
 

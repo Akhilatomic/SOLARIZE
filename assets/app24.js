@@ -209,6 +209,8 @@ var KD = (function () {
         { g: 'Plant', fields: [
           { k: 'load', l: 'Connected load', src: 'c.sanctioned_load' },
           { k: 'capacity', l: 'Plant capacity', src: 'p.capacity' },
+          { k: 'panels', l: '(a) Panel capacity' },
+          { k: 'inverter', l: '(b) On-grid / hybrid inverter capacity' },
           { k: 'other', l: 'Use at other premises' },
           { k: 'mount', l: 'Rooftop or ground' },
           { k: 'days', l: 'Completion period' }
@@ -495,6 +497,16 @@ var KD = (function () {
     return n + ' × ' + cap + ' KW (' + total + ' KW)';
   };
 
+  /* panel_wattage is per panel in Wp; with a panel count it prints count x size and the total in kWp */
+  K.panelCapacity = function (watt, count) {
+    watt = trim(watt);
+    if (!watt || (isNum(watt) && +watt === 0)) return '';
+    if (!isNum(watt)) return watt;
+    var n = parseInt(trim(count), 10);
+    if (!(n > 0)) return watt + ' Wp';
+    return n + ' × ' + watt + ' Wp (' + Math.round(Number(watt) * n) / 1000 + ' kWp)';
+  };
+
   /* 'single' / 'three' / '' from text like "Single phase", "3 Ph", "415 V" */
   var phaseOf = function (s) {
     s = trim(s).toLowerCase();
@@ -545,6 +557,22 @@ var KD = (function () {
       return any ? String(Math.round(sum * 1000) / 1000) : '';
     };
     var cap = function (unit) { var t = invTotal(); return bare(t || (trim(p.capacity) && !zero(p.capacity) ? p.capacity : (+pr.kw > 0 ? pr.kw : '')), unit); };
+    /* Annexure 1 row 3 (a)/(b): panels as count x Wp (total kWp; the count is the typed one, else the serials listed),
+       inverter as on the cover page (several sizes listed, else size x count) plus ON-GRID / HYBRID */
+    var an1Panels = function () {
+      var n = trim(p.panel_count) && !zero(p.panel_count) ? trim(p.panel_count)
+        : String((Array.isArray(p.panels) ? p.panels : []).filter(function (x) { return trim(x && x.serial); }).length || '');
+      return K.panelCapacity(p.panel_wattage, n);
+    };
+    var an1Inverter = function () {
+      var list = Array.isArray(p.inverters) ? p.inverters : [];
+      var caps = list.map(function (i) { return trim(i && i.capacity); }).filter(function (x) { return x && !zero(x); })
+        .map(function (x) { return isNum(x) ? x + ' KW' : x; });
+      var size = caps.length > 1 ? caps.join(', ') : K.invCapacity(p.inverter_capacity, p.inverter_count) || caps[0] || '';
+      var hybrid = [p.system_type, p.inverter_type].concat(list.map(function (i) { return i && i.type; }))
+        .some(function (t) { return /hybrid/i.test(trim(t)); });
+      return size ? size.replace(/\bKW\b/g, 'kW') + ', ' + (hybrid ? 'HYBRID' : 'ON-GRID') : '';
+    };
     if (docKey === 'wcr') {
       var ph = trim(c.phase);
       var serials = (Array.isArray(p.inverters) ? p.inverters : [])
@@ -735,7 +763,8 @@ var KD = (function () {
       };
       var more = docKey === 'an1' ? {
         load: bare(c.sanctioned_load, 'kW'), capacity: cap('kWp'),
-        other: 'NO', mount: (p.rooftop_type === 'Ground' || p.structure_type === 'Ground mount') ? 'GROUND MOUNTED' : 'ROOF-TOP', days: '30 DAYS'
+        other: 'NO', mount: (p.rooftop_type === 'Ground' || p.structure_type === 'Ground mount') ? 'GROUND MOUNTED' : 'ROOF-TOP', days: '30 DAYS',
+        panels: an1Panels(), inverter: an1Inverter()
       } : docKey === 'an2' ? {
         load: bare(c.sanctioned_load, 'kW'), capacity: cap('kWp'),
         specs: 'YES', meters: 'YES', drawings: 'YES', days: '30 DAYS'
@@ -840,7 +869,8 @@ var KD = (function () {
   K.PAGES = {
     letterhead: { pdf: 'assets/kseb/letterhead.pdf', png: 'assets/kseb/letterhead.png', w: 595.92, h: 841.92 },
     cover: { pdf: 'assets/kseb/cover.pdf', png: 'assets/kseb/cover.png', w: 595.92, h: 841.92 }, /* letterhead footer, hairline header */
-    an1: { pdf: 'assets/kseb/annexure-1.pdf', png: 'assets/kseb/annexure-1.png', w: 595.32, h: 841.92 },
+    /* ?v= changes whenever the template changes (the PNG is cached 30 days): v2 = row 3 (a)/(b) sub-rows */
+    an1: { pdf: 'assets/kseb/annexure-1.pdf?v=2', png: 'assets/kseb/annexure-1.png?v=2', w: 595.32, h: 841.92 },
     an2: { pdf: 'assets/kseb/annexure-2.pdf', png: 'assets/kseb/annexure-2.png', w: 595.32, h: 841.92 },
     an3: { pdf: 'assets/kseb/annexure-3.pdf', png: 'assets/kseb/annexure-3.png', w: 595.32, h: 841.92 },
     blank: { pdf: 'assets/kseb/blank.pdf', png: 'assets/kseb/blank.png', w: 595.28, h: 841.89 }
@@ -977,8 +1007,11 @@ var KD = (function () {
   var FORM = { x0: 369.5, x1: 553.8, pad: 5, max: 10.5, min: 6, labelX: 136.6, labelRight: 364.5,
     r1: ['name', 'consumer_no', 'category', 'phone', 'email', 'address'] };
   var FORMS = {
-    an1: { placeY: 413.33, dateY: 427.85, rows: [['r1', 155.7, 233.7], ['load', 233.7, 256.1], ['capacity', 256.1, 285.5],
-      ['other', 285.5, 343.8], ['mount', 343.8, 380.3], ['days', 380.3, 402]] },
+    /* row 3 sub-rows (a) panels, (b) inverter added by tools/kseb_templates.py --an1-rows: 22.4 pt each,
+       rows 4-6 and Place/Date moved down 44.8 pt */
+    an1: { placeY: 458.13, dateY: 472.65, rows: [['r1', 155.7, 233.7], ['load', 233.7, 256.1], ['capacity', 256.1, 285.5],
+      ['panels', 285.5, 307.9], ['inverter', 307.9, 330.3],
+      ['other', 330.3, 388.6], ['mount', 388.6, 425.1], ['days', 425.1, 446.8]] },
     an2: { placeY: 471.67, dateY: 486.19, rows: [['r1', 155.7, 233.7], ['load', 233.7, 256.1], ['capacity', 256.1, 285.5],
       ['specs', 285.5, 343.8], ['meters', 343.8, 402.2], ['drawings', 402.2, 438.6], ['days', 438.6, 460.1]] },
     an3: { placeY: 476.35, dateY: 490.75, rows: [['r1', 125.3, 203.3], ['reg_no', 203.3, 225.6], ['capacity', 225.6, 246.3],
