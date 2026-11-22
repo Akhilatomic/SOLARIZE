@@ -20,10 +20,11 @@ function idleHide() { if (IDLE.el) { IDLE.el.remove(); IDLE.el = null; } }
 function idleShow(left) {
   if (!IDLE.el) {
     const d = document.createElement('div'); d.className = 'idlw'; d.setAttribute('role', 'alertdialog'); d.setAttribute('aria-live', 'assertive');
-    d.innerHTML = `<div class="idlw-c"><div class="idlw-n" id="idlwn"></div><h3>Still there?</h3><p>No activity for ${idleMin()} minutes. You will be signed out when the time runs out.</p>
+    d.innerHTML = `<div class="idlw-c"><button type="button" class="mdx" id="idlwx" title="Close — stay signed in" aria-label="Close and stay signed in"><i class="i i-x"></i></button><div class="idlw-n" id="idlwn"></div><h3>Still there?</h3><p>No activity for ${idleMin()} minutes. You will be signed out when the time runs out.</p>
       <div class="idlw-b"><button class="btn" id="idlws" type="button">Stay signed in</button><button class="btn sec" id="idlwo" type="button">Sign out now</button></div></div>`;
     document.body.appendChild(d); IDLE.el = d;
     d.querySelector('#idlws').onclick = () => idleMark(true);
+    d.querySelector('#idlwx').onclick = () => idleMark(true); /* closing the warning = you are here: stay signed in */
     d.querySelector('#idlwo').onclick = e => { e.stopPropagation(); idleOut(false, true); };
   }
   IDLE.el.querySelector('#idlwn').textContent = IDLE.clock(left);

@@ -28,7 +28,8 @@ const A2H = {
     const k = A2H.now(); if (!k) { A2H.hide(); return; }
     A2H.hide();
     const d = document.createElement('div'); d.className = 'a2h'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Install Solarize');
-    d.innerHTML = '<img src="assets/icon-192.png" alt="" width="44" height="44">'
+    d.innerHTML = '<button type="button" class="mdx" data-a2h="no" title="Close" aria-label="Close"><i class="i i-x"></i></button>' /* the close button = "Not now" */
+      + '<img src="assets/icon-192.png" alt="" width="44" height="44">'
       + '<div class="a2h-t"><b>Install Solarize as an app</b><span>' + A2H.text(k) + '</span></div>'
       + '<div class="a2h-b">' + (k === 'prompt' ? '<button type="button" class="btn sm" data-a2h="go">Install</button>' : '')
       + '<button type="button" class="btn sm sec" data-a2h="no">' + (k === 'prompt' ? 'Not now' : 'OK') + '</button></div>';

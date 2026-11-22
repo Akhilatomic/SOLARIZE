@@ -314,8 +314,11 @@ function askBox(text, input) {
 }
 const ask = text => askBox(text);
 const askText = (text, v = '') => askBox(text, { v });
+/* Owner (2026-11-22): every popup has a close button (.mdx, top right). It does what a click outside does — closes the window
+   (a question = Cancel, see askBox). Popups that draw their own close button (.lvx …) hide this one (app2.css). */
 function modal(html, wide) {
-  const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = `<div ${wide ? 'style="max-width:900px"' : ''}>${html}</div>`;
+  const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = `<div ${wide ? 'style="max-width:900px"' : ''}><button type="button" class="mdx" title="Close" aria-label="Close"><i class="i i-x"></i></button>${html}</div>`;
+  m.querySelector('.mdx').onclick = () => m.remove();
   m.addEventListener('mousedown', e => { if (e.target === m) m._md = true; }); m.addEventListener('mouseup', e => { if (e.target === m && m._md) m.remove(); m._md = false; });
   document.body.appendChild(m); return m;
 }
