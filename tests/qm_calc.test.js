@@ -253,16 +253,25 @@ test('logoSize: panel and inverter logos share one look and grow; other logos gr
   /* every bundled logo shape (w / h) gets at least the old size in its place: old = 20 px high, max width 75 (one) / 46 (two) / 58 (label) */
   const shapes = [2.62, 2.5, 1.96, 2.51, 1.57, 4.04, 2.63, 6.4, 1.52, 2.17, 4.85, 3.0, 3.49, 4.69, 4.95, 3.83, 1.79, 2.74, 8.49, 5.73];
   const old = (r, mw) => { let h = 20, w = h * r; if (w > mw) { w = mw; h = w / r; } return w * h; };
-  for (const [place, mw] of [['one', 75], ['two', 46], ['lab', 58], ['lab2', 58]]) {
+  for (const [place, mw] of [['one', 75], ['two', 46]]) {
     for (const r of shapes) {
       const s = QM.logoSize(r * 100, 100, place);
       assert.ok(area(s) >= old(r, mw) * 0.99, `${place} ${r}: not smaller than before (sizes are rounded to 0.1 px)`);
       assert.ok(s.h <= 24 && s.w <= QM.LOGO[place][1], `${place} ${r}: inside its box`);
     }
   }
+  /* labelled rows (BOX / MCB / SPD …) stay inside one 22 px row so the rows line up; three logos fit beside a 42 px label (135 px) */
+  for (const place of ['lab', 'lab2', 'labn']) {
+    for (const r of shapes) { const s = QM.logoSize(r * 100, 100, place); assert.ok(s.h <= 22 && s.w <= QM.LOGO[place][1], `${place} ${r}: inside one row`); }
+  }
+  const box = [1.52, 4.85, 2.74].map(r => QM.logoSize(r * 100, 100, 'labn')); /* Havells, L&T, V-Guard on the BOX line */
+  assert.ok(box.reduce((t, s) => t + s.w, 0) + 2 * 8 <= 135, 'the three BOX logos stay on one line');
+  const abb = QM.logoSize(262, 100, 'lab'), citel = QM.logoSize(196, 100, 'lab');
+  assert.ok(Math.abs(area(abb) - area(citel)) / area(abb) < 0.12, 'ABB and CITEL on their own rows look about the same size');
   assert.equal(QM.logoSize(0, 10, 'one'), null); assert.equal(QM.logoSize(10, 10, 'nowhere'), null);
   assert.equal(QM.logoPlace(true, false, 1, true), 'main1'); assert.equal(QM.logoPlace(true, false, 2, false), 'main2');
   assert.equal(QM.logoPlace(false, true, 1, false), 'lab'); assert.equal(QM.logoPlace(false, true, 2, false), 'lab2');
   assert.equal(QM.logoPlace(false, false, 2, false), 'two'); assert.equal(QM.logoPlace(false, false, 1, true), 'one');
-  assert.equal(QM.logoPlace(false, true, 3, false), '', 'three or more logos on a line keep the CSS caps');
+  assert.equal(QM.logoPlace(false, true, 3, false), 'labn', 'three logos after a label');
+  assert.equal(QM.logoPlace(false, false, 3, false), '', 'three or more unlabelled logos on a line keep the CSS caps');
 });

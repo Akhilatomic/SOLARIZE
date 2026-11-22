@@ -204,11 +204,13 @@ var QM = (function () {
 
   /* Brand logos on the quotation: each logo gets about the same ink area, so a tall logo (Havells) and a long one (Premier) look the
      same size. [area px², max width, max height] per place: main1 / main2 = panel and inverter rows (one logo / two side by side),
-     one / two = other items, lab / lab2 = after a label (BOX, MCB …). Lines with three or more logos keep the CSS caps so they do not wrap. */
-  Q.LOGO = { main1: [3000, 130, 44], main2: [2000, 80, 38], one: [1800, 90, 24], two: [1100, 56, 24], lab: [1200, 62, 22], lab2: [1150, 58, 22] };
+     one / two = other items, lab / lab2 / labn = after a label (BOX, MCB …) with one / two / three or more logos: kept within one 22 px
+     row height so the labelled rows line up neatly (owner, 2026-11-22: "neatly arrange the logo"), labn narrow enough for three on a line.
+     Unlabelled lines with three or more logos keep the CSS caps. */
+  Q.LOGO = { main1: [3000, 130, 44], main2: [2000, 80, 38], one: [1800, 90, 24], two: [1100, 56, 24], lab: [1000, 60, 22], lab2: [900, 54, 22], labn: [700, 42, 20] };
   /* main = panels / inverter row, lab = the item's brand lines have labels, n = logos on this line, only = the item has just this one logo */
   Q.logoPlace = function (main, lab, n, only) {
-    if (n > 2) return '';
+    if (n > 2) return lab ? 'labn' : '';
     if (lab) return n > 1 ? 'lab2' : 'lab';
     if (main) return only ? 'main1' : 'main2';
     return only ? 'one' : 'two';
