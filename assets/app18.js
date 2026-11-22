@@ -226,7 +226,9 @@ async function renderTax(box, c, id, edit) {
       b: { title: sp(`Installation of ${kwTxt ? kwTxt + ' kW ' : ''}on-grid solar power plant`), lines: 'ACDB, DCDB, cables, solar panel mounting structure, earthing materials, wiring materials, lightning arrester, electrical and solar accessories, transit and work cost', hsn: '995461', gst: 18 } }; };
   let PT = D.parts && D.parts.a ? { ...D.parts, a: { ...D.parts.a }, b: { ...D.parts.b } } : ((g.doc || DR) && (D.items || []).length ? null : defParts());
   const pn = (P.panels || []).filter(x => x.serial), iv = (P.inverters || []).filter(x => x.serial);
-  const issued = (g.doc || DR || {}).issued_on || today();
+  /* the invoice date: a final bill keeps its own; a draft opens with today, because the bill is dated (and numbered in the series of its
+     financial year) when it is finalised — a draft's old date would backdate the invoice (final review, 2026-11-22) */
+  const issued = g.doc ? g.doc.issued_on || today() : today();
   let noAuto = !g.doc && !(DR && DR.number); /* the number comes from the series when finalised (not a typed one) */
   const pillTx = g.doc ? esc(g.doc.number) : DR ? `Draft · saved ${fdt(String(DR.updated || '').slice(0, 10))}${DR.updated_by ? ' by ' + esc(DR.updated_by) : ''}` : 'Not issued yet';
   box.innerHTML = `<div class="gdl"><div class="card gdf"><div class="pfch"><i class="i i-receipt"></i><h3>Tax bill</h3><span class="sp"></span><span class="pill ${g.doc ? 'g' : DR ? 'y' : ''}">${pillTx}</span></div>
@@ -412,12 +414,13 @@ async function renderTax(box, c, id, edit) {
      only the bank's part is left); an admin may issue it early after a confirm (early:1, audited by the server). */
   const issue = async (early, dl) => { const [v, k] = valT(); if (!k.rows.length) return toast(PT ? 'Enter the total amount (incl. GST)' : 'Add at least one item', true);
     $$('#tiss button', box).forEach(x => x.disabled = true);
-    try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: !g.doc && noAuto ? '' : $('#tno', box).value.trim(), data: v, ...(early ? { early: 1 } : {}) });
-      toast(g.doc ? `Tax bill ${r.number} changed` : `Tax bill ${r.number} is final`); TAX_KEEP = id; if (dl) TAX_DL = id; renderTax(box, c, id); if (!g.doc && typeof pipeOffer === 'function') pipeOffer({ customer_id: id }, 'tax_bill'); } catch (e) { accReload().catch(() => drawIssue()); } };
+    try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: !g.doc && noAuto ? '' : $('#tno', box).value.trim(), data: v, ...(early ? { early: 1 } : {}), ...(g.doc ? {} : { first: 1 }) });
+      toast(g.doc ? `Tax bill ${r.number} changed` : `Tax bill ${r.number} is final`); TAX_KEEP = id; if (dl) TAX_DL = id; renderTax(box, c, id); if (!g.doc && typeof pipeOffer === 'function') pipeOffer({ customer_id: id }, 'tax_bill'); }
+    catch (e) { if (e && e.final) return renderTax(box, c, id); /* finalised by someone else meanwhile: show their bill */ accReload().catch(() => drawIssue()); } };
   /* keep the bill as a draft: no invoice number used, may be saved before the final payment, changed again any time */
   const saveDraft = async () => { const [v] = valT(); $$('#tiss button', box).forEach(x => x.disabled = true);
     try { await api('gen', 'draft', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: noAuto ? '' : $('#tno', box).value.trim(), data: v });
-      toast('Draft saved — no invoice number used yet'); renderTax(box, c, id); } catch (e) { drawIssue(); } };
+      toast('Draft saved — no invoice number used yet'); renderTax(box, c, id); } catch (e) { if (e && e.final) return renderTax(box, c, id); drawIssue(); } };
   function drawIssue() { const el = $('#tiss', box), n = $('#tlkn', box), L = g.lock || {}, locked = !g.doc && !!L.locked, adm = ME && ME.role === 'admin';
     if (n) n.textContent = !g.doc && !L.locked && L.why === 'bank_left' ? `${L.msg}. The bill can be finalised now; the bank releases its part after it gets the bill.` : '';
     if (!el) return;

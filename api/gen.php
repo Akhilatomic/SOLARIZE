@@ -134,7 +134,7 @@ function handle_gen($a) {
     case 'draft': // POST: keep a tax bill that is not final yet (gen_tax_draft); allowed while payment is still due; no invoice number used
       if ($kind !== 'tax') fail('Unknown document');
       need('customers', true); need('finance');
-      if (row("SELECT 1 FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid])) fail('The tax bill is already final', 409);
+      if ($fin = row("SELECT number, updated_by FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid])) out(['error' => "Tax bill {$fin['number']} is already final" . ($fin['updated_by'] ? " (saved by {$fin['updated_by']})" : '') . ' — the page shows it now.', 'final' => 1], 409); /* final: 1 = the screen reloads */
       $data = gen_clean((array)($in['data'] ?? []));
       if (!is_admin()) $data['show_seal'] = 0; /* seal and signature: admin only, as on a saved bill */
       $issued = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['issued_on'] ?? '')) ? $in['issued_on'] : date('Y-m-d');
@@ -150,6 +150,9 @@ function handle_gen($a) {
       if ($kind === 'tax' && !is_admin()) $data['show_seal'] = 0; /* seal and signature on the tax bill: admin only; a save by anyone else takes it off */
       $issued = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['issued_on'] ?? '')) ? $in['issued_on'] : date('Y-m-d');
       $r = row('SELECT * FROM gen_docs WHERE customer_id=? AND kind=?', [$cid, $kind]);
+      /* first: 1 = the screen still showed no final bill (a draft). If someone finalised it meanwhile, this must not overwrite (or renumber)
+         their invoice: refuse with final: 1 and let the screen reload (final review, 2026-11-22) */
+      if ($kind === 'tax' && $r && !empty($in['first'])) out(['error' => "Tax bill {$r['number']} was finalised meanwhile" . ($r['updated_by'] ? " by {$r['updated_by']}" : '') . ' — the page shows it now.', 'final' => 1], 409);
       /* owner (2026-11-22, "Admin only"): once a tax bill is final only an admin may change it; the change is audited tax_bill_edit */
       if ($kind === 'tax' && $r && !is_admin()) fail('Only an admin can change an issued tax bill', 403);
       /* a typed invoice number (tax bill): any text, but never one another bill already has */

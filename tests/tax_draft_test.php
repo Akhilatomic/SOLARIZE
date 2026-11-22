@@ -76,6 +76,13 @@ $a = call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $c1, 'issued
 chk($a['_code'] === 200 && ($a['number'] ?? '') === $f2['number'] && ($get($c1)['doc']['data']['bill_name'] ?? '') === 'Admin fix', 'an admin can change a final bill (same number)');
 chk((int)$db("SELECT COUNT(*) FROM audit_log WHERE action='tax_bill_edit' AND entity_id=?", [$c1])->fetchColumn() === 1, 'the admin change is audited as tax_bill_edit');
 
+/* final review, Important #2: a screen still showing a draft (first: 1) must not overwrite a bill someone else finalised meanwhile */
+$st = call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $c1, 'first' => 1, 'issued_on' => '2026-11-20', 'number' => 'TXD/STALE/9', 'data' => ['bill_name' => 'Stale screen', 'grand' => 1]]);
+$gs = $get($c1);
+chk($st['_code'] === 409 && !empty($st['final']) && ($gs['doc']['data']['bill_name'] ?? '') === 'Admin fix' && ($gs['doc']['number'] ?? '') === $f2['number'], 'a stale "finalise" from a draft screen is refused (409, final) and the issued bill is untouched');
+$sd = $draft($c1);
+chk($sd['_code'] === 409 && !empty($sd['final']), 'a stale draft save on a final bill says the bill is final (so the screen reloads)');
+
 /* a staff member may still draft a bill that is not final yet */
 [$c3] = $mk('Draft Test Three', '9000000703');
 chk($draft($c3, ['data' => ['bill_name' => 'Staff draft', 'show_seal' => 1]], $staff)['_code'] === 200 && empty($get($c3)['draft']['data']['show_seal']), "staff can save a draft (the seal tick is admin's only)");
