@@ -59,7 +59,9 @@ const TAXDOC_CSS = `.dhead{display:flex;justify-content:space-between;align-item
 .dpage{width:186mm;height:271mm;overflow:hidden}.dpage .doc{max-width:none;padding:0;margin:0}
 .dpage .dtax{font-size:11px;line-height:1.36;box-sizing:border-box;display:flex;flex-direction:column}.dpage .dtax .dsign{margin-top:auto;padding-top:10px}
 .dpage .dt{margin:4px 0 8px}.dpage .dt th,.dpage .dt td{padding:3px 5px}.dpage .dbox{padding:5px 8px;margin-bottom:6px}.dpage .dtax .dmeta{margin:6px 0 8px}
-.dpage .dhead{padding-bottom:8px}.dpage .dhco img{width:48px;height:48px}.dpage .dstamp .dsp{height:84px}.dtot .dgt td,.dtot .dbal td{font-weight:700!important;font-size:13.5px!important;border-bottom:2px solid #1d1d1f!important}.dtot .dpay td{color:#c4271f}`;
+.dpage .dhead{padding-bottom:8px}.dpage .dhco img{width:48px;height:48px}.dpage .dstamp .dsp{height:84px}.dtot .dgt td,.dtot .dbal td{font-weight:700!important;font-size:13.5px!important;border-bottom:2px solid #1d1d1f!important}.dtot .dpay td{color:#c4271f}
+/* a bill that is not final yet (draft): a large diagonal DRAFT mark on screen, in print and in the PDF (renderTax) */
+.dtax{position:relative}.dwm{position:absolute;left:0;right:0;top:36%;z-index:3;text-align:center;font-size:118px;font-weight:800;letter-spacing:.18em;line-height:1;color:rgba(215,59,62,.13);transform:rotate(-26deg);pointer-events:none;user-select:none}`;
 const DOC_CSS = `.tbg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px 12px;margin-top:2px}.tbs+.tbs{margin-top:6px}
 .doc{font:12px/1.45 -apple-system,"Segoe UI",Arial,sans-serif;color:#1d1d1f;background:#fff;padding:26px 28px;max-width:794px}
 .doc h1{font-size:18px;letter-spacing:.06em;text-align:center;margin:14px 0 12px;font-weight:700}
@@ -186,13 +188,17 @@ async function renderMfr(box, c, id, fresh) {
 // ---------------- Tax bill (GST invoice) ----------------
 const HSN = [[/install|commission|labour|service|kseb|net.?meter|formalit/i, '995461', 18], [/panel|module|pv|mono|perc|topcon/i, '85414300', 5], [/inverter|micro|optimi/i, '85044090', 5], [/structure|mount|gi |frame|rail/i, '73089090', 18], [/cable|wire|mc4|earth|la |lightning|db|acdb|dcdb|meter/i, '85444999', 18]]; 
 const guessHsn = d => (HSN.find(([re]) => re.test(d || '')) || [null, '', 18]);
-const TAX_KEPT = {}; let TAX_KEEP = 0, MNRE_KEEP = 0; /* customer whose bill / certificate was just saved: its copy is kept once the tab is drawn again */
-async function renderTax(box, c, id) {
+const TAX_KEPT = {}; let TAX_KEEP = 0, TAX_DL = 0, MNRE_KEEP = 0; /* customer whose bill / certificate was just saved: its copy is kept (TAX_DL: and downloaded) once the tab is drawn again */
+/* Tax bill (owner, 2026-11-22): "Save as draft" keeps a bill that is not final (no invoice number used, gen/draft), "Save & download"
+   finalises it (number, PDF, copy in Documents). Once final, the bill is read-only; an admin may press "Edit issued bill" (edit = true). */
+async function renderTax(box, c, id, edit) {
   box.innerHTML = '<p class="mut">Loading…</p>';
   if (!document.getElementById('taxdoc-css')) document.head.insertAdjacentHTML('beforeend', `<style id="taxdoc-css">${TAXDOC_CSS}</style>`);
   const g = await api('gen', 'get', undefined, `&kind=tax&customer_id=${id}`), w = canW('customers'), co = g.company, P = g.plant || {};
   const cs = String(co.gstin || '32').slice(0, 2);
-  let D = (g.doc || {}).data;
+  const DR = !g.doc && g.draft ? g.draft : null; /* the draft the form opens from */
+  const ADM0 = !!(ME && ME.role === 'admin'), wb = w && (!g.doc || (ADM0 && !!edit)); /* wb: the bill itself can be changed (w alone still governs payments and plant cost) */
+  let D = (g.doc || DR || {}).data;
   if (!D) { const items = g.quote && g.quote.items.length ? g.quote.items.map(i => { const h = guessHsn(i.desc); return { desc: i.desc, hsn: h[1], qty: i.qty, rate: i.rate, gst: h[2] }; })
       : [{ desc: `Solar PV power plant ${P.capacity || (g.project || {}).kw || ''} kWp — supply, installation & commissioning`.replace(/\s+kWp/, ' kWp'), hsn: '85414300', qty: 1, rate: Math.round(((g.acct || {}).cost || (g.project || {}).cost || 0) / 1.05 * 100) / 100, gst: 5 }];
     const kwN = parseFloat(P.capacity || (g.project || {}).kw) || 0, ks = (g.qm || {}).kseb || {}, ba = [c.address, c.district, c.pincode].filter(Boolean).join(', ');
@@ -218,25 +224,27 @@ async function renderTax(box, c, id) {
     return { total: +A.cost || +(g.project || {}).cost || 0, share: 70,
       a: { title: sp(`Supply of ${kwTxt ? kwTxt + ' kW ' : ''}on-grid solar power plant`), lines: pa.join('\n'), hsn: '85414300', gst: 5 },
       b: { title: sp(`Installation of ${kwTxt ? kwTxt + ' kW ' : ''}on-grid solar power plant`), lines: 'ACDB, DCDB, cables, solar panel mounting structure, earthing materials, wiring materials, lightning arrester, electrical and solar accessories, transit and work cost', hsn: '995461', gst: 18 } }; };
-  let PT = D.parts && D.parts.a ? { ...D.parts, a: { ...D.parts.a }, b: { ...D.parts.b } } : (g.doc && (D.items || []).length ? null : defParts());
+  let PT = D.parts && D.parts.a ? { ...D.parts, a: { ...D.parts.a }, b: { ...D.parts.b } } : ((g.doc || DR) && (D.items || []).length ? null : defParts());
   const pn = (P.panels || []).filter(x => x.serial), iv = (P.inverters || []).filter(x => x.serial);
-  const issued = (g.doc || {}).issued_on || today();
-  box.innerHTML = `<div class="gdl"><div class="card gdf"><div class="pfch"><i class="i i-receipt"></i><h3>Tax bill</h3><span class="sp"></span><span class="pill ${g.doc ? 'g' : ''}">${g.doc ? esc(g.doc.number) : 'Not issued yet'}</span></div>
+  const issued = (g.doc || DR || {}).issued_on || today();
+  let noAuto = !g.doc && !(DR && DR.number); /* the number comes from the series when finalised (not a typed one) */
+  const pillTx = g.doc ? esc(g.doc.number) : DR ? `Draft · saved ${fdt(String(DR.updated || '').slice(0, 10))}${DR.updated_by ? ' by ' + esc(DR.updated_by) : ''}` : 'Not issued yet';
+  box.innerHTML = `<div class="gdl"><div class="card gdf"><div class="pfch"><i class="i i-receipt"></i><h3>Tax bill</h3><span class="sp"></span><span class="pill ${g.doc ? 'g' : DR ? 'y' : ''}">${pillTx}</span></div>
       ${g.quote && g.quote.items.length && !g.doc && !PT ? `<p class="mut" style="font-size:12.5px;margin:0 0 6px">Items copied from quotation ${esc(g.quote.number)} — check HSN codes and GST rates before issuing.</p>` : ''}
-      <div class="two"><div class="full"><label for="tno">Invoice no.</label><div class="tbr"><input id="tno" maxlength="40" autocomplete="off" value="${esc(g.doc ? g.doc.number : (g.next_no || ''))}" ${w ? '' : 'disabled'}>${w ? '<button class="btn sec sm" id="tnoauto" type="button" title="Put the next number in the series">Auto</button>' : ''}</div><small class="mut" id="tnoh"></small></div>
-       <div><label>Invoice date</label><input type="date" id="tdate" value="${issued}" ${w ? '' : 'disabled'}></div>
-       <div><label>Supply</label><select id="tinter" ${w ? '' : 'disabled'}><option value="0" ${+D.interstate ? '' : 'selected'}>Within Kerala — CGST + SGST</option><option value="1" ${+D.interstate ? 'selected' : ''}>Outside Kerala — IGST</option></select></div>
-       <div><label>Bill to (name)</label><input data-t="bill_name" value="${esc(D.bill_name || '')}" ${w ? '' : 'disabled'}></div><div><label>Customer GSTIN (if any)</label><input data-t="cust_gstin" value="${esc(D.cust_gstin || '')}" maxlength="15" ${w ? '' : 'disabled'}></div>
-       <div class="full"><label>Billing address</label><input data-t="bill_address" value="${esc(D.bill_address || '')}" ${w ? '' : 'disabled'}></div>
-       <div class="full"><label>Ship to — installation site</label><input data-t="ship_address" value="${esc(D.ship_address ?? D.bill_address ?? '')}" ${w ? '' : 'disabled'}></div>
-       <div class="full"><label>Subject</label><input data-t="subject" value="${esc(D.subject || '')}" placeholder="e.g. 5 kW on-grid solar power plant" ${w ? '' : 'disabled'}></div>
-       <div><label>Terms</label><input data-t="terms" value="${esc(D.terms || '')}" placeholder="Due on receipt" ${w ? '' : 'disabled'}></div><div><label>Due date</label><input type="date" data-t="due_on" value="${esc(D.due_on || '')}" ${w ? '' : 'disabled'}></div></div>
+      <div class="two"><div class="full"><label for="tno">Invoice no.</label><div class="tbr"><input id="tno" maxlength="40" autocomplete="off" value="${esc(g.doc ? g.doc.number : DR && DR.number ? DR.number : (g.next_no || ''))}" ${wb ? '' : 'disabled'}>${wb ? '<button class="btn sec sm" id="tnoauto" type="button" title="Put the next number in the series">Auto</button>' : ''}</div><small class="mut" id="tnoh"></small></div>
+       <div><label>Invoice date</label><input type="date" id="tdate" value="${issued}" ${wb ? '' : 'disabled'}></div>
+       <div><label>Supply</label><select id="tinter" ${wb ? '' : 'disabled'}><option value="0" ${+D.interstate ? '' : 'selected'}>Within Kerala — CGST + SGST</option><option value="1" ${+D.interstate ? 'selected' : ''}>Outside Kerala — IGST</option></select></div>
+       <div><label>Bill to (name)</label><input data-t="bill_name" value="${esc(D.bill_name || '')}" ${wb ? '' : 'disabled'}></div><div><label>Customer GSTIN (if any)</label><input data-t="cust_gstin" value="${esc(D.cust_gstin || '')}" maxlength="15" ${wb ? '' : 'disabled'}></div>
+       <div class="full"><label>Billing address</label><input data-t="bill_address" value="${esc(D.bill_address || '')}" ${wb ? '' : 'disabled'}></div>
+       <div class="full"><label>Ship to — installation site</label><input data-t="ship_address" value="${esc(D.ship_address ?? D.bill_address ?? '')}" ${wb ? '' : 'disabled'}></div>
+       <div class="full"><label>Subject</label><input data-t="subject" value="${esc(D.subject || '')}" placeholder="e.g. 5 kW on-grid solar power plant" ${wb ? '' : 'disabled'}></div>
+       <div><label>Terms</label><input data-t="terms" value="${esc(D.terms || '')}" placeholder="Due on receipt" ${wb ? '' : 'disabled'}></div><div><label>Due date</label><input type="date" data-t="due_on" value="${esc(D.due_on || '')}" ${wb ? '' : 'disabled'}></div></div>
       <div id="tlines"></div>
-      <label>Notes</label><textarea data-t="notes" rows="2" ${w ? '' : 'disabled'}>${esc(D.notes || '')}</textarea>
-      <label>Serial numbers on the bill</label><div class="tbo">${[['p', `Solar panels — ${pn.length ? pn.length + ' entered' : 'none entered'}`], ['i', `Inverter — ${iv.length ? iv.length + ' entered' : 'none entered'}`], ['m', `Energy meter — ${P.meter_serial ? 'entered' : 'not entered'}`]].map(([k, l]) => `<label><input type="checkbox" data-o="${k}" ${D.ser[k] ? 'checked' : ''} ${w ? '' : 'disabled'}> ${l}</label>`).join('')}</div>
+      <label>Notes</label><textarea data-t="notes" rows="2" ${wb ? '' : 'disabled'}>${esc(D.notes || '')}</textarea>
+      <label>Serial numbers on the bill</label><div class="tbo">${[['p', `Solar panels — ${pn.length ? pn.length + ' entered' : 'none entered'}`], ['i', `Inverter — ${iv.length ? iv.length + ' entered' : 'none entered'}`], ['m', `Energy meter — ${P.meter_serial ? 'entered' : 'not entered'}`]].map(([k, l]) => `<label><input type="checkbox" data-o="${k}" ${D.ser[k] ? 'checked' : ''} ${wb ? '' : 'disabled'}> ${l}</label>`).join('')}</div>
       ${!pn.length || !iv.length || !P.meter_serial ? `<p class="mut" style="font-size:12.5px;margin:4px 0 0">Serial numbers come from <b>Plant details</b>${[!pn.length && 'panels', !iv.length && 'inverter', !P.meter_serial && 'energy meter'].filter(Boolean).length ? ' — still missing: ' + [!pn.length && 'panels', !iv.length && 'inverter', !P.meter_serial && 'energy meter'].filter(Boolean).join(', ') : ''}. <button class="btn sec sm" id="tgoplant" type="button">Open Plant details</button></p>` : ''}
-      <label>Also print</label><div class="tbo"><label><input type="checkbox" data-o="paid" ${D.show_paid ? 'checked' : ''} ${w ? '' : 'disabled'}> Payment made & balance due</label>
-       ${ADM ? `<label title="For a bill sent by email or WhatsApp, so it need not be printed, signed and scanned"><input type="checkbox" data-o="seal" ${D.show_seal ? 'checked' : ''} ${w && (SO.sign || SO.seal || D.show_seal) ? '' : 'disabled'}> Company seal &amp; signature</label>` : ''}</div>
+      <label>Also print</label><div class="tbo"><label><input type="checkbox" data-o="paid" ${D.show_paid ? 'checked' : ''} ${wb ? '' : 'disabled'}> Payment made & balance due</label>
+       ${ADM ? `<label title="For a bill sent by email or WhatsApp, so it need not be printed, signed and scanned"><input type="checkbox" data-o="seal" ${D.show_seal ? 'checked' : ''} ${wb && (SO.sign || SO.seal || D.show_seal) ? '' : 'disabled'}> Company seal &amp; signature</label>` : ''}</div>
       ${ADM && !SO.sign && !SO.seal ? `<p class="mut u-fs12-m6_0_0">To print the seal and signature, upload them once: Quotations › gear button › Quotation settings › Seal and signature.</p>` : ''}
       <div class="bar" style="margin:12px 0 0">${w ? '<span class="acx-iss" id="tiss"></span>' : ''}<button class="btn sec" id="tpr"><i class="i i-download"></i> ${g.doc ? 'Print' : 'Print / PDF'}</button></div>
       <small class="acx-lkn" id="tlkn"></small><div id="tshr"></div>
@@ -245,22 +253,22 @@ async function renderTax(box, c, id) {
     <div class="tbx"><div class="card" id="tacc"></div><div class="card" id="tsum"></div></div>
     <datalist id="hsnl">${['85414300 — Solar PV modules', '85044090 — Inverters', '73089090 — Mounting structure', '85444999 — Cables', '853690 — Connectors / DB', '995461 — Installation services', '998732 — Repair & maintenance'].map(x => `<option value="${x.split(' ')[0]}">${x}</option>`).join('')}</datalist>`;
   let I = (D.items || []).map(x => ({ ...x }));
-  const ro = w ? '' : 'disabled';
+  const ro = wb ? '' : 'disabled';
   const partBox = p => `<div class="tpart"><div class="tpk">Part ${p.toUpperCase()} — ${p === 'a' ? 'solar panel & inverter (goods)' : 'installation & other items (service)'}<span class="sp"></span><small id="pamt_${p}" class="mut"></small></div>
     <label>Title</label><input data-p="${p}.title" value="${esc(PT[p].title)}" ${ro}>
     <label>Details printed under the title (one per line)</label><textarea data-p="${p}.lines" rows="${p === 'a' ? 5 : 3}" ${SPELL} ${ro}>${esc(PT[p].lines)}</textarea>
     <div class="two"><div><label>HSN/SAC</label><input data-p="${p}.hsn" list="hsnl" value="${esc(PT[p].hsn || '')}" ${ro}></div><div><label>GST %</label><select data-p="${p}.gst" ${ro}>${[0, 5, 12, 18, 28].map(r => `<option ${+PT[p].gst === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div></div></div>`;
   const drawItems = () => {
     if (PT) {
-      $('#tlines', box).innerHTML = `<label class="u-mt12">Total amount incl. GST (₹)</label><div class="tbr"><input id="ptot" data-p="total" inputmode="decimal" value="${+PT.total || ''}" placeholder="Plant cost incl. GST" ${ro}>${w && +A.cost && +A.cost !== +PT.total ? `<button class="btn sec sm" id="puse" type="button">Use plant cost ${inr2(A.cost)}</button>` : ''}</div>
+      $('#tlines', box).innerHTML = `<label class="u-mt12">Total amount incl. GST (₹)</label><div class="tbr"><input id="ptot" data-p="total" inputmode="decimal" value="${+PT.total || ''}" placeholder="Plant cost incl. GST" ${ro}>${wb && +A.cost && +A.cost !== +PT.total ? `<button class="btn sec sm" id="puse" type="button">Use plant cost ${inr2(A.cost)}</button>` : ''}</div>
        <div class="two"><div><label>Part A share of the taxable value (%)</label><input data-p="share" inputmode="decimal" value="${+PT.share}" ${ro}></div><div><label>Part B share (%)</label><input id="pshb" value="${100 - Math.min(100, +PT.share || 0)}" disabled></div></div>
        ${partBox('a')}${partBox('b')}`;
       if ($('#puse', box)) $('#puse', box).onclick = () => { PT.total = +A.cost; drawItems(); upd(); };
       return; }
-    $('#tlines', box).innerHTML = `<label class="u-mt12">Items</label><div id="titems"></div>${w ? '<button class="btn sec sm" id="tadd" type="button"><i class="i i-plus"></i> Add line</button> <button class="btn sec sm" id="tconv" type="button">Use Part A / Part B layout</button>' : ''}`;
+    $('#tlines', box).innerHTML = `<label class="u-mt12">Items</label><div id="titems"></div>${wb ? '<button class="btn sec sm" id="tadd" type="button"><i class="i i-plus"></i> Add line</button> <button class="btn sec sm" id="tconv" type="button">Use Part A / Part B layout</button>' : ''}`;
     if ($('#tadd', box)) $('#tadd', box).onclick = () => { I.push({ desc: '', hsn: '', qty: 1, rate: 0, gst: 18 }); drawItems(); };
     if ($('#tconv', box)) $('#tconv', box).onclick = () => { PT = defParts(); drawItems(); upd(); toast('Switched to Part A / Part B — check it, then save'); };
-    $('#titems', box).innerHTML = I.map((x, i) => `<div class="tirow"><input data-i="${i}" data-f="desc" value="${esc(x.desc)}" placeholder="Description" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="hsn" value="${esc(x.hsn || '')}" placeholder="HSN/SAC" list="hsnl" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="qty" value="${x.qty}" inputmode="decimal" placeholder="Qty" ${w ? '' : 'disabled'}><input data-i="${i}" data-f="rate" value="${x.rate}" inputmode="decimal" placeholder="Rate" ${w ? '' : 'disabled'}><select data-i="${i}" data-f="gst" ${w ? '' : 'disabled'}>${[0, 5, 12, 18, 28].map(r => `<option ${+x.gst === r ? 'selected' : ''}>${r}</option>`).join('')}</select>${w ? `<button class="ib" data-del="${i}" title="Remove line" type="button"><i class="i i-x"></i></button>` : ''}</div>`).join('');
+    $('#titems', box).innerHTML = I.map((x, i) => `<div class="tirow"><input data-i="${i}" data-f="desc" value="${esc(x.desc)}" placeholder="Description" ${wb ? '' : 'disabled'}><input data-i="${i}" data-f="hsn" value="${esc(x.hsn || '')}" placeholder="HSN/SAC" list="hsnl" ${wb ? '' : 'disabled'}><input data-i="${i}" data-f="qty" value="${x.qty}" inputmode="decimal" placeholder="Qty" ${wb ? '' : 'disabled'}><input data-i="${i}" data-f="rate" value="${x.rate}" inputmode="decimal" placeholder="Rate" ${wb ? '' : 'disabled'}><select data-i="${i}" data-f="gst" ${wb ? '' : 'disabled'}>${[0, 5, 12, 18, 28].map(r => `<option ${+x.gst === r ? 'selected' : ''}>${r}</option>`).join('')}</select>${wb ? `<button class="ib" data-del="${i}" title="Remove line" type="button"><i class="i i-x"></i></button>` : ''}</div>`).join('');
     $$('[data-del]', box).forEach(b => b.onclick = () => { I.splice(+b.dataset.del, 1); drawItems(); upd(); }); };
   const calc = () => { const inter = $('#tinter', box).value === '1'; let tx = 0, tt = 0;
     if (PT) { const r2 = x => Math.round(x * 100) / 100, sh = Math.min(100, Math.max(0, +PT.share || 0)), ga = +PT.a.gst || 0, gb = +PT.b.gst || 0;
@@ -272,7 +280,7 @@ async function renderTax(box, c, id) {
   const val = () => { const o = { items: PT ? [] : I, ...(PT ? { parts: PT } : {}), interstate: +$('#tinter', box).value, ser: {}, show_paid: 0, show_seal: 0 }; $$('[data-t]', box).forEach(e => o[e.dataset.t] = e.value); $$('[data-o]', box).forEach(e => { if (e.dataset.o === 'paid') o.show_paid = e.checked ? 1 : 0; else if (e.dataset.o === 'seal') o.show_seal = e.checked ? 1 : 0; else o.ser[e.dataset.o] = e.checked ? 1 : 0; }); return o; };
   const html = () => { const v = val(), k = calc(), Q = g.qm || {}, inter = k.inter, date = $('#tdate', box).value;
     const CN = Q.name || co.name || 'Jasper Solar Solutions', web = Q.site || '', ph = Q.phone || co.phone || '', em = Q.email || co.email || '';
-    const meta = [['Invoice no.', `<b>${esc(($('#tno', box) || {}).value || (g.doc ? g.doc.number : '(issued on save)'))}</b>`], ['Invoice date', fdt(date)], ...(v.terms ? [['Terms', esc(v.terms)]] : []), ['Due date', fdt(v.due_on || date)],
+    const meta = [['Invoice no.', `<b>${esc(!g.doc && noAuto ? '(given when finalised)' : ($('#tno', box) || {}).value || (g.doc ? g.doc.number : '(given when finalised)'))}</b>`], ['Invoice date', fdt(date)], ...(v.terms ? [['Terms', esc(v.terms)]] : []), ['Due date', fdt(v.due_on || date)],
       ['Place of supply', inter ? 'Outside Kerala (IGST)' : 'Kerala (32)'], ['Consumer no.', esc(c.consumer_no || '—')]];
     const nb = x => inr2(x).replace('₹', ''), taxTd = x => inter ? `<td class="r">${+x.gst}%</td><td class="r">${nb(x.t)}</td>` : `<td class="r">${+x.gst / 2}%</td><td class="r">${nb(x.t / 2)}</td><td class="r">${+x.gst / 2}%</td><td class="r">${nb(x.t / 2)}</td>`;
     const colg = `<colgroup><col style="width:20px"><col><col class="u-w62"><col style="width:28px"><col style="width:74px">${inter ? '<col class="u-w34"><col class="u-w64">' : '<col class="u-w34"><col class="u-w62"><col class="u-w34"><col class="u-w62">'}<col style="width:76px"></colgroup>`;
@@ -280,7 +288,7 @@ async function renderTax(box, c, id) {
     const byRate = {}; k.rows.forEach(x => { if (+x.gst) byRate[+x.gst] = (byRate[+x.gst] || 0) + x.t; });
     const taxLines = Object.keys(byRate).map(Number).sort((a, b) => a - b).flatMap(r => inter ? [[`IGST ${r}%`, byRate[r]]] : [[`CGST ${r / 2}%`, byRate[r] / 2], [`SGST ${r / 2}%`, byRate[r] / 2]]);
     const bank = Q.bank ? [['Bank', Q.bank.bank], ['Account name', Q.bank.name], ['Account no.', Q.bank.account], ['IFSC', Q.bank.ifsc]].filter(x => x[1]) : [];
-    return `<div class="dhead"><div class="dhco"><img src="${location.origin}/assets/logo.png" alt=""><div><b>${esc(CN)}</b><div class="dco">${esc(Q.address || co.address || '')}${co.gstin ? '<br>GSTIN ' + esc(co.gstin) : ''}${[ph, em, web].filter(Boolean).length ? '<br>' + [ph, em, web].filter(Boolean).map(esc).join(' · ') : ''}</div></div></div><h1>TAX INVOICE</h1></div>
+    return `${g.doc ? '' : '<div class="dwm" aria-hidden="true">DRAFT</div>'}<div class="dhead"><div class="dhco"><img src="${location.origin}/assets/logo.png" alt=""><div><b>${esc(CN)}</b><div class="dco">${esc(Q.address || co.address || '')}${co.gstin ? '<br>GSTIN ' + esc(co.gstin) : ''}${[ph, em, web].filter(Boolean).length ? '<br>' + [ph, em, web].filter(Boolean).map(esc).join(' · ') : ''}</div></div></div><h1>TAX INVOICE</h1></div>
       <div class="dmeta">${meta.map(([l, x]) => `<div><span>${l}</span>${x}</div>`).join('')}</div>
       <div class="dbs"><div class="dbox"><h4>Bill to</h4><b>${esc(v.bill_name)}</b><br>${esc(v.bill_address || '')}${v.cust_gstin ? '<br>GSTIN: ' + esc(v.cust_gstin) : ''}${c.phone ? '<br>Ph: ' + esc(c.phone) : ''}</div>
        <div class="dbox"><h4>Ship to — installation site</h4>${esc(v.ship_address || v.bill_address || '')}</div></div>
@@ -369,7 +377,7 @@ async function renderTax(box, c, id) {
     $('#tsum', box).innerHTML = `<div class="pfch"><i class="i i-file"></i><h3>Bill details</h3><span class="sp"></span><button class="btn sec sm" id="tscp"><i class="i i-copy"></i> Copy</button><button class="btn sec sm" id="tscsv"><i class="i i-download"></i> CSV</button></div>
       <p class="mut" style="font-size:12.5px;margin:0 0 8px">For the warranty card and GST filing (GSTR-1). The bill number is also saved in Plant details.</p>
       <div class="tbd">${info.map(([l, x]) => `<div><span>${l}</span><b>${esc(x)}</b></div>`).join('')}</div>
-      ${diff ? `<p class="mfw">Plant cost (${inr2(A.cost)}) and invoice total (${inr2(k.grand)}) differ by ${inr2(Math.abs(A.cost - k.grand))}.${w ? ' <button class="btn sec sm" id="tmatch" title="Scale the item rates so the invoice total (with GST) equals the plant cost">Match plant cost</button>' : ''}</p>` : ''}
+      ${diff ? `<p class="mfw">Plant cost (${inr2(A.cost)}) and invoice total (${inr2(k.grand)}) differ by ${inr2(Math.abs(A.cost - k.grand))}.${wb ? ' <button class="btn sec sm" id="tmatch" title="Scale the item rates so the invoice total (with GST) equals the plant cost">Match plant cost</button>' : ''}</p>` : ''}
       <table class="tbh"><thead><tr><th>HSN/SAC</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Taxable</th>${k.inter ? '<th class="r">IGST</th>' : '<th class="r">CGST</th><th class="r">SGST</th>'}</tr></thead>
       <tbody>${hs.map(h => `<tr><td>${esc(h.hsn)}</td><td class="r">${+h.qty.toFixed(2)}</td><td class="r">${h.gst}%</td><td class="r">${inr2(h.tv)}</td>${k.inter ? `<td class="r">${inr2(h.t)}</td>` : `<td class="r">${inr2(h.t / 2)}</td><td class="r">${inr2(h.t / 2)}</td>`}</tr>`).join('')}</tbody></table>`;
     if ($('#tmatch', box)) $('#tmatch', box).onclick = () => { if (PT) { PT.total = +A.cost; drawItems(); upd(); return toast('Total set to the plant cost — save to keep'); } const f = A.cost / calc().grand; I.forEach(x => x.rate = Math.round((+x.rate || 0) * f * 100) / 100); drawItems(); upd(); const d = A.cost - calc().grand; if (Math.abs(d) >= 0.5 && I.length) { const x = I.find(y => +y.qty === 1) || I[0]; x.rate = Math.round((x.rate + d / (+x.qty || 1) / (1 + (+x.gst || 0) / 100)) * 100) / 100; drawItems(); upd(); } toast('Item rates adjusted — save to keep'); };
@@ -387,7 +395,6 @@ async function renderTax(box, c, id) {
     if (e.target.dataset.i !== undefined) { const x = I[+e.target.dataset.i]; x[e.target.dataset.f] = e.target.dataset.f === 'desc' || e.target.dataset.f === 'hsn' ? e.target.value : +e.target.value || 0;
       if (e.target.dataset.f === 'desc' && !x.hsn) { const h = guessHsn(x.desc); if (h[1]) { x.hsn = h[1]; x.gst = h[2]; drawItems(); } } } upd(); });
   box.addEventListener('change', e => { if (e.target.dataset.f === 'gst') { I[+e.target.dataset.i].gst = +e.target.value; } upd(); });
-  let noAuto = !g.doc;
   const noHint = () => { const h = $('#tnoh', box); if (h) h.textContent = g.doc ? 'Change it only to correct a mistake. A number can be on one bill only.' : noAuto ? 'Next number in the series. Type your own to change it — the series then carries on from it.' : 'Your own number. It must not be on any other bill.'; };
   const nextNo = async () => { try { const r = await api('gen', 'next', undefined, `&kind=tax&customer_id=${id}&date=${$('#tdate', box).value}`); $('#tno', box).value = r.number; } catch (e) { } upd(); };
   if ($('#tno', box)) $('#tno', box).addEventListener('input', () => { if (!g.doc) noAuto = false; noHint(); });
@@ -398,16 +405,33 @@ async function renderTax(box, c, id) {
   $('#tpr', box).onclick = () => { printDoc(`Tax invoice — ${c.name}`, `<div class="doc dtax">${html()}</div>`, true); keepTax(); }; /* always one A4 page */
   /* issue (gives the number) or save the bill. The first issue waits for the final payment (g.lock from the server; a loan project
      unlocks once only the bank's part is left); an admin may issue it early after a confirm (early:1, audited by the server). */
-  const issue = async early => { const v = val(), k = calc(); if (!k.rows.length) return toast(PT ? 'Enter the total amount (incl. GST)' : 'Add at least one item', true);
-    v.grand = k.grand; v.taxable = Math.round(k.tx * 100) / 100; v.tax = Math.round(k.tt * 100) / 100; const b = $('#tsv', box); if (b) b.disabled = true;
+  /* the amounts the server keeps with the bill (and its draft) */
+  const valT = () => { const v = val(), k = calc(); v.grand = k.grand; v.taxable = Math.round(k.tx * 100) / 100; v.tax = Math.round(k.tt * 100) / 100; return [v, k]; };
+  /* finalise (gives the number) or, for an admin editing a final bill, save the change. dl = then download the PDF (and keep it in
+     Documents, as every save does). The first issue waits for the final payment (g.lock from the server; a loan project unlocks once
+     only the bank's part is left); an admin may issue it early after a confirm (early:1, audited by the server). */
+  const issue = async (early, dl) => { const [v, k] = valT(); if (!k.rows.length) return toast(PT ? 'Enter the total amount (incl. GST)' : 'Add at least one item', true);
+    $$('#tiss button', box).forEach(x => x.disabled = true);
     try { const r = await api('gen', 'save', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: !g.doc && noAuto ? '' : $('#tno', box).value.trim(), data: v, ...(early ? { early: 1 } : {}) });
-      toast(`Tax bill ${r.number} saved`); TAX_KEEP = id; renderTax(box, c, id); if (typeof pipeOffer === 'function') pipeOffer({ customer_id: id }, 'tax_bill'); } catch (e) { accReload().catch(() => { if (b) b.disabled = false; }); } };
-  function drawIssue() { const el = $('#tiss', box), n = $('#tlkn', box), L = g.lock || {}, locked = !g.doc && !!L.locked;
-    if (n) n.textContent = !g.doc && !L.locked && L.why === 'bank_left' ? `${L.msg}. The bill can be issued now; the bank releases its part after it gets the bill.` : '';
+      toast(g.doc ? `Tax bill ${r.number} changed` : `Tax bill ${r.number} is final`); TAX_KEEP = id; if (dl) TAX_DL = id; renderTax(box, c, id); if (!g.doc && typeof pipeOffer === 'function') pipeOffer({ customer_id: id }, 'tax_bill'); } catch (e) { accReload().catch(() => drawIssue()); } };
+  /* keep the bill as a draft: no invoice number used, may be saved before the final payment, changed again any time */
+  const saveDraft = async () => { const [v] = valT(); $$('#tiss button', box).forEach(x => x.disabled = true);
+    try { await api('gen', 'draft', { kind: 'tax', customer_id: id, issued_on: $('#tdate', box).value, number: noAuto ? '' : $('#tno', box).value.trim(), data: v });
+      toast('Draft saved — no invoice number used yet'); renderTax(box, c, id); } catch (e) { drawIssue(); } };
+  function drawIssue() { const el = $('#tiss', box), n = $('#tlkn', box), L = g.lock || {}, locked = !g.doc && !!L.locked, adm = ME && ME.role === 'admin';
+    if (n) n.textContent = !g.doc && !L.locked && L.why === 'bank_left' ? `${L.msg}. The bill can be finalised now; the bank releases its part after it gets the bill.` : '';
     if (!el) return;
-    el.innerHTML = `<button class="btn" id="tsv" ${locked ? 'disabled' : ''}>${g.doc ? 'Save changes' : 'Issue tax bill' + (locked ? ' — ' + esc(L.msg || 'payment still due') : '')}</button>${locked && ME && ME.role === 'admin' ? '<button type="button" class="acx-link" id="tearly" title="Admin only: issue the bill although money is still due">Issue early</button>' : ''}`;
-    $('#tsv', box).onclick = () => issue(false);
-    if ($('#tearly', box)) $('#tearly', box).onclick = async () => { if (await ask('Issue the tax bill before full payment?')) issue(true); }; }
+    if (g.doc && !wb) { /* final: read-only; an admin may open it for a change */
+      el.innerHTML = adm ? '<button class="btn sec" id="tedit" type="button"><i class="i i-pencil"></i> Edit issued bill</button>' : '<span class="mut u-fs12p5">Final bill — only an admin can change it</span>';
+      if ($('#tedit', box)) $('#tedit', box).onclick = () => renderTax(box, c, id, true);
+      return; }
+    el.innerHTML = g.doc ? '<button class="btn" id="tsv">Save changes</button><button class="btn sec" id="tsvd" type="button"><i class="i i-download"></i> Save &amp; download</button><button class="btn sec" id="tecx" type="button">Cancel</button>'
+      : `<button class="btn sec" id="tdr" type="button">Save as draft</button><button class="btn" id="tsvd" ${locked ? 'disabled' : ''}><i class="i i-download"></i> Save &amp; download${locked ? ' — ' + esc(L.msg || 'payment still due') : ''}</button>${locked && adm ? '<button type="button" class="acx-link" id="tearly" title="Admin only: finalise the bill although money is still due">Issue early</button>' : ''}`;
+    if ($('#tsv', box)) $('#tsv', box).onclick = () => issue(false, false);
+    $('#tsvd', box).onclick = () => issue(false, true);
+    if ($('#tdr', box)) $('#tdr', box).onclick = saveDraft;
+    if ($('#tecx', box)) $('#tecx', box).onclick = () => renderTax(box, c, id);
+    if ($('#tearly', box)) $('#tearly', box).onclick = async () => { if (await ask('Finalise the tax bill before full payment? It gets its invoice number now.')) issue(true, true); }; }
   /* an issued bill: PDF, Email / WhatsApp to the customer and, on a loan project, to the bank (tax bill template), each share logged */
   const drawShare = () => { const el = $('#tshr', box); if (!el || !g.doc) return;
     const bk = isLoan && canR('loans'), sb = (via, to, icon, label) => `<button class="btn sec sm" data-via="${via}" data-to="${to}"><i class="i i-${icon}"></i> ${label}</button>`;
@@ -440,7 +464,12 @@ async function renderTax(box, c, id) {
     el.innerHTML = keptF ? `<i class="i i-check"></i> Saved in Documents on ${fdt(String(keptF.created || '').slice(0, 10))} · kept until someone deletes it · <a href="${fileUrl(keptF, 'v')}" target="_blank" rel="noopener">Open</a>` : 'Not saved in Documents yet';
     const b = $('#tkeep', box); if (b) b.lastChild.textContent = keptF ? ' Save again' : ' Save to Documents'; }
   drawIssue(); drawShare();
-  if (TAX_KEEP === id) { TAX_KEEP = 0; keepTax().then(k => { if (k) toast('A copy of the tax bill is kept in Documents'); }); }
+  if (TAX_KEEP === id) { TAX_KEEP = 0; const dl = TAX_DL === id; TAX_DL = 0;
+    (async () => { let blob; const name = acFileName('Tax invoice', g.doc.number, c.name);
+      if (dl) { try { blob = await acPdfFromHtml(`<div class="doc dtax">${html()}</div>`, DOC_CSS + ACX_A4_FILL, name); /* one A4 page, as printed */
+          const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        } catch (e) { blob = undefined; toast('The PDF could not be made here — use Print', true); } }
+      const k = await keepTax(blob); if (k) toast(dl && blob ? 'Tax bill downloaded and kept in Documents' : 'A copy of the tax bill is kept in Documents'); })(); }
 }
 
 // ---------------- MNRE warranty certificate, printed on the Jasper Solar letterhead ----------------
