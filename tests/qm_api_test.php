@@ -38,14 +38,15 @@ chk(count($boot['templates'] ?? []) === 14, 'seed: 14 templates');
 chk(count(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'panels')) >= 4, 'seed: panels');
 /* products added after the first seed (qm_added): Emmvee Titanium Duo then Waaree Elite R, right after the last panel */
 $byCode = fn($b, $code) => array_values(array_filter($b['products'] ?? [], fn($p) => ($p['code'] ?? '') === $code));
-foreach (['pan-emmvee-600' => 'logo-emmvee.png', 'pan-waaree-600' => 'logo-waaree.png'] as $code => $logo) {
+foreach (['pan-emmvee-600' => 'logo-emmvee.png', 'pan-waaree-600' => 'logo-waaree.png', 'pan-havells-600' => 'logo-havells.png'] as $code => $logo) {
   $ap = $byCode($boot, $code);
   chk(count($ap) === 1 && $ap[0]['cat'] === 'panels' && $ap[0]['wp'] == 600 && !$ap[0]['is_default'] && !$ap[0]['hidden']
     && $ap[0]['brands'][0]['logos'] === ["assets/quote/$logo"] && is_file(__DIR__ . "/../assets/quote/$logo"), "added product: $code 600+ Wp with its logo");
 }
 $pans = array_values(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'panels'));
 usort($pans, fn($x, $y) => $x['sort'] <=> $y['sort'] ?: $x['id'] <=> $y['id']);
-chk(array_column(array_slice($pans, -2), 'code') === ['pan-emmvee-600', 'pan-waaree-600'], 'added products sit after the other panels, in list order');
+chk(array_column(array_slice($pans, -3), 'code') === ['pan-emmvee-600', 'pan-waaree-600', 'pan-havells-600'], 'added products sit after the other panels, in list order');
+chk(str_contains($byCode($boot, 'pan-havells-600')[0]['details'] ?? '', 'GS12R-T132-GF'), 'added product: Havells GS12R-T132-GF panel wording');
 foreach ([8, 10] as $k) { /* rev 3: SolarEdge SE8K / SE10K three-phase, like the seeded SE5K */
   $ap = $byCode($boot, "inv-se-$k-3ph");
   chk(count($ap) === 1 && $ap[0]['cat'] === 'inverter' && $ap[0]['kw'] == $k && $ap[0]['needs_opt'] === 1 && !$ap[0]['kw_line'] && !$ap[0]['is_default'] && !$ap[0]['hidden']

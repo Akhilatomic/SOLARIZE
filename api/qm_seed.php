@@ -324,7 +324,7 @@ function qm_seed(PDO $db): void {
 /* Products added after the first seed. qm_seed() only fills an empty catalogue, so these go into every database once
    (unique code, INSERT OR IGNORE), after the last product of their category; settings qm_added_rev remembers it,
    so an admin's later edits or Hide are kept. Add a product here = add a row and bump QM_ADDED_REV. */
-const QM_ADDED_REV = 4;
+const QM_ADDED_REV = 5;
 function qm_added(): array {
   $w = fn($years, $label) => ['years' => (string)$years, 'label' => $label];
   $panelW = [$w(12, 'Panels product'), $w(30, 'Panels performance')];
@@ -371,6 +371,13 @@ function qm_added(): array {
       'Havells Enviro GTi 6000 TX-NG three-phase (400 V, 3 / N / PE), 6 kW, 2 MPPT, IP65 (outdoor), 98.4% peak efficiency. Built-in DC switch and Type II surge protection (DC and AC), anti-islanding, leakage-current and ground-fault protection, string monitoring and export control. Takes up to 1.5 times DC overloading. Bluetooth app; Wi-Fi logger optional. BIS and BEE certified. 10-year warranty.',
       ['title' => 'Havells 3-Phase Inverter', 'kw' => 6, 'qty_note' => '6 kW · 3-phase', 'picture' => 'assets/quote/pic-inverter-string.png',
         'warranty' => [$w(10, 'Havells inverter')], 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-havells.png']]]]],
+    /* Rev 5: Havells Solar PV Module GS12R-T132-GF (600–620 Wp) datasheet, made by Goldi Solar: bifacial N-type TOPCon double glass, 132 cells
+       (210 × 182.2 mm), 22.21–22.95%, bifacial 80 ± 5%, 2382 × 1134 × 30 mm, ~33.7 kg, 1500 V, 12 / 30-year warranty, 1% first year then 0.4%
+       a year, 87.4% after 30 years. "ALMM under the name of Goldi Solar"; DCR is not in the datasheet — "600+" and DCR + ALMM follow the owner's
+       choice for the Emmvee / Waaree panels (asked "also add this panel … 600+wp"). */
+    ['pan-havells-600', 'Havells GS12R-T132-GF 600+ Wp TOPCon', 'panels', 'Solar panels', 'Make electricity from sunlight.',
+      'Havells GS12R-T132-GF DCR, 600+ Wp, N-type TOPCon bifacial dual-glass, 132 cells, up to 22.95% efficient, ALMM approved. Size 2382 × 1134 × 30 mm. 12-year product warranty and 30-year power warranty (87.4% power after 30 years).',
+      ['wp' => 600, 'qty' => 4, 'picture' => 'assets/quote/pic-panels.png', 'warranty' => $panelW, 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-havells.png']]]]],
   ];
 }
 function qm_add_new(PDO $db): void {
