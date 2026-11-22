@@ -109,22 +109,32 @@ const qpLogo = r => {
   const u = qmImgUrl(r);
   return u ? `<img src="${esc(u)}" alt=""${/jasper-logo\.png$/.test(r) ? ' class="qp-sq"' : ''}>` : '';
 };
-function qpBrands(brands) {
+/* main = a panels / inverter row (bigger logos); data-lg = the QM.LOGO place that qpLogos() sizes the pictures for */
+function qpBrands(brands, main) {
   const br = (brands || []).filter(b => b && (b.logos || []).length);
   const lab = br.some(b => b.label), one = !lab && br.length === 1 && br[0].logos.length === 1;
   return `<div class="qp-brs${lab ? ' qp-lab' : ''}${one ? ' qp-one' : ''}">`
-    + br.map(b => `<div class="qp-brl">${lab ? `<span class="qp-brk">${esc(b.label || '')}</span>` : ''}<span class="qp-lgs${b.logos.length > 2 ? ' qp-many' : ''}">${b.logos.map(qpLogo).join('')}</span></div>`).join('') + '</div>';
+    + br.map(b => { const lg = QM.logoPlace(main, lab, b.logos.length, one);
+      return `<div class="qp-brl">${lab ? `<span class="qp-brk">${esc(b.label || '')}</span>` : ''}<span class="qp-lgs${b.logos.length > 2 ? ' qp-many' : ''}"${lg ? ` data-lg="${lg}"` : ''}>${b.logos.map(qpLogo).join('')}</span></div>`; }).join('') + '</div>';
 }
-function qpRow(n, l, calc) {
+/* gives every loaded brand logo its QM.logoSize (same look for tall and long logos); pictures not loaded yet keep the CSS caps */
+function qpLogos(c) {
+  c.querySelectorAll('.qp-lgs[data-lg] img:not(.qp-sq)').forEach(i => {
+    const s = QM.logoSize(i.naturalWidth, i.naturalHeight, i.parentNode.getAttribute('data-lg'));
+    if (!s) return;
+    Object.assign(i.style, { width: s.w + 'px', height: s.h + 'px', maxWidth: 'none', maxHeight: 'none' });
+  });
+}
+function qpRow(n, l, calc, main) {
   const q = QM.qtyText(l, { dcKwp: calc.dcKwp }), u = qmImgUrl(l.picture);
   const pic = u ? `<span class="qp-pic${/^assets\/quote\/pic-/.test(l.picture) ? '' : ' qp-pic-up'}"><img src="${esc(u)}" alt=""></span>` : '';
   return `<tr><td class="qp-no">${n}</td><td class="qp-it"><div class="qp-nm">${esc(l.name)}</div>${pic}</td>`
     + `<td><div class="qp-ln">${esc(l.line)}</div>${l.details ? `<div class="qp-dt">${esc(l.details)}</div>` : ''}</td>`
-    + `<td>${qpBrands(l.brands)}</td><td class="qp-qt"><b>${esc(q.main)}</b>${q.note ? `<span>${esc(q.note)}</span>` : ''}</td></tr>`;
+    + `<td>${qpBrands(l.brands, main)}</td><td class="qp-qt"><b>${esc(q.main)}</b>${q.note ? `<span>${esc(q.note)}</span>` : ''}</td></tr>`;
 }
 function qpItems(lines, calc, ctx) {
   let n = 0;
-  const rows = qpCats(lines).map(cat => (lines[cat] || []).map(l => qpRow(++n, l, calc)).join('')).join('');
+  const rows = qpCats(lines).map(cat => (lines[cat] || []).map(l => qpRow(++n, l, calc, cat === 'panels' || cat === 'inverter')).join('')).join('');
   return qpPage('qp-items', ctx, qpHead(ctx)
     + qpH1('What is included in your plant<span class="qp-contd">(continued)</span>', 'Every item has a picture, a simple explanation, the brand and the quantity.')
     + `<table class="qp-tb" data-nofit="1"><thead><tr><th>#</th><th>Item</th><th>What it is</th><th>Brand</th><th>Qty</th></tr></thead><tbody>${rows}</tbody></table>`
@@ -245,12 +255,13 @@ const qpFontsReady = () => document.fonts ? Promise.all(QP_FONTS.map(f => docume
 function qmMount(container, pages) {
   const tok = container._qmTok = (container._qmTok || 0) + 1;
   container.innerHTML = (pages || []).join('');
+  qpLogos(container);
   qpPaginate(container);
   const imgs = [...container.querySelectorAll('img')].filter(i => !i.complete);
   const fontsOk = !document.fonts || QP_FONTS.every(f => document.fonts.check(f));
   container._qmReady = imgs.length || !fontsOk
     ? Promise.all([qpFontsReady()].concat(imgs.map(i => new Promise(r => { i.addEventListener('load', r, { once: true }); i.addEventListener('error', r, { once: true }); }))))
-      .then(() => { if (container._qmTok === tok) qpPaginate(container); })
+      .then(() => { if (container._qmTok === tok) { qpLogos(container); qpPaginate(container); } })
     : Promise.resolve();
 }
 

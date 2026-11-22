@@ -202,6 +202,27 @@ var QM = (function () {
     return { main: main, note: note };
   };
 
+  /* Brand logos on the quotation: each logo gets about the same ink area, so a tall logo (Havells) and a long one (Premier) look the
+     same size. [area px², max width, max height] per place: main1 / main2 = panel and inverter rows (one logo / two side by side),
+     one / two = other items, lab / lab2 = after a label (BOX, MCB …). Lines with three or more logos keep the CSS caps so they do not wrap. */
+  Q.LOGO = { main1: [3000, 130, 44], main2: [2000, 80, 38], one: [1800, 90, 24], two: [1100, 56, 24], lab: [1200, 62, 22], lab2: [1150, 58, 22] };
+  /* main = panels / inverter row, lab = the item's brand lines have labels, n = logos on this line, only = the item has just this one logo */
+  Q.logoPlace = function (main, lab, n, only) {
+    if (n > 2) return '';
+    if (lab) return n > 1 ? 'lab2' : 'lab';
+    if (main) return only ? 'main1' : 'main2';
+    return only ? 'one' : 'two';
+  };
+  /* natural picture size (w × h) -> shown size {w, h} in px, or null when the place or the size is unknown */
+  Q.logoSize = function (w, h, place) {
+    var s = Q.LOGO[place]; w = num(w); h = num(h);
+    if (!s || !(w > 0) || !(h > 0)) return null;
+    var r = w / h, hh = Math.sqrt(s[0] / r), ww = hh * r;
+    if (hh > s[2]) { hh = s[2]; ww = hh * r; }
+    if (ww > s[1]) { ww = s[1]; hh = ww / r; }
+    return { w: Math.round(ww * 10) / 10, h: Math.round(hh * 10) / 10 };
+  };
+
   return Q;
 })();
 if (typeof module !== 'undefined') module.exports = QM;

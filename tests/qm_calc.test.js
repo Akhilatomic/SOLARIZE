@@ -241,3 +241,28 @@ test('effectiveSettings: a saved quotation keeps its frozen settings while its s
   assert.equal(st3.kseb.reg_per_kw, 1000); assert.equal(st3.loan.rate, 7); assert.deepEqual(st3.subsidy_rates, liveR);
   assert.equal(live.kseb.reg_per_kw, 1200); assert.equal(live.subsidy_rates, undefined);
 });
+
+test('logoSize: panel and inverter logos share one look and grow; other logos grow a little and fit their column', () => {
+  const area = s => s.w * s.h;
+  const hav = QM.logoSize(461, 306, 'main1'), pre = QM.logoSize(562, 164, 'main1'), wa = QM.logoSize(998, 184, 'main1');
+  assert.ok(Math.abs(area(hav) - area(pre)) / area(pre) < 0.05, 'tall Havells and long Premier get about the same area');
+  assert.ok(hav.h <= 44 && pre.w <= 130 && wa.w <= 130, 'within the 130 × 44 box');
+  assert.ok(hav.h > 2 * 20 && pre.w > 68.5 * 1.4, 'much larger than the old 20 px cap (Havells 30 × 20, Premier 68.5 × 20)');
+  const tsun = QM.logoSize(449, 252, 'main2'), deye = QM.logoSize(880, 351, 'main2');
+  assert.ok(tsun.w + deye.w + 7 <= 177, 'two inverter logos still sit side by side in the brand column');
+  /* every bundled logo shape (w / h) gets at least the old size in its place: old = 20 px high, max width 75 (one) / 46 (two) / 58 (label) */
+  const shapes = [2.62, 2.5, 1.96, 2.51, 1.57, 4.04, 2.63, 6.4, 1.52, 2.17, 4.85, 3.0, 3.49, 4.69, 4.95, 3.83, 1.79, 2.74, 8.49, 5.73];
+  const old = (r, mw) => { let h = 20, w = h * r; if (w > mw) { w = mw; h = w / r; } return w * h; };
+  for (const [place, mw] of [['one', 75], ['two', 46], ['lab', 58], ['lab2', 58]]) {
+    for (const r of shapes) {
+      const s = QM.logoSize(r * 100, 100, place);
+      assert.ok(area(s) >= old(r, mw) * 0.99, `${place} ${r}: not smaller than before (sizes are rounded to 0.1 px)`);
+      assert.ok(s.h <= 24 && s.w <= QM.LOGO[place][1], `${place} ${r}: inside its box`);
+    }
+  }
+  assert.equal(QM.logoSize(0, 10, 'one'), null); assert.equal(QM.logoSize(10, 10, 'nowhere'), null);
+  assert.equal(QM.logoPlace(true, false, 1, true), 'main1'); assert.equal(QM.logoPlace(true, false, 2, false), 'main2');
+  assert.equal(QM.logoPlace(false, true, 1, false), 'lab'); assert.equal(QM.logoPlace(false, true, 2, false), 'lab2');
+  assert.equal(QM.logoPlace(false, false, 2, false), 'two'); assert.equal(QM.logoPlace(false, false, 1, true), 'one');
+  assert.equal(QM.logoPlace(false, true, 3, false), '', 'three or more logos on a line keep the CSS caps');
+});
