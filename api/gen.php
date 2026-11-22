@@ -67,6 +67,14 @@ function gen_clean($v, $depth = 0) { // keep plain text / numbers / small nested
   return mb_substr(trim((string)$v), 0, 2000);
 }
 
+/* Tax bill draft (owner, 2026-11-22: "Save to draft — it helps to change it before finalize"): a bill that is not final yet, kept in
+   its own gen_docs row (kind 'taxd', one per customer) so nothing that reads issued bills (kind 'tax': accounts, profit, bank papers,
+   warranty card, the number series) ever sees it. Its number is only what was typed — not checked, not reserved. Finalising deletes it. */
+function gen_tax_draft($cid) {
+  $d = row("SELECT number, issued_on, data, updated, updated_by FROM gen_docs WHERE customer_id=? AND kind='taxd'", [(int)$cid]);
+  return $d ? ['number' => (string)$d['number'], 'issued_on' => $d['issued_on'], 'data' => json_decode((string)$d['data'], true) ?: [], 'updated' => $d['updated'], 'updated_by' => $d['updated_by']] : null;
+}
+
 // plant cost and payments received (stored on the customer's latest project, same as the Project pipeline)
 function gen_acct($cid) {
   $p = row('SELECT id, cost FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid]);
@@ -89,6 +97,7 @@ function handle_gen($a) {
       $p = row('SELECT * FROM projects WHERE customer_id=? ORDER BY id DESC LIMIT 1', [$cid]);
       $q = row("SELECT * FROM quotes WHERE customer_id=? ORDER BY CASE status WHEN 'Accepted' THEN 0 WHEN 'Sent' THEN 1 ELSE 2 END, id DESC LIMIT 1", [$cid]);
       out(['doc' => $r ? ['number' => $r['number'], 'issued_on' => $r['issued_on'], 'data' => json_decode($r['data'], true) ?: [], 'updated' => $r['updated'], 'updated_by' => $r['updated_by']] : null,
+        'draft' => $kind === 'tax' && !$r ? gen_tax_draft($cid) : null, /* a tax bill that is not final yet (none once the bill is final) */
         'customer' => mask_customer($c), 'plant' => $plant, 'project' => $p ? ['id' => (int)$p['id'], 'title' => $p['title'], 'kw' => $p['kw'], 'stage' => $p['stage'], 'loan' => (string)$p['loan'], 'cost' => can('finance') ? (float)$p['cost'] : null] : null,
         'quote' => $q && can('finance') ? ['number' => $q['number'], 'items' => json_decode($q['items'], true) ?: [], 'gst_rate' => (float)$q['gst_rate']] : null,
         'company' => settings()['company'] ?? [],
@@ -122,12 +131,27 @@ function handle_gen($a) {
       if (GEN_KINDS[$kind] === '') out(['number' => '']);
       out(['number' => gen_next_no($kind, preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['date'] ?? '')) ? $_GET['date'] : date('Y-m-d'), true)]);
 
+    case 'draft': // POST: keep a tax bill that is not final yet (gen_tax_draft); allowed while payment is still due; no invoice number used
+      if ($kind !== 'tax') fail('Unknown document');
+      need('customers', true); need('finance');
+      if (row("SELECT 1 FROM gen_docs WHERE customer_id=? AND kind='tax'", [$cid])) fail('The tax bill is already final', 409);
+      $data = gen_clean((array)($in['data'] ?? []));
+      if (!is_admin()) $data['show_seal'] = 0; /* seal and signature: admin only, as on a saved bill */
+      $issued = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['issued_on'] ?? '')) ? $in['issued_on'] : date('Y-m-d');
+      $dno = mb_substr(preg_replace('/\s+/', ' ', trim((string)($in['number'] ?? ''))), 0, 40); /* '' = the next number in the series when finalised */
+      q("INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?) ON CONFLICT(customer_id,kind) DO UPDATE SET number=excluded.number, issued_on=excluded.issued_on, data=excluded.data, updated=CURRENT_TIMESTAMP, updated_by=excluded.updated_by",
+        [$cid, 'taxd', $dno, $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']);
+      audit('tax_bill_draft', 'customers', $cid, ($dno !== '' ? $dno : 'draft') . (isset($data['grand']) ? ' · ₹' . $data['grand'] : ''));
+      out(['ok' => true, 'draft' => gen_tax_draft($cid)]);
+
     case 'save':
       need('customers', true); if ($kind === 'tax') need('finance');
       $data = gen_clean((array)($in['data'] ?? []));
       if ($kind === 'tax' && !is_admin()) $data['show_seal'] = 0; /* seal and signature on the tax bill: admin only; a save by anyone else takes it off */
       $issued = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['issued_on'] ?? '')) ? $in['issued_on'] : date('Y-m-d');
       $r = row('SELECT * FROM gen_docs WHERE customer_id=? AND kind=?', [$cid, $kind]);
+      /* owner (2026-11-22, "Admin only"): once a tax bill is final only an admin may change it; the change is audited tax_bill_edit */
+      if ($kind === 'tax' && $r && !is_admin()) fail('Only an admin can change an issued tax bill', 403);
       /* a typed invoice number (tax bill): any text, but never one another bill already has */
       $man = in_array($kind, ['tax', 'warranty'], true) ? preg_replace('/\s+/', ' ', trim((string)($in['number'] ?? ''))) : '';
       $what = $kind === 'tax' ? ['Invoice number', 'bill'] : ['Ref no.', 'warranty certificate'];
@@ -141,11 +165,12 @@ function handle_gen($a) {
       elseif ($man !== '') { $no = $man; q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, $no, $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
       elseif (GEN_KINDS[$kind] === '') { $no = ''; q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, '', $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
       else { $no = gen_next_no($kind, $issued); q('INSERT INTO gen_docs(customer_id,kind,number,issued_on,data,updated_by) VALUES(?,?,?,?,?,?)', [$cid, $kind, $no, $issued, json_encode($data, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); }
+      if ($kind === 'tax' && !$r) q("DELETE FROM gen_docs WHERE customer_id=? AND kind='taxd'", [$cid]); /* final now: the draft has done its job */
       if ($kind === 'tax' && $no !== '') { [$pl] = plant_get($cid); if (($pl['gst_invoice_no'] ?? '') !== $no) { $pl['gst_invoice_no'] = $no; $pl['panels'] = $pl['panels'] ?? []; $pl['inverters'] = $pl['inverters'] ?? [];
         q('INSERT INTO plant(customer_id,data,updated,updated_by) VALUES(?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(customer_id) DO UPDATE SET data=excluded.data, updated=excluded.updated, updated_by=excluded.updated_by', [$cid, json_encode($pl, JSON_UNESCAPED_UNICODE), $_SESSION['name'] ?? '']); } }
       if ($kind === 'warranty') kv_set('mnre_defaults', ['sign_name' => (string)($data['sign_name'] ?? ''), 'sign_desig' => (string)($data['sign_desig'] ?? ''), 'sign_phone' => (string)($data['sign_phone'] ?? '')]);
       if ($kind === 'mfr') kv_set('mfr_defaults', ['distributor' => $data['distributor'] ?? '', 'email' => $data['email'] ?? '']);
-      audit($kind === 'tax' ? 'tax_bill' : ($kind === 'mfr' ? 'mfr_warranty' : ($kind === 'wcs' ? 'warranty_status' : 'warranty_card')), 'customers', $cid, ($kind === 'wcs' ? (string)($data['status'] ?? '') : $no) . ($kind === 'tax' && isset($data['grand']) ? ' · ₹' . $data['grand'] : ''));
+      audit($kind === 'tax' ? ($r ? 'tax_bill_edit' : 'tax_bill') : ($kind === 'mfr' ? 'mfr_warranty' : ($kind === 'wcs' ? 'warranty_status' : 'warranty_card')), 'customers', $cid, ($kind === 'wcs' ? (string)($data['status'] ?? '') : $no) . ($kind === 'tax' && isset($data['grand']) ? ' · ₹' . $data['grand'] : ''));
       out(['ok' => true, 'number' => $no]);
   }
   fail('Unknown action', 404);

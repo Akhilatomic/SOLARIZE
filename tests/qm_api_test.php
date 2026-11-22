@@ -463,8 +463,10 @@ call($accU, 'auth', 'login', ['username' => 'qmacc', 'password' => $pw]);
 $rp = call($admin, 'settings', 'get')['roles_now'] ?? []; $rp['accounts']['write'][] = 'customers'; call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => $rp]);
 $ga = call($accU, 'gen', 'get', null, "&kind=tax&customer_id={$tb[1]}");
 chk(($ga['_code'] ?? 0) === 200 && ($ga['qm']['signoff'] ?? null) === ['sign' => '', 'seal' => ''] && call($accU, 'qm', 'img', null, '&f=' . ($up['ref'] ?? 'x'), true)['_code'] === 404, 'tax bill for staff: no seal or signature pictures');
-chk((call($accU, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[1], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill Two', 'items' => [], 'parts' => $parts, 'show_seal' => 1]])['_code'] ?? 0) === 200
-  && empty(call($admin, 'gen', 'get', null, "&kind=tax&customer_id={$tb[1]}")['doc']['data']['show_seal']), 'tax bill: a staff save takes the seal off');
+/* owner (2026-11-22, "Admin only"): an issued bill is changed by an admin only, so a staff save is refused and leaves the seal as the admin set it
+   (a staff draft dropping the seal tick is covered in tests/tax_draft_test.php) */
+chk((call($accU, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[1], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill Two', 'items' => [], 'parts' => $parts, 'show_seal' => 0]])['_code'] ?? 0) === 403
+  && (call($admin, 'gen', 'get', null, "&kind=tax&customer_id={$tb[1]}")['doc']['data']['show_seal'] ?? 0) === 1, 'tax bill: staff cannot change an issued bill (the seal stays as the admin set it)');
 call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => []]);
 $so2['signoff'] = ['sign' => '', 'seal' => '']; call($admin, 'qm', 'settings_save', ['settings' => $so2]);
 $re = call($admin, 'gen', 'save', ['kind' => 'tax', 'customer_id' => $tb[0], 'issued_on' => '2026-11-10', 'data' => ['bill_name' => 'Bill One', 'items' => [], 'parts' => $parts]])['number'] ?? '';
