@@ -266,6 +266,8 @@ test('logoSize: panel and inverter logos share one look and grow; other logos gr
   }
   const box = [1.52, 4.85, 2.74].map(r => QM.logoSize(r * 100, 100, 'labn')); /* Havells, L&T, V-Guard on the BOX line */
   assert.ok(box.reduce((t, s) => t + s.w, 0) + 2 * 8 <= 135, 'the three BOX logos stay on one line');
+  const cab = [[1043, 348], [548, 208], [674, 164]].map(([w, h]) => QM.logoSize(w, h, 'three')); /* Microtek, Finolex, KEI on the cable line */
+  assert.ok(cab.reduce((t, s) => t + s.w, 0) + 2 * 8 <= 177 && cab.every(s => s.h <= 22 && s.h >= 10), 'the three cable logos stay on one line, readable');
   const abb = QM.logoSize(262, 100, 'lab'), citel = QM.logoSize(196, 100, 'lab');
   assert.ok(Math.abs(area(abb) - area(citel)) / area(abb) < 0.12, 'ABB and CITEL on their own rows look about the same size');
   assert.equal(QM.logoSize(0, 10, 'one'), null); assert.equal(QM.logoSize(10, 10, 'nowhere'), null);
@@ -273,5 +275,6 @@ test('logoSize: panel and inverter logos share one look and grow; other logos gr
   assert.equal(QM.logoPlace(false, true, 1, false), 'lab'); assert.equal(QM.logoPlace(false, true, 2, false), 'lab2');
   assert.equal(QM.logoPlace(false, false, 2, false), 'two'); assert.equal(QM.logoPlace(false, false, 1, true), 'one');
   assert.equal(QM.logoPlace(false, true, 3, false), 'labn', 'three logos after a label');
-  assert.equal(QM.logoPlace(false, false, 3, false), '', 'three or more unlabelled logos on a line keep the CSS caps');
+  assert.equal(QM.logoPlace(false, false, 3, false), 'three', 'three unlabelled logos (cables)');
+  assert.equal(QM.logoPlace(false, false, 4, false), '', 'four or more unlabelled logos on a line keep the CSS caps');
 });

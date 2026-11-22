@@ -206,11 +206,12 @@ var QM = (function () {
      same size. [area px², max width, max height] per place: main1 / main2 = panel and inverter rows (one logo / two side by side),
      one / two = other items, lab / lab2 / labn = after a label (BOX, MCB …) with one / two / three or more logos: kept within one 22 px
      row height so the labelled rows line up neatly (owner, 2026-11-22: "neatly arrange the logo"), labn narrow enough for three on a line.
-     Unlabelled lines with three or more logos keep the CSS caps. */
-  Q.LOGO = { main1: [3000, 130, 44], main2: [2000, 80, 38], one: [1800, 90, 24], two: [1100, 56, 24], lab: [1000, 60, 22], lab2: [900, 54, 22], labn: [700, 42, 20] };
+     three = three logos on an unlabelled line (cables: Microtek, Finolex, KEI — 2026-11-22), sized to stay on one line in the 177 px
+     brand column. Unlabelled lines with four or more logos keep the CSS caps. */
+  Q.LOGO = { main1: [3000, 130, 44], main2: [2000, 80, 38], one: [1800, 90, 24], two: [1100, 56, 24], three: [900, 52, 22], lab: [1000, 60, 22], lab2: [900, 54, 22], labn: [700, 42, 20] };
   /* main = panels / inverter row, lab = the item's brand lines have labels, n = logos on this line, only = the item has just this one logo */
   Q.logoPlace = function (main, lab, n, only) {
-    if (n > 2) return lab ? 'labn' : '';
+    if (n > 2) return lab ? 'labn' : n === 3 ? 'three' : '';
     if (lab) return n > 1 ? 'lab2' : 'lab';
     if (main) return only ? 'main1' : 'main2';
     return only ? 'one' : 'two';

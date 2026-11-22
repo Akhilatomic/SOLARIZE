@@ -134,7 +134,7 @@ function qm_seed(PDO $db): void {
   $spdBr = $br('SPD', $L('citel'));
   $acdbBrands = [$boxBr, $br('MCB', $L('abb')), $spdBr];
   $dcdbBrands = [$boxBr, $br('FUSE', 'text:Eaton'), $spdBr];
-  $cableBrands = [$br('', $L('microtek'), $L('finolex'))];
+  $cableBrands = [$br('', $L('microtek'), $L('finolex'), $L('kei'))]; /* KEI added 2026-11-22 (older catalogues get it from qm_fix rev 1) */
   $panelW = [$w(12, 'Panels product'), $w(30, 'Panels performance')];
   $meterW = [$w(1, 'Energy meter replacement')];
   $anchor = $br('ANCHOR', $L('fischer'));
@@ -421,6 +421,35 @@ function qm_add_new(PDO $db): void {
         json_encode($f['warranty'] ?? [], JSON_UNESCAPED_UNICODE), json_encode($f['brands'] ?? [], JSON_UNESCAPED_UNICODE), $f['picture'] ?? '', $f['page'] ?? '', $sort]);
     }
     $db->prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v')->execute(['qm_added_rev', json_encode(QM_ADDED_REV)]);
+    $db->commit();
+  } catch (Throwable $e) { if ($db->inTransaction()) $db->rollBack(); throw $e; }
+}
+
+/* Changes to products that are ALREADY in a catalogue (qm_added() only inserts new ones). Runs from qm boot; each rev runs once per
+   database (settings qm_fix_rev) and only adds what is missing, so an admin's own edits stay. Add a fix = a new `if ($have < N)`
+   block and bump QM_FIX_REV. Saved quotations keep printing what they were saved with (their snapshot). */
+const QM_FIX_REV = 1;
+function qm_fix(PDO $db): void {
+  $r = $db->query("SELECT v FROM settings WHERE k='qm_fix_rev'")->fetchColumn();
+  $have = $r === false ? 0 : (int)json_decode((string)$r, true);
+  if ($have >= QM_FIX_REV) return;
+  $db->beginTransaction();
+  try {
+    if ($have < 1) { /* rev 1 (owner, 2026-11-22: "add KEI to AC and DC cables brand"): the KEI logo after Microtek and Finolex */
+      $kei = 'assets/quote/logo-kei.png';
+      $get = $db->prepare('SELECT id, brands FROM qm_products WHERE code IN (?,?,?)'); $get->execute(['dccable', 'accable', 'accable-3ph']);
+      $put = $db->prepare('UPDATE qm_products SET brands=? WHERE id=?');
+      foreach ($get->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        $b = json_decode((string)$p['brands'], true); if (!is_array($b)) $b = [];
+        $has = false; foreach ($b as $g) if (in_array($kei, (array)($g['logos'] ?? []), true)) $has = true;
+        if ($has) continue;
+        $gi = 0; foreach ($b as $i => $g) if ((string)($g['label'] ?? '') === '') { $gi = $i; break; } /* the unlabelled brand line, else the first */
+        if (!$b) $b = [['label' => '', 'logos' => []]];
+        $b[$gi]['logos'] = array_values(array_merge((array)($b[$gi]['logos'] ?? []), [$kei]));
+        $put->execute([json_encode(array_values($b), JSON_UNESCAPED_UNICODE), $p['id']]);
+      }
+    }
+    $db->prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v')->execute(['qm_fix_rev', json_encode(QM_FIX_REV)]);
     $db->commit();
   } catch (Throwable $e) { if ($db->inTransaction()) $db->rollBack(); throw $e; }
 }

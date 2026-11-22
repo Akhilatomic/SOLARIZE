@@ -95,6 +95,7 @@ function handle_qm($a) {
     case 'boot': {
       need('quotes');
       qm_add_new(db()); /* products added after the first seed, once per database */
+      qm_fix(db()); /* changes to products already in the catalogue (qm_seed.php), once per database */
       $fin = can('finance');
       $products =array_map(fn($p) => qm_product_out($p, $fin), rows('SELECT * FROM qm_products ORDER BY sort, id'));
       $templates = array_map(function ($t) { $t['id'] = (int)$t['id']; $t['data'] = json_decode((string)$t['data'], true) ?: new stdClass(); $t['created_by'] = $t['created_by'] === null ? null : (int)$t['created_by']; $t['created_name'] = (string)($t['created_name'] ?? ''); return $t; },

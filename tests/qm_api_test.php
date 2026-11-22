@@ -89,6 +89,23 @@ if ($dbPath && is_file($dbPath)) { /* a database that had rev 1 (Emmvee only, as
   chk(count($e2) === 1 && $e2[0]['hidden'] === 1 && count($w2) === 1 && $w2[0]['sort'] > $e2[0]['sort'], 'rev 1 database: Waaree added once after Emmvee, Emmvee left as the admin set it');
 }
 if ($em) call($admin, 'qm', 'product_save', ['id' => $em[0]['id'], 'hidden' => 0]);
+/* qm_fix rev 1: KEI on the AC / DC cable products — on a new catalogue (seed) and on an older one (the live site) */
+$kei = 'assets/quote/logo-kei.png';
+foreach (['dccable', 'accable', 'accable-3ph'] as $code) {
+  $cp = $byCode($boot, $code); $lg = $cp[0]['brands'][0]['logos'] ?? [];
+  chk(count($cp) === 1 && $lg === ['assets/quote/logo-microtek.png', 'assets/quote/logo-finolex.png', $kei] && is_file(__DIR__ . '/../' . $kei), "cable brands: $code shows Microtek, Finolex and KEI");
+}
+if ($dbPath && is_file($dbPath)) { /* an older catalogue: no KEI yet, and the admin changed the AC cable brands to Polycab + Finolex */
+  $pdo = new PDO('sqlite:' . $dbPath);
+  $old = json_encode([['label' => '', 'logos' => ['assets/quote/logo-microtek.png', 'assets/quote/logo-finolex.png']]]);
+  $own = json_encode([['label' => '', 'logos' => ['text:Polycab', 'assets/quote/logo-finolex.png']]]);
+  $pdo->prepare("UPDATE qm_products SET brands=? WHERE code IN ('dccable','accable-3ph')")->execute([$old]);
+  $pdo->prepare("UPDATE qm_products SET brands=? WHERE code='accable'")->execute([$own]);
+  $pdo->exec("UPDATE settings SET v='0' WHERE k='qm_fix_rev'"); $pdo = null;
+  $b3 = call($admin, 'qm', 'boot'); $b4 = call($admin, 'qm', 'boot'); /* twice: the fix must run once */
+  chk(($byCode($b4, 'dccable')[0]['brands'][0]['logos'] ?? []) === ['assets/quote/logo-microtek.png', 'assets/quote/logo-finolex.png', $kei], 'older catalogue: KEI added after Microtek and Finolex, once');
+  chk(($byCode($b4, 'accable')[0]['brands'][0]['logos'] ?? []) === ['text:Polycab', 'assets/quote/logo-finolex.png', $kei], "older catalogue: the admin's own cable brands kept, KEI added");
+}
 chk(($boot['settings']['signoff'] ?? null) === ['sign' => '', 'seal' => ''], 'seal and signature start empty');
 chk(count($boot['cats'] ?? []) === 14 && ($boot['cats'][0][0] ?? '') === 'panels', 'categories');
 chk(($boot['settings']['kseb']['reg_per_kw'] ?? 0) === 1000 && ($boot['settings']['loan']['rate'] ?? 0) == 6.0, 'defaults');
