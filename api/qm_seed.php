@@ -324,7 +324,7 @@ function qm_seed(PDO $db): void {
 /* Products added after the first seed. qm_seed() only fills an empty catalogue, so these go into every database once
    (unique code, INSERT OR IGNORE), after the last product of their category; settings qm_added_rev remembers it,
    so an admin's later edits or Hide are kept. Add a product here = add a row and bump QM_ADDED_REV. */
-const QM_ADDED_REV = 3;
+const QM_ADDED_REV = 4;
 function qm_added(): array {
   $w = fn($years, $label) => ['years' => (string)$years, 'label' => $label];
   $panelW = [$w(12, 'Panels product'), $w(30, 'Panels performance')];
@@ -348,6 +348,29 @@ function qm_added(): array {
       "SolarEdge SE{$k}K three-phase (400 V, 3 / N / PE), $k kW, Home Wave, 98% peak efficiency, IP65 (outdoor and indoor). Fixed-voltage DC for long strings, built-in module-level monitoring, export limitation and arc-fault protection. Commissioned and monitored from your phone (SetApp). 8-year warranty.",
       ['title' => 'SolarEdge 3-Phase Inverter', 'kw' => $k, 'qty_note' => "$k kW · 3-phase", 'needs_opt' => 1, 'picture' => 'assets/quote/pic-inverter-solaredge-3ph.png',
         'warranty' => [$w(8, 'SolarEdge inverter')], 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-solaredge.png']]]]], [8, 10]),
+    /* Rev 4: Havells Enviro GTi single-phase string inverters, brochure "Solar GTi Inverter 1 kW-350 kW NG Series" ZHLLE00187 (2026), page 8:
+       L/N/PE 230 V, 1 MPPT, 1 DC input, 550 V max DC, 50–550 V MPPT, 20 A, IP65, transformerless, 10-year warranty, BIS (IS 16169 / 16221 / 17980).
+       3KTL-G4: 3000 W, 97.50% max (97.00% EU), DC switch optional, LED + app, built-in Wi-Fi. 5KTL-G3: 5000 W, at least 97.2% max (96.8% EU),
+       DC switch built in, 1.5 times DC overloading (page 4), Bluetooth + app, RS485 / Wi-Fi. Page 4: zero export built in, BIS + BEE certified.
+       The brochure has no 3 kW or 5 kW three-phase model, so the owner chose the smallest three-phase one, Enviro GTi 6000 TX-NG (page 10):
+       6000 W / 6600 VA, 3 / N / PE 230 / 400 V, 2 MPPT (15 A / 15 A), 1100 V max DC, 140–1000 V MPPT, 9000 Wp recommended PV, 98.40% max
+       (97.50% EU), DC switch, Type II SPD PV + AC, anti reverse power, string fault monitoring, RS485 / USB / Bluetooth (Wi-Fi / GPRS optional),
+       IP65, LCD, 17 kg, 430 × 385 × 82 mm, 10-year warranty. Page 4: BIS, BEE and IEC certified, 1.5 times DC overloading per MPPT. */
+    ['inv-havells-3', 'Havells Enviro GTi 3KTL-G4 3 kW', 'inverter', 'On-grid inverter',
+      'Changes the panels’ DC power into AC power for your home, and sends extra units to the grid.',
+      'Havells Enviro GTi 3KTL-G4, 3 kW, single phase, 1 MPPT, IP65 (outdoor), 97.5% peak efficiency. Built-in zero export, anti-islanding, leakage-current and ground-fault protection. Built-in Wi-Fi, monitored from your phone. BIS and BEE certified. 10-year warranty.',
+      ['title' => 'Havells Inverter', 'kw' => 3, 'qty_note' => '3 kW', 'picture' => 'assets/quote/pic-inverter-string.png',
+        'warranty' => [$w(10, 'Havells inverter')], 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-havells.png']]]]],
+    ['inv-havells-5', 'Havells Enviro GTi 5KTL-G3 5 kW', 'inverter', 'On-grid inverter',
+      'Changes the panels’ DC power into AC power for your home, and sends extra units to the grid.',
+      'Havells Enviro GTi 5KTL-G3, 5 kW, single phase, 1 MPPT, IP65 (outdoor), at least 97.2% peak efficiency. Built-in zero export and DC switch, anti-islanding, leakage-current and ground-fault protection. Takes up to 1.5 times DC overloading. Wi-Fi and Bluetooth, monitored from your phone. BIS and BEE certified. 10-year warranty.',
+      ['title' => 'Havells Inverter', 'kw' => 5, 'qty_note' => '5 kW', 'picture' => 'assets/quote/pic-inverter-string.png',
+        'warranty' => [$w(10, 'Havells inverter')], 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-havells.png']]]]],
+    ['inv-havells-6-3ph', 'Havells Enviro GTi 6000 TX-NG 6 kW three-phase', 'inverter', 'On-grid inverter',
+      'Changes the panels’ DC power into three-phase AC power for your home, and sends extra units to the grid.',
+      'Havells Enviro GTi 6000 TX-NG three-phase (400 V, 3 / N / PE), 6 kW, 2 MPPT, IP65 (outdoor), 98.4% peak efficiency. Built-in DC switch and Type II surge protection (DC and AC), anti-islanding, leakage-current and ground-fault protection, string monitoring and export control. Takes up to 1.5 times DC overloading. Bluetooth app; Wi-Fi logger optional. BIS and BEE certified. 10-year warranty.',
+      ['title' => 'Havells 3-Phase Inverter', 'kw' => 6, 'qty_note' => '6 kW · 3-phase', 'picture' => 'assets/quote/pic-inverter-string.png',
+        'warranty' => [$w(10, 'Havells inverter')], 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-havells.png']]]]],
   ];
 }
 function qm_add_new(PDO $db): void {
