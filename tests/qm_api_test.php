@@ -45,7 +45,12 @@ foreach (['pan-emmvee-600' => 'logo-emmvee.png', 'pan-waaree-600' => 'logo-waare
 }
 $pans = array_values(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'panels'));
 usort($pans, fn($x, $y) => $x['sort'] <=> $y['sort'] ?: $x['id'] <=> $y['id']);
-chk(array_column(array_slice($pans, -3), 'code') === ['pan-emmvee-600', 'pan-waaree-600', 'pan-havells-600'], 'added products sit after the other panels, in list order');
+chk(array_column(array_slice($pans, -6), 'code') === ['pan-emmvee-600', 'pan-waaree-600', 'pan-havells-600', 'pan-premier-132-600', 'pan-premier-144-560', 'pan-premier-144-525'], 'added products sit after the other panels, in list order');
+foreach (['pan-premier-132-600' => [600, '132 half-cut TOPCon'], 'pan-premier-144-560' => [560, '144 half-cut TOPCon'], 'pan-premier-144-525' => [525, '144 half-cut mono PERC']] as $code => [$wp, $kind]) { /* rev 6 */
+  $ap = $byCode($boot, $code);
+  chk(count($ap) === 1 && $ap[0]['wp'] == $wp && !$ap[0]['is_default'] && !$ap[0]['hidden'] && $ap[0]['brands'][0]['logos'] === ['assets/quote/logo-premier.png']
+    && str_contains($ap[0]['details'], "$kind DCR, $wp+ Wp") && count($ap[0]['warranty']) === 2, "added product: Premier $kind $wp+ Wp");
+}
 chk(str_contains($byCode($boot, 'pan-havells-600')[0]['details'] ?? '', 'GS12R-T132-GF'), 'added product: Havells GS12R-T132-GF panel wording');
 foreach ([8, 10] as $k) { /* rev 3: SolarEdge SE8K / SE10K three-phase, like the seeded SE5K */
   $ap = $byCode($boot, "inv-se-$k-3ph");
@@ -65,7 +70,13 @@ $ap = $byCode($boot, 'inv-havells-6-3ph'); /* rev 4: the smallest Havells three-
 chk(count($ap) === 1 && $ap[0]['cat'] === 'inverter' && $ap[0]['kw'] == 6 && !$ap[0]['needs_opt'] && !$ap[0]['kw_line'] && !$ap[0]['is_default'] && !$ap[0]['hidden']
   && $ap[0]['qty_note'] === '6 kW · 3-phase' && $ap[0]['title'] === 'Havells 3-Phase Inverter' && $ap[0]['brands'][0]['logos'] === ['assets/quote/logo-havells.png']
   && str_contains($ap[0]['details'], '6000 TX-NG') && str_contains($ap[0]['details'], 'three-phase'), 'added product: Havells 6000 TX-NG 6 kW three-phase');
-chk(array_column(array_slice($invs, -5), 'code') === ['inv-se-8-3ph', 'inv-se-10-3ph', 'inv-havells-3', 'inv-havells-5', 'inv-havells-6-3ph'], 'added inverters sit after the other inverters, in list order');
+foreach ([3, 4, 5, 6] as $k) { /* rev 6: Sungrow SGx.0RS-L single phase */
+  $ap = $byCode($boot, "inv-sungrow-$k");
+  chk(count($ap) === 1 && $ap[0]['kw'] == $k && !$ap[0]['needs_opt'] && !$ap[0]['is_default'] && !$ap[0]['hidden'] && $ap[0]['qty_note'] === "$k kW"
+    && $ap[0]['title'] === 'Sungrow Inverter' && $ap[0]['brands'][0]['logos'] === ['assets/quote/logo-sungrow.png'] && is_file(__DIR__ . '/../assets/quote/logo-sungrow.png')
+    && str_contains($ap[0]['details'], "SG$k.0RS-L") && str_contains($ap[0]['details'], $k === 3 ? '1 MPPT' : '2 MPPT'), "added product: Sungrow SG$k.0RS-L $k kW");
+}
+chk(array_column(array_slice($invs, -9), 'code') === ['inv-se-8-3ph', 'inv-se-10-3ph', 'inv-havells-3', 'inv-havells-5', 'inv-havells-6-3ph', 'inv-sungrow-3', 'inv-sungrow-4', 'inv-sungrow-5', 'inv-sungrow-6'], 'added inverters sit after the other inverters, in list order');
 $em = $byCode($boot, 'pan-emmvee-600');
 if ($em) call($admin, 'qm', 'product_save', ['id' => $em[0]['id'], 'hidden' => 1]);
 $again = $byCode(call($admin, 'qm', 'boot'), 'pan-emmvee-600');

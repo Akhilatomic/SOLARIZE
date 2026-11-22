@@ -324,7 +324,7 @@ function qm_seed(PDO $db): void {
 /* Products added after the first seed. qm_seed() only fills an empty catalogue, so these go into every database once
    (unique code, INSERT OR IGNORE), after the last product of their category; settings qm_added_rev remembers it,
    so an admin's later edits or Hide are kept. Add a product here = add a row and bump QM_ADDED_REV. */
-const QM_ADDED_REV = 5;
+const QM_ADDED_REV = 6;
 function qm_added(): array {
   $w = fn($years, $label) => ['years' => (string)$years, 'label' => $label];
   $panelW = [$w(12, 'Panels product'), $w(30, 'Panels performance')];
@@ -378,6 +378,34 @@ function qm_added(): array {
     ['pan-havells-600', 'Havells GS12R-T132-GF 600+ Wp TOPCon', 'panels', 'Solar panels', 'Make electricity from sunlight.',
       'Havells GS12R-T132-GF DCR, 600+ Wp, N-type TOPCon bifacial dual-glass, 132 cells, up to 22.95% efficient, ALMM approved. Size 2382 × 1134 × 30 mm. 12-year product warranty and 30-year power warranty (87.4% power after 30 years).',
       ['wp' => 600, 'qty' => 4, 'picture' => 'assets/quote/pic-panels.png', 'warranty' => $panelW, 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-havells.png']]]]],
+    /* Rev 6 (owner: "add these products", folder TS, Nov 2026). Premier Energies datasheets:
+       - "132 Half Cut TOPCon cell, bifacial dual glass G12R 600-630 W" (PE-132-xxx THGB-G12R, silver frame; the full-black NeoBlack DCR version
+         of the same datasheet family is the seeded pan-premier-600): N-type TOPCon 16BB, 132 (66×2) cells 210 × 182.2 mm, 22.21–23.32%,
+         2382 × 1134 × 35 mm, 33.5 kg, < 1.0% first year then < 0.40% a year (= 87.4% after 30 years), 12 / 30-year warranty.
+       - "144 Half Cut TOPCon cell, bifacial dual glass 560-590 W" (PE TDG560–590, M10 182 mm): 21.66–22.83%, 2278 × 1134 × 35 mm, 34 kg,
+         < 1.0% then < 0.40% a year, 12 / 30-year warranty.
+       - "144 Half Cut Mono PERC, bifacial transparent backsheet 525-555 W, DCR / non-DCR" (PE 525HB–555HB, M10): 20.32–21.48%,
+         2278 × 1134 × 35 mm, 34 kg, < 2.0% then < 0.45% a year, 12 / 30-year warranty.
+       Wattage = the lowest of the range with "+", and DCR + ALMM, as chosen for the Emmvee / Waaree / Havells panels (the TOPCon
+       datasheets do not say DCR or ALMM; the PERC one is sold as DCR and non-DCR). */
+    ['pan-premier-132-600', 'Premier TOPCon 600+ Wp (132 half-cut)', 'panels', 'Solar panels', 'Make electricity from sunlight.',
+      'Premier 132 half-cut TOPCon DCR, 600+ Wp, N-type bifacial dual-glass, G12R cells, up to 23.32% efficient, ALMM approved. Size 2382 × 1134 × 35 mm. 12-year product warranty and 30-year power warranty (87.4% power after 30 years).',
+      ['wp' => 600, 'qty' => 4, 'picture' => 'assets/quote/pic-panels.png', 'warranty' => $panelW, 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-premier.png']]]]],
+    ['pan-premier-144-560', 'Premier TOPCon 560+ Wp (144 half-cut)', 'panels', 'Solar panels', 'Make electricity from sunlight.',
+      'Premier 144 half-cut TOPCon DCR, 560+ Wp, bifacial dual-glass, M10 cells, up to 22.83% efficient, ALMM approved. Size 2278 × 1134 × 35 mm. 12-year product warranty and 30-year power warranty (87.4% power after 30 years).',
+      ['wp' => 560, 'qty' => 4, 'picture' => 'assets/quote/pic-panels.png', 'warranty' => $panelW, 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-premier.png']]]]],
+    ['pan-premier-144-525', 'Premier Mono PERC 525+ Wp (144 half-cut)', 'panels', 'Solar panels', 'Make electricity from sunlight.',
+      'Premier 144 half-cut mono PERC DCR, 525+ Wp, bifacial with a transparent backsheet, M10 cells, up to 21.48% efficient, ALMM approved. Size 2278 × 1134 × 35 mm. 12-year product warranty and 30-year power warranty.',
+      ['wp' => 525, 'qty' => 4, 'picture' => 'assets/quote/pic-panels.png', 'warranty' => $panelW, 'brands' => [['label' => '', 'logos' => ['assets/quote/logo-premier.png']]]]],
+    /* Sungrow single-phase string inverters for India: SG3.0RS-L datasheet V12 (2023-06-16) and SG4.0/5.0/6.0RS-L V13 (2023-06-17):
+       L/N/PE 220/240 V, 600 V max DC, 40–560 V MPPT, 3.0 = 1 MPPT 97.8 % max, 4.0/5.0/6.0 = 2 MPPT 97.9 % max, built-in Type II DC + AC SPD,
+       DC switch, leakage current protection, PID Zero, IP65 indoor/outdoor, WLAN + iSolarCloud, BIS (IS 16169 / 16221).
+       The datasheets give no warranty period, so none is printed (the admin can add it in the product). Logo cut from the datasheet. */
+    ...array_map(fn($k) => ["inv-sungrow-$k", "Sungrow SG$k.0RS-L $k kW", 'inverter', 'On-grid inverter',
+      'Changes the panels’ DC power into AC power for your home, and sends extra units to the grid.',
+      "Sungrow SG$k.0RS-L, $k kW, single phase, " . ($k === 3 ? '1 MPPT' : '2 MPPT') . ', IP65 (indoor and outdoor), ' . ($k === 3 ? '97.8' : '97.9') . '% peak efficiency. Built-in Type II surge protection (DC and AC), DC switch, leakage-current protection and PID Zero. Wi-Fi, monitored from your phone (iSolarCloud). BIS certified.',
+      ['title' => 'Sungrow Inverter', 'kw' => $k, 'qty_note' => "$k kW", 'picture' => 'assets/quote/pic-inverter-string.png',
+        'brands' => [['label' => '', 'logos' => ['assets/quote/logo-sungrow.png']]]]], [3, 4, 5, 6]),
   ];
 }
 function qm_add_new(PDO $db): void {
