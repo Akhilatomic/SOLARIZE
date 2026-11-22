@@ -24,6 +24,9 @@ const SUBSIDY = {
   next(flow, status) { const i = flow.indexOf(status); if (i >= 0) return flow[i + 1] || ''; return status === 'Reverify' ? 'Subsidy redeem stage' : ''; }
 };
 if (typeof module !== 'undefined') module.exports = { SUBSIDY };
+/* the redeemed-subsidy screenshot (owner, 2026-11-22): offered at these statuses, saved in the customer's Documents (api/subsidy.php shot / img) */
+const SDY_SHOT_AT = ['Subsidy redeemed', 'Subsidy disbursed'];
+const sdyShotUrl = (f, dl) => `api.php?m=subsidy&a=img&id=${f.id}${dl === 1 ? '&dl=1' : dl === 'v' ? '&v=1' : ''}`;
 
 const SDY = { d: null, f: '', q: '' };
 async function pgSubsidy(id) {
@@ -80,12 +83,18 @@ async function sdyBox(cid, reload) {
   if (!g.row) { if (typeof toast === 'function') toast('This customer is not on the subsidy list', true); return; }
   const r = g.row, w = g.write; let sel = r.status;
   const m = modal('<div id="sdyb"></div>', true), box = $('#sdyb', m);
+  g.shots = g.shots || [];
   const draw = () => {
     const steps = SUBSIDY.steps(g.flow, r.status, g.log), nx = SUBSIDY.next(g.flow, r.status), changed = sel !== r.status;
+    /* the screenshot strip: at Subsidy redeemed / disbursed, or whenever one was uploaded */
+    const shots = SDY_SHOT_AT.includes(r.status) || g.shots.length ? `<div class="sdy-shot"><div class="sdy-shh"><b>Redeemed screenshot</b><small class="mut">${g.shots.length ? 'Saved in the customer’s Documents' : 'Optional'}</small></div>
+      <div class="sdy-shl">${g.shots.map((f, i) => `<button type="button" class="sdy-th" data-shv="${i}" title="View ${esc(f.name)}">${/\.pdf$/i.test(f.name) ? '<span class="sdy-pdf"><i class="i i-file"></i>PDF</span>' : `<img src="${sdyShotUrl(f)}" alt="" loading="lazy">`}</button>`).join('')}
+      ${w ? `<button type="button" class="btn sec sm" id="sdyup"><i class="i i-upload"></i> ${g.shots.length ? 'Upload another' : 'Upload screenshot'}</button>` : g.shots.length ? '' : '<small class="mut">Not uploaded</small>'}</div></div>` : '';
     box.innerHTML = `<div class="sdy-h"><div><h2>${esc(r.name)}</h2><small class="mut">${esc([r.phone, r.consumer_no ? 'Consumer no. ' + r.consumer_no : '', r.kw ? r.kw + ' kW' : '', r.application_no ? 'Application ' + r.application_no : ''].filter(Boolean).join(' · '))}</small></div>
         <div class="sdy-hr">${pill(r.status, SUBSIDY.cls(r.status))}<small class="mut">since ${dmy(r.status_date)}</small></div></div>
       <div class="sdy-steps">${steps.map((x, i) => `<button type="button" class="sdy-s sdy-${x.st}${sel === x.s ? ' sdy-sel' : ''}" data-s="${esc(x.s)}" ${w ? '' : 'disabled'}><em>${x.st === 'done' ? '<i class="i i-check"></i>' : i + 1}</em><span>${esc(x.s)}</span></button>`).join('')}</div>
       <div class="sdy-side"><span class="mut">Or:</span>${g.side.map(s => `<button type="button" class="sdy-x ${SUBSIDY.cls(s)}${r.status === s ? ' sdy-now' : ''}${sel === s ? ' sdy-sel' : ''}" data-s="${esc(s)}" ${w ? '' : 'disabled'}>${esc(s)}</button>`).join('')}</div>
+      ${shots}
       ${w ? `<div class="sdy-f"><div><label>Status</label><div class="sdy-pick">${pill(sel, SUBSIDY.cls(sel))}${changed ? '<small class="mut">was ' + esc(r.status) + '</small>' : nx ? `<a href="#" id="sdynx">Move to “${esc(nx)}”</a>` : ''}</div></div>
           <div><label for="sdyd">Date</label><input id="sdyd" type="date" max="${today()}" value="${changed ? today() : esc(r.status_date)}"></div>
           <div class="full"><label for="sdyn">Note (optional)</label><input id="sdyn" maxlength="300" ${SPELL} placeholder="e.g. Inspection fixed for Monday, reason for rejection" value="${changed ? '' : esc(r.note)}"></div></div>
@@ -96,12 +105,58 @@ async function sdyBox(cid, reload) {
     $('#sdycx', box).onclick = () => m.remove(); $('#sdycu', box).onclick = () => m.remove();
     if ($('#sdynx', box)) $('#sdynx', box).onclick = e => { e.preventDefault(); sel = nx; draw(); };
     if ($('#sdysv', box)) $('#sdysv', box).onclick = async () => {
-      const res = await api('subsidy', 'set', { customer_id: cid, status: sel, date: $('#sdyd', box).value, note: $('#sdyn', box).value });
+      const to = sel, was = r.status;
+      const res = await api('subsidy', 'set', { customer_id: cid, status: to, date: $('#sdyd', box).value, note: $('#sdyn', box).value });
       m.remove(); if (typeof toast === 'function') toast(res.same ? 'Nothing changed' : 'Subsidy status saved'); if (reload) await reload();
+      if (to === 'Subsidy redeemed' && was !== to) sdyShotAsk(r); /* just redeemed: offer the screenshot upload (optional) */
     };
+    $$('[data-shv]', box).forEach(b => b.onclick = () => docViewer(g.shots.map(f => ({ id: f.id, name: f.name, item: 'Subsidy redeemed screenshot' })), +b.dataset.shv, sdyShotUrl));
+    if ($('#sdyup', box)) $('#sdyup', box).onclick = () => sdyShotAsk(r, sh => { g.shots = sh; draw(); });
     if ($('#sdyrm', box)) $('#sdyrm', box).onclick = async e => { e.preventDefault(); if (await sdyRemove(r, reload)) m.remove(); };
   };
   draw();
+}
+
+/* The redeemed-subsidy screenshot, optional: choose a file, drop it on the box, or paste it (Ctrl+V — a screenshot is usually on the
+   clipboard). A preview shows before it is saved; it goes to the customer's Documents. done(shots) gets the new list. */
+function sdyShotAsk(r, done) {
+  const m = modal(`<div class="sdy-up"><div class="sdy-uph"><span class="sdy-upi"><i class="i i-check"></i></span><div><h2>Subsidy redeemed</h2><p class="mut">${esc(r.name)} · upload a screenshot of the redeemed page (optional). It is saved in the customer’s Documents.</p></div></div>
+    <label class="sdy-drop" id="sdydz" tabindex="0"><input type="file" id="sdyf" accept="image/png,image/jpeg,image/webp,application/pdf" hidden><i class="i i-upload"></i><b>Choose screenshot</b><small class="mut">or drop it here, or paste it with Ctrl+V</small></label>
+    <div class="sdy-prev" id="sdypv" hidden></div>
+    <div class="bar sdy-upb"><button class="btn" id="sdyus" disabled>Save to Documents</button><button class="btn sec" id="sdyuk">Skip</button></div></div>`);
+  let file = null, url = '';
+  const close = () => { m.remove(); document.removeEventListener('paste', paste); if (url) URL.revokeObjectURL(url); };
+  const take = (f, pasted) => {
+    if (!f) return;
+    if (!/^(image\/(png|jpeg|webp)|application\/pdf)$/.test(f.type)) { toast('Choose a picture (PNG, JPG, WEBP) or a PDF', true); return; }
+    if (pasted) f = new File([f], `subsidy-redeemed-${today()}.${f.type === 'image/jpeg' ? 'jpg' : f.type.split('/')[1]}`, { type: f.type });
+    file = f; if (url) URL.revokeObjectURL(url); url = URL.createObjectURL(f);
+    const pv = $('#sdypv', m); pv.hidden = false;
+    pv.innerHTML = /^image\//.test(f.type) ? `<img src="${url}" alt="">` : `<span class="sdy-pdf"><i class="i i-file"></i>PDF</span>`;
+    pv.insertAdjacentHTML('beforeend', `<small class="mut">${esc(f.name)} · ${Math.max(1, Math.round(f.size / 1024))} KB</small>`);
+    $('#sdyus', m).disabled = false; $('#sdyus', m).focus();
+  };
+  const paste = e => { if (!document.body.contains(m)) return document.removeEventListener('paste', paste);
+    const f = [...((e.clipboardData && e.clipboardData.files) || [])][0]; if (f) { e.preventDefault(); take(f, true); } };
+  document.addEventListener('paste', paste);
+  $('#sdyf', m).onchange = e => take(e.target.files[0]);
+  const dz = $('#sdydz', m);
+  dz.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#sdyf', m).click(); } };
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add('on'); }; dz.ondragleave = () => dz.classList.remove('on');
+  dz.ondrop = e => { e.preventDefault(); dz.classList.remove('on'); take(e.dataTransfer.files[0]); };
+  $('#sdyuk', m).onclick = close;
+  $('#sdyus', m).onclick = async () => {
+    if (!file) return; const b = $('#sdyus', m); b.disabled = true; b.textContent = 'Saving…';
+    try {
+      const fd = new FormData(); fd.append('customer_id', r.customer_id);
+      const up = typeof shrinkImage === 'function' && /^image\//.test(file.type) ? await shrinkImage(file) : file; /* big pictures are made smaller first (app12.js) */
+      fd.append('file', up, up.name || file.name);
+      const res = await api('subsidy', 'shot', fd);
+      if (typeof DOC_STALE !== 'undefined') DOC_STALE.add(+r.customer_id); /* the Documents tab reads it again */
+      close(); toast('Screenshot saved in the customer’s Documents'); if (done) done(res.shots || []);
+    } catch (x) { b.disabled = false; b.textContent = 'Save to Documents'; }
+  };
+  dz.focus();
 }
 
 /* delete = take the customer off the subsidy list (the customer stays; the status history goes to the Recycle bin) */

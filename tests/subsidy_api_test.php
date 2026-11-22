@@ -16,6 +16,19 @@ function call($who, $m, $a, $body = null, $qs = '') {
   $j = json_decode((string)$txt, true); if (!is_array($j)) $j = ['_text' => $txt];
   $j['_code'] = $code; return $j;
 }
+/* multipart POST (file uploads) and a raw GET (code + content type) */
+function upload($who, $m, $a, $fields) {
+  global $base; $ch = curl_init("$base/api.php?m=$m&a=$a");
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEJAR => $who['jar'], CURLOPT_COOKIEFILE => $who['jar'], CURLOPT_POST => true, CURLOPT_POSTFIELDS => $fields, CURLOPT_HTTPHEADER => ['X-Solarize: 1']]);
+  $txt = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+  $j = json_decode((string)$txt, true); if (!is_array($j)) $j = ['_text' => $txt]; $j['_code'] = $code; return $j;
+}
+function raw($who, $m, $a, $qs) {
+  global $base; $ch = curl_init("$base/api.php?m=$m&a=$a$qs");
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEJAR => $who['jar'], CURLOPT_COOKIEFILE => $who['jar'], CURLOPT_HTTPHEADER => ['X-Solarize: 1']]);
+  $txt = curl_exec($ch); $r = ['_code' => curl_getinfo($ch, CURLINFO_HTTP_CODE), 'type' => (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE), 'body' => (string)$txt]; curl_close($ch); return $r;
+}
+function tmpfile_with($bytes) { $p = tempnam(sys_get_temp_dir(), 'sdy'); file_put_contents($p, $bytes); return $p; }
 function by_cid($rows, $cid) { foreach ((array)$rows as $r) if ((int)($r['customer_id'] ?? $r['id'] ?? 0) === $cid) return $r; return null; }
 
 echo "Subsidy tracker\n";
@@ -76,6 +89,28 @@ if ($le['_code'] === 200) {
 } else chk($le['_code'] === 403, 'role without Subsidy access is refused');
 chk(in_array(call($ba, 'subsidy', 'list')['_code'], [403], true), 'a Business Associate has no Subsidy list');
 chk(in_array(call($ba, 'subsidy', 'add', ['customer_id' => $c2])['_code'], [403, 404], true), 'a Business Associate cannot add a customer');
+
+// the redeemed-subsidy screenshot (owner, 2026-11-22): optional upload, kept in the customer's Documents until deleted
+$png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='); /* a 1 × 1 picture */
+chk(empty(call($admin, 'subsidy', 'get', null, "&customer_id=$c1")['shots']), 'no screenshot yet');
+$up = upload($admin, 'subsidy', 'shot', ['customer_id' => $c1, 'file' => new CURLFile(tmpfile_with($png), 'image/png', 'image.png')]);
+chk($up['_code'] === 200 && count($up['shots'] ?? []) === 1 && $up['shots'][0]['name'] === 'image.png', 'screenshot uploaded');
+$sid = (int)($up['id'] ?? 0);
+$g = call($admin, 'subsidy', 'get', null, "&customer_id=$c1");
+chk(count($g['shots'] ?? []) === 1 && (int)$g['shots'][0]['id'] === $sid, 'the window lists the screenshot');
+$doc = null; foreach ((array)(call($admin, 'customers', 'get', null, "&id=$c1")['files'] ?? []) as $f) if ((int)$f['id'] === $sid) $doc = $f;
+chk($doc && $doc['item'] === 'Subsidy redeemed screenshot' && $doc['kind'] === 'subsidy' && (int)$doc['life'] === 0, "it is in the customer's Documents, kept until deleted");
+$img = raw($admin, 'subsidy', 'img', "&id=$sid&v=1");
+chk($img['_code'] === 200 && strpos($img['type'], 'image/png') === 0 && $img['body'] === $png, 'the screenshot opens from the subsidy window');
+chk(raw($admin, 'subsidy', 'img', '&id=999999999')['_code'] === 404, 'an unknown screenshot is not found');
+$up2 = upload($admin, 'subsidy', 'shot', ['customer_id' => $c1, 'file' => new CURLFile(tmpfile_with("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"), 'application/pdf', 'redeemed.pdf')]);
+chk($up2['_code'] === 200 && count($up2['shots']) === 2 && $up2['shots'][0]['name'] === 'redeemed.pdf', 'a PDF can be uploaded too; the newest comes first');
+chk(upload($admin, 'subsidy', 'shot', ['customer_id' => $c1, 'file' => new CURLFile(tmpfile_with($png . '<?php system($_GET["c"]); ?>'), 'image/png', 'x.png')])['_code'] === 400, 'a picture carrying code is blocked by the upload check');
+chk(upload($admin, 'subsidy', 'shot', ['customer_id' => $c1, 'file' => new CURLFile(tmpfile_with('hello'), 'text/plain', 'notes.txt')])['_code'] === 400, 'only pictures and PDFs');
+chk(upload($admin, 'subsidy', 'shot', ['customer_id' => $c2, 'file' => new CURLFile(tmpfile_with($png), 'image/png', 'image.png')])['_code'] === 404, 'a customer not on the subsidy list gets none');
+if ($le['_code'] === 200 && !$le['write']) chk(upload($eng, 'subsidy', 'shot', ['customer_id' => $c1, 'file' => new CURLFile(tmpfile_with($png), 'image/png', 'image.png')])['_code'] === 403, 'a view-only role cannot upload');
+if ($le['_code'] === 200) chk(raw($eng, 'subsidy', 'img', "&id=$sid")['_code'] === 200, 'a role that can see the subsidy list can open the screenshot');
+chk(raw($ba, 'subsidy', 'img', "&id=$sid")['_code'] === 403, 'a Business Associate cannot open it');
 
 // remove → Recycle bin → restore
 chk(call($admin, 'subsidy', 'remove', ['customer_id' => $c1])['_code'] === 200, 'removed from the list');

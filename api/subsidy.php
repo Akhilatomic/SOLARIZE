@@ -10,6 +10,13 @@ const SUBSIDY_STATUSES = [...SUBSIDY_FLOW, ...SUBSIDY_SIDE];
 const SUBSIDY_CLOSED = ['Subsidy disbursed', 'Subsidy rejected']; /* nothing more to follow up */
 const SUBSIDY_OLD_MAP = ['Under review' => 'Subsidy redeem stage', 'Approved' => 'Subsidy redeemed', 'Released' => 'Subsidy disbursed']; /* the old project status */
 const SUBSIDY_NOTE_MAX = 300;
+/* Owner (2026-11-22): at "Subsidy redeemed" staff may upload a screenshot of the portal's redeemed page (optional). It is saved as a
+   customer document (files.kind 'subsidy', this item name), kept until someone deletes it, and shown in the customer's subsidy window. */
+const SUBSIDY_SHOT_ITEM = 'Subsidy redeemed screenshot';
+function subsidy_shots($cid) {
+  return array_map(fn($f) => ['id' => (int)$f['id'], 'name' => $f['name'], 'size' => (int)$f['size'], 'created' => $f['created'], 'user' => $f['user']],
+    rows("SELECT id, name, size, created, user FROM files WHERE customer_id=? AND kind='subsidy' ORDER BY id DESC", [(int)$cid]));
+}
 
 function subsidy_rows($where = '1=1', $args = []) {
   $rs = rows("SELECT st.id, st.customer_id, st.status, st.status_date, st.note, st.created, st.added_by, st.updated, st.updated_by,
@@ -56,7 +63,31 @@ function handle_subsidy($a) {
       $cid = (int)($_GET['customer_id'] ?? 0);
       $r = subsidy_rows('st.customer_id=?', [$cid])[0] ?? null;
       $log = $r ? rows('SELECT status, date, note, by, at FROM subsidy_log WHERE customer_id=? ORDER BY id DESC', [$cid]) : [];
-      out(['row' => $r, 'log' => $log, 'flow' => SUBSIDY_FLOW, 'side' => SUBSIDY_SIDE, 'write' => can('checklist', true)]);
+      out(['row' => $r, 'log' => $log, 'flow' => SUBSIDY_FLOW, 'side' => SUBSIDY_SIDE, 'write' => can('checklist', true), 'shots' => $r ? subsidy_shots($cid) : []]);
+
+    case 'shot': // POST (multipart: customer_id, file): the redeemed-subsidy screenshot → the customer's Documents, kept until deleted
+      need('checklist', true);
+      $cid = (int)($_POST['customer_id'] ?? 0);
+      $st = row('SELECT st.status, c.name FROM subsidy_track st JOIN customers c ON c.id=st.customer_id WHERE st.customer_id=? AND ' . cust_scope('c'), [$cid]);
+      if (!$st) fail('This customer is not on the subsidy list', 404);
+      $fl = $_FILES['file'] ?? null; $ext = sec_upload($fl, ['image', 'pdf'], 10); /* checked by content (api/security.php) */
+      $dir = dirname(__DIR__) . '/data/uploads'; if (!is_dir($dir)) mkdir($dir, 0750, true);
+      $name = bin2hex(random_bytes(12)) . '.' . $ext;
+      if (!move_uploaded_file($fl['tmp_name'], "$dir/$name")) fail('Could not save file', 500);
+      $orig = mb_substr(trim(preg_replace('~[\\\\/:*?"<>|\x00-\x1f]+~', '-', basename((string)$fl['name']))), 0, 150);
+      if (strtolower(pathinfo($orig, PATHINFO_EXTENSION)) !== $ext) $orig = 'subsidy-redeemed.' . $ext; /* a pasted picture, or a photo saved under the wrong type */
+      q('INSERT INTO files(customer_id,kind,item,name,path,size,user,life) VALUES(?,?,?,?,?,?,?,0)', [$cid, 'subsidy', SUBSIDY_SHOT_ITEM, $orig, $name, (int)$fl['size'], $_SESSION['username'] ?? '']);
+      $id = (int)db()->lastInsertId();
+      audit('upload', 'files', $id, SUBSIDY_SHOT_ITEM . " · {$st['name']}");
+      out(['id' => $id, 'shots' => subsidy_shots($cid)]);
+
+    case 'img': // GET (id, optional dl=1): one redeemed-subsidy screenshot, for whoever may see the subsidy list (no Documents access needed)
+      need('checklist');
+      $f = row("SELECT f.* FROM files f JOIN customers c ON c.id=f.customer_id WHERE f.id=? AND f.kind='subsidy' AND " . cust_scope('c'), [(int)($_GET['id'] ?? 0)]);
+      if (!$f) fail('Not found', 404);
+      if (!empty($_GET['dl']) || !empty($_GET['v'])) audit(!empty($_GET['dl']) ? 'doc_download' : 'doc_view', 'files', $f['id'], $f['name'] . ' · ' . SUBSIDY_SHOT_ITEM . ' · customer ' . (int)$f['customer_id']);
+      serve_file(dirname(__DIR__) . '/data/uploads/' . basename($f['path']), $f['name'], ['download' => !empty($_GET['dl']), 'cache' => 'private, no-store',
+        'csp' => file_mime($f['name']) === 'application/pdf' ? "default-src 'none'; object-src 'self'; frame-ancestors 'self'" : "sandbox; default-src 'none'; img-src 'self'; frame-ancestors 'self'"]);
 
     case 'candidates': // GET: customers not on the list yet
       need('checklist', true);

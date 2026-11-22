@@ -165,7 +165,8 @@ async function docMeta(f) {
     } catch (e) { return { name: '', bad: true }; } })();
   const x = await DOC_META[f.id]; f.name = x.name; f.bad = x.bad; return f;
 }
-function docViewer(F, i) {
+/* U = how a file's address is made (default the Documents one); the subsidy window passes its own (api/subsidy.php img) */
+function docViewer(F, i, U = fileUrl) {
   const m = modal('<div class="dvw"></div>', 1); m.classList.add('dvmod');
   const close = () => { m.remove(); document.removeEventListener('keydown', key); };
   const go = d => { i = (i + d + F.length) % F.length; show(); };
@@ -175,9 +176,9 @@ function docViewer(F, i) {
     $('#dvx', m).onclick = close;
     await docMeta(f); if (n !== seq || !document.body.contains(m)) return;
     w.innerHTML = `<div class="dvh"><span class="dvt"><b>${esc(f.item || f.name || 'Document')}</b><small class="mut">${F.length > 1 ? `${i + 1} of ${F.length} · ` : ''}${esc(f.name || '')}</small></span><span class="sp"></span>
-        ${f.bad ? '' : `<a class="btn sec sm" href="${fileUrl(f, 1)}" download="${esc(f.name)}" title="Download"><i class="i i-download"></i><span>Download</span></a><a class="btn sec sm" href="${fileUrl(f, 'v')}" target="_blank" rel="noopener" data-newtab="1" title="Open in a new browser tab"><i class="i i-file"></i><span>New tab</span></a>${f.size != null ? '<button class="btn sec sm" id="dvs" title="Share"><i class="i i-link"></i><span>Share</span></button>' : ''}`}
+        ${f.bad ? '' : `<a class="btn sec sm" href="${U(f, 1)}" download="${esc(f.name)}" title="Download"><i class="i i-download"></i><span>Download</span></a><a class="btn sec sm" href="${U(f, 'v')}" target="_blank" rel="noopener" data-newtab="1" title="Open in a new browser tab"><i class="i i-file"></i><span>New tab</span></a>${f.size != null ? '<button class="btn sec sm" id="dvs" title="Share"><i class="i i-link"></i><span>Share</span></button>' : ''}`}
         <button class="lvx" id="dvx" title="Close (Esc)"><i class="i i-x"></i></button></div>
-      <div class="dvb">${f.bad ? '<p class="dvl">This file could not be opened. It may have been deleted.</p>' : isImg(f) ? `<img src="${fileUrl(f, 'v')}" alt="${esc(f.name)}" title="Click for full size">` : isPdf(f) ? `<iframe src="${fileUrl(f, 'v')}#view=FitH&navpanes=0" title="${esc(f.name)}"></iframe>` : `<p class="dvl">No preview for this kind of file.<br><a class="btn sm" href="${fileUrl(f, 1)}" download="${esc(f.name)}">Download it</a></p>`}
+      <div class="dvb">${f.bad ? '<p class="dvl">This file could not be opened. It may have been deleted.</p>' : isImg(f) ? `<img src="${U(f, 'v')}" alt="${esc(f.name)}" title="Click for full size">` : isPdf(f) ? `<iframe src="${U(f, 'v')}#view=FitH&navpanes=0" title="${esc(f.name)}"></iframe>` : `<p class="dvl">No preview for this kind of file.<br><a class="btn sm" href="${U(f, 1)}" download="${esc(f.name)}">Download it</a></p>`}
        ${F.length > 1 ? '<button class="dvn p" id="dvp" title="Previous (←)" aria-label="Previous">‹</button><button class="dvn n" id="dvn" title="Next (→)" aria-label="Next">›</button>' : ''}</div>`;
     $('#dvx', m).onclick = close;
     if ($('#dvs', m)) $('#dvs', m).onclick = () => docShare(f, { name: '' });
