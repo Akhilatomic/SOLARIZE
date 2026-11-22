@@ -24,12 +24,34 @@ function idleShow(left) {
       <div class="idlw-b"><button class="btn" id="idlws" type="button">Stay signed in</button><button class="btn sec" id="idlwo" type="button">Sign out now</button></div></div>`;
     document.body.appendChild(d); IDLE.el = d;
     d.querySelector('#idlws').onclick = () => idleMark(true);
-    d.querySelector('#idlwo').onclick = e => { e.stopPropagation(); idleOut(false); };
+    d.querySelector('#idlwo').onclick = e => { e.stopPropagation(); idleOut(false, true); };
   }
   IDLE.el.querySelector('#idlwn').textContent = IDLE.clock(left);
 }
-async function idleOut(auto) {
-  if (IDLE.busy) return; IDLE.busy = true; clearInterval(IDLE.t);
+/* Sign-out goodbye (owner, 2026-11-22: "introduce sign out animation"), played only when someone signs out by hand: the page behind
+   softly blurs back, the user's picture appears with a ring that closes around it under "Hasta la vista, <first name>", "Signing
+   out…" turns into "Signed out", then the sign-in page comes in with its own fade. About 0.9 s; the sign-out request is already on its way, so closing the window during it
+   still signs out. window.SGO stops a 401 from a page poll (app.js api) or a tab frame (TABS.signedOut) from cutting it short.
+   Skipped when the computer asks for less motion. */
+function sgoShow() {
+  return new Promise(done => {
+    let calm = false; try { calm = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { }
+    if (calm || !document.body) return done();
+    const me = typeof ME !== 'undefined' && ME ? ME : {}, first = String(me.name || '').trim().split(/\s+/)[0] || '';
+    const pic = typeof avImg === 'function' ? avImg(me.id, me.avatar, me.name) : '';
+    const d = document.createElement('div'); d.className = 'sgo'; d.setAttribute('role', 'status'); d.setAttribute('aria-live', 'polite');
+    d.innerHTML = `<div class="sgo-c"><span class="sgo-av"><svg class="sgo-ring" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="33"/></svg><span class="sgo-pic">${pic}</span><span class="sgo-ok"><i class="i i-check"></i></span></span>`
+      /* owner (2026-11-22): the goodbye says "Hasta la vista, <name>" — the first name, as the big line; the small line shows the progress */
+      + `<b class="sgo-t">Hasta la vista${first ? ', ' + esc(first) : ''}</b><small class="sgo-s">Signing out…</small></div>`;
+    document.body.appendChild(d); document.body.classList.add('sgo-on');
+    setTimeout(() => { d.classList.add('sgo-end'); const s = d.querySelector('.sgo-s'); if (s) s.textContent = 'Signed out'; }, 560);
+    setTimeout(done, 900);
+  });
+}
+/* show = true: signed out by hand, play the goodbye first (sgoShow) */
+async function idleOut(auto, show) {
+  if (IDLE.busy) return; IDLE.busy = true; clearInterval(IDLE.t); idleHide();
+  if (show) window.SGO = 1;
   try { if (auto) sessionStorage.setItem(IDLE.SAID, String(idleMin())); } catch (e) { }
   idleSet(IDLE.KEY, null); idleSet(IDLE.OUT, String(Date.now())); /* the other tabs go back to the sign-in page too */
   /* Speed: the sign-out request goes out (keepalive: it finishes even as the page reloads) and the page reloads at once instead of
@@ -38,6 +60,7 @@ async function idleOut(auto) {
   try { sessionStorage.setItem('solOut', '1'); } catch (e) { }
   try { fetch('api.php?m=auth&a=logout', { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'X-Solarize': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(typeof APPLITE !== 'undefined' && APPLITE ? { app_token: appCall('getToken') } : {}) }).catch(() => { }); } catch (e) { }
   if (typeof APPLITE !== 'undefined' && APPLITE) appCall('clear'); /* the Android app forgets its device token and stops checking for leads */
+  if (show) await sgoShow();
   location.hash = ''; location.reload();
 }
 /* a phone signed in for the day (STAY, set in boot()): nothing is signed out for inactivity before office end time; at that time the day is over */

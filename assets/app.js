@@ -101,7 +101,7 @@ async function api(m, a, body, qs = '') {
   const opt = body instanceof FormData ? { method: 'POST', body } : body !== undefined ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {};
   let r; try { r = await fetch(`api.php?m=${m}&a=${a}${qs}`, opt); } catch (e) { throw netDown(body !== undefined); }
   const j = await r.json().catch(() => ({ error: 'Bad server response' }));
-  if (r.status === 401 && m !== 'auth') { boot(); throw j; }
+  if (r.status === 401 && m !== 'auth') { if (!window.SGO) boot(); throw j; } /* SGO: the sign-out goodbye is playing (app38.js); the reload follows */
   /* Every error is thrown. Sign-in errors get no pop-up: the sign-in form shows them under the button (they used to come back as a
      normal answer, so the form reloaded and "Wrong username or password" / "Too many wrong attempts" never appeared).
      quiet: the page shows its own prompt (e.g. email password changed). */
@@ -146,7 +146,10 @@ function loginView(setup, brand) {
     <div class="err" id="e"></div><button class="btn lg-go" id="go" type="submit">${setup ? 'Create admin account' : 'Sign in'}</button>
     <p class="lg-foot">Jasper Solar Solutions</p></form></div>`;
   $('#eye').onclick = () => { const p = $('#pw'); p.type = p.type === 'password' ? 'text' : 'password'; };
-  $('#lf').onsubmit = async e => { e.preventDefault(); if ($('#rem')) { try { localStorage.setItem('lgRem', $('#rem').checked ? '1' : '0'); } catch (x) { } } const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value, phone: isPhone() ? 1 : 0, remember: $('#rem') && $('#rem').checked ? 1 : 0, app: APPLITE ? 1 : 0, device: APPLITE ? appCall('device') : '' }); if (APPLITE && r.app_token) appCall('setToken', r.app_token); boot(r.status); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
+  $('#lf').onsubmit = async e => { e.preventDefault(); if ($('#rem')) { try { localStorage.setItem('lgRem', $('#rem').checked ? '1' : '0'); } catch (x) { } } const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value, phone: isPhone() ? 1 : 0, remember: $('#rem') && $('#rem').checked ? 1 : 0, app: APPLITE ? 1 : 0, device: APPLITE ? appCall('device') : '' }); if (APPLITE && r.app_token) appCall('setToken', r.app_token);
+      /* owner's rule (2026-11-22): every sign-in starts on the Dashboard, not on the page or tabs open before (a reload while signed in still keeps them) */
+      if (!APPLITE) { try { sessionStorage.removeItem(typeof TABR !== 'undefined' ? TABR.KEY : 'mtabs'); } catch (x) { } try { history.replaceState(null, '', '#/dashboard'); } catch (x) { } }
+      boot(r.status); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
 }
 function shell() {
   const items = MODS.filter(m => APPLITE ? m[0] === 'leads' : m[0] === 'admin' ? ME.role === 'admin' : m[0] === 'fees' ? feesNavItems().length > 0 : canR(m[3]));
@@ -160,7 +163,7 @@ function shell() {
   $('#acct').onclick = e => { e.stopPropagation(); $('#acm').classList.toggle('hide'); };
   document.addEventListener('click', e => { const m = $('#acm'); if (m && !m.contains(e.target)) m.classList.add('hide'); });
   new MutationObserver(fitSoon).observe($('#main'), { childList: true, subtree: true });
-  $('#lo').onclick = async () => { if (typeof idleOut === 'function') return idleOut(false); await api('auth', 'logout', {}); location.hash = ''; location.reload(); }; /* idleOut (app38.js) is the quick path */
+  $('#lo').onclick = async () => { $('#acm').classList.add('hide'); if (typeof idleOut === 'function') return idleOut(false, true); await api('auth', 'logout', {}); location.hash = ''; location.reload(); }; /* idleOut (app38.js) is the quick path; true = with the goodbye animation */
   $('#pdp').onclick = () => { $('#acm').classList.add('hide'); pickAvatar(0, ME.name, setMyAvatar); };
   $('#pdr').onclick = () => { $('#acm').classList.add('hide'); removeAvatar(0, setMyAvatar); };
   $('#pwc').onclick = async () => { $('#acm').classList.add('hide'); const o = await askText('Current password'); if (!o) return; const n = await askText('New password (at least 8 characters, letters and numbers). You will stay signed in here; other devices are signed out.'); if (!n) return; await api('auth', 'password', { old: o, new: n }); toast('Password changed'); };

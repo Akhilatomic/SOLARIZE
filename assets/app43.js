@@ -171,7 +171,7 @@ const TABS = {
   },
   /* a click inside a page: the outer window's open menus (account, bell, side menu) close as they do for a click beside them */
   tap() { for (const ev of [new MouseEvent('pointerdown', { bubbles: true }), new MouseEvent('click', { bubbles: true })]) document.body.dispatchEvent(ev); },
-  signedOut() { location.reload(); },
+  signedOut() { if (window.SGO) return; location.reload(); }, /* SGO: this window is already signing out with the goodbye animation (app38.js) */
   setOff(off) { try { localStorage.mtabsOff = off ? '1' : '0'; } catch (e) { } location.reload(); },
 };
 if (typeof window !== 'undefined') window.TABS = TABS; /* page-frames reach the outer window through this */
