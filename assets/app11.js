@@ -20,19 +20,27 @@ const pfaLine = v => String(v).split(String.fromCharCode(10)).map(x => x.trim())
 const PFG = [['overview', 'Overview', 'user', ['overview']], ['details', 'Details', 'clipboard', null], ['docs_g', 'Documents', 'file', ['docs', 'ksebl', 'warranty', 'mnre']], ['money', 'Money', 'wallet', ['pay', 'tax', 'ps', 'comm']]];
 const PFG_LAST = {};
 const pfGroupOf = (k, pgKeys) => (PFG.find(g => (g[3] || pgKeys).includes(k)) || PFG[0])[0];
+/* Header redesign (2026-11-24): the four group tabs sit at the foot of the header card (underline tabs, .cuh-tabs); the chosen group's
+   views are a segmented row under the card (.cuh-sub). A tab is [key, label, icon, step no., count]: the five numbered pages show their
+   number in a small circle instead of an icon; a count (Documents) is a grey badge. Returns { tabs, subs }. */
 function pfTabsHtml(tabs, pgKeys, cnt) {
   const cur = pfGroupOf(PFT, pgKeys), miss = pgKeys.reduce((a, k) => a + (+cnt[k] || 0), 0);
-  const btn = ([k, l, i]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}"><i class="i i-${i}"></i> ${esc(l)}${pgKeys.includes(k) ? ` <span class="ppn" data-ppn="${k}"${cnt[k] > 0 ? '' : ' hidden'}>${cnt[k] || 0}</span>` : ''}</button>`;
+  const btn = ([k, l, i, no, n]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}">${no ? `<span class="cuh-no">${no}</span>` : `<i class="i i-${i}"></i>`}${esc(l)}${n ? `<span class="cuh-n">${n}</span>` : ''}${pgKeys.includes(k) ? `<span class="ppn" data-ppn="${k}"${cnt[k] > 0 ? '' : ' hidden'}>${cnt[k] || 0}</span>` : ''}</button>`;
   const groups = PFG.map(g => [g, tabs.filter(t => (g[3] || pgKeys).includes(t[0]))]).filter(([, ts]) => ts.length);
-  return `<div class="tabs pftabs pfg" role="tablist">${groups.map(([g]) => `<button data-pg="${g[0]}" class="${cur === g[0] ? 'on' : ''}" role="tab" aria-selected="${cur === g[0]}"><i class="i i-${g[2]}"></i> ${g[1]}${g[0] === 'details' && miss ? ` <span class="ppn">${miss}</span>` : ''}</button>`).join('')}</div>`
-    + groups.filter(([g]) => g[0] !== 'overview').map(([g, ts]) => `<div class="pfsub" data-sub-of="${g[0]}"${cur === g[0] ? '' : ' hidden'}>${ts.map(btn).join('')}</div>`).join('')
-    + tabs.filter(t => t[0] === 'overview').map(t => `<span hidden>${btn(t)}</span>`).join(''); /* Overview's own key, for code that opens it by data-pt */
+  return {
+    tabs: `<div class="cuh-tabs" role="tablist" aria-label="Customer sections">${groups.map(([g]) => `<button data-pg="${g[0]}" class="${cur === g[0] ? 'on' : ''}" role="tab" aria-selected="${cur === g[0]}"><i class="i i-${g[2]}"></i>${g[1]}${g[0] === 'details' && miss ? `<span class="ppn" title="${miss} missing">${miss}</span>` : ''}</button>`).join('')}</div>`,
+    subs: groups.filter(([g]) => g[0] !== 'overview').map(([g, ts]) => `<div class="cuh-sub" data-sub-of="${g[0]}"${cur === g[0] ? '' : ' hidden'}>${ts.map(btn).join('')}</div>`).join('')
+      + tabs.filter(t => t[0] === 'overview').map(t => `<span hidden>${btn(t)}</span>`).join('') /* Overview's own key, for code that opens it by data-pt */
+  };
 }
 function pfTabsShow(k) {
-  const sub = $(`.pfsub [data-pt="${k}"]`), g = sub ? sub.closest('.pfsub').dataset.subOf : 'overview';
+  const sub = $(`.cuh-sub [data-pt="${k}"]`), g = sub ? sub.closest('.cuh-sub').dataset.subOf : 'overview';
   if (g !== 'overview') PFG_LAST[g] = k;
   $$('[data-pg]').forEach(b => { const on = b.dataset.pg === g; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
-  $$('.pfsub').forEach(r => r.hidden = r.dataset.subOf !== g);
+  $$('.cuh-sub').forEach(r => r.hidden = r.dataset.subOf !== g);
+  /* a narrow screen scrolls the views row sideways: bring the chosen one into sight */
+  const b = $(`.cuh-sub:not([hidden]) [data-pt="${k}"]`), r = b && b.parentElement;
+  if (r && r.scrollWidth > r.clientWidth && (b.offsetLeft < r.scrollLeft || b.offsetLeft + b.offsetWidth > r.scrollLeft + r.clientWidth)) r.scrollLeft = b.offsetLeft - 12;
 }
 let PFT = 'overview', PFT_ID = 0;
 /* set by the Customers list (Edit): { id, key, edit } - pgCustomer opens that page once, in edit mode, then clears it */
@@ -92,13 +100,21 @@ async function pgCustomer(id) {
     return `${head}<div class="tle k-${e.kind}"><div class="tlt">${t.time}</div><div class="tld"><i class="i i-${TL_ICON[e.kind] || 'dots'}"></i></div><div class="tlb"><b>${e.link ? `<a href="${e.link}">${esc(e.title)}</a>` : e.file ? `<a href="api.php?m=files&a=get&id=${e.file}" target="_blank">${esc(e.title)}</a>` : esc(e.title)}</b>${e.detail ? `<div class="tlx">${esc(e.detail)}</div>` : ''}${e.user ? `<small class="mut">by ${esc(e.user)}</small>` : ''}</div></div>`; }).join('');
   const initials = (c.name || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase();
   const canOwn = w && OWN.canReassign(c.owner_id, ME); // owner chip; the owner, admin or assistant manager can reassign
-  const ownHtml = `<span class="pfchip"><small>Owner</small><span class="own${+c.owner_id === +ME.id ? ' me' : ''}" title="Customer owner"><i class="i i-user"></i>${+c.owner_id ? esc(ownLabel(c.owner_id, c.owner_name)) : 'No owner'}</span>${canOwn ? `<button class="owbtn" id="pfown">${+c.owner_id ? 'Reassign' : 'Set owner'}</button>` : ''}</span>`;
-  const chip = (lbl, v, l) => v ? `<span class="pfchip"><small>${lbl}</small><button class="pfv inl" data-cp="${esc(v)}" data-l="${l}" title="Click to copy">${esc(v)}<i class="i i-copy"></i></button></span>` : '';
+  /* header (redesign 2026-11-24): identity + status line (stage, capacity, customer since) · actions · key facts as label-over-value
+     columns (click a value to copy) · the four group tabs at the card's foot; the group's own views sit under the card */
+  const own = `<span class="own${+c.owner_id === +ME.id ? ' me' : ''}" title="Customer owner"><i class="i i-user"></i>${+c.owner_id ? esc(ownLabel(c.owner_id, c.owner_name)) : 'No owner'}</span>${canOwn ? `<button class="owbtn" id="pfown">${+c.owner_id ? 'Reassign' : 'Set owner'}</button>` : ''}`;
+  const fact = (lbl, inner) => `<div class="cuh-f"><span class="cuh-fl">${lbl}</span><div class="cuh-fv">${inner}</div></div>`;
+  const cpv = (v, l) => `<button class="pfv inl" data-cp="${esc(v)}" data-l="${l}" title="Click to copy">${esc(v)}<i class="i i-copy"></i></button>`;
+  const kw = p0 && +p0.kw ? +p0.kw : +((c.projects || []).find(j => +j.kw) || {}).kw || 0, since = val('created', 'date');
+  const meta = [kw ? ['sun', `${kw} kW`] : 0, since ? ['calendar', `Customer since ${since}`] : 0].filter(Boolean).map(([ic, t]) => `<span class="cuh-m"><i class="i i-${ic}"></i>${esc(t)}</span>`).join('');
+  const tabsH = pfTabsHtml([['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, pg.tab, pg.icon, i + 1]), ...(canR('files') ? [['docs', 'Documents', 'file', 0, c.files.length]] : []), ['ksebl', 'KSEB login', 'lock'], ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(ME.role === 'admin' ? [['pay', 'Payments', 'card']] : []), ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : []), ...(ME.role === 'admin' ? [['ps', 'Purchases and services', 'coin'], ['comm', 'Commission / Incentive', 'users']] : [])], pgKeys, cnt0);
   $('#main').innerHTML = `
-   <div class="card pfhead"><div class="pfh1"><div class="pfav">${esc(initials)}</div><div class="pfht"><h2>${esc(c.name)}</h2><div class="pfst">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') : pill('No project yet')}${typeof feasSpot === 'function' ? feasSpot(c.id) : ''}</div></div>
-    <div class="pfact">${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn sec pfwab" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}<button class="btn sec" id="dsc">${discBtnLabel(id)}</button><button class="btn sec pfmb" id="pfmore" title="More: edit, project cost, KYC PDF…" aria-label="More actions"><i class="i i-dots"></i></button></div></div>
-    <div class="pfchips">${chip('Phone', c.phone, 'phone')}${chip('Consumer no.', c.consumer_no, 'consumer no.')}${c.district ? `<span class="pfchip"><small>District</small><b>${esc(c.district)}</b></span>` : ''}${ownHtml}</div></div>
-   ${pfTabsHtml([['overview', 'Overview', 'user'], ...PFP.PAGES.map((pg, i) => [pg.key, `${i + 1} · ${pg.tab}`, pg.icon]), ...(canR('files') ? [['docs', `Documents${c.files.length ? ' (' + c.files.length + ')' : ''}`, 'file']] : []), ['ksebl', 'KSEB login', 'lock'], ['warranty', 'Warranty card', 'shield'], ['mnre', 'MNRE warranty card', 'award'], ...(ME.role === 'admin' ? [['pay', 'Payments', 'card']] : []), ...(FIN() ? [['tax', 'Tax bill', 'receipt']] : []), ...(ME.role === 'admin' ? [['ps', 'Purchases and services', 'coin'], ['comm', 'Commission / Incentive', 'users']] : [])], pgKeys, cnt0)}
+   <div class="card cuh"><div class="cuh-top"><div class="cuh-av" aria-hidden="true">${esc(initials)}</div>
+     <div class="cuh-id"><h2>${esc(c.name)}</h2><div class="cuh-meta">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') : pill('No project yet')}${typeof feasSpot === 'function' ? feasSpot(c.id) : ''}${meta}</div></div>
+     <div class="cuh-act">${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn sec" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}<button class="btn sec" id="dsc">${discBtnLabel(id)}</button><button class="btn sec cuh-more" id="pfmore" title="More: edit, project cost, KYC PDF…" aria-label="More actions"><i class="i i-dots"></i></button></div></div>
+    <div class="cuh-facts">${c.phone ? fact('Phone', cpv(c.phone, 'phone')) : ''}${c.consumer_no ? fact('Consumer no.', cpv(c.consumer_no, 'consumer no.')) : ''}${c.kseb_section ? fact('KSEB section', esc(c.kseb_section)) : ''}${c.district ? fact('District', esc(c.district)) : ''}${fact('Owner', own)}</div>
+    ${tabsH.tabs}</div>
+   ${tabsH.subs}
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
     <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut u-m0">No project yet.</p></div>`}

@@ -556,8 +556,6 @@ button.ac:not([disabled]){cursor:pointer}button.ac:not([disabled]):hover{outline
 .i-copy{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'1.8'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Crect%20x%3D'9'%20y%3D'9'%20width%3D'12'%20height%3D'12'%20rx%3D'2'%2F%3E%3Cpath%20d%3D'M5%2015H4a1%201%200%200%201-1-1V4a1%201%200%200%201%201-1h10a1%201%200%200%201%201%201v1'%2F%3E%3C%2Fsvg%3E")}
 /* ===== customer profile ===== */
 .cfg{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--pri);border-bottom:1px solid var(--bd);padding:10px 0 4px;margin-top:6px}
-.pfhead{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.pfav{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));color:var(--white);display:grid;place-items:center;font-weight:700;font-size:18px;flex:none}
-.pfht{flex:1;min-width:200px}.pfht h2{margin:0 0 2px;font-size:24px}.pfact{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .pfgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,440px);gap:14px;align-items:start}
 .pfleft,.pfright{display:flex;flex-direction:column;gap:14px;min-width:0}
 .pfch{display:flex;gap:8px;align-items:center;margin-bottom:10px}.pfch h3{margin:0;font-size:15px}.pfch>.i{background:var(--pri);width:18px;height:18px;flex:none}
@@ -641,7 +639,6 @@ html{-webkit-text-size-adjust:100%}body{padding:env(safe-area-inset-top) env(saf
 @media(max-width:600px){table.stack tr{grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px 12px;padding:12px}}
 
 /* ===== profile tabs: plant & documents ===== */
-.pftabs{margin:0 0 12px;display:flex;flex-wrap:wrap}.pftabs button{display:inline-flex;align-items:center;gap:6px}.pftabs .i{width:15px;height:15px}
 .plsum{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:14px}.plsi{width:46px;height:46px;border-radius:14px;background:var(--orange-tint);display:grid;place-items:center;flex:none}.plsi .i{background:var(--orange-text);width:22px;height:22px}
 .plst{min-width:200px;flex:1}.plst h3{margin:0 0 2px;font-size:18px}.plsum .sp{flex:1}
 .plcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:14px;align-items:start}

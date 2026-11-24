@@ -450,7 +450,6 @@ body.sbah aside.mini a .nb{position:absolute;top:0;right:-2px;margin:0}
 .tabs.owsw button{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;white-space:nowrap}
 .tabs.owsw .i{width:13px;height:13px}
 .tabs.owsw button:not(.on){color:var(--mut)}
-.pfht .own{vertical-align:middle}
 .owbtn{background:none;border:0;padding:2px 4px;margin:0;font:inherit;font-size:13px;font-weight:600;color:var(--pri);cursor:pointer;border-radius:6px}
 .owbtn:hover{background:rgba(0,122,255,.08)}.owbtn:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(0,122,255,.38)}
 #ctb .own{max-width:100%;overflow:hidden}#ctb .own .clip{min-width:0}
@@ -1300,11 +1299,10 @@ html.touch .rmh-b.n{width:auto;min-width:34px;padding:0 8px}
 #ledit.on{background:var(--tx);color:var(--white);border-color:var(--tx)}
 
 /* customer page: main tabs + one row of sub-tabs (app11.js pfTabsHtml) */
-.pftabs.pfg{margin:0 0 8px}.pftabs.pfg button{font-size:14px;padding:7px 16px}
 .pfsub{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}.pfsub[hidden]{display:none}
 .pfsub button{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--bd);border-radius:980px;padding:5px 13px;font:inherit;font-size:13px;color:var(--tx);cursor:pointer}
 .pfsub button:hover{background:var(--fill)}.pfsub button.on{background:var(--tx);border-color:var(--tx);color:var(--white)}.pfsub .i{width:14px;height:14px}
-@media(max-width:820px){.pftabs.pfg{display:flex;flex-wrap:nowrap}.pftabs.pfg button{flex:1;justify-content:center;padding:7px 6px;font-size:13px;white-space:nowrap}.pftabs.pfg .i{display:none}.pfsub{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}.pfsub::-webkit-scrollbar{display:none}.pfsub button{flex:none}}
+@media(max-width:820px){.pfsub{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}.pfsub::-webkit-scrollbar{display:none}.pfsub button{flex:none}}
 
 /* Customers list: the status pill is a button that opens the project progress */
 button.pill.stbtn{border:0;font:inherit;font-size:12px;font-weight:500;cursor:pointer;line-height:inherit}button.pill.stbtn:hover{box-shadow:0 0 0 1.5px currentColor}button.pill.stbtn:focus-visible{outline:2px solid var(--pri);outline-offset:1px}
@@ -1380,14 +1378,6 @@ button.pill.stbtn{border:0;font:inherit;font-size:12px;font-weight:500;cursor:po
 .dpl-r{flex-direction:column;align-items:stretch;gap:3px}.dpl-n{display:flex;align-items:baseline;gap:6px;min-width:0}.dpl-n a{white-space:normal;overflow:visible}.dpl-m{display:flex;align-items:center;gap:6px;min-width:0}.dpl-m .pill{max-width:75%}.dpl-r .dpl-d{text-align:left}
 
 /* ---- Customer Overview redesign (2026-11-20, app11.js pgCustomer) ---- */
-.pfhead{flex-direction:column;align-items:stretch;gap:12px}
-.pfh1{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.pfh1 .pfht{flex:1;min-width:220px}.pfh1 .pfht h2{line-height:1.2;overflow-wrap:break-word}
-.pfst{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px}
-.pfact .btn{white-space:nowrap}.pfwab .i{color:var(--whatsapp)}.pfmb{padding-left:10px;padding-right:10px}
-.pfchips{display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)}
-.pfchip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:10px;background:var(--fill-2);font-size:14px;min-width:0;max-width:100%}
-.pfchip>small{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-.pfchip .pfv.inl{margin:0;padding:0 2px}.pfchip b{font-weight:500}.pfchip .owbtn{margin-left:2px}
 /* progress: three groups, the current one with its stage and days */
 .pfg3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:2px 0 10px}
 .pfg{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--fill-2);min-width:0}
@@ -1412,7 +1402,7 @@ button.pill.stbtn{border:0;font:inherit;font-size:12px;font-weight:500;cursor:po
   .pfgrid .pfleft{display:contents}
   .pfgrid>.pfleft>.pfprog{order:1}.pfgrid>.pfleft>.pftodo{order:2}.pfgrid>.pfright{order:3}.pfgrid>.pfleft>.pfqc{order:4}.pfgrid>.pfleft>.pfloc{order:5}.pfgrid>.pfleft>.pfnotes{order:6}.pfgrid>.pfa{order:7}
 }
-@media(max-width:600px){.pfg3{grid-template-columns:minmax(0,1fr)}.pfact{width:100%}.pfact .btn{flex:1;justify-content:center}.pfact .pfmb{flex:0 0 auto}.pfa-f.pfa-w{grid-column:1/-1}}
+@media(max-width:600px){.pfg3{grid-template-columns:minmax(0,1fr)}.pfa-f.pfa-w{grid-column:1/-1}}
 .pp-sum2{grid-template-columns:20px minmax(150px,240px) minmax(80px,1fr) 150px}
 @media(max-width:1100px){.pp-sum2{grid-template-columns:20px minmax(0,1fr) auto}}
 
@@ -1522,3 +1512,52 @@ body.sgo-on #shell{filter:blur(8px) saturate(.85);transform:scale(.97);transitio
 @media(max-width:820px){.modal>div>.mdx,.idlw-c>.mdx{top:8px;right:8px;width:30px;height:30px;box-shadow:none;background:var(--fill-2);border-color:transparent}
   .modal:not(:has(.lvx)):not(:has(#rmhx))>div{padding-top:44px} /* a strip for the × so it never sits on a header pill or button */}
 .a2h .mdx{top:-11px;right:-11px;width:28px;height:28px}
+/* Customer header (redesign 2026-11-24, app11.js pgCustomer): one card = identity + status line, actions, key facts (label over value,
+   hairline dividers, click to copy) and the four group tabs as underline tabs at its foot; .cuh-sub = the chosen group's views as a
+   segmented row under the card (numbered circles for the five detail pages). Container query: facts become a 2-column grid when narrow. */
+.card.cuh{padding:20px 22px 0;margin-bottom:12px;container-type:inline-size}
+.cuh-top{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.cuh-av{width:56px;height:56px;border-radius:50%;flex:none;display:grid;place-items:center;background:linear-gradient(135deg,var(--blue),var(--purple));color:var(--white);font-size:19px;font-weight:650;letter-spacing:.02em}
+.cuh-id{flex:1;min-width:220px}
+.cuh-id h2{margin:0;font-size:24px;font-weight:700;line-height:1.2;letter-spacing:-.02em;overflow-wrap:break-word}
+.cuh-meta{display:flex;align-items:center;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:13px;color:var(--muted)}
+.cuh-meta .pill{font-size:12px;padding:3px 10px}.cuh-meta .fxl{margin-left:0}
+.cuh-m{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}.cuh-m .i{width:14px;height:14px;opacity:.8}
+.cuh-act{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.cuh-act .btn{white-space:nowrap}.cuh-more{padding-left:10px!important;padding-right:10px!important}
+.cuh-facts{display:flex;flex-wrap:wrap;row-gap:12px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.cuh-f{display:flex;flex-direction:column;gap:3px;min-width:0;padding:0 28px;border-left:1px solid var(--line)}
+.cuh-f:first-child{padding-left:0;border-left:0}
+.cuh-fl{font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap}
+.cuh-fv{display:flex;align-items:center;gap:8px;min-height:24px;font-size:15px;font-weight:550;color:var(--text);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.cuh-fv .pfv.inl{margin:0 -6px;padding:1px 6px;font-weight:inherit}
+.cuh-fv .own{font-size:15px;font-weight:550}.cuh-fv .owbtn{font-size:13px;margin:0}
+.cuh-tabs{display:flex;gap:2px;margin:16px -22px 0;padding:0 12px;border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.cuh-tabs::-webkit-scrollbar{display:none}
+.cuh-tabs button{all:unset;box-sizing:border-box;cursor:pointer;position:relative;display:inline-flex;align-items:center;gap:7px;padding:13px 14px 14px;font-size:14px;font-weight:550;color:var(--muted);white-space:nowrap;border-radius:8px 8px 0 0;transition:color .18s,background-color .18s}
+.cuh-tabs button::after{content:'';position:absolute;left:12px;right:12px;bottom:0;height:2.5px;border-radius:2px 2px 0 0;background:transparent;transition:background-color .18s}
+.cuh-tabs button:hover{color:var(--text);background:var(--fill-2)}
+.cuh-tabs button.on{color:var(--text)}.cuh-tabs button.on::after{background:var(--blue)}.cuh-tabs button.on .i{color:var(--blue)}
+.cuh-tabs button:focus-visible{box-shadow:inset 0 0 0 2px rgba(0,122,255,.45)}
+.cuh-tabs .i{width:16px;height:16px}.cuh-tabs .ppn{margin-left:0}
+.cuh-sub{position:relative;display:flex;gap:2px;width:max-content;max-width:100%;margin:0 0 14px;padding:3px;border-radius:10px;background:rgba(118,118,128,.12);overflow-x:auto;scrollbar-width:none}
+.cuh-sub[hidden]{display:none}.cuh-sub::-webkit-scrollbar{display:none}
+.cuh-sub button{all:unset;box-sizing:border-box;cursor:pointer;flex:none;display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:8px;font-size:13px;font-weight:550;color:var(--text-2);white-space:nowrap;transition:background-color .18s,box-shadow .18s,color .18s}
+.cuh-sub button:hover{color:var(--text);background:rgba(255,255,255,.55)}
+.cuh-sub button.on{color:var(--text);background:var(--white);box-shadow:0 0 0 .5px rgba(0,0,0,.04),0 2px 6px rgba(0,0,0,.10),0 1px 1px rgba(0,0,0,.06)}
+.cuh-sub button:focus-visible{box-shadow:0 0 0 2px rgba(0,122,255,.45)}
+.cuh-sub .i{width:15px;height:15px;opacity:.75}.cuh-sub button.on .i{opacity:1}.cuh-sub .ppn{margin-left:0}
+.cuh-no{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1.25px currentColor;font-size:11px;font-weight:650;line-height:1;opacity:.7}
+.cuh-sub button.on .cuh-no{background:var(--text);color:var(--white);box-shadow:none;opacity:1}
+.cuh-n{display:inline-block;min-width:18px;padding:0 6px;border-radius:9px;background:rgba(118,118,128,.16);color:var(--text-2);font-size:11px;font-weight:600;line-height:18px;text-align:center}
+@container (max-width:860px){.cuh-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 16px}.cuh-f{padding:0;border-left:0}}
+@container (max-width:520px){.cuh-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:820px){.card.cuh{padding:16px 16px 0}.cuh-tabs{margin:14px -16px 0;padding:0 4px}
+  .cuh-tabs button{flex:1;justify-content:center;padding:12px 8px 13px;font-size:13.5px}.cuh-tabs .i{display:none}
+  .cuh-sub{width:auto}}
+@media(max-width:600px){.cuh-top{gap:12px}.cuh-av{width:46px;height:46px;font-size:16px}.cuh-id{min-width:0}.cuh-id h2{font-size:21px}
+  /* actions = four equal icon-over-label buttons (Call · WhatsApp · Discussion · More), like a phone contact card */
+  .cuh-act{width:100%;flex-wrap:nowrap;gap:8px}
+  .cuh-act .btn{flex:1 1 0;min-width:0;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px;padding:10px 4px 8px!important;font-size:12px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cuh-act .btn>.i{width:20px;height:20px;margin:0}
+  .cuh-act .btn>.pill{position:absolute;top:5px;right:5px;padding:1px 6px;font-size:10px}
+  .cuh-more::after{content:'More'}}
