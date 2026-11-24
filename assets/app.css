@@ -567,8 +567,6 @@ button.ac:not([disabled]){cursor:pointer}button.ac:not([disabled]):hover{outline
 .pfsub{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:10px 0 2px}
 .pfmap{width:100%;height:190px;border:0;border-radius:12px;margin-bottom:8px;background:var(--fill)}
 .pfshare{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.pfdoc{padding:6px 0;border-bottom:1px solid var(--fill);font-size:14px;overflow-wrap:anywhere}.pfdoc:last-child{border-bottom:0}
-.pfbar{height:8px;border-radius:4px;background:var(--fill);overflow:hidden}.pfbar i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--blue));border-radius:4px}
 .pfsteps{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
 .pfs{display:grid;grid-template-columns:14px minmax(0,1fr);column-gap:7px;align-items:start;font-size:12px;padding:5px 6px;border-radius:8px;color:var(--mut)}
 .pfs span{width:12px;height:12px;border-radius:50%;border:2px solid var(--line-strong);margin-top:1px;grid-row:span 2}.pfs b{font-weight:500;line-height:1.25}.pfs small{font-size:11px}

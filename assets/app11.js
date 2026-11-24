@@ -20,27 +20,50 @@ const pfaLine = v => String(v).split(String.fromCharCode(10)).map(x => x.trim())
 const PFG = [['overview', 'Overview', 'user', ['overview']], ['details', 'Details', 'clipboard', null], ['docs_g', 'Documents', 'file', ['docs', 'ksebl', 'warranty', 'mnre']], ['money', 'Money', 'wallet', ['pay', 'tax', 'ps', 'comm']]];
 const PFG_LAST = {};
 const pfGroupOf = (k, pgKeys) => (PFG.find(g => (g[3] || pgKeys).includes(k)) || PFG[0])[0];
-/* Header redesign (2026-11-24): the four group tabs sit at the foot of the header card (underline tabs, .cuh-tabs); the chosen group's
-   views are a segmented row under the card (.cuh-sub). A tab is [key, label, icon, step no., count]: the five numbered pages show their
-   number in a small circle instead of an icon; a count (Documents) is a grey badge. Returns { tabs, subs }. */
+/* Header redesign (2026-11-24): the four group tabs sit at the foot of the header card (underline tabs, .cuh-tabs). A tab is
+   [key, label, icon, step no., count]: the five numbered pages show their number in a small circle instead of an icon; a count
+   (Documents) is a grey badge. Sub-menu drawer (owner, 2026-11-24: "when click main menu, open the submenu in the drop horizontal
+   style, slide open the sub menus"): the chosen group's views (.cuh-sub) live in a drawer under the tabs inside the card (.cuh-drop);
+   clicking a group drops the drawer down and its row slides open sideways from under that tab; Overview folds it away.
+   Returns { tabs, subs } — subs = the drawer. */
 function pfTabsHtml(tabs, pgKeys, cnt) {
   const cur = pfGroupOf(PFT, pgKeys), miss = pgKeys.reduce((a, k) => a + (+cnt[k] || 0), 0);
-  const btn = ([k, l, i, no, n]) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}">${no ? `<span class="cuh-no">${no}</span>` : `<i class="i i-${i}"></i>`}${esc(l)}${n ? `<span class="cuh-n">${n}</span>` : ''}${pgKeys.includes(k) ? `<span class="ppn" data-ppn="${k}"${cnt[k] > 0 ? '' : ' hidden'}>${cnt[k] || 0}</span>` : ''}</button>`;
+  const btn = ([k, l, i, no, n], j = 0) => `<button data-pt="${k}" class="${PFT === k ? 'on' : ''}" style="--i:${j}">${no ? `<span class="cuh-no">${no}</span>` : `<i class="i i-${i}"></i>`}${esc(l)}${n ? `<span class="cuh-n">${n}</span>` : ''}${pgKeys.includes(k) ? `<span class="ppn" data-ppn="${k}"${cnt[k] > 0 ? '' : ' hidden'}>${cnt[k] || 0}</span>` : ''}</button>`;
   const groups = PFG.map(g => [g, tabs.filter(t => (g[3] || pgKeys).includes(t[0]))]).filter(([, ts]) => ts.length);
   return {
-    tabs: `<div class="cuh-tabs" role="tablist" aria-label="Customer sections">${groups.map(([g]) => `<button data-pg="${g[0]}" class="${cur === g[0] ? 'on' : ''}" role="tab" aria-selected="${cur === g[0]}"><i class="i i-${g[2]}"></i>${g[1]}${g[0] === 'details' && miss ? `<span class="ppn" title="${miss} missing">${miss}</span>` : ''}</button>`).join('')}</div>`,
-    subs: groups.filter(([g]) => g[0] !== 'overview').map(([g, ts]) => `<div class="cuh-sub" data-sub-of="${g[0]}"${cur === g[0] ? '' : ' hidden'}>${ts.map(btn).join('')}</div>`).join('')
+    tabs: `<div class="cuh-tabs" role="tablist" aria-label="Customer sections">${groups.map(([g]) => `<button data-pg="${g[0]}" class="${cur === g[0] ? 'on' : ''}" role="tab" aria-selected="${cur === g[0]}"${g[0] === 'overview' ? '' : ' aria-haspopup="true"'}><i class="i i-${g[2]}"></i>${g[1]}${g[0] === 'details' && miss ? `<span class="ppn" title="${miss} missing">${miss}</span>` : ''}${g[0] === 'overview' ? '' : '<i class="i i-chev cuh-cv"></i>'}</button>`).join('')}</div>`,
+    subs: `<div class="cuh-drop${cur !== 'overview' ? ' open' : ''}" data-g="${cur}"><div class="cuh-drop-in"><div class="cuh-drop-pad">`
+      + groups.filter(([g]) => g[0] !== 'overview').map(([g, ts]) => `<div class="cuh-sub" data-sub-of="${g[0]}"${cur === g[0] ? '' : ' hidden'}>${ts.map(btn).join('')}</div>`).join('')
       + tabs.filter(t => t[0] === 'overview').map(t => `<span hidden>${btn(t)}</span>`).join('') /* Overview's own key, for code that opens it by data-pt */
+      + '</div></div></div>'
   };
 }
+/* desktop: start the drawer's row under the tab that opened it (pulled left when it would run past the card) */
+function cuhAnchor(row, g) {
+  row.style.marginLeft = '';
+  const tab = $(`.cuh-tabs [data-pg="${g}"]`), pad = row.parentElement;
+  if (!tab || innerWidth <= 820) return;
+  const box = pad.getBoundingClientRect(), cs = getComputedStyle(pad), avail = box.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const x = tab.getBoundingClientRect().left - box.left - parseFloat(cs.paddingLeft);
+  row.style.marginLeft = Math.max(0, Math.min(x, avail - row.scrollWidth)) + 'px';
+}
+let CUH_RS = 0;
 function pfTabsShow(k) {
   const sub = $(`.cuh-sub [data-pt="${k}"]`), g = sub ? sub.closest('.cuh-sub').dataset.subOf : 'overview';
   if (g !== 'overview') PFG_LAST[g] = k;
   $$('[data-pg]').forEach(b => { const on = b.dataset.pg === g; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
-  $$('.cuh-sub').forEach(r => r.hidden = r.dataset.subOf !== g);
+  const drop = $('.cuh-drop'); if (!drop) return;
+  const prev = drop.dataset.g; drop.dataset.g = g;
+  if (g === 'overview') { drop.classList.remove('open'); return; } /* the last row folds up with the drawer */
+  $$('.cuh-sub', drop).forEach(r => r.hidden = r.dataset.subOf !== g);
+  const row = $(`.cuh-sub[data-sub-of="${g}"]`, drop);
+  cuhAnchor(row, g);
+  drop.classList.add('open');
+  if (prev !== g) { row.classList.remove('cuh-in'); void row.offsetWidth; row.classList.add('cuh-in'); } /* replay the slide when the group changes */
+  if (!CUH_RS) { CUH_RS = 1; addEventListener('resize', () => { const d = $('.cuh-drop.open'), r = d && $('.cuh-sub:not([hidden])', d); if (r) cuhAnchor(r, d.dataset.g); }); }
   /* a narrow screen scrolls the views row sideways: bring the chosen one into sight */
-  const b = $(`.cuh-sub:not([hidden]) [data-pt="${k}"]`), r = b && b.parentElement;
-  if (r && r.scrollWidth > r.clientWidth && (b.offsetLeft < r.scrollLeft || b.offsetLeft + b.offsetWidth > r.scrollLeft + r.clientWidth)) r.scrollLeft = b.offsetLeft - 12;
+  const b = $(`[data-pt="${k}"]`, row);
+  if (b && row.scrollWidth > row.clientWidth && (b.offsetLeft < row.scrollLeft || b.offsetLeft + b.offsetWidth > row.scrollLeft + row.clientWidth)) row.scrollLeft = b.offsetLeft - 12;
 }
 let PFT = 'overview', PFT_ID = 0;
 /* set by the Customers list (Edit): { id, key, edit } - pgCustomer opens that page once, in edit mode, then clears it */
@@ -54,14 +77,15 @@ async function pgCustomer(id) {
     typeof PIPE !== 'undefined' && !PIPE && canR('projects') ? api('pipeline', 'board').then(b => { PIPE = b.stages; }).catch(() => { }) : null]); /* PIPE: which step group each stage is in (the progress strip) */
   const w = canW('customers'), p0 = tl.progress[tl.progress.length - 1];
   const val = (k, t) => { const v = c[k]; if (v === null || v === undefined || v === '') return ''; return t === 'date' ? new Date(String(v).replace(' ', 'T') + 'Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : String(v); };
-  const row = (k, l, t) => { const v = val(k, t); return `<div class="pfr"><span>${l}</span>${v ? `<button class="pfv" data-cp="${esc(v)}" data-l="${esc(l)}" title="Click to copy">${esc(v)}<i class="i i-copy"></i></button>` : '<em class="mut">—</em>'}</div>`; };
   /* page state shared by the five profile pages (app28.js PFP, app29.js renderPfPage) */
   const st = { c, p: (pl && pl.data) || {}, j: (c.projects && c.projects[0]) || null, prog: p0 || null, pipe: tl.pipe, refs: tl.refs || [], id };
   const pgKeys = PFP.PAGES.map(x => x.key);
   const cnt0 = PFP.counts(pfCtx(st));
   const fillN = {}; /* per page [filled, total], from the All details card below */
-  const sumHtml = n => PFP.PAGES.map((pg, i) => { const f = fillN[pg.key] || [0, 0], pc = f[1] ? Math.round(f[0] / f[1] * 100) : 100;
-    return `<button class="pp-sum pp-sum2" data-goto="${esc(pg.key)}"><i class="i i-${esc(pg.icon)}"></i><span class="pp-t">${i + 1} · ${esc(pg.tab)}</span><span class="pp-bar${n[pg.key] > 0 ? ' need' : ''}" title="${f[0]} of ${f[1]} filled"><i style="width:${pc}%"></i></span>${n[pg.key] > 0 ? `<b class="pp-need">${n[pg.key]} missing</b>` : f[0] >= f[1] ? '<b class="pp-ok">Complete</b>' : `<b class="pp-later">Nothing due yet · ${f[0]}/${f[1]}</b>`}</button>`; }).join('');
+  /* To complete: one row per page — number (a tick when every field is in), fill bar, what is due; click = open the page */
+  const sumHtml = n => PFP.PAGES.map((pg, i) => { const f = fillN[pg.key] || [0, 0], pc = f[1] ? Math.round(f[0] / f[1] * 100) : 100, need = n[pg.key] > 0, ok = !need && f[0] >= f[1];
+    return `<button class="ovw-tr${need ? ' need' : ok ? ' ok' : ''}" data-goto="${esc(pg.key)}" title="${f[0]} of ${f[1]} filled · open this page"><span class="ovw-no">${ok ? '<i class="i i-check"></i>' : i + 1}</span><span class="ovw-tn">${esc(pg.tab)}</span><span class="ovw-bar"><i style="width:${pc}%"></i></span><span class="ovw-ts">${need ? `${n[pg.key]} missing` : ok ? 'Complete' : `Nothing due yet · ${f[0]}/${f[1]}`}</span><i class="i i-chev ovw-go"></i></button>`; }).join('');
+  const missAll = pgKeys.reduce((a, k) => a + (+cnt0[k] || 0), 0);
   /* Overview: every detail of the customer in one card (the five pages' fields, in page order), each value click to copy; a hidden
      value (masked account numbers) is shown as it is, without copy. "Copy all" = the filled ones as "Label: value" lines. */
   const allCtx = pfCtx(st), allTxt = [];
@@ -75,28 +99,37 @@ async function pgCustomer(id) {
       return `<div class="pfa-f${v ? '' : ' pfa-e'}${v && String(v).length > 34 ? ' pfa-w' : ''}"><span>${esc(l)}</span>${!v ? '<em class="mut">—</em>' : pfMasked(v) ? `<b>${esc(v)}</b>` : pfCopy(v, l)}</div>`;
     }).join('');
     fillN[pg.key] = [filled, fs.length];
-    return cells ? `<div class="pfa-s"><button class="pfa-h" data-goto="${esc(pg.key)}" title="Open this page"><i class="i i-${esc(pg.icon)}"></i>${i + 1} · ${esc(pg.tab)}<small>${filled} of ${fs.length} filled</small></button><div class="pfa-g">${cells}</div></div>` : '';
+    return cells ? `<div class="pfa-s"><button class="pfa-h" data-goto="${esc(pg.key)}" title="Open this page"><span class="ovw-no">${i + 1}</span>${esc(pg.tab)}<small>${filled} of ${fs.length} filled</small><i class="i i-chev"></i></button><div class="pfa-g">${cells}</div></div>` : '';
   }).join('');
-  const allCard = `<div class="card pfc pfa${pfaHide() ? ' pfa-hide' : ''}"><div class="pfch"><i class="i i-user"></i><h3>All details</h3><span class="sp"></span><small class="mut">Click a value to copy it</small><button class="btn sec sm" id="pfaem">${pfaHide() ? 'Show empty' : 'Hide empty'}</button><button class="btn sec sm" id="pfacp"><i class="i i-copy"></i> Copy all</button></div>${allSecs}</div>`;
+  const allCard = `<div class="card pfc pfa${pfaHide() ? ' pfa-hide' : ''}">${ovwHead('user', 'All details', `<small class="mut ovw-hint">Click a value to copy it</small><button class="btn sec sm" id="pfaem">${pfaHide() ? 'Show empty' : 'Hide empty'}</button><button class="btn sec sm" id="pfacp"><i class="i i-copy"></i> Copy all</button>`)}${allSecs}</div>`;
+  /* Location (redesign 2026-11-24): map beside the address on a wide card (stacked when narrow), values label-over-value, click to copy */
   const ml = mapsLink(c), hasPin = c.lat && c.lng;
-  const locCard = `<div class="card pfc"><div class="pfch"><i class="i i-target"></i><h3>Location</h3><span class="sp"></span>${w ? '<button class="btn sec sm" id="pfloc"><i class="i i-pencil"></i> ' + (hasPin ? 'Change' : 'Set location') + '</button>' : ''}</div>
-     ${hasPin ? `<iframe class="pfmap" loading="lazy" title="Map" referrerpolicy="strict-origin" src="https://www.openstreetmap.org/export/embed.html?bbox=${+c.lng - .004},${+c.lat - .0025},${+c.lng + .004},${+c.lat + .0025}&layer=mapnik&marker=${c.lat},${c.lng}"></iframe>` : `<p class="mut" style="font-size:13px;margin:4px 0 8px">No map pin yet.${w ? ' Use <b>Set location</b> at the site, or paste a Google Maps link.' : ''}</p>`}
-     ${row('address', 'Address')}${row('landmark', 'Landmark')}${hasPin ? `<div class="pfr"><span>Coordinates</span><button class="pfv" data-cp="${c.lat},${c.lng}" data-l="coordinates">${c.lat}, ${c.lng}<i class="i i-copy"></i></button></div>` : ''}
+  const lf = (l, v, cp = v) => `<div class="ovw-f"><span>${l}</span>${v ? `<button class="pfv" data-cp="${esc(cp)}" data-l="${esc(l.toLowerCase())}" title="Click to copy">${esc(v)}<i class="i i-copy"></i></button>` : '<em class="mut">—</em>'}</div>`;
+  const locCard = `<div class="card pfc">${ovwHead('target', 'Location', w ? '<button class="btn sec sm" id="pfloc"><i class="i i-pencil"></i> ' + (hasPin ? 'Change' : 'Set location') + '</button>' : '')}
+     <div class="ovw-loc${hasPin ? ' map' : ''}">${hasPin ? `<iframe class="pfmap" loading="lazy" title="Map" referrerpolicy="strict-origin" src="https://www.openstreetmap.org/export/embed.html?bbox=${+c.lng - .004},${+c.lat - .0025},${+c.lng + .004},${+c.lat + .0025}&layer=mapnik&marker=${c.lat},${c.lng}"></iframe>` : `<p class="ovw-empty"><i class="i i-pin"></i><span>No map pin yet.${w ? ' Use <b>Set location</b> at the site, or paste a Google Maps link.' : ''}</span></p>`}
+      <div class="ovw-ld">${lf('Address', c.address ? pfaLine(c.address) : '', c.address)}${lf('Landmark', c.landmark || '')}${hasPin ? lf('Coordinates', `${c.lat}, ${c.lng}`, `${c.lat},${c.lng}`) : ''}</div></div>
      ${ml ? `<div class="pfshare"><a class="btn sm" href="${ml}" target="_blank"><i class="i i-target"></i> Open in Maps</a>${hasPin ? `<a class="btn sec sm" href="https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}" target="_blank">Directions</a>` : ''}
        <button class="btn sec sm" data-cp="${esc(ml)}" data-l="map link"><i class="i i-copy"></i> Copy link</button>${BA() ? '' : '<button class="btn sec sm" id="pfwa"><i class="i i-whatsapp"></i> WhatsApp</button>'}${navigator.share ? '<button class="btn sec sm" id="pfsh"><i class="i i-link"></i> Share</button>' : ''}</div>` : ''}</div>`;
-  /* Progress (redesign 2026-11-20): Registration → Execution → Closure with the current stage, days in it and the next step;
-     the full step list folds open (remembered per browser in localStorage pfAllSteps) */
+  /* Progress (redesign 2026-11-24): one bar split into Registration · Execution · Closure, each part as wide as its number of steps and
+     filled up to the current step; under it Now (stage, days in it) and Next, and a button to the project. The full step list folds
+     open (remembered per browser in localStorage pfAllSteps). No step groups known (no projects access) = one plain bar. */
   const stepsOpen = (() => { try { return localStorage.pfAllSteps === '1'; } catch (e) { return false; } })();
   const prog = tl.progress.map(p => { const pct = p.idx < 0 ? 0 : Math.round((p.idx + 1) / p.total * 100), grp = l => typeof stepOf === 'function' ? stepOf(l) : 0;
-    const cur = p.stages[p.idx] || {}, nx = p.stages[p.idx + 1], g0 = grp(p.stage), dIn = cur.at ? Math.max(0, Math.floor((Date.now() - Date.parse(String(cur.at).replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(cur.at) ? '' : 'Z'))) / 864e5)) : null;
-    const G = [[1, 'Registration'], [2, 'Execution'], [3, 'Closure']];
-    return `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3><a href="#/projects/${p.id}">${esc(p.title || 'Project')}</a>${p.kw ? ` <span class="mut u-fw400">· ${p.kw} kW</span>` : ''}</h3><span class="sp"></span><small class="mut">${pct}% · step ${p.idx + 1} of ${p.total}</small></div>
-      <div class="pfg3">${G.map(([n, l]) => `<div class="pfg ${g0 > n || (p.stage === 'Project completed') ? 'pfg-done' : g0 === n ? 'pfg-now' : ''}"><span><i class="i i-check"></i></span><div><b>${l}</b>${g0 === n && p.stage !== 'Project completed' ? `<small>${esc(p.stage)}${dIn !== null ? ` · ${dIn}d` : ''}</small>` : ''}</div></div>`).join('')}</div>
-      <div class="pfbar"><i style="width:${pct}%"></i></div>
-      <div class="pfnx">${nx ? `<a class="btn sm" href="#/projects/${p.id}">Next: ${esc(nx.label)} →</a>` : '<span class="mut">All steps done</span>'}<span class="sp"></span><button type="button" class="pfall" data-allsteps aria-expanded="${stepsOpen}">${stepsOpen ? 'Hide steps' : `All ${p.total} steps`}</button></div>
+    const cur = p.stages[p.idx] || {}, nx = p.stages[p.idx + 1], g0 = grp(p.stage), fin = p.stage === 'Project completed', dIn = cur.at ? Math.max(0, Math.floor((Date.now() - Date.parse(String(cur.at).replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(cur.at) ? '' : 'Z'))) / 864e5)) : null;
+    let segs = [[1, 'Registration'], [2, 'Execution'], [3, 'Closure']].map(([n, l]) => { const ix = p.stages.map((s, i) => grp(s.label) === n ? i : -1).filter(i => i >= 0);
+      return { n, l, size: ix.length, k: fin ? ix.length : ix.filter(i => i <= p.idx).length }; }).filter(s => s.size);
+    if (!segs.length) segs = [{ n: g0, l: 'Progress', size: p.total, k: fin ? p.total : p.idx + 1 }];
+    const ttl = esc(p.title || 'Project') + (p.kw && !String(p.title || '').includes(p.kw + ' kW') ? ` <span class="mut u-fw400">· ${p.kw} kW</span>` : '');
+    return `<div class="card pfprog">${ovwHead('project', `<a href="#/projects/${p.id}">${ttl}</a>`, `<span class="ovw-meta">Step ${p.idx + 1} of ${p.total} · ${pct}%</span>`)}
+      <div class="ovw-seg">${segs.map(s => { const st = s.k >= s.size ? 'full' : s.n === g0 && !fin ? 'now' : ''; return `<div class="ovw-sg ${st}" style="flex:${s.size}"><div class="ovw-st"><i style="width:${Math.round(s.k / s.size * 100)}%"></i></div><div class="ovw-sl">${st === 'full' ? '<i class="i i-check"></i>' : ''}<b>${s.l}</b><small>${s.k}/${s.size}</small></div></div>`; }).join('')}</div>
+      <div class="ovw-now">${fin ? `<div class="ovw-nc fin"><span>Status</span><b><i class="i i-check"></i> Project completed</b></div>` : `<div class="ovw-nc"><span>Now</span><b>${esc(p.stage || '—')}</b>${dIn !== null ? `<small>${dIn ? dIn + (dIn === 1 ? ' day' : ' days') + ' in this step' : 'Since today'}</small>` : ''}</div>${nx ? `<div class="ovw-nc"><span>Next</span><b>${esc(nx.label)}</b></div>` : ''}`}
+        <a class="btn ${fin ? 'sec ' : ''}sm ovw-open" href="#/projects/${p.id}">Open project <i class="i i-chev"></i></a></div>
+      <div class="ovw-pf"><button type="button" class="pfall" data-allsteps aria-expanded="${stepsOpen}">${stepsOpen ? 'Hide steps' : `All ${p.total} steps`}</button></div>
       <div class="pfsteps"${stepsOpen ? '' : ' hidden'}>${p.stages.map((s, i) => `<div class="pfs ${i < p.idx || (s.paid && i !== p.idx) ? 'ok' : i === p.idx ? 'cur' : ''}" title="${esc(s.label)}${s.paid ? ' · paid ' + fdate(s.paid) : s.at ? ' · ' + tlTime(s.at).day + ' ' + tlTime(s.at).time : ''}"><span></span><b>${esc(s.label)}</b>${s.paid ? `<small>Paid ${fdate(s.paid)}</small>` : s.at ? `<small>${tlTime(s.at).day.replace(/^\w+, /, '')}</small>` : ''}</div>`).join('')}</div></div>`; }).join('');
+  /* Timeline: day headings say Today / Yesterday */
+  const dLbl = d => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }), dToday = dLbl(new Date()), dYday = dLbl(new Date(Date.now() - 864e5));
   let lastDay = '';
-  const tline = tl.events.map(e => { const t = tlTime(e.ts, e.local), head = t.day !== lastDay ? `<div class="tlday">${t.day}</div>` : ''; lastDay = t.day;
+  const tline = tl.events.map(e => { const t = tlTime(e.ts, e.local), head = t.day !== lastDay ? `<div class="tlday">${t.day === dToday ? 'Today' : t.day === dYday ? 'Yesterday' : t.day}</div>` : ''; lastDay = t.day;
     return `${head}<div class="tle k-${e.kind}"><div class="tlt">${t.time}</div><div class="tld"><i class="i i-${TL_ICON[e.kind] || 'dots'}"></i></div><div class="tlb"><b>${e.link ? `<a href="${e.link}">${esc(e.title)}</a>` : e.file ? `<a href="api.php?m=files&a=get&id=${e.file}" target="_blank">${esc(e.title)}</a>` : esc(e.title)}</b>${e.detail ? `<div class="tlx">${esc(e.detail)}</div>` : ''}${e.user ? `<small class="mut">by ${esc(e.user)}</small>` : ''}</div></div>`; }).join('');
   const initials = (c.name || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase();
   const canOwn = w && OWN.canReassign(c.owner_id, ME); // owner chip; the owner, admin or assistant manager can reassign
@@ -113,16 +146,15 @@ async function pgCustomer(id) {
      <div class="cuh-id"><h2>${esc(c.name)}</h2><div class="cuh-meta">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') : pill('No project yet')}${typeof feasSpot === 'function' ? feasSpot(c.id) : ''}${meta}</div></div>
      <div class="cuh-act">${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn sec" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}<button class="btn sec" id="dsc">${discBtnLabel(id)}</button><button class="btn sec cuh-more" id="pfmore" title="More: edit, project cost, KYC PDF…" aria-label="More actions"><i class="i i-dots"></i></button></div></div>
     <div class="cuh-facts">${c.phone ? fact('Phone', cpv(c.phone, 'phone')) : ''}${c.consumer_no ? fact('Consumer no.', cpv(c.consumer_no, 'consumer no.')) : ''}${c.kseb_section ? fact('KSEB section', esc(c.kseb_section)) : ''}${c.district ? fact('District', esc(c.district)) : ''}${fact('Owner', own)}</div>
-    ${tabsH.tabs}</div>
-   ${tabsH.subs}
+    ${tabsH.tabs}${tabsH.subs}</div>
    <div id="pfbody"></div>
    <div class="pfgrid" ${PFT === 'overview' ? '' : 'hidden'}>
-    <div class="pfleft">${prog || `<div class="card pfprog"><div class="pfch"><i class="i i-project"></i><h3>Progress</h3><span class="sp"></span>${canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : ''}</div><p class="mut u-m0">No project yet.</p></div>`}
-     <div class="card pfc pftodo"><div class="pfch"><i class="i i-clipboard"></i><h3>To complete</h3><span class="sp"></span><small class="mut">Click a page to open it</small></div><div id="ppsum">${sumHtml(cnt0)}</div></div>
+    <div class="pfleft">${prog || `<div class="card pfprog">${ovwHead('project', 'Progress', canW('projects') ? '<button class="btn sm" id="np">+ New project</button>' : '')}<p class="ovw-empty"><i class="i i-project"></i><span>No project yet.</span></p></div>`}
+     <div class="card pfc pftodo">${ovwHead('clipboard', 'To complete', missAll ? `<span class="ovw-badge need">${missAll} missing</span>` : '<span class="ovw-badge ok"><i class="i i-check"></i> Nothing missing</span>')}<div id="ppsum" class="ovw-todo">${sumHtml(cnt0)}</div></div>
      ${pfQuoteCard(c).replace('class="card', 'class="card pfqc')}${locCard.replace('class="card pfc"', 'class="card pfc pfloc"')}
-     ${c.notes ? `<div class="card pfc pfnotes"><div class="pfch"><i class="i i-note"></i><h3>Notes</h3></div><div style="font-size:14px;white-space:pre-wrap">${esc(c.notes)}</div></div>` : ''}</div>
-    <div class="pfright"><div class="card pftl"><div class="pfch"><i class="i i-clock"></i><h3>Timeline</h3><span class="sp"></span><small class="mut">${tl.events.length} events</small></div>
-      <div class="tladd"><input id="tln" placeholder="Add an update or note… (Enter to save)"><button class="btn sm" id="tlnb">Add</button></div>
+     ${c.notes ? `<div class="card pfc pfnotes">${ovwHead('note', 'Notes')}<div class="ovw-note">${esc(c.notes)}</div></div>` : ''}</div>
+    <div class="pfright"><div class="card pftl">${ovwHead('clock', 'Timeline', `<span class="ovw-meta">${tl.events.length} ${tl.events.length === 1 ? 'event' : 'events'}</span>`)}
+      <div class="tladd"><input id="tln" placeholder="Add an update or note… (Enter to save)" aria-label="Add an update or note"><button class="btn sm" id="tlnb">Add</button></div>
       <div class="tl">${tline || '<p class="mut">Nothing yet.</p>'}</div></div></div>
     ${allCard}
     </div>`;
@@ -287,11 +319,14 @@ async function payTab(box, c, id) {
 
 /* Customer profile > Overview > Quotations: the approved quotations that were uploaded and the quotations made in the CRM,
    each with who uploaded / made / changed it. Upload and Create need the Quotations edit right. */
+/* Overview card heading (redesign 2026-11-24): a neutral icon tile, the title, then anything on the right (count, badge, buttons) */
+const ovwHead = (icon, title, right = '') => `<div class="pfch ovw-h"><span class="ovw-ic"><i class="i i-${icon}"></i></span><h3>${title}</h3><span class="sp"></span>${right}</div>`;
 function pfQuoteCard(c) {
   const w = canW('quotes'), ap = (c.files || []).filter(f => f.kind === 'approved');
   const who = (word, name, when) => word + (name ? ' by ' + esc(name) : '') + (when ? ' · ' + dmy(when) : '');
-  const A = ap.map(f => `<div class="pfdoc pfq"><div class="pfq-m"><a href="api.php?m=files&a=get&id=${+f.id}&v=1" target="_blank" rel="noopener"><b>${esc(f.name)}</b></a> ${pill('Approved', 'g')}<br><small class="mut">${who('Uploaded', f.by_name, f.created)} · in Documents</small></div></div>`);
+  /* one row each: file/quote tile · number + status · who and when · amount on the right · Modify */
+  const A = ap.map(f => `<div class="pfq ovw-q"><span class="ovw-qi"><i class="i i-file"></i></span><div class="pfq-m"><div class="ovw-qt"><a href="api.php?m=files&a=get&id=${+f.id}&v=1" target="_blank" rel="noopener">${esc(f.name)}</a>${pill('Approved', 'g')}</div><small class="mut">${who('Uploaded', f.by_name, f.created)} · in Documents</small></div></div>`);
   const Q = c.quotes.map(q => { const ch = q.updated && q.created && q.updated.slice(0, 16) !== q.created.slice(0, 16);
-    return `<div class="pfdoc pfq"><div class="pfq-m"><a href="#/quotes/${q.id}"><b>${esc(q.number)}</b></a> ${pill(q.status, stageCls(q.status))} ${q.total != null ? inr(q.total) : ''}<br><small class="mut">${who('Created', q.made_name, q.created || q.date)}${ch ? ' · ' + who('Modified', q.edit_name, q.updated) : ''}</small></div>${w ? `<a class="btn sec sm" href="#/quotes/${q.id}" title="Open this quotation and change it. When it is saved, the new PDF replaces the copy in Documents."><i class="i i-pencil"></i> Modify</a>` : ''}</div>`; });
-  return `<div class="card pfc"><div class="pfch pfq-h"><i class="i i-receipt"></i><h3>Quotations</h3><span class="sp"></span>${w ? '<button class="btn sec sm" id="nqu" title="Upload the quotation the customer approved (PDF or photo). It is kept in Documents."><i class="i i-upload"></i> Upload approved quotation</button><button class="btn sm" id="nq"><i class="i i-plus"></i> Create quotation</button>' : ''}</div>${A.join('') + Q.join('') || '<p class="mut u-m0-fs13">No quotations</p>'}</div>`;
+    return `<div class="pfq ovw-q"><span class="ovw-qi"><i class="i i-receipt"></i></span><div class="pfq-m"><div class="ovw-qt"><a href="#/quotes/${q.id}">${esc(q.number)}</a>${pill(q.status, stageCls(q.status))}</div><small class="mut">${who('Created', q.made_name, q.created || q.date)}${ch ? ' · ' + who('Modified', q.edit_name, q.updated) : ''}</small></div>${q.total != null ? `<b class="ovw-amt">${inr(q.total)}</b>` : ''}${w ? `<a class="btn sec sm" href="#/quotes/${q.id}" title="Open this quotation and change it. When it is saved, the new PDF replaces the copy in Documents."><i class="i i-pencil"></i> Modify</a>` : ''}</div>`; });
+  return `<div class="card pfc">${ovwHead('receipt', 'Quotations', w ? '<span class="pfq-h ovw-qb"><button class="btn sec sm" id="nqu" title="Upload the quotation the customer approved (PDF or photo). It is kept in Documents."><i class="i i-upload"></i> Upload approved quotation</button><button class="btn sm" id="nq"><i class="i i-plus"></i> Create quotation</button></span>' : '')}${A.join('') + Q.join('') || '<p class="ovw-empty"><i class="i i-receipt"></i><span>No quotations yet.</span></p>'}</div>`;
 }

@@ -551,7 +551,6 @@ tr.cmn-wait td{background:var(--page)}
 .pp-hi{background:var(--green-tint);border:1px solid #f0d58a;border-radius:12px;padding:10px 14px;margin-bottom:10px}.pp-hi label{margin:0 0 4px;color:var(--orange-text);font-weight:600}.pp-hi .pfv{font-size:16px;font-weight:600}
 @media(max-width:820px){.pp-grid{grid-template-columns:minmax(0,1fr)}.pp-row.pfr{grid-template-columns:minmax(0,1fr);gap:2px}.pp-row>span{padding-top:0}}
 .ppn{display:inline-block;min-width:18px;padding:0 6px;margin-left:4px;border-radius:9px;background:#d73b3e;color:var(--white);font-size:11px;font-weight:600;line-height:18px;text-align:center}.ppn[hidden]{display:none}
-.pp-sum{display:flex;align-items:center;gap:10px;width:100%;padding:9px 2px;background:none;border:0;border-bottom:1px solid var(--line,var(--line));font:inherit;color:inherit;text-align:left;cursor:pointer}.pp-sum:last-child{border-bottom:0}.pp-sum:hover{background:rgba(0,0,0,.03)}.pp-sum>span{flex:1;min-width:0}.pp-sum b{font-size:12px;font-weight:500}.pp-ok{color:var(--mut)}
 /* Customer profile timeline: scrolls inside its card (heading and "add a note" box stay put), not the whole page.
    Wide screens: the right column stays in view below the top bar while the left side scrolls. Phones: a 70vh box. */
 .pfright{position:sticky;top:76px}.pftl{display:flex;flex-direction:column;max-height:max(380px,calc(100vh - 330px))}
@@ -1378,33 +1377,16 @@ button.pill.stbtn{border:0;font:inherit;font-size:12px;font-weight:500;cursor:po
 .dpl-r{flex-direction:column;align-items:stretch;gap:3px}.dpl-n{display:flex;align-items:baseline;gap:6px;min-width:0}.dpl-n a{white-space:normal;overflow:visible}.dpl-m{display:flex;align-items:center;gap:6px;min-width:0}.dpl-m .pill{max-width:75%}.dpl-r .dpl-d{text-align:left}
 
 /* ---- Customer Overview redesign (2026-11-20, app11.js pgCustomer) ---- */
-/* progress: three groups, the current one with its stage and days */
-.pfg3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:2px 0 10px}
-.pfg{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--fill-2);min-width:0}
-.pfg>span{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--line-strong);display:grid;place-items:center;background:var(--white)}
-.pfg>span .i{width:12px;height:12px;opacity:0}.pfg b{display:block;font-size:14px;font-weight:600}.pfg small{display:block;font-size:12px;color:var(--text-2);overflow-wrap:break-word;margin-top:1px}
-.pfg.pfg-done>span{background:var(--green);border-color:var(--green);color:var(--white)}.pfg.pfg-done>span .i{opacity:1}.pfg.pfg-done b{color:var(--green-text)}
-.pfg.pfg-now{background:var(--blue-tint);box-shadow:inset 0 0 0 1.5px var(--blue)}.pfg.pfg-now>span{border-color:var(--blue);box-shadow:inset 0 0 0 4px var(--white);background:var(--blue)}.pfg.pfg-now b{color:var(--blue-text)}
-.pfnx{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}.pfnx .btn{max-width:100%;white-space:normal;text-align:left}
 .pfall{all:unset;cursor:pointer;font-size:13px;color:var(--blue);font-weight:500}.pfall:hover{text-decoration:underline}
 .pfprog .pfsteps{margin-top:12px}.pfprog .pfsteps[hidden]{display:none}
-/* To complete: each page with a fill bar */
-.pp-sum2{display:grid;grid-template-columns:20px minmax(120px,1.2fr) minmax(60px,1fr) auto;gap:12px;align-items:center}
-.pp-sum2 .pp-t{min-width:0;overflow-wrap:break-word}.pp-sum2 .pp-bar{height:6px;border-radius:3px;background:var(--fill-2);overflow:hidden}
-.pp-sum2 .pp-bar i{display:block;height:100%;border-radius:3px;background:var(--green)}.pp-sum2 .pp-bar.need i{background:var(--orange)}
-.pp-sum2 b{white-space:nowrap;text-align:right}
 /* words never split in the middle; long values (addresses) take two columns */
 .pfv{overflow-wrap:break-word;word-break:normal}
 .pfa-f.pfa-w{grid-column:span 2}
-.pfloc .pfr{grid-template-columns:110px minmax(0,1fr);align-items:start}
-@media(max-width:1100px){.pp-sum2{grid-template-columns:20px minmax(0,1fr) auto}.pp-sum2 .pp-bar{grid-column:2/-1;grid-row:2}}
 @media(max-width:880px){
   .pfgrid .pfleft{display:contents}
   .pfgrid>.pfleft>.pfprog{order:1}.pfgrid>.pfleft>.pftodo{order:2}.pfgrid>.pfright{order:3}.pfgrid>.pfleft>.pfqc{order:4}.pfgrid>.pfleft>.pfloc{order:5}.pfgrid>.pfleft>.pfnotes{order:6}.pfgrid>.pfa{order:7}
 }
-@media(max-width:600px){.pfg3{grid-template-columns:minmax(0,1fr)}.pfa-f.pfa-w{grid-column:1/-1}}
-.pp-sum2{grid-template-columns:20px minmax(150px,240px) minmax(80px,1fr) 150px}
-@media(max-width:1100px){.pp-sum2{grid-template-columns:20px minmax(0,1fr) auto}}
+@media(max-width:600px){.pfa-f.pfa-w{grid-column:1/-1}}
 
 /* Back button above every page (app.js navTrack) */
 .navbk{padding:14px 28px 0}.navbk[hidden]{display:none}
@@ -1429,7 +1411,7 @@ main.mo-in tbody tr:nth-child(-n+18){animation:moIn .28s ease-out both}
 main.mo-in tbody tr:nth-child(2){animation-delay:.02s}main.mo-in tbody tr:nth-child(3){animation-delay:.04s}main.mo-in tbody tr:nth-child(4){animation-delay:.06s}main.mo-in tbody tr:nth-child(5){animation-delay:.08s}main.mo-in tbody tr:nth-child(6){animation-delay:.1s}main.mo-in tbody tr:nth-child(7){animation-delay:.12s}main.mo-in tbody tr:nth-child(8){animation-delay:.14s}main.mo-in tbody tr:nth-child(n+9){animation-delay:.16s}
 main.mo-in .dg>*{animation:moIn .3s ease-out both}main.mo-in .dg>*:nth-child(2){animation-delay:.03s}main.mo-in .dg>*:nth-child(3){animation-delay:.06s}main.mo-in .dg>*:nth-child(n+4){animation-delay:.09s}
 /* bars fill from the left */
-main.mo-in .prog>i,main.mo-in .pfbar>i,main.mo-in .pp-bar>i{transform-origin:left;animation:moBar .6s cubic-bezier(.2,.8,.2,1) both .1s}
+main.mo-in .prog>i{transform-origin:left;animation:moBar .6s cubic-bezier(.2,.8,.2,1) both .1s}
 /* windows, menus and notices ease in */
 .modal{animation:moFade .16s ease-out}.modal>div{animation:moPop .2s cubic-bezier(.2,.8,.2,1)}
 .card.menu,#lmenu,#pmenu{animation:moMenu .14s ease-out;transform-origin:top right}
@@ -1539,7 +1521,21 @@ body.sgo-on #shell{filter:blur(8px) saturate(.85);transform:scale(.97);transitio
 .cuh-tabs button.on{color:var(--text)}.cuh-tabs button.on::after{background:var(--blue)}.cuh-tabs button.on .i{color:var(--blue)}
 .cuh-tabs button:focus-visible{box-shadow:inset 0 0 0 2px rgba(0,122,255,.45)}
 .cuh-tabs .i{width:16px;height:16px}.cuh-tabs .ppn{margin-left:0}
-.cuh-sub{position:relative;display:flex;gap:2px;width:max-content;max-width:100%;margin:0 0 14px;padding:3px;border-radius:10px;background:rgba(118,118,128,.12);overflow-x:auto;scrollbar-width:none}
+/* sub-menu drawer under the tabs (owner 2026-11-24): drops down (grid rows 0fr → 1fr), the row wipes open left to right from under
+   the tab that opened it and its items slide in one after another; Overview folds it up. Chevron on a group tab turns up while open. */
+.cuh-cv{width:11px!important;height:11px!important;margin-left:-2px;opacity:.55;transform:rotate(90deg);transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .18s}
+.cuh-tabs button.on .cuh-cv{transform:rotate(-90deg);opacity:.9}
+.cuh-drop{display:grid;grid-template-rows:0fr;margin:0 -22px;transition:grid-template-rows .34s cubic-bezier(.2,.8,.2,1)}
+.cuh-drop.open{grid-template-rows:1fr}
+.cuh-drop-in{min-height:0;overflow:hidden}
+.cuh-drop-pad{padding:10px 12px 12px;border-top:1px solid var(--line);border-radius:0 0 var(--r) var(--r);background:linear-gradient(180deg,var(--fill-2),var(--page));opacity:0;transform:translateY(-8px);transition:opacity .22s ease,transform .34s cubic-bezier(.2,.8,.2,1)}
+.cuh-drop.open .cuh-drop-pad{opacity:1;transform:none}
+.cuh-sub{position:relative;display:flex;gap:4px;width:max-content;max-width:100%;margin:0;padding:2px;overflow-x:auto;scrollbar-width:none}
+@keyframes cuhWipe{from{clip-path:inset(-12px 100% -12px -12px)}to{clip-path:inset(-12px -12px -12px -12px)}}
+@keyframes cuhItem{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+.cuh-sub.cuh-in{animation:cuhWipe .42s cubic-bezier(.2,.8,.2,1) both}
+.cuh-sub.cuh-in>button{animation:cuhItem .36s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 45ms + 60ms)}
+@media(prefers-reduced-motion:reduce){.cuh-drop,.cuh-drop-pad,.cuh-cv{transition:none}.cuh-sub.cuh-in,.cuh-sub.cuh-in>button{animation:none}}
 .cuh-sub[hidden]{display:none}.cuh-sub::-webkit-scrollbar{display:none}
 .cuh-sub button{all:unset;box-sizing:border-box;cursor:pointer;flex:none;display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:8px;font-size:13px;font-weight:550;color:var(--text-2);white-space:nowrap;transition:background-color .18s,box-shadow .18s,color .18s}
 .cuh-sub button:hover{color:var(--text);background:rgba(255,255,255,.55)}
@@ -1553,7 +1549,7 @@ body.sgo-on #shell{filter:blur(8px) saturate(.85);transform:scale(.97);transitio
 @container (max-width:520px){.cuh-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:820px){.card.cuh{padding:16px 16px 0}.cuh-tabs{margin:14px -16px 0;padding:0 4px}
   .cuh-tabs button{flex:1;justify-content:center;padding:12px 8px 13px;font-size:13.5px}.cuh-tabs .i{display:none}
-  .cuh-sub{width:auto}}
+  .cuh-drop{margin:0 -16px}.cuh-drop-pad{padding:8px 10px 10px}.cuh-sub{width:auto}}
 @media(max-width:600px){.cuh-top{gap:12px}.cuh-av{width:46px;height:46px;font-size:16px}.cuh-id{min-width:0}.cuh-id h2{font-size:21px}
   /* actions = four equal icon-over-label buttons (Call · WhatsApp · Discussion · More), like a phone contact card */
   .cuh-act{width:100%;flex-wrap:nowrap;gap:8px}
@@ -1561,3 +1557,84 @@ body.sgo-on #shell{filter:blur(8px) saturate(.85);transform:scale(.97);transitio
   .cuh-act .btn>.i{width:20px;height:20px;margin:0}
   .cuh-act .btn>.pill{position:absolute;top:5px;right:5px;padding:1px 6px;font-size:10px}
   .cuh-more::after{content:'More'}}
+/* ---- Customer Overview cards (redesign 2026-11-24, app11.js pgCustomer + pfQuoteCard; prefix .ovw-) ----
+   Same heading on every card (neutral icon tile, title, count/badge/buttons on the right), monochrome icons, sentence-case labels
+   like the header facts. Shared classes (.card, .pfch, .pfa-*, .tl*) are only restyled inside .pfgrid / .pftl. */
+.pfgrid .card{padding:18px 20px}
+.pfgrid .ovw-h{gap:10px;margin:0 0 14px;min-height:30px;flex-wrap:wrap}
+.pfgrid .ovw-h h3{font-size:15.5px;font-weight:650;letter-spacing:-.01em;min-width:0;overflow-wrap:break-word}
+.ovw-ic{flex:none;width:30px;height:30px;border-radius:9px;background:var(--fill-2);display:grid;place-items:center;color:var(--text-2)}.ovw-ic .i{width:16px;height:16px}
+.ovw-meta{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ovw-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:980px;font-size:12px;font-weight:600;white-space:nowrap}
+.ovw-badge.need{background:var(--red-tint);color:var(--red-text)}.ovw-badge.ok{background:var(--green-tint);color:var(--green-text)}.ovw-badge .i{width:13px;height:13px}
+.ovw-empty{display:flex;align-items:center;gap:10px;margin:0;padding:14px 16px;border-radius:12px;background:var(--fill-2);font-size:13px;color:var(--muted)}
+.ovw-empty>.i{width:18px;height:18px;flex:none;opacity:.7}
+/* progress: one bar in three parts (width = number of steps), Now / Next tiles, Open project */
+.ovw-seg{display:flex;gap:6px}
+.ovw-sg{min-width:72px}
+.ovw-st{height:8px;border-radius:4px;background:var(--fill-2);overflow:hidden}
+.ovw-st>i{display:block;height:100%;border-radius:4px;background:var(--blue)}.ovw-sg.full .ovw-st>i{background:var(--green)}
+.ovw-sl{display:flex;align-items:center;gap:5px;margin-top:7px;font-size:12.5px;color:var(--muted);white-space:nowrap;min-width:0}
+.ovw-sl b{font-weight:600;color:var(--text-2);overflow:hidden;text-overflow:ellipsis}.ovw-sl small{font-size:12px;font-variant-numeric:tabular-nums}
+.ovw-sl .i{width:13px;height:13px;flex:none;color:var(--green-text)}
+.ovw-sg.now .ovw-sl b{color:var(--blue-text)}.ovw-sg.full .ovw-sl b{color:var(--green-text)}
+.ovw-now{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap;margin-top:16px}
+.ovw-nc{flex:1 1 170px;min-width:0;display:flex;flex-direction:column;gap:2px;padding:10px 14px;border-radius:12px;background:var(--fill-2)}
+.ovw-nc>span{font-size:12px;font-weight:500;color:var(--muted)}
+.ovw-nc>b{font-size:14.5px;font-weight:600;color:var(--text);overflow-wrap:break-word}.ovw-nc>small{font-size:12px;color:var(--muted)}
+.ovw-nc:first-child{background:var(--blue-tint)}.ovw-nc:first-child>span{color:var(--blue-text)}
+.ovw-nc.fin{background:var(--green-tint)}.ovw-nc.fin>span{color:var(--green-text)}.ovw-nc.fin>b{display:inline-flex;align-items:center;gap:6px;color:var(--green-text)}
+.ovw-open{flex:none;align-self:center;display:inline-flex!important;align-items:center;gap:4px}.ovw-open .i{width:13px;height:13px}
+.ovw-pf{margin-top:12px}
+/* To complete: numbered rows (a tick when complete), fill bar, status, chevron */
+.ovw-todo{display:flex;flex-direction:column;gap:2px;margin:0 -8px}
+.ovw-tr{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:24px minmax(140px,1.1fr) minmax(70px,1fr) 150px 13px;gap:12px;align-items:center;padding:9px 8px;border-radius:10px;font-size:14px;color:var(--text);transition:background-color .15s}
+.ovw-tr:hover{background:var(--fill-2)}.ovw-tr:focus-visible{box-shadow:0 0 0 2px rgba(0,122,255,.45)}
+.ovw-no{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--line-strong);font-size:11.5px;font-weight:650;color:var(--text-2);font-variant-numeric:tabular-nums}
+.ovw-no .i{width:12px;height:12px}
+.ovw-tr.ok .ovw-no{background:var(--green);box-shadow:none;color:var(--white)}.ovw-tr.need .ovw-no{box-shadow:inset 0 0 0 1.5px var(--orange);color:var(--orange-text)}
+.ovw-tn{font-weight:550;min-width:0;overflow-wrap:break-word}
+.ovw-bar{height:6px;border-radius:3px;background:var(--fill-2);overflow:hidden}
+.ovw-bar>i{display:block;height:100%;border-radius:3px;background:var(--line-strong)}.ovw-tr.need .ovw-bar>i{background:var(--orange)}.ovw-tr.ok .ovw-bar>i{background:var(--green)}
+.ovw-ts{font-size:12.5px;color:var(--muted);text-align:right;white-space:nowrap}.ovw-tr.need .ovw-ts{color:var(--red-text);font-weight:600}.ovw-tr.ok .ovw-ts{color:var(--green-text)}
+.ovw-go{width:13px;height:13px;color:var(--line-strong)}.ovw-tr:hover .ovw-go{color:var(--muted)}
+main.mo-in .ovw-bar>i,main.mo-in .ovw-st>i{transform-origin:left;animation:moBar .6s cubic-bezier(.2,.8,.2,1) both .1s}
+/* Quotations: tile, number + status, who/when, amount, Modify */
+.ovw-qb{display:flex;gap:8px;flex-wrap:wrap}.ovw-qb .btn{margin:0}
+.ovw-q{gap:12px;padding:11px 0;border-top:1px solid var(--line)}.ovw-h+.ovw-q{border-top:0;padding-top:2px}.ovw-q:last-child{padding-bottom:0}
+.ovw-qi{flex:none;width:34px;height:34px;border-radius:10px;background:var(--fill-2);display:grid;place-items:center;color:var(--text-2)}.ovw-qi .i{width:16px;height:16px}
+.ovw-qt{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.ovw-qt a{font-size:14.5px;font-weight:600;color:var(--blue-text);overflow-wrap:anywhere}.ovw-qt a:hover{text-decoration:underline}
+.ovw-q .pfq-m>small{display:block;margin-top:2px;font-size:12px}
+.ovw-amt{font-size:14.5px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Location: map beside the address when the card is wide enough */
+.pfgrid .pfloc{container:ovwloc/inline-size}
+.ovw-loc{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.ovw-loc .pfmap{margin:0;height:200px;border-radius:12px}
+@container ovwloc (min-width:600px){.ovw-loc.map{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}.ovw-loc.map .pfmap{height:100%;min-height:220px}}
+.ovw-ld{display:flex;flex-direction:column;gap:12px;min-width:0}
+.ovw-f{display:flex;flex-direction:column;gap:2px;min-width:0}.ovw-f>span{font-size:12px;font-weight:500;color:var(--muted)}
+.ovw-f .pfv{margin:0 -6px;align-self:flex-start;font-size:14.5px;font-weight:550}
+.pfloc .ovw-loc+.pfshare{margin-top:14px}
+@container ovwloc (min-width:600px){.ovw-loc.map .ovw-ld{padding:4px 0}}
+/* Notes */
+.ovw-note{padding:12px 14px;border-radius:12px;background:var(--fill-2);font-size:14px;line-height:1.55;color:var(--text);white-space:pre-wrap;overflow-wrap:break-word}
+/* Timeline: monochrome event dots, day headings stay at the top while the list scrolls */
+.pftl .tladd{margin-bottom:12px}
+.pftl .tlday{position:sticky;top:0;z-index:2;margin:6px 0 8px;padding:6px 0 4px;background:var(--card,var(--white));font-size:12px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
+.pftl .tlday:first-child{margin-top:0}
+.pftl .tle .tld{background:var(--white);box-shadow:inset 0 0 0 1.5px var(--line)}.pftl .tle .tld .i{background:var(--text-2)}
+.pftl .tle::before{background:var(--line)}
+.pftl .tlt{color:var(--faint)}.pftl .tlb>b{font-weight:600}.pftl .tlb>b a:hover{color:var(--blue)}
+/* All details: section rows with the page number, labels like the header facts */
+.pfgrid .pfa-h{display:flex;box-sizing:border-box;width:calc(100% + 16px);margin:0 -8px 10px;padding:6px 8px;gap:9px;background:none;border-radius:9px;color:var(--text);font-size:14px;font-weight:600}
+.pfgrid .pfa-h:hover{background:var(--fill-2)}.pfgrid .pfa-h small{margin-left:2px;font-size:12.5px;font-weight:400;color:var(--muted)}
+.pfgrid .pfa-h>.i{width:13px;height:13px;margin-left:auto;background:var(--line-strong)}.pfgrid .pfa-h:hover>.i{background:var(--muted)}
+.pfgrid .pfa-s+.pfa-s{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.pfgrid .pfa-g{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px 20px}
+.pfgrid .pfa-f{gap:2px;font-size:14.5px}.pfgrid .pfa-f>span{font-size:12px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
+@media(max-width:1100px){.ovw-tr{grid-template-columns:24px minmax(0,1fr) auto 13px;row-gap:6px}.ovw-tr .ovw-bar{grid-column:2/4;grid-row:2}.ovw-tr .ovw-go{grid-column:4;grid-row:1}}
+@media(max-width:820px){.pfgrid .card{padding:16px}}
+@media(max-width:600px){.ovw-hint{display:none}.ovw-sl small{display:none}.ovw-sg{min-width:56px}
+  .ovw-q{flex-wrap:wrap}.ovw-q .pfq-m{flex:1 1 calc(100% - 46px)}.ovw-amt{margin-left:46px;flex:1}
+  .ovw-open{width:100%;justify-content:center}.pfgrid .pfa-g{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}}
