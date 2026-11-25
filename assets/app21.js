@@ -1,6 +1,6 @@
 // Quotation maker: the printed quotation. A4 pages as HTML (live preview), pagination of the item rows, and the PDF download.
 // Needs QM (app20.js) and esc() (app.js). Page classes start with .qp (assets/quote.css). Every text value goes through esc().
-const QP_FONTS = ['400 12px Poppins', '500 12px Poppins', '600 12px Poppins', '700 12px Poppins'];
+const QP_FONTS = ['400 12px Poppins', '500 12px Poppins', '600 12px Poppins', '700 12px Poppins', '400 12px "Instrument Serif"', '400 12px "Instrument Sans"', '700 12px "Instrument Sans"']; /* Instrument: the cover page */
 const QP_RATES = { per_kw_first2: 30000, third_kw: 18000, cap: 78000 };
 const QP_MON = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 /* line icons for the delivery list (inline SVG with explicit colours, so html2canvas draws them too) */
@@ -57,10 +57,30 @@ function qmPagesHtml(doc, lines, calc, settings) {
   const vars = QM.vars(calc, doc, settings), fill = t => QM.fill(t, vars);
   const ctx = { title: calc.title, site: settings.site || '', footer: settings.footer || '', co: settings.company || {} };
   const pages = [qpCover(doc, lines, calc, settings, ctx), qpItems(lines, calc, ctx)];
+  if (doc.cover) pages.unshift(qpFront(doc, calc, settings, ctx)); /* the cover page, only when ticked (owner, 2026-11-25) */
   if (calc.loan) pages.push(qpLoan(calc, settings, ctx, fill));
   pages.push(qpTerms(doc, calc, settings, ctx, fill));
   ((calc.pages && calc.pages.feature) || []).forEach(p => { const u = qmImgUrl(p); if (u) pages.push(`<div class="qp qp-feat" data-src="${esc(u)}"><img src="${esc(u)}" alt=""></div>`); });
   return pages.map((h, i) => h.replace('<span class="qp-pno"></span>', `<span class="qp-pno">Page ${i + 1} of ${pages.length}</span>`));
+}
+
+/* Cover page (owner, 2026-11-25; only when "Add the cover page" is ticked, doc.cover): the picture assets/quote/page-front.jpg
+   ("With solar" home vs "Coal power", built from tools/qm_front) over the top 905 px, then this quotation's details, the settings
+   footer line (MNRE · KSEB · …) and the company contacts. No page number on it; the other pages count it as page 1. */
+function qpFront(doc, calc, st, ctx) {
+  const co = ctx.co || {}, cu = doc.customer || {}, days = doc.valid_days != null && doc.valid_days !== '' ? doc.valid_days : st.valid_days;
+  const name = String(cu.name || '').trim() || '—', nm = name.length > 30 ? 19 : name.length > 22 ? 23 : 27;
+  const addr = String(cu.address || '').split(/\n/)[0].trim(), place = addr.length > 46 ? addr.slice(0, 45).trim() + '…' : addr;
+  const plant = calc.plantKw + ' kW on-grid' + (calc.phase === 'three-phase' ? ' · 3-phase' : '');
+  const parts = String(st.footer || '').split('·').map(x => x.trim()).filter(Boolean).slice(0, 3);
+  const office = (co.lines || []).find(l => /office|address/i.test(l.label || '')), town = office ? String(office.text || '').split(',').slice(-2).join(',').trim() : '';
+  const ft = [ctx.site, co.email, town, co.phone].map(x => String(x || '').trim()).filter(Boolean);
+  return `<div class="qp qp-front"><img class="qpf-pic" src="assets/quote/page-front.jpg" alt="">`
+    + `<div class="qpf-info"><div><small>PREPARED FOR</small><b class="qpf-nm" style="font-size:${nm}px">${esc(name)}</b>${place ? `<span>${esc(place)}</span>` : ''}</div>`
+    + `<div><small>PLANT</small><b>${esc(plant)}</b><small class="qpf-g">QUOTE NO.</small><b>${esc(doc.number || '—')}</b></div>`
+    + `<div><small>DATE</small><b>${esc(qpDate(doc.date) || '—')}</b><small class="qpf-g">VALID FOR</small><b>${days ? esc(days + (String(days) === '1' ? ' day' : ' days')) : '—'}</b></div></div>`
+    + `<div class="qpf-mn">${parts.map(x => `<span>${esc(x)}</span>`).join('')}</div>`
+    + `<div class="qpf-ft">${ft.map(x => esc(x)).join('<i></i>')}</div></div>`;
 }
 
 /* company signature + seal over the signatory line: only when the quotation's box is ticked (doc.seal, off by default) and an admin

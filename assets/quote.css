@@ -3,6 +3,10 @@
 @font-face{font-family:Poppins;font-style:normal;font-weight:500;font-display:block;src:url(fonts/Poppins-Medium.ttf) format("truetype")}
 @font-face{font-family:Poppins;font-style:normal;font-weight:600;font-display:block;src:url(fonts/Poppins-SemiBold.ttf) format("truetype")}
 @font-face{font-family:Poppins;font-style:normal;font-weight:700;font-display:block;src:url(fonts/Poppins-Bold.ttf) format("truetype")}
+/* cover page type (Instrument Serif / Sans, SIL Open Font License: fonts/InstrumentSans-OFL.txt) */
+@font-face{font-family:"Instrument Serif";font-style:normal;font-weight:400;font-display:block;src:url(fonts/InstrumentSerif-Regular.ttf) format("truetype")}
+@font-face{font-family:"Instrument Sans";font-style:normal;font-weight:400;font-display:block;src:url(fonts/InstrumentSans-Regular.ttf) format("truetype")}
+@font-face{font-family:"Instrument Sans";font-style:normal;font-weight:700;font-display:block;src:url(fonts/InstrumentSans-Bold.ttf) format("truetype")}
 
 .qp{position:relative;width:794px;height:1123px;overflow:hidden;background:#fff;color:#1e2638;font:400 12px/1.4 Poppins,"Nirmala UI","Noto Sans Malayalam",Arial,sans-serif;letter-spacing:0;text-align:left;text-transform:none;-webkit-font-smoothing:antialiased;flex:none}
 .qp *{box-sizing:border-box;margin:0;padding:0}
@@ -15,6 +19,19 @@
 .qp th{border:0;padding:0;font-size:inherit;font-weight:400;color:inherit;text-transform:none;letter-spacing:0;overflow-wrap:normal}
 .qp-bar{position:absolute;left:0;top:0;width:794px;height:8px;background:#d8363d}
 .qp-in{position:absolute;left:44px;top:0;width:705px;height:1064px;overflow:hidden}
+/* cover page (qpFront in app21.js): the picture over the top 905 px, the details band, the settings footer line, contacts */
+.qp-front{background:#FBFAF7;font-family:"Instrument Sans",Poppins,sans-serif}
+.qpf-pic{position:absolute;left:0;top:0;width:794px;height:905px}
+.qpf-info{position:absolute;left:48px;right:48px;top:931px;display:grid;grid-template-columns:1.5fr 1fr 1fr;column-gap:28px}
+.qpf-info small{display:block;font-size:8.6px;line-height:11px;font-weight:700;letter-spacing:.2em;color:#8A8F99}
+.qpf-info b{display:block;font-weight:400;font-size:14px;line-height:19px;margin-top:4px;color:#1E2638;overflow-wrap:anywhere}
+.qpf-info .qpf-nm{font-family:"Instrument Serif",Georgia,serif;line-height:1.1}
+.qpf-info span{display:block;font-size:11px;line-height:16px;color:#5B6372;margin-top:3px}
+.qpf-info .qpf-g{margin-top:13px}
+.qpf-info>div+div{border-left:1px solid #E6E2DA;padding-left:24px}
+.qpf-mn{position:absolute;left:48px;right:48px;top:1040px;border-top:1px solid #E6E2DA;padding-top:7px;font-size:9.4px;line-height:13px;letter-spacing:.06em;text-transform:uppercase;color:#6B7280;display:flex;justify-content:space-between;gap:12px}
+.qpf-ft{position:absolute;left:0;right:0;bottom:0;height:40px;background:#1E2638;display:flex;align-items:center;justify-content:center;gap:16px;font-size:10.6px;letter-spacing:.04em;color:#E8EAEE}
+.qpf-ft i{width:3px;height:3px;border-radius:50%;background:#D8363D;display:inline-block}
 .qp-foot{position:absolute;left:44px;top:1081px;width:705px;border-top:2px solid #d8363d;padding-top:7px;display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;font-size:9.5px;line-height:14px;color:#6b7280}
 .qp-fc{font-size:10px;color:#1e2638;text-align:center;padding:0 8px}
 .qp-pno{text-align:right}
