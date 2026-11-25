@@ -23,12 +23,22 @@ var QM = (function () {
   Q.COVERS = [
     { k: 'ongrid', name: 'On-grid', sub: 'With solar vs coal power', pic: 'assets/quote/page-front.jpg', thumb: 'assets/quote/thumb-front.jpg', kind: 'on-grid' },
     { k: 'hybrid', name: 'Hybrid', sub: 'Lights on in a power cut', pic: 'assets/quote/page-front-hybrid.jpg', thumb: 'assets/quote/thumb-front-hybrid.jpg', kind: 'hybrid' },
-    { k: 'solaredge', name: 'SolarEdge', sub: 'SolarEdge vs string inverter', pic: 'assets/quote/page-front-solaredge.jpg', thumb: 'assets/quote/thumb-front-solaredge.jpg', kind: 'SolarEdge', need: 'solaredge' },
+    { k: 'solaredge', name: 'SolarEdge', sub: 'SolarEdge vs string inverter', pic: 'assets/quote/page-front-solaredge.jpg', thumb: 'assets/quote/thumb-front-solaredge.jpg', kind: 'SolarEdge', need: 'solaredge1' },
+    { k: 'solaredge3', name: 'SolarEdge 3-phase', sub: '5, 8 and 10 kW three-phase', pic: 'assets/quote/page-front-solaredge-3ph.jpg', thumb: 'assets/quote/thumb-front-solaredge-3ph.jpg', kind: 'SolarEdge three-phase', need: 'solaredge3' },
   ];
   /* the SolarEdge cover needs a SolarEdge inverter on the quotation (owner, 2026-11-25: "SolarEdge starts with 3 kW": the SE3000H is the
      smallest, so a 2 kW quotation can never be a SolarEdge one). A cover whose need is not met is not offered and does not print. */
-  Q.isSolarEdge = function (lines) { return ((lines && lines.inverter) || []).some(function (l) { return !!l.needs_opt || /solar\s*edge/i.test([l.name, l.title, l.details].join(' ')); }); };
-  Q.coverOk = function (cov, lines) { return !!cov && (!cov.need || (cov.need === 'solaredge' && Q.isSolarEdge(lines))); };
+  var seLine = function (l) { return !!l.needs_opt || /solar\s*edge/i.test([l.name, l.title, l.details].join(' ')); };
+  var threeLine = function (l) { return /three[- ]?phase|3[- ]phase/i.test([l.name, l.title, l.details].join(' ')); };
+  Q.isSolarEdge = function (lines) { return ((lines && lines.inverter) || []).some(seLine); };
+  Q.isSolarEdge3 = function (lines) { return ((lines && lines.inverter) || []).some(function (l) { return seLine(l) && threeLine(l); }); };
+  /* the single-phase SolarEdge cover shows the single-phase Home Wave inverter; the 3-phase one the SE5K / SE8K / SE10K (owner, 2026-11-25) */
+  Q.NEED = {
+    solaredge: { ok: function (L) { return Q.isSolarEdge(L); }, text: 'Needs a SolarEdge inverter (3 kW and up)' },
+    solaredge1: { ok: function (L) { return Q.isSolarEdge(L) && !Q.isSolarEdge3(L); }, text: 'Needs a single-phase SolarEdge inverter (3 kW and up)' },
+    solaredge3: { ok: function (L) { return Q.isSolarEdge3(L); }, text: 'Needs a three-phase SolarEdge inverter (5, 8 or 10 kW)' },
+  };
+  Q.coverOk = function (cov, lines) { return !!cov && (!cov.need || (!!Q.NEED[cov.need] && Q.NEED[cov.need].ok(lines))); };
   Q.coverOf = function (doc) { var k = doc && doc.cover === true ? 'ongrid' : doc && doc.cover; return Q.COVERS.filter(function (c) { return c.k === k; })[0] || null; };
 
   var num = function (v, d) { v = Number(v); return isFinite(v) ? v : (d || 0); };

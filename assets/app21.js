@@ -72,7 +72,7 @@ function qpFront(doc, calc, st, ctx, cov) {
   const co = ctx.co || {}, cu = doc.customer || {}, days = doc.valid_days != null && doc.valid_days !== '' ? doc.valid_days : st.valid_days;
   const name = String(cu.name || '').trim() || '—', nm = name.length > 30 ? 19 : name.length > 22 ? 23 : 27;
   const addr = String(cu.address || '').split(/\n/)[0].trim(), place = addr.length > 46 ? addr.slice(0, 45).trim() + '…' : addr;
-  const plant = calc.plantKw + ' kW ' + cov.kind + (calc.phase === 'three-phase' ? ' · 3-phase' : '');
+  const plant = calc.plantKw + ' kW ' + cov.kind + (calc.phase === 'three-phase' && !/phase/i.test(cov.kind) ? ' · 3-phase' : '');
   const parts = String(st.footer || '').split('·').map(x => x.trim()).filter(Boolean).slice(0, 3);
   const office = (co.lines || []).find(l => /office|address/i.test(l.label || '')), town = office ? String(office.text || '').split(',').slice(-2).join(',').trim() : '';
   const ft = [ctx.site, co.email, town, co.phone].map(x => String(x || '').trim()).filter(Boolean);

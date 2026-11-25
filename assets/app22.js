@@ -243,13 +243,13 @@ function qmkEdHead() {
    "No cover page" (the default). A tap chooses it (doc.cover) and the preview goes to page 1. */
 function qmkEdCovers() {
   const cur = (QM.coverOf(QMK.doc) || {}).k || '', { lines } = qmkCalc();
-  const off = c => !!c && !QM.coverOk(c, lines), need = 'Needs a SolarEdge inverter (3 kW and up)';
+  const off = c => !!c && !QM.coverOk(c, lines), need = c => ((QM.NEED || {})[c.need] || {}).text || 'Not for this quotation';
   const card = (k, img, name, sub, no) => `<button type="button" class="qm-cv${cur === k ? ' on' : ''}${no ? ' qm-cv-off' : ''}" data-a="cov" data-k="${esc(k)}" aria-pressed="${cur === k}"${no && cur !== k ? ' disabled' : ''}>`
     + `<span class="qm-cvp${img ? '' : ' qm-cvn'}">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : '<i class="i i-x"></i>'}</span>`
     + `<b>${esc(name)}</b><small>${esc(sub)}</small><span class="qm-ck"><i class="i i-check"></i></span></button>`;
   return `<section class="qm-sec" data-pv=".qp"><h3>Cover page</h3><div class="qm-cvs" role="group" aria-label="Cover page">`
-    + card('', '', 'No cover page', 'Start with the details page') + QM.COVERS.map(c => card(c.k, c.thumb, c.name, off(c) ? need : c.sub, off(c))).join('')
-    + '</div>' + (off(QM.coverOf(QMK.doc)) ? `<p class="qm-snap"><i class="i i-alert"></i><span>The ${esc(QM.coverOf(QMK.doc).name)} cover is not printed: this quotation has no SolarEdge inverter (SolarEdge starts at 3 kW). Choose a SolarEdge inverter, or another cover.</span></p>` : '')
+    + card('', '', 'No cover page', 'Start with the details page') + QM.COVERS.map(c => card(c.k, c.thumb, c.name, off(c) ? need(c) : c.sub, off(c))).join('')
+    + '</div>' + (off(QM.coverOf(QMK.doc)) ? `<p class="qm-snap"><i class="i i-alert"></i><span>The ${esc(QM.coverOf(QMK.doc).name)} cover is not printed on this quotation: ${esc(need(QM.coverOf(QMK.doc)).replace(/^./, x => x.toLowerCase()))}. Choose that inverter, or another cover.</span></p>` : '')
     + '<p class="qm-hint">A picture page before page 1, with the customer and quote details filled in.</p></section>';
 }
 function qmkEdCustomer() {
