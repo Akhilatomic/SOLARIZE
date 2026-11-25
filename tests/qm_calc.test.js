@@ -112,12 +112,16 @@ test('StormShield page: only with a hot-dip (HDG) structure, never with a welded
 });
 
 test('cover pages: the list, and the cover a quotation prints with', () => {
-  assert.deepEqual(QM.COVERS.map(c => c.k), ['ongrid', 'hybrid']);
+  assert.deepEqual(QM.COVERS.map(c => c.k), ['ongrid', 'hybrid', 'solaredge']);
   assert.ok(QM.COVERS.every(c => /^assets\/quote\/page-front[\w-]*\.jpg$/.test(c.pic) && /^assets\/quote\/thumb-front[\w-]*\.jpg$/.test(c.thumb) && c.name && c.sub && c.kind));
   assert.ok(QM.COVERS.every(c => [c.pic, c.thumb].every(f => require('fs').existsSync(require('path').join(__dirname, '..', f)))), 'every cover picture and thumbnail is in the repo');
   assert.equal(QM.coverOf({ cover: true }).k, 'ongrid', 'saved with the first tick box: the on-grid cover');
-  assert.equal(QM.coverOf({ cover: 'hybrid' }).kind, 'hybrid');
+  assert.equal(QM.coverOf({ cover: 'hybrid' }).kind, 'hybrid'); assert.equal(QM.coverOf({ cover: 'solaredge' }).kind, 'SolarEdge');
   for (const d of [{}, { cover: false }, { cover: '' }, { cover: 'nope' }, null]) assert.equal(QM.coverOf(d), null);
+  const se = QM.coverOf({ cover: 'solaredge' }), tsun = { inverter: [{ name: 'Microinverter', title: 'TSUN Microinverter', details: 'TSUN TSOL-MS2000 2 kW', needs_opt: 0 }] };
+  assert.equal(QM.coverOk(se, tsun), false, 'no SolarEdge cover on a TSUN quotation (SolarEdge starts at 3 kW)');
+  assert.equal(QM.coverOk(se, { inverter: [{ name: 'SolarEdge inverter', title: 'SolarEdge Inverter', details: 'SE3000H', needs_opt: 1 }] }), true);
+  assert.equal(QM.coverOk(se, {}), false); assert.equal(QM.coverOk(QM.coverOf({ cover: 'ongrid' }), tsun), true); assert.equal(QM.coverOk(null, tsun), false);
 });
 
 test('emi', () => {

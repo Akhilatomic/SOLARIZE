@@ -57,7 +57,7 @@ function qmPagesHtml(doc, lines, calc, settings) {
   const vars = QM.vars(calc, doc, settings), fill = t => QM.fill(t, vars);
   const ctx = { title: calc.title, site: settings.site || '', footer: settings.footer || '', co: settings.company || {} };
   const pages = [qpCover(doc, lines, calc, settings, ctx), qpItems(lines, calc, ctx)];
-  const cov = QM.coverOf(doc); if (cov) pages.unshift(qpFront(doc, calc, settings, ctx, cov)); /* the cover page chosen on the Customer tab (owner, 2026-11-25) */
+  const cov = QM.coverOf(doc); if (cov && QM.coverOk(cov, lines)) pages.unshift(qpFront(doc, calc, settings, ctx, cov)); /* the cover page chosen on the Customer tab (owner, 2026-11-25) */
   if (calc.loan) pages.push(qpLoan(calc, settings, ctx, fill));
   pages.push(qpTerms(doc, calc, settings, ctx, fill));
   ((calc.pages && calc.pages.feature) || []).forEach(p => { const u = qmImgUrl(p); if (u) pages.push(`<div class="qp qp-feat" data-src="${esc(u)}"><img src="${esc(u)}" alt=""></div>`); });
