@@ -5,8 +5,9 @@
 const QM_CATS = [
   ['panels', 'Solar panels'], ['inverter', 'Inverter'], ['optimiser', 'Optimisers'], ['acdb', 'ACDB box'], ['dcdb', 'DCDB box'],
   ['dccable', 'DC cables'], ['accable', 'AC cables'], ['isolator', 'Isolator switch'], ['meter', 'Energy meter'], ['parts', 'Other electrical parts'],
-  ['earthing', 'Earthing'], ['la', 'Lightning arrester'], ['structure', 'Mounting structure'], ['install', 'Installation'],
+  ['earthing', 'Earthing'], ['la', 'Lightning arrester'], ['structure', 'Mounting structure'], ['addstr', 'Additional structure'], ['install', 'Installation'],
 ];
+/* addstr = customer scope (QM.SCOPE in assets/app20.js): printed in its own "charged extra" box, never in the items table or the price */
 
 /* Placeholders in {braces} (loan texts, terms) are filled in by the renderer; **two stars** around words print them bold (red in the loan title, amber in the helpline). */
 const QM_DEFAULTS = [
@@ -324,7 +325,7 @@ function qm_seed(PDO $db): void {
 /* Products added after the first seed. qm_seed() only fills an empty catalogue, so these go into every database once
    (unique code, INSERT OR IGNORE), after the last product of their category; settings qm_added_rev remembers it,
    so an admin's later edits or Hide are kept. Add a product here = add a row and bump QM_ADDED_REV. */
-const QM_ADDED_REV = 6;
+const QM_ADDED_REV = 7;
 function qm_added(): array {
   $w = fn($years, $label) => ['years' => (string)$years, 'label' => $label];
   $panelW = [$w(12, 'Panels product'), $w(30, 'Panels performance')];
@@ -406,6 +407,14 @@ function qm_added(): array {
       "Sungrow SG$k.0RS-L, $k kW, single phase, " . ($k === 3 ? '1 MPPT' : '2 MPPT') . ', IP65 (indoor and outdoor), ' . ($k === 3 ? '97.8' : '97.9') . '% peak efficiency. Built-in Type II surge protection (DC and AC), DC switch, leakage-current protection and PID Zero. Wi-Fi, monitored from your phone (iSolarCloud). BIS certified.',
       ['title' => 'Sungrow Inverter', 'kw' => $k, 'qty_note' => "$k kW", 'picture' => 'assets/quote/pic-inverter-string.png',
         'brands' => [['label' => '', 'logos' => ['assets/quote/logo-sungrow.png']]]]], [3, 4, 5, 6]),
+    /* Rev 7 (owner, 2026-11-25): "Additional structure" for a sheet roof: walkway / ladder / sliding door, customer scope, charged extra.
+       No rate, picture or warranty: the quotation lists them in the customer-scope box without an amount (owner chose "No amount"). */
+    ['as-walkway', 'Walkway (sheet roof)', 'addstr', 'Walkway', 'A safe path on the sheet roof, so the panels can be reached and cleaned without stepping on the sheets.',
+      'GI walkway along the panel rows, fixed to the roof purlins. Length as per site.', ['unit' => 'As required', 'qty' => 0]],
+    ['as-ladder', 'Ladder (sheet roof)', 'addstr', 'Ladder', 'A fixed ladder to climb safely onto the sheet roof for cleaning and service.',
+      'GI fixed ladder up to the roof. Height as per site.', ['unit' => 'no', 'qty' => 1]],
+    ['as-door', 'Sliding door (sheet roof)', 'addstr', 'Sliding door', 'A sliding opening in the roof sheets, to get onto the roof for cleaning and service.',
+      'GI-framed sliding door in the roof sheets. Size as per site.', ['unit' => 'no', 'qty' => 1]],
   ];
 }
 function qm_add_new(PDO $db): void {

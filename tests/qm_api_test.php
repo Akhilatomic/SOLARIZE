@@ -107,7 +107,13 @@ if ($dbPath && is_file($dbPath)) { /* an older catalogue: no KEI yet, and the ad
   chk(($byCode($b4, 'accable')[0]['brands'][0]['logos'] ?? []) === ['text:Polycab', 'assets/quote/logo-finolex.png', $kei], "older catalogue: the admin's own cable brands kept, KEI added");
 }
 chk(($boot['settings']['signoff'] ?? null) === ['sign' => '', 'seal' => ''], 'seal and signature start empty');
-chk(count($boot['cats'] ?? []) === 14 && ($boot['cats'][0][0] ?? '') === 'panels', 'categories');
+chk(count($boot['cats'] ?? []) === 15 && ($boot['cats'][0][0] ?? '') === 'panels', 'categories');
+$ck = array_column($boot['cats'] ?? [], 0);
+chk(array_search('addstr', $ck, true) === array_search('structure', $ck, true) + 1 && ($boot['cats'][array_search('addstr', $ck, true)][1] ?? '') === 'Additional structure', 'Additional structure tab right after Mounting structure');
+$as = array_values(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'addstr'));
+usort($as, fn($x, $y) => $x['sort'] <=> $y['sort'] ?: $x['id'] <=> $y['id']);
+chk(array_column($as, 'code') === ['as-walkway', 'as-ladder', 'as-door'] && array_column($as, 'name') === ['Walkway', 'Ladder', 'Sliding door']
+  && !array_filter($as, fn($p) => $p['is_default'] || $p['hidden'] || $p['warranty']), 'rev 7: walkway, ladder and sliding door under Additional structure (not default, no warranty)');
 chk(($boot['settings']['kseb']['reg_per_kw'] ?? 0) === 1000 && ($boot['settings']['loan']['rate'] ?? 0) == 6.0, 'defaults');
 chk(($boot['settings']['kseb']['reg_gst'] ?? null) === 18 && ($boot['settings']['kseb']['reg_label'] ?? '') === 'Registration fee (₹1,000 per kW + 18% GST, 80% refundable)', 'registration fee carries 18% GST by default');
 chk(($boot['settings']['valid_days'] ?? 0) === 5 && count($boot['settings']['terms'] ?? []) === 6 && count($boot['settings']['pay'] ?? []) === 3 && count($boot['settings']['delivery'] ?? []) === 3, 'default lists');

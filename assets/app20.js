@@ -1,9 +1,12 @@
 /* Quotation maker: pure calculations (no DOM, no network). Browser: global QM. Node: module.exports. */
 var QM = (function () {
   var Q = {};
-  Q.CATS = ['panels', 'inverter', 'optimiser', 'acdb', 'dcdb', 'dccable', 'accable', 'isolator', 'meter', 'parts', 'earthing', 'la', 'structure', 'install'];
+  Q.CATS = ['panels', 'inverter', 'optimiser', 'acdb', 'dcdb', 'dccable', 'accable', 'isolator', 'meter', 'parts', 'earthing', 'la', 'structure', 'addstr', 'install'];
+  /* customer scope (owner, 2026-11-25): walkway / ladder / sliding door for a sheet roof, paid by the customer. Printed in their own
+     "charged extra" box under the items table (no amount), never in the items table, the warranties, the rates guide or the price */
+  Q.SCOPE = ['addstr'];
   /* printed row order: optimisers come before the inverter, as in the SolarEdge quotations (warranty boxes keep CATS order) */
-  Q.ROWS = ['panels', 'optimiser', 'inverter'].concat(Q.CATS.slice(3));
+  Q.ROWS = ['panels', 'optimiser', 'inverter'].concat(Q.CATS.slice(3).filter(function (c) { return Q.SCOPE.indexOf(c) < 0; }));
   /* main equipment rows = the big brand logos (main1 / main2). Optimisers count too, so a SolarEdge optimiser row shows the same logo size
      as the SolarEdge inverter row next to it (owner, 2026-11-25: "why the SolarEdge logo is different in size") */
   Q.MAIN = ['panels', 'optimiser', 'inverter'];
@@ -131,6 +134,7 @@ var QM = (function () {
 
     var warranties = [], feature = [];
     Q.CATS.forEach(function (cat) {
+      if (Q.SCOPE.indexOf(cat) >= 0) return; /* customer scope: not our supply, no warranty box or feature page */
       (lines[cat] || []).forEach(function (l) {
         (l.warranty || []).forEach(function (w) { warranties.push({ years: str(w.years), label: w.label }); });
         if (l.page && feature.indexOf(l.page) < 0) feature.push(l.page);

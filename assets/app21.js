@@ -38,7 +38,7 @@ const qpSplit = s => {
   const k = w.length > 2 && w[0].length < 7 ? 2 : 1;
   return [w.slice(0, k).join(' '), w.slice(k).join(' ')];
 };
-const qpCats = lines => QM.ROWS.concat(Object.keys(lines || {}).filter(k => QM.ROWS.indexOf(k) < 0));
+const qpCats = lines => QM.ROWS.concat(Object.keys(lines || {}).filter(k => QM.ROWS.indexOf(k) < 0 && QM.SCOPE.indexOf(k) < 0)); /* items-table rows: customer scope goes in its own box */
 const qpKv = rows => '<table class="qp-kv" data-nofit="1">' + rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(qpVal(v))}</td></tr>`).join('') + '</table>';
 const qpCard = (title, body, cls) => `<div class="qp-card${cls ? ' ' + cls : ''}"><div class="qp-ct"><span class="qp-tick"></span>${esc(title)}</div>${body}</div>`;
 const qpSec = (title, cls) => `<div class="qp-sec${cls ? ' ' + cls : ''}"><span class="qp-dash"></span>${esc(title)}</div>`;
@@ -132,6 +132,17 @@ function qpRow(n, l, calc, main) {
     + `<td><div class="qp-ln">${esc(l.line)}</div>${l.details ? `<div class="qp-dt">${esc(l.details)}</div>` : ''}</td>`
     + `<td>${qpBrands(l.brands, main)}</td><td class="qp-qt"><b>${esc(q.main)}</b>${q.note ? `<span>${esc(q.note)}</span>` : ''}</td></tr>`;
 }
+/* customer-scope lines (QM.SCOPE: walkway / ladder / sliding door for a sheet roof) in their own box, no amount; it travels with the
+   closing note (.qp-n2) to the last items page in qpPaginate */
+function qpScope(lines) {
+  const ls = [].concat(...QM.SCOPE.map(c => lines[c] || []));
+  if (!ls.length) return '';
+  return '<div class="qp-scope"><div class="qp-sct"><span class="qp-tick"></span>Customer scope · charged extra</div>'
+    + '<div class="qp-scs">Needed for safe access to the panels on this roof. Not included in the plant price; charged extra as per site measurement.</div>'
+    + ls.map(l => { const q = QM.qtyText(l);
+      return `<div class="qp-scr"><div class="qp-nm">${esc(l.name)}</div><div><div class="qp-ln">${esc(l.line)}</div>${l.details ? `<div class="qp-dt">${esc(l.details)}</div>` : ''}</div>`
+        + `<div class="qp-qt"><b>${esc(q.main)}</b>${q.note ? `<span>${esc(q.note)}</span>` : ''}</div></div>`; }).join('') + '</div>';
+}
 function qpItems(lines, calc, ctx) {
   let n = 0;
   const rows = qpCats(lines).map(cat => (lines[cat] || []).map(l => qpRow(++n, l, calc, QM.MAIN.indexOf(cat) >= 0)).join('')).join('');
@@ -139,6 +150,7 @@ function qpItems(lines, calc, ctx) {
     + qpH1('What is included in your plant<span class="qp-contd">(continued)</span>', 'Every item has a picture, a simple explanation, the brand and the quantity.')
     + `<table class="qp-tb" data-nofit="1"><thead><tr><th>#</th><th>Item</th><th>What it is</th><th>Brand</th><th>Qty</th></tr></thead><tbody>${rows}</tbody></table>`
     + '<div class="qp-notes"><p class="qp-n1">Brands are chosen from the approved makes listed, based on availability at the time of installation.</p>'
+    + qpScope(lines)
     + '<p class="qp-n2">“As required” items are measured on site. PV modules and inverters comply with IEC standards; all other accessories comply with IS standards.</p></div>');
 }
 
@@ -199,7 +211,7 @@ function qpPaginate(c) {
   const all = [...c.querySelectorAll('.qp-items')];
   if (all.length) {
     const first = all[0], tb = first.querySelector('tbody'), notes = first.querySelector('.qp-notes');
-    all.slice(1).forEach(p => { p.querySelectorAll('tbody > tr').forEach(tr => tb.appendChild(tr)); const n2 = p.querySelector('.qp-n2'); if (n2) notes.appendChild(n2); p.remove(); });
+    all.slice(1).forEach(p => { p.querySelectorAll('tbody > tr').forEach(tr => tb.appendChild(tr)); p.querySelectorAll('.qp-scope, .qp-n2').forEach(e => notes.appendChild(e)); p.remove(); });
     const isCont = p => p && p.classList.contains('qp-items') && p.classList.contains('qp-cont');
     let page = first, guard = 0;
     while (page && guard++ < 1000) {
@@ -209,11 +221,11 @@ function qpPaginate(c) {
       if (!isCont(nx)) {
         nx = page.cloneNode(true); nx.classList.add('qp-cont');
         nx.querySelector('tbody').innerHTML = '';
-        nx.querySelectorAll('.qp-n1, .qp-n2').forEach(e => e.remove());
+        nx.querySelectorAll('.qp-n1, .qp-scope, .qp-n2').forEach(e => e.remove());
         page.after(nx);
       }
       const nb = nx.querySelector('tbody');
-      if (n2) nx.querySelector('.qp-notes').appendChild(n2);
+      if (n2) page.querySelectorAll('.qp-scope, .qp-n2').forEach(e => nx.querySelector('.qp-notes').appendChild(e)); /* the customer-scope box goes with the closing note */
       /* move the last row; a page that only gets the closing note also takes one row, so it never shows an empty table */
       if (!n2 || (!nb.firstChild && rows.length > 1)) nb.insertBefore(rows[rows.length - 1], nb.firstChild);
     }

@@ -53,9 +53,23 @@ test('subsidyText', () => {
     'Worked out on the DC panel capacity (4 × 600 Wp = 2.4 kWp): ₹30,000 per kW for the first 2 kW, plus ₹18,000 per kW for the next 0.4 kW. Credited directly to the customer’s bank account within 30 working days after commissioning.');
 });
 
-test('printed rows: optimisers before the inverter, same categories as CATS', () => {
+test('printed rows: optimisers before the inverter, same categories as CATS less the customer scope', () => {
   assert.deepEqual(QM.ROWS.slice(0, 4), ['panels', 'optimiser', 'inverter', 'acdb']);
-  assert.deepEqual(QM.ROWS.slice().sort(), QM.CATS.slice().sort());
+  assert.deepEqual(QM.ROWS.concat(QM.SCOPE).sort(), QM.CATS.slice().sort());
+});
+
+test('customer scope (Additional structure): own category after the mounting structure, kept out of the items rows and warranties', () => {
+  assert.deepEqual(QM.SCOPE, ['addstr']);
+  assert.equal(QM.CATS.indexOf('addstr'), QM.CATS.indexOf('structure') + 1);
+  assert.equal(QM.ROWS.indexOf('addstr'), -1);
+  const P = PRODUCTS.concat([{ id: 901, cat: 'addstr', name: 'Walkway', line: 'A safe path', details: 'GI walkway', unit: 'As required', qty: 0, warranty: [{ years: 5, label: 'Walkway' }], page: 'assets/quote/page-x.jpg' }]);
+  const setup = Object.assign({}, SETUP2, { items: Object.assign({}, SETUP2.items, { addstr: [{ pid: 901 }] }) });
+  const lines = QM.resolve(setup, P), c = QM.calc(setup, lines, SET, R), c0 = QM.calc(SETUP2, QM.resolve(SETUP2, PRODUCTS), SET, R);
+  assert.equal(lines.addstr.length, 1); assert.equal(lines.addstr[0].qty, 0);
+  assert.deepEqual(QM.qtyText(lines.addstr[0]), { main: 'As required', note: '' });
+  assert.deepEqual(c.warranties, c0.warranties, 'no warranty box for customer-scope items');
+  assert.deepEqual(c.pages.feature, c0.pages.feature, 'no feature page for customer-scope items');
+  assert.deepEqual([c.net, c.subsidy, c.loan.loan, c.plantKw, c.dcKwp], [c0.net, c0.subsidy, c0.loan.loan, c0.plantKw, c0.dcKwp], 'price, subsidy and loan unchanged');
 });
 
 test('emi', () => {

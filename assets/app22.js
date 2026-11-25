@@ -199,6 +199,7 @@ function qmkPvTo(t) {
     const { lines } = qmkCalc(), rows = $$('#qmpages .qp-items tbody tr'); let n = 0;
     for (const c of qpCats(lines)) { if (c === t) break; n += (lines[c] || []).length; }
     el = (lines[t] || []).length ? rows[n] : $('#qmpages .qp-items');
+    if (QM.SCOPE.indexOf(t) >= 0) el = $('#qmpages .qp-scope') || $('#qmpages .qp-items');
   } else el = t === 'price' ? $('#qmpages .qp-price') : $('#qmpages .qp');
   qmkPvShow(el);
 }
@@ -265,18 +266,21 @@ function qmkFind(qs) {
 /* ---- item tabs ---- */
 const qmkWar = p => (p.warranty || []).map(w => `${w.years} ${String(w.years) === '1' ? 'yr' : 'yrs'} ${w.label || ''}`.trim()).join(' · ');
 function qmkEdItems(c) {
-  const d = QMK.doc, its = d.items[c] || [], fin = !!QMK.boot.finance, main = its.find(x => !x.custom);
+  const d = QMK.doc, its = d.items[c] || [], fin = !!QMK.boot.finance, main = its.find(x => !x.custom), scope = QM.SCOPE.indexOf(c) >= 0;
   const chosen = its.filter(x => !x.custom).map(x => +x.pid), name = (qmkCats().find(x => x[0] === c) || [c, c])[1];
   const prods = QMK.boot.products.filter(p => p.cat === c && (!p.hidden || chosen.includes(p.id)));
   const card = p => { const u = qmImgUrl(p.picture), w = qmkWar(p);
-    return `<button type="button" class="qm-card${main && main.pid == p.id ? ' on' : chosen.includes(p.id) ? ' also' : ''}" data-a="pick" data-k="${c}|${p.id}" aria-pressed="${!!(main && main.pid == p.id)}">
+    const on = scope ? chosen.includes(p.id) : !!(main && main.pid == p.id);
+    return `<button type="button" class="qm-card${on ? ' on' : chosen.includes(p.id) ? ' also' : ''}" data-a="pick" data-k="${c}|${p.id}" aria-pressed="${on}">
       <span class="qm-cp">${u ? `<img src="${esc(u)}" alt="" loading="lazy">` : ''}</span><span class="qm-cb"><b>${esc(qmkLabel(p))}</b><span class="qm-cd">${esc(p.details || p.line || '')}</span>
       ${w ? `<span class="qm-cw"><i class="i i-shield"></i>${esc(w)}</span>` : ''}${fin ? (+p.rate ? `<span class="qm-cr">₹${QM.inr(p.rate)} per ${esc(p.unit === 'no' ? 'unit' : p.unit)}</span>` : '<span class="qm-cr qm-nr">No rate yet</span>') : ''}${p.hidden ? pill('Hidden', 'y') : ''}</span>
       <span class="qm-ck"><i class="i i-check"></i></span></button>`; };
   const snap = QMK.snapOld ? `<p class="qm-snap"><i class="i i-alert"></i><span>The preview shows this quotation exactly as it was saved. Products or quotation settings have changed since; changing any item switches the whole quotation to today’s products and settings.</span></p>` : '';
   const add = `<button type="button" class="btn sec sm qm-add" data-a="add" data-k="${c}"><i class="i i-plus"></i> Add another component</button>`;
+  const tip = scope ? 'Customer scope: prints in its own “charged extra” box under the items, with no amount, and is not part of the package price. Tap each item the customer needs; tap again to take it out.'
+    : its.length ? 'Tap a product to use it instead.' : 'Tap a product to add it to this quote.';
   return `<section class="qm-sec">${snap}<div class="qm-sh"><h3>${esc(name)}</h3>${its.length ? '' : pill('Not in this quote')}</div>
-     ${prods.length ? `<p class="qm-hint qm-top0">${its.length ? 'Tap a product to use it instead.' : 'Tap a product to add it to this quote.'}</p><div class="qm-cards">${prods.map(card).join('')}</div>` : '<p class="qm-hint qm-top0">There are no products in this category yet.</p>'}${its.length ? '' : add}</section>
+     ${prods.length ? `<p class="qm-hint qm-top0">${tip}</p><div class="qm-cards">${prods.map(card).join('')}</div>` : '<p class="qm-hint qm-top0">There are no products in this category yet.</p>'}${its.length ? '' : add}</section>
    ${its.length ? `<section class="qm-sec"><h3>In this quote</h3>${its.map((it, i) => qmkLineHtml(c, it, i)).join('')}${add}</section>` : ''}`;
 }
 function qmkLineHtml(c, it, i) {
@@ -306,6 +310,12 @@ function qmkLineInfo(c) {
 /* choose a product: it replaces the first catalogue line of the category (or is added) */
 function qmkPick(c, pid) {
   const d = QMK.doc, its = d.items[c] = d.items[c] || [], p = qmkProd(pid), i = its.findIndex(x => !x.custom);
+  if (p && QM.SCOPE.indexOf(c) >= 0) { /* customer scope: a tap adds the item, a second tap takes it out (several can be chosen) */
+    const at = its.findIndex(x => !x.custom && x.pid == pid);
+    if (at >= 0) its.splice(at, 1); else its.push({ pid: p.id, qty: p.qty, qty_note: '', over: {} });
+    if (!its.length) delete d.items[c];
+    qmkChanged(true, true); qmkTab(c); return;
+  }
   if (!p || its.some(x => !x.custom && x.pid == pid)) return;
   if (i < 0) its.unshift({ pid: p.id, qty: p.qty, qty_note: '', over: {} });
   else { const op = qmkProd(its[i].pid), keep = op && op.unit === p.unit && c !== 'inverter'; its[i] = { pid: p.id, qty: keep ? its[i].qty : p.qty, qty_note: '', over: {} }; }
@@ -368,7 +378,7 @@ function qmkSum(c) {
 }
 function qmkGuide(lines) {
   let sum = 0, miss = 0;
-  Object.keys(lines).forEach(c => (lines[c] || []).forEach(l => { const p = l.pid != null && qmkProd(l.pid), r = p ? +p.rate || 0 : 0; if (!r) miss++; else sum += r * (+l.qty > 0 ? +l.qty : 1); }));
+  Object.keys(lines).filter(c => QM.SCOPE.indexOf(c) < 0).forEach(c => (lines[c] || []).forEach(l => { /* customer scope is not in the package price */ const p = l.pid != null && qmkProd(l.pid), r = p ? +p.rate || 0 : 0; if (!r) miss++; else sum += r * (+l.qty > 0 ? +l.qty : 1); }));
   if (!sum) return `<i class="i i-coin"></i><span>No rates are filled in for these items yet (an admin adds them under Products &amp; rates). Rates are only a guide: the package price is what prints.</span>`;
   return `<i class="i i-coin"></i><span>Items add up to <b>₹${QM.inr(sum)}</b> at your rates${miss ? ` · ${miss} item${miss === 1 ? ' has' : 's have'} no rate yet` : ''}. Only a guide: the package price is what prints.</span>`;
 }
