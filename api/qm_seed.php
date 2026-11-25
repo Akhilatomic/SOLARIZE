@@ -216,13 +216,13 @@ function qm_seed(PDO $db): void {
       ['unit' => 'set', 'is_default' => 1, 'picture' => $pic('structure'), 'page' => 'assets/quote/page-stormshield.jpg', 'brands' => [$br('STEEL', $L('jsw')), $anchor]]],
     ['str-gi', 'structure', 'Mounting structure', $strBase,
       'GI (galvanised iron) structure, spot welded, for a concrete roof. Fixed on concrete foundation blocks with aluminium clamps and SS304 bolts. Chemical anchoring for a firm, leak-proof grip.',
-      ['unit' => 'set', 'picture' => $pic('structure'), 'brands' => [$br('FRAME', $L('apollo')), $anchor]]],
+      ['unit' => 'set', 'picture' => $pic('structure'), 'brands' => [$br('FRAME', $L('apollo'), $L('jindal')), $anchor]]],
     ['str-gi-weld', 'structure', 'Mounting structure', $strBase,
       'GI (galvanised iron) structure, spot welded, for a concrete roof. Fixed on 4 concrete blocks (30 × 30 × 30 cm) with aluminium clamps and SS304 bolts. Chemical anchoring for a firm, leak-proof grip.',
-      ['unit' => 'set', 'picture' => $pic('structure'), 'brands' => [$br('FRAME', $L('apollo')), $anchor]]],
+      ['unit' => 'set', 'picture' => $pic('structure'), 'brands' => [$br('FRAME', $L('apollo'), $L('jindal')), $anchor]]],
     ['str-apollo', 'structure', 'Mounting structure', $strBase,
       'Apollo GI (galvanised iron) steel structure, 330 GSM zinc coating, 4 to 5 ft height, for a concrete roof. Designed to IS 875 (Part 3) wind loads. Fixed on concrete foundation blocks with Fischer chemical anchoring for a firm, leak-proof grip.',
-      ['unit' => 'set', 'picture' => $pic('structure'), 'brands' => [$br('STEEL', 'text:APL Apollo · GI 330 GSM'), $anchor]]],
+      ['unit' => 'set', 'picture' => $pic('structure'), 'brands' => [$br('STEEL', $L('apollo'), 'text:GI 330 GSM'), $anchor]]],
     ['install', 'install', 'Installation', 'Our engineers install, test and switch on the whole plant.', 'Complete installation of the SPV power plant, with testing and commissioning.',
       ['unit' => 'plant', 'is_default' => 1, 'picture' => $pic('install'), 'brands' => [$br('', 'assets/quote/jasper-logo.png')]]],
   ];
@@ -415,7 +415,8 @@ function qm_added(): array {
        GI that is not hot-dip galvanised is not among the MMS materials MNRE allows (OM No. 318/61/2025-GCRT-Part(2), 19.05.2026), as the sheet-roof page says. */
     ['as-elev-gi', 'Elevated GI structure (sheet roof)', 'structure', 'Elevated GI structure', 'A GI frame that holds the panels about 1 m above the roof sheets.',
       'GI (galvanised iron, not hot-dip galvanised) frame on legs fixed to the roof purlins, about 1 m above the sheets. Not among the module mounting structure materials recommended by MNRE. Size as per site.',
-      ['unit' => 'set', 'qty' => 1, 'picture' => 'assets/quote/pic-elevated.png', 'page' => 'assets/quote/page-sheetroof.jpg']],
+      ['unit' => 'set', 'qty' => 1, 'picture' => 'assets/quote/pic-elevated.png', 'page' => 'assets/quote/page-sheetroof.jpg',
+        'brands' => [['label' => 'FRAME', 'logos' => ['assets/quote/logo-apollo.png', 'assets/quote/logo-jindal.png']]]]],
     ['as-walkway', 'Walkway (sheet roof)', 'addstr', 'Walkway', 'A safe path on the sheet roof, so the panels can be reached and cleaned without stepping on the sheets.',
       'GI walkway along the panel rows, fixed to the roof purlins. Length as per site.', ['unit' => 'As required', 'qty' => 0, 'picture' => 'assets/quote/pic-walkway.png', 'page' => 'assets/quote/page-sheetroof.jpg']],
     ['as-ladder', 'Ladder (sheet roof)', 'addstr', 'Ladder', 'A fixed ladder to climb safely onto the sheet roof for cleaning and service.',
@@ -444,7 +445,7 @@ function qm_add_new(PDO $db): void {
 /* Changes to products that are ALREADY in a catalogue (qm_added() only inserts new ones). Runs from qm boot; each rev runs once per
    database (settings qm_fix_rev) and only adds what is missing, so an admin's own edits stay. Add a fix = a new `if ($have < N)`
    block and bump QM_FIX_REV. Saved quotations keep printing what they were saved with (their snapshot). */
-const QM_FIX_REV = 5;
+const QM_FIX_REV = 6;
 function qm_fix(PDO $db): void {
   $r = $db->query("SELECT v FROM settings WHERE k='qm_fix_rev'")->fetchColumn();
   $have = $r === false ? 0 : (int)json_decode((string)$r, true);
@@ -481,6 +482,27 @@ function qm_fix(PDO $db): void {
       leaves Additional structure (customer scope) for Mounting structure (our supply), last in that tab */
       $max = (int)$db->query("SELECT COALESCE(MAX(sort),0) FROM qm_products WHERE cat='structure'")->fetchColumn();
       $db->prepare("UPDATE qm_products SET cat='structure', sort=? WHERE code='as-elev-gi' AND cat='addstr'")->execute([$max + 1]);
+    }
+    if ($have < 6) { /* rev 6 (owner, 2026-11-25: "mounting structure - gi - add these brands with logo"): APL Apollo + Jindal Steel logos on the
+      GI structures. Only where the catalogue's own brand line is still there (or none is set), so an admin's own brands stay. */
+      $apl = 'assets/quote/logo-apollo.png'; $jsl = 'assets/quote/logo-jindal.png';
+      $get = $db->prepare('SELECT id, code, brands FROM qm_products WHERE code IN (?,?,?,?)'); $get->execute(['str-gi', 'str-gi-weld', 'as-elev-gi', 'str-apollo']);
+      $put = $db->prepare('UPDATE qm_products SET brands=? WHERE id=?');
+      foreach ($get->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        $b = json_decode((string)$p['brands'], true); if (!is_array($b)) $b = [];
+        $all = []; foreach ($b as $g) $all = array_merge($all, (array)($g['logos'] ?? []));
+        if (in_array($jsl, $all, true)) continue;
+        $new = null;
+        if ($p['code'] === 'str-apollo') { /* the Apollo GI structure: its text brand becomes the APL Apollo logo, the coating stays as text */
+          foreach ($b as $i => $g) { $l = (array)($g['logos'] ?? []); $k = array_search('text:APL Apollo · GI 330 GSM', $l, true);
+            if ($k !== false && !in_array($apl, $all, true)) { array_splice($l, $k, 1, [$apl, 'text:GI 330 GSM']); $b[$i]['logos'] = array_values($l); $new = $b; } }
+        } elseif (!$b) {
+          $new = [['label' => 'FRAME', 'logos' => [$apl, $jsl]]];
+        } else {
+          foreach ($b as $i => $g) if (in_array($apl, (array)($g['logos'] ?? []), true)) { $b[$i]['logos'] = array_values(array_merge((array)$g['logos'], [$jsl])); $new = $b; break; }
+        }
+        if ($new !== null) $put->execute([json_encode(array_values($new), JSON_UNESCAPED_UNICODE), $p['id']]);
+      }
     }
     $db->prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v')->execute(['qm_fix_rev', json_encode(QM_FIX_REV)]);
     $db->commit();

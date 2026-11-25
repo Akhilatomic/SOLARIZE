@@ -145,7 +145,22 @@ if ($dbPath && is_file($dbPath)) { /* a catalogue that got the rev 7 products be
   usort($as6, fn($x, $y) => $x['sort'] <=> $y['sort'] ?: $x['id'] <=> $y['id']);
   chk(array_column($as6, 'code') === ['as-walkway', 'as-ladder', 'as-door'] && count($byCode($b6, 'as-elev-gi')) === 1 && ($byCode($b6, 'as-elev-gi')[0]['cat'] ?? '') === 'structure'
     && ($byCode($b6, 'as-elev-gi')[0]['page'] ?? '') === 'assets/quote/page-sheetroof.jpg', 'older catalogue: elevated GI structure added once, under Mounting structure');
+  /* a catalogue from before fix rev 6 (the live site): APL Apollo + Jindal Steel logos on the GI structures, an admin's own brands kept */
+  $pdo = new PDO('sqlite:' . $dbPath);
+  $old = fn($l) => json_encode($l, JSON_UNESCAPED_UNICODE);
+  $pdo->prepare("UPDATE qm_products SET brands=? WHERE code='str-gi'")->execute([$old([['label' => 'FRAME', 'logos' => ['assets/quote/logo-apollo.png']], ['label' => 'ANCHOR', 'logos' => ['assets/quote/logo-fischer.png']]])]);
+  $pdo->prepare("UPDATE qm_products SET brands=? WHERE code='str-gi-weld'")->execute([$old([['label' => '', 'logos' => ['qm-0123456789abcdef01234567.png']]])]);
+  $pdo->prepare("UPDATE qm_products SET brands=? WHERE code='str-apollo'")->execute([$old([['label' => 'STEEL', 'logos' => ['text:APL Apollo · GI 330 GSM']], ['label' => 'ANCHOR', 'logos' => ['assets/quote/logo-fischer.png']]])]);
+  $pdo->exec("UPDATE qm_products SET brands='[]' WHERE code='as-elev-gi'"); $pdo->exec("UPDATE settings SET v='5' WHERE k='qm_fix_rev'"); $pdo = null;
+  $b8 = call($admin, 'qm', 'boot'); $lg = fn($code) => array_map(fn($g) => [$g['label'], $g['logos']], $byCode($b8, $code)[0]['brands'] ?? []);
+  chk($lg('str-gi') === [['FRAME', ['assets/quote/logo-apollo.png', 'assets/quote/logo-jindal.png']], ['ANCHOR', ['assets/quote/logo-fischer.png']]], 'older catalogue: Jindal Steel joins APL Apollo on the GI structure');
+  chk($lg('str-gi-weld') === [['', ['qm-0123456789abcdef01234567.png']]], 'older catalogue: an admin\'s own brand line stays as it is');
+  chk($lg('str-apollo') === [['STEEL', ['assets/quote/logo-apollo.png', 'text:GI 330 GSM']], ['ANCHOR', ['assets/quote/logo-fischer.png']]], 'older catalogue: the Apollo GI structure shows the APL Apollo logo');
+  chk($lg('as-elev-gi') === [['FRAME', ['assets/quote/logo-apollo.png', 'assets/quote/logo-jindal.png']]], 'older catalogue: the elevated GI structure gets both logos');
 }
+foreach (['str-gi', 'str-gi-weld', 'as-elev-gi'] as $c) chk(in_array('assets/quote/logo-jindal.png', array_merge(...array_map(fn($g) => $g['logos'], $byCode($boot, $c)[0]['brands'] ?? [['logos' => []]])), true)
+  && in_array('assets/quote/logo-apollo.png', array_merge(...array_map(fn($g) => $g['logos'], $byCode($boot, $c)[0]['brands'] ?? [['logos' => []]])), true), "$c: APL Apollo and Jindal Steel logos");
+chk(is_file(__DIR__ . '/../assets/quote/logo-jindal.png') && is_file(__DIR__ . '/../assets/quote/logo-apollo.png'), 'the GI brand logos are in the repo');
 chk(($boot['settings']['kseb']['reg_per_kw'] ?? 0) === 1000 && ($boot['settings']['loan']['rate'] ?? 0) == 6.0, 'defaults');
 chk(($boot['settings']['kseb']['reg_gst'] ?? null) === 18 && ($boot['settings']['kseb']['reg_label'] ?? '') === 'Registration fee (₹1,000 per kW + 18% GST, 80% refundable)', 'registration fee carries 18% GST by default');
 chk(($boot['settings']['valid_days'] ?? 0) === 5 && count($boot['settings']['terms'] ?? []) === 6 && count($boot['settings']['pay'] ?? []) === 3 && count($boot['settings']['delivery'] ?? []) === 3, 'default lists');
