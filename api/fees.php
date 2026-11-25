@@ -15,20 +15,38 @@ function fee_default_amount($kind) { $r = row('SELECT amount FROM fees WHERE kin
 function fee_from_receipt($customer_id, $stageKey, $amount, $date, $ref) {
   $kind = ['feas_pay' => 'feasibility', 'reg_pay' => 'registration'][$stageKey] ?? null; if (!$kind || !$customer_id) return;
   $r = row('SELECT id FROM fees WHERE customer_id=? AND kind=?', [$customer_id, $kind]);
-  if ($r) q('UPDATE fees SET paid=1, paid_on=?, amount=CASE WHEN ?>0 THEN ? ELSE amount END, ref=CASE WHEN ?<>\'\' THEN ? ELSE ref END, alert=0, updated=CURRENT_TIMESTAMP WHERE id=?', [fee_date($date), $amount, $amount, $ref, $ref, $r['id']]);
+  if ($r) q('UPDATE fees SET alert=CASE WHEN paid=1 AND paid_on=? THEN alert ELSE 0 END, paid=1, paid_on=?, amount=CASE WHEN ?>0 THEN ? ELSE amount END, ref=CASE WHEN ?<>\'\' THEN ? ELSE ref END, updated=CURRENT_TIMESTAMP WHERE id=?', [fee_date($date), fee_date($date), $amount, $amount, $ref, $ref, $r['id']]);
   else q('INSERT INTO fees(customer_id,kind,amount,paid,paid_on,ref,demanded,demanded_on) VALUES(?,?,?,1,?,?,1,?)', [$customer_id, $kind, $amount > 0 ? $amount : fee_default_amount($kind), fee_date($date), (string)$ref, fee_date($date)]);
   fee_sync_expense($customer_id, $kind);
+  fee_feas_clean($customer_id); /* feasibility paid again or registration fee paid: that customer's old expiry notifications go */
 }
 // a paid / unpaid fee goes onto the customer's Project cost sheet (api/accounts.php acc_fee_sync); the fee itself is saved either way
 function fee_sync_expense($customer_id, $kind) {
   try { if (function_exists('acc_fee_sync')) acc_fee_sync((int)$customer_id, $kind); } catch (Throwable $e) { error_log('fee → expense sync: ' . $e->getMessage()); }
 }
 
-// hourly: feasibility about to expire (≤ 3 days) or expired → bell + desktop notification to everyone who works on Finance
+/* Feasibility bell notifications that no longer apply are removed (owner, 2026-11-25: an expired feasibility ends in only two ways, the
+   feasibility is paid again or the registration fee is paid; "after that reset the notification, also remove the previous notification").
+   A customer keeps 'feas' notifications only while the feasibility is paid, an alert of THIS payment was sent (alert > 0; a new payment
+   date sets it back to 0, so the warnings start again for the new date), the registration fee is not paid and the project is not
+   completed. $cid = one customer (right after a payment change), null = everyone (hourly, which also clears old leftovers). */
+function fee_feas_clean($cid = null) {
+  $one = $cid ? ' AND n.customer_id=' . (int)$cid : ''; /* inlined int: bound values compare as text in SQLite expressions */
+  q("DELETE FROM notifs WHERE id IN (SELECT n.id FROM notifs n WHERE n.kind='feas' AND n.customer_id IS NOT NULL$one AND (
+      EXISTS(SELECT 1 FROM fees r WHERE r.customer_id=n.customer_id AND r.kind='registration' AND r.paid=1)
+      OR EXISTS(SELECT 1 FROM projects p WHERE p.customer_id=n.customer_id AND p.stage='Project completed')
+      OR NOT EXISTS(SELECT 1 FROM fees f WHERE f.customer_id=n.customer_id AND f.kind='feasibility' AND f.paid=1 AND f.alert>0)))");
+}
+
+// hourly: feasibility about to expire (≤ 3 days) or expired → bell + desktop notification to everyone who works on Finance,
+// only while the registration fee is not paid and the project is not completed (as the pop-up and the AF/RF column)
 function fee_alerts() {
+  fee_feas_clean();
   $today = new DateTime(date('Y-m-d'));
   $to = array_values(array_filter(rows('SELECT id, role FROM users WHERE active=1'), fn($u) => $u['role'] === 'admin' || disc_role_can($u['role'], 'fees')));
-  foreach (rows("SELECT f.*, c.name FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.kind='feasibility' AND f.paid=1 AND f.paid_on<>'' AND f.alert<2") as $f) {
+  foreach (rows("SELECT f.*, c.name FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.kind='feasibility' AND f.paid=1 AND f.paid_on<>'' AND f.alert<2
+      AND NOT EXISTS(SELECT 1 FROM fees r WHERE r.customer_id=f.customer_id AND r.kind='registration' AND r.paid=1)
+      AND NOT EXISTS(SELECT 1 FROM projects p WHERE p.customer_id=f.customer_id AND p.stage='Project completed')") as $f) {
     $exp = (new DateTime($f['paid_on']))->modify('+' . rule('feas_valid_days') . ' days'); $left = (int)$today->diff($exp)->format('%r%a');
     $lvl = $left < 0 ? 2 : ($left <= rule('feas_alert_days') ? 1 : 0);
     if ($lvl <= (int)$f['alert']) continue;
@@ -116,7 +134,7 @@ function handle_fees($a) {
       $f = row('SELECT f.*, c.name FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.id=?', [(int)($in['id'] ?? 0)]); if (!$f) fail('Not found', 404);
       $u = [];
       if (array_key_exists('demanded', $in)) { $u['demanded'] = empty($in['demanded']) ? 0 : 1; $u['demanded_on'] = $u['demanded'] ? fee_date($in['demanded_on'] ?? '') : ''; }
-      if (array_key_exists('paid', $in)) { $u['paid'] = empty($in['paid']) ? 0 : 1; $u['paid_on'] = $u['paid'] ? fee_date($in['paid_on'] ?? '') : ''; $u['alert'] = 0; if ($u['paid'] && !(int)$f['demanded']) { $u['demanded'] = 1; $u['demanded_on'] = $u['paid_on']; } }
+      if (array_key_exists('paid', $in)) { $u['paid'] = empty($in['paid']) ? 0 : 1; $u['paid_on'] = $u['paid'] ? fee_date($in['paid_on'] ?? '') : ''; if ($u['paid'] !== (int)$f['paid'] || $u['paid_on'] !== (string)$f['paid_on']) $u['alert'] = 0; /* a new payment (date) restarts the expiry warnings */ if ($u['paid'] && !(int)$f['demanded']) { $u['demanded'] = 1; $u['demanded_on'] = $u['paid_on']; } }
       if (array_key_exists('amount', $in)) $u['amount'] = max(0, min(10000000, (float)$in['amount']));
       if (array_key_exists('ref', $in)) $u['ref'] = mb_substr(trim((string)$in['ref']), 0, 80);
       if (array_key_exists('note', $in)) $u['note'] = mb_substr(trim((string)$in['note']), 0, 300);
@@ -125,6 +143,7 @@ function handle_fees($a) {
       q("UPDATE fees SET $set, updated=CURRENT_TIMESTAMP WHERE id=?", [...array_values($u), $f['id']]);
       if (isset($u['paid']) || ((int)$f['paid'] && (isset($u['amount']) || isset($u['ref'])))) fee_sync_expense($f['customer_id'], $f['kind']); /* paid / purchased → Project cost sheet */
       if (isset($u['paid'])) { try { pipe_fee_sync((int)$f['customer_id'], $f['kind']); } catch (Throwable $e) { error_log('fee → pipeline sync: ' . $e->getMessage()); } } /* paid / not paid → the pipeline step */
+      if (isset($u['paid'])) fee_feas_clean($f['customer_id']); /* feasibility paid again / registration fee paid: the old expiry notifications go */
       audit('fees_' . (isset($u['paid']) ? ($u['paid'] ? 'paid' : 'unpaid') : (isset($u['demanded']) ? 'demanded' : 'edit')), 'customers', $f['customer_id'], FEE_KINDS[$f['kind']] . (isset($u['paid_on']) && $u['paid_on'] ? ' · ' . $u['paid_on'] : '') . (isset($u['amount']) ? ' · ₹' . $u['amount'] : ''));
       out(['ok' => true]);
 
@@ -132,7 +151,7 @@ function handle_fees($a) {
       need('fees', true);
       $f = row('SELECT f.*, c.name FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.id=?', [(int)($in['id'] ?? 0)]); if (!$f) fail('Not found', 404);
       trash_put('Finance entry', FEE_KINDS[$f['kind']] . ' · ' . $f['name'], [['fees', 'id=?', [$f['id']]]], [['customers', $f['customer_id'], 'the customer']]);
-      q('DELETE FROM fees WHERE id=?', [$f['id']]); try { pipe_fee_sync((int)$f['customer_id'], $f['kind']); } catch (Throwable $e) { } audit('fees_remove', 'customers', $f['customer_id'], FEE_KINDS[$f['kind']]); out(['ok' => true]);
+      q('DELETE FROM fees WHERE id=?', [$f['id']]); try { pipe_fee_sync((int)$f['customer_id'], $f['kind']); } catch (Throwable $e) { } fee_feas_clean($f['customer_id']); audit('fees_remove', 'customers', $f['customer_id'], FEE_KINDS[$f['kind']]); out(['ok' => true]);
   }
   fail('Unknown action', 404);
 }
