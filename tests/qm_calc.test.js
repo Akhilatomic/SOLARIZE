@@ -69,11 +69,18 @@ test('customer scope (Additional structure): own category after the mounting str
   assert.deepEqual(QM.qtyText(lines.addstr[0]), { main: 'As required', note: '' });
   assert.deepEqual(QM.qtyText(Object.assign({}, lines.addstr[0], { qty: 1 })), { main: 'As required', note: '' }, 'never "1 As required"');
   assert.deepEqual(c.warranties, c0.warranties, 'no warranty box for customer-scope items');
-  assert.deepEqual(c.pages.feature, c0.pages.feature.concat(['assets/quote/page-x.jpg']), 'a customer-scope page prints after the other pages');
+  assert.deepEqual(c0.pages.feature, ['assets/quote/page-stormshield.jpg'], 'a concrete-roof quotation keeps the StormShield page');
+  assert.deepEqual(c.pages.feature, ['assets/quote/page-x.jpg'], 'a sheet-roof quotation (Additional structure line) drops the Mounting structure page and ends with its own');
   const P2 = P.concat([{ id: 902, cat: 'addstr', name: 'Ladder', line: '', unit: 'no', qty: 1, page: 'assets/quote/page-x.jpg' }, { id: 903, cat: 'structure', name: 'Frame', line: '', unit: 'set', qty: 1, page: 'assets/quote/page-x.jpg' }]);
   const s2 = Object.assign({}, setup, { items: Object.assign({}, setup.items, { addstr: [{ pid: 901 }, { pid: 902 }], structure: (setup.items.structure || []).concat([{ pid: 903 }]) }) });
   const f2 = QM.calc(s2, QM.resolve(s2, P2), SET, R).pages.feature;
   assert.equal(f2[f2.length - 1], 'assets/quote/page-x.jpg'); assert.equal(f2.filter(x => x === 'assets/quote/page-x.jpg').length, 1, 'once, and last, even when an item of our own supply carries the same page');
+  assert.equal(f2.indexOf('assets/quote/page-stormshield.jpg'), -1);
+  const P3 = P.concat([{ id: 904, cat: 'inverter', name: 'Extra', line: '', unit: 'no', qty: 1, kw: 0, page: 'assets/quote/page-inv.jpg' }]);
+  const s3 = Object.assign({}, setup, { items: Object.assign({}, setup.items, { inverter: (setup.items.inverter || []).concat([{ pid: 904 }]) }) });
+  assert.deepEqual(QM.calc(s3, QM.resolve(s3, P3), SET, R).pages.feature, ['assets/quote/page-inv.jpg', 'assets/quote/page-x.jpg'], 'pages of other items still print, before the sheet-roof page');
+  const s4 = Object.assign({}, setup, { items: Object.assign({}, setup.items, { addstr: [{ pid: null, qty: 1, custom: { name: 'Railing', line: 'x', unit: 'no' } }] }) });
+  assert.deepEqual(QM.calc(s4, QM.resolve(s4, P), SET, R).pages.feature, [], 'a typed own line under Additional structure also makes it a sheet-roof quotation');
   assert.deepEqual([c.net, c.subsidy, c.loan.loan, c.plantKw, c.dcKwp], [c0.net, c0.subsidy, c0.loan.loan, c0.plantKw, c0.dcKwp], 'price, subsidy and loan unchanged');
 });
 
