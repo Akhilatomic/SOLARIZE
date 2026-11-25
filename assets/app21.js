@@ -18,10 +18,10 @@ function qmImgUrl(ref) {
   if (/^qm-[0-9a-f]{24}\.(png|jpe?g|webp)$/.test(ref)) return 'api.php?m=qm&a=img&f=' + encodeURIComponent(ref);
   return '';
 }
-/* the lines that print: a saved quotation's snapshot, else the live catalogue */
+/* the lines that print: a saved quotation's snapshot, else the live catalogue (QM.fixLines: the elevated GI structure is never customer scope) */
 function qmLines(doc, products) {
   const s = doc && doc.snap;
-  return s && typeof s === 'object' && Object.keys(s).length ? s : QM.resolve(doc || {}, products || []);
+  return QM.fixLines(s && typeof s === 'object' && Object.keys(s).length ? s : QM.resolve(doc || {}, products || []));
 }
 
 const qpRs = n => '₹' + QM.inr(n);

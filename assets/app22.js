@@ -28,9 +28,23 @@ function qmkNorm(d) {
     ls.forEach(x => { x.over = qmkObj(x.over); if (x.custom) x.custom = Object.assign({ name: '', line: '', details: '', unit: 'no', picture: '', brands: [] }, qmkObj(x.custom)); });
     if (ls.length) d.items[c] = ls; else delete d.items[c];
   });
+  qmkFixItems(d);
   d.customer = Object.assign({ name: '', address: '', consumer_no: '', email: '', mobile: '' }, qmkObj(d.customer));
   d.sales = Object.assign({ name: '', phone: '', email: '' }, qmkObj(d.sales));
   return d;
+}
+/* the elevated GI structure is our supply (owner, 2026-11-25: "remove this from customer scope"): a quotation or template saved while it was
+   an Additional structure line gets it under Mounting structure, in place of the concrete-roof structure; its snapshot follows (QM.fixLines) */
+function qmkFixItems(d) {
+  const by = {}; (((typeof QMK !== 'undefined' && QMK.boot) || {}).products || []).forEach(p => { by[p.id] = p; });
+  const el = it => !it.custom && by[it.pid] && by[it.pid].cat === 'structure' && QM.isSheetStr(by[it.pid]), moved = [];
+  QM.SCOPE.forEach(c => { const ls = d.items[c]; if (!ls) return; moved.push(...ls.filter(el)); const keep = ls.filter(x => !el(x)); if (keep.length) d.items[c] = keep; else delete d.items[c]; });
+  if (moved.length) {
+    const st = (d.items.structure || []).filter(x => x.custom || el(x));
+    moved.forEach(m => { if (!st.some(s => !s.custom && s.pid == m.pid)) st.push(m); });
+    d.items.structure = st;
+  }
+  if (d.snap && typeof d.snap === 'object') d.snap = QM.fixLines(d.snap);
 }
 /* new quotation: the default product of each category (optimisers only when the default inverter needs them) */
 function qmkDefaults() {

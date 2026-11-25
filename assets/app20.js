@@ -14,6 +14,22 @@ var QM = (function () {
   Q.SHEET_PAGE = 'assets/quote/page-sheetroof.jpg';
   Q.isSheetStr = function (l) { return !!l && (l.code === 'as-elev-gi' || /sheet[- ]?roof|elevated/i.test([l.name, l.line, l.details].join(' '))); };
   Q.isSheetRoof = function (lines) { lines = lines || {}; return Q.SCOPE.some(function (c) { return (lines[c] || []).length > 0; }) || (lines.structure || []).some(Q.isSheetStr); };
+  /* a quotation or template saved while the elevated GI structure was an Additional structure line still lists it there (owner, 2026-11-25:
+     "remove this from customer scope"): it prints under Mounting structure, in place of a concrete-roof structure (which a sheet-roof
+     quotation did not print then). Typed own lines stay where they are. Returns the same object when there is nothing to move. */
+  var elevLine = function (l) { return !!l && l.pid != null && (l.code === 'as-elev-gi' || /elevated/i.test(String(l.name || ''))); };
+  Q.fixLines = function (lines) {
+    if (!lines || !Q.SCOPE.some(function (c) { return (lines[c] || []).some(elevLine); })) return lines;
+    var moved = [], out = {};
+    Q.SCOPE.forEach(function (c) { (lines[c] || []).forEach(function (l) { if (elevLine(l)) moved.push(Object.assign({}, l, { cat: 'structure' })); }); });
+    var st = (lines.structure || []).filter(function (l) { return l.pid == null || Q.isSheetStr(l); });
+    moved.forEach(function (l) { if (!st.some(function (s) { return s.pid != null && s.pid === l.pid; })) st.push(l); });
+    Q.CATS.concat(Object.keys(lines).filter(function (k) { return Q.CATS.indexOf(k) < 0; })).forEach(function (c) {
+      var ls = c === 'structure' ? st : Q.SCOPE.indexOf(c) >= 0 ? (lines[c] || []).filter(function (l) { return !elevLine(l); }) : lines[c];
+      if (ls && ls.length) out[c] = ls;
+    });
+    return out;
+  };
   /* main equipment rows = the big brand logos (main1 / main2). Optimisers count too, so a SolarEdge optimiser row shows the same logo size
      as the SolarEdge inverter row next to it (owner, 2026-11-25: "why the SolarEdge logo is different in size") */
   Q.MAIN = ['panels', 'optimiser', 'inverter'];

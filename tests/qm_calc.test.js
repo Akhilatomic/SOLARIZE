@@ -107,6 +107,21 @@ test('sheet roof: the structure is our supply (row, warranty, price); only walkw
   assert.equal(fb.filter(p => p === QM.SHEET_PAGE).length, 1); assert.equal(fb[fb.length - 1], QM.SHEET_PAGE, 'with a walkway too: the sheet-roof page once, last');
 });
 
+test('a quotation saved with the elevated GI structure under Additional structure prints it under Mounting structure', () => {
+  const elev = { pid: 7, code: 'as-elev-gi', cat: 'addstr', name: 'Elevated GI structure', line: 'A GI frame', details: '' };
+  const walk = { pid: 8, code: 'as-walkway', cat: 'addstr', name: 'Walkway', line: 'A safe path on the sheet roof', details: '' };
+  const conc = { pid: 3, code: 'str-gi', cat: 'structure', name: 'Mounting structure', line: 'GI structure for a concrete roof', details: '' };
+  const own = { pid: null, code: '', cat: 'structure', name: 'Own frame', line: 'typed', details: '' };
+  const old = { panels: [{ pid: 1, name: 'Solar panels' }], structure: [conc, own], addstr: [elev, walk], install: [{ pid: 9, name: 'Installation' }] };
+  const f = QM.fixLines(old);
+  assert.deepEqual(f.structure.map(l => [l.name, l.cat]), [['Own frame', 'structure'], ['Elevated GI structure', 'structure']], 'in place of the concrete-roof structure; a typed own line stays');
+  assert.deepEqual(f.addstr.map(l => l.name), ['Walkway'], 'customer scope keeps only the walkway / ladder / door');
+  assert.deepEqual(Object.keys(f), ['panels', 'structure', 'addstr', 'install'], 'categories keep their order');
+  assert.equal(old.addstr.length, 2, 'the saved snapshot itself is not changed'); assert.equal(QM.fixLines(f), f, 'nothing left to move: same object');
+  const onlyElev = QM.fixLines({ addstr: [elev] }); assert.deepEqual(Object.keys(onlyElev), ['structure'], 'no empty customer-scope box');
+  const typed = { addstr: [{ pid: null, name: 'Elevated walkway', line: 'typed' }] }; assert.equal(QM.fixLines(typed), typed, 'a typed own line under Additional structure stays');
+});
+
 test('StormShield page: only with a hot-dip (HDG) structure, never with a welded GI one', () => {
   const S = 'assets/quote/page-stormshield.jpg';
   const P5 = PRODUCTS.concat([
