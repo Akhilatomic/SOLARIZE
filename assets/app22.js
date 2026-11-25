@@ -249,7 +249,7 @@ function qmkEdCovers() {
     + `<b>${esc(name)}</b><small>${esc(sub)}</small><span class="qm-ck"><i class="i i-check"></i></span></button>`;
   return `<section class="qm-sec" data-pv=".qp"><h3>Cover page</h3><div class="qm-cvs" role="group" aria-label="Cover page">`
     + card('', '', 'No cover page', 'Start with the details page') + QM.COVERS.map(c => card(c.k, c.thumb, c.name, off(c) ? need(c) : c.sub, off(c))).join('')
-    + '</div>' + (off(QM.coverOf(QMK.doc)) ? `<p class="qm-snap"><i class="i i-alert"></i><span>The ${esc(QM.coverOf(QMK.doc).name)} cover is not printed on this quotation: ${esc(need(QM.coverOf(QMK.doc)).replace(/^./, x => x.toLowerCase()))}. Choose that inverter, or another cover.</span></p>` : '')
+    + '</div>' + (off(QM.coverOf(QMK.doc)) ? `<p class="qm-snap"><i class="i i-alert"></i><span>The ${esc(QM.coverOf(QMK.doc).name)} cover is not printed on this quotation: ${esc(need(QM.coverOf(QMK.doc)).replace(/^./, x => x.toLowerCase()))}. Change the quotation to match, or choose another cover.</span></p>` : '')
     + '<p class="qm-hint">A picture page before page 1, with the customer and quote details filled in.</p></section>';
 }
 function qmkEdCustomer() {

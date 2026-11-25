@@ -112,7 +112,7 @@ test('StormShield page: only with a hot-dip (HDG) structure, never with a welded
 });
 
 test('cover pages: the list, and the cover a quotation prints with', () => {
-  assert.deepEqual(QM.COVERS.map(c => c.k), ['ongrid', 'hybrid', 'solaredge', 'solaredge3']);
+  assert.deepEqual(QM.COVERS.map(c => c.k), ['ongrid', 'hybrid', 'solaredge', 'solaredge3', 'premium']);
   assert.ok(QM.COVERS.every(c => /^assets\/quote\/page-front[\w-]*\.jpg$/.test(c.pic) && /^assets\/quote\/thumb-front[\w-]*\.jpg$/.test(c.thumb) && c.name && c.sub && c.kind));
   assert.ok(QM.COVERS.every(c => [c.pic, c.thumb].every(f => require('fs').existsSync(require('path').join(__dirname, '..', f)))), 'every cover picture and thumbnail is in the repo');
   assert.equal(QM.coverOf({ cover: true }).k, 'ongrid', 'saved with the first tick box: the on-grid cover');
@@ -127,6 +127,16 @@ test('cover pages: the list, and the cover a quotation prints with', () => {
   assert.equal(QM.coverOk(se3c, se3), true); assert.equal(QM.coverOk(se3c, se1), false); assert.equal(QM.coverOk(se3c, tsun), false);
   assert.equal(QM.isSolarEdge3(se3), true); assert.equal(QM.isSolarEdge3({ inverter: [{ name: 'On-grid inverter', details: 'Havells three-phase 6 kW', needs_opt: 0 }] }), false);
   assert.ok(QM.COVERS.every(c => !c.need || QM.NEED[c.need]), 'every need has its rule and text');
+  for (const f of require('fs').readdirSync(require('path').join(__dirname, '..', 'tools', 'qm_front')).filter(n => /^front[\w-]*\.html$/.test(n))) {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'tools', 'qm_front', f), 'utf8');
+    assert.ok(/Poppins-SemiBold\.ttf/.test(src) && !/Instrument|italic/.test(src), f + ' is set in Poppins (owner: "i prefer poppins font")');
+  }
+  const pc = QM.coverOf({ cover: 'premium' }), neo = [{ name: 'Solar panels', title: 'Solar panels', details: 'Premier NeoBlack DCR, 600+ Wp, bifacial dual-glass, TOPCon half-cut, full black, ALMM approved.' }];
+  const silver = [{ name: 'Solar panels', title: 'Solar panels', details: 'Premier 132 half-cut TOPCon, bifacial dual glass G12R, 600 Wp, DCR.' }];
+  assert.equal(QM.coverOk(pc, { ...se3, panels: neo }), true, 'NeoBlack panels + three-phase SolarEdge: the super premium cover');
+  assert.equal(QM.coverOk(pc, { ...se3, panels: silver }), false, 'not with silver-frame panels');
+  assert.equal(QM.coverOk(pc, { ...se1, panels: neo }), false, 'not with a single-phase SolarEdge');
+  assert.equal(QM.coverOk(pc, { ...tsun, panels: neo }), false); assert.equal(QM.coverOk(se3c, { ...se3, panels: neo }), true, 'the plain three-phase cover stays open');
   assert.equal(QM.coverOk(se, {}), false); assert.equal(QM.coverOk(QM.coverOf({ cover: 'ongrid' }), tsun), true); assert.equal(QM.coverOk(null, tsun), false);
 });
 

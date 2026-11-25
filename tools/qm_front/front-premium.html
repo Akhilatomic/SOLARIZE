@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- "Super premium" quotation cover picture (assets/quote/page-front-premium.jpg, top 905 px of the A4 page; the details band is HTML from
+     qpFront() in assets/app21.js). Owner, 2026-11-25: "solar edge 3 phase and premier all black panel - it is a super premium combination".
+     premier-neoblack.png / premier-neoblack-back.png = the panel front and back from Premier's NeoBlack DCR datasheet (G12R PE-132 HC TOPCon bifacial dual glass
+     600-630 W, D:\GDrive\DATASHEET AND SLD\premier\all black); se-inverter-3ph.png / se-optimiser.png = SolarEdge's own cut-outs.
+     Facts are the datasheets' own; no figures beyond them, no promises.
+     Rebuild as front.html: --window-size=794,905 --force-device-scale-factor=2.0831, JPEG ~86 over assets/quote/page-front-premium.jpg. -->
+<html><head><meta charset="utf-8"><style>
+@font-face{font-family:P;font-weight:400;src:url(../../assets/fonts/Poppins-Regular.ttf)}
+@font-face{font-family:P;font-weight:500;src:url(../../assets/fonts/Poppins-Medium.ttf)}
+@font-face{font-family:P;font-weight:600;src:url(../../assets/fonts/Poppins-SemiBold.ttf)}
+@font-face{font-family:P;font-weight:700;src:url(../../assets/fonts/Poppins-Bold.ttf)}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:794px;height:905px;overflow:hidden;background:#07080A}
+.pg{position:relative;width:794px;height:905px;overflow:hidden;font-family:P,sans-serif;color:#fff;background:radial-gradient(ellipse 70% 44% at 50% 48%,#2C2F35 0%,#15161A 52%,#07080A 100%)}
+.frame{position:absolute;inset:18px;border:1px solid rgba(255,255,255,.14);pointer-events:none}
+.floor{position:absolute;left:0;top:604px;width:794px;height:301px;background:linear-gradient(180deg,rgba(5,5,7,0) 0%,rgba(5,5,7,.7) 22%,rgba(5,5,7,.92) 100%)}
+.horizon{position:absolute;left:40px;right:40px;top:604px;height:1px;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.2),rgba(255,255,255,0))}
+.hd{position:absolute;left:52px;top:56px;width:560px}
+.k{font-size:9.6px;font-weight:600;letter-spacing:.3em;color:#D9B676}
+.k:after{content:"";display:block;width:46px;height:1px;background:#D9B676;margin-top:10px}
+h1{font-weight:600;font-size:42px;line-height:50px;margin-top:18px;letter-spacing:-.02em}
+h1 em{font-style:normal;color:#E2C389}
+.sub{font-size:11.8px;line-height:19px;margin-top:14px;width:430px;color:#C9CCD2}
+.logo{position:absolute;right:46px;top:46px;width:74px;height:74px;filter:drop-shadow(0 2px 10px rgba(0,0,0,.5))}
+.hero img{position:absolute;-webkit-box-reflect:below 3px linear-gradient(transparent 70%,rgba(255,255,255,.12))}
+.pnl{top:270px;width:157px;height:332px;filter:drop-shadow(0 22px 26px rgba(0,0,0,.65))}
+.pa{left:100px}.pb{left:264px}
+.opt{left:452px;top:392px;height:210px;filter:drop-shadow(0 16px 18px rgba(0,0,0,.6))}
+.hero .inv{left:525px;top:340px;height:262px;filter:drop-shadow(0 20px 24px rgba(0,0,0,.55));-webkit-box-reflect:below 3px linear-gradient(transparent 76%,rgba(255,255,255,.07))}
+.side{position:absolute;top:611px;width:157px;text-align:center;font-size:8.2px;font-weight:600;letter-spacing:.3em;color:rgba(255,255,255,.5)}
+.cap0{position:absolute;left:52px;right:52px;top:636px;text-align:center;font-size:8.8px;font-weight:600;letter-spacing:.2em;color:#9EA3AB}
+.pair{position:absolute;left:52px;right:52px;top:716px;display:grid;grid-template-columns:1fr 44px 1fr;align-items:start}
+.plus{display:grid;place-items:center;width:34px;height:34px;margin:24px auto 0;border:1px solid rgba(217,182,118,.5);border-radius:50%;font-size:18px;line-height:1;color:#E2C389}
+.pc small{display:block;font-size:9.2px;font-weight:600;letter-spacing:.24em;color:#D9B676}
+.pc b{display:block;font-weight:600;font-size:20px;line-height:26px;margin-top:8px;letter-spacing:-.01em}
+.pc ul{list-style:none;margin-top:10px}
+.pc li{position:relative;padding-left:16px;font-size:10.6px;line-height:19px;color:#C9CCD2}
+.pc li:before{content:"";position:absolute;left:0;top:9px;width:8px;height:1px;background:#D9B676}
+</style></head><body><div class="pg">
+<div class="floor"></div><div class="horizon"></div><div class="frame"></div>
+<div class="hero"><img class="pnl pa" src="premier-neoblack.png" alt=""><img class="pnl pb" src="premier-neoblack-back.png" alt=""><img class="opt" src="se-optimiser.png" alt=""><img class="inv" src="se-inverter-3ph.png" alt=""></div>
+<div class="side" style="left:100px">FRONT</div><div class="side" style="left:264px">BACK</div>
+<div class="cap0">PREMIER NEOBLACK PANEL &nbsp;·&nbsp; S-SERIES OPTIMISER &nbsp;·&nbsp; SOLAREDGE HOME WAVE THREE-PHASE</div>
+<div class="hd"><div class="k">SUPER PREMIUM COMBINATION</div><h1>All black.<br>Every panel <em>monitored</em>.</h1>
+<p class="sub">Premier NeoBlack full-black panels with a SolarEdge three-phase inverter, and an optimiser on every panel for module-level monitoring.</p></div>
+<img class="logo" src="../../assets/quote/jasper-logo.png" alt="">
+<div class="pair"><div class="pc"><small>PREMIER NEOBLACK</small><b>All-black panels</b><ul><li>A uniform full-black look that blends with the roof</li><li>Black front with reduced glare</li><li>TOPCon bifacial dual glass, 600 to 630 W</li></ul></div><div class="plus">+</div><div class="pc"><small>SOLAREDGE THREE-PHASE</small><b>Module-level monitoring</b><ul><li>An S-Series optimiser on every panel</li><li>See how each panel performs, on its own</li><li>Built into the Home Wave three-phase inverter</li></ul></div></div>
+</div></body></html>

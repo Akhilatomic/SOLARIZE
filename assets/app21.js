@@ -1,6 +1,6 @@
 // Quotation maker: the printed quotation. A4 pages as HTML (live preview), pagination of the item rows, and the PDF download.
 // Needs QM (app20.js) and esc() (app.js). Page classes start with .qp (assets/quote.css). Every text value goes through esc().
-const QP_FONTS = ['400 12px Poppins', '500 12px Poppins', '600 12px Poppins', '700 12px Poppins', '400 12px "Instrument Serif"', '400 12px "Instrument Sans"', '700 12px "Instrument Sans"']; /* Instrument: the cover page */
+const QP_FONTS = ['400 12px Poppins', '500 12px Poppins', '600 12px Poppins', '700 12px Poppins']; /* every page, the covers too (owner, 2026-11-25: "i prefer poppins font") */
 const QP_RATES = { per_kw_first2: 30000, third_kw: 18000, cap: 78000 };
 const QP_MON = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 /* line icons for the delivery list (inline SVG with explicit colours, so html2canvas draws them too) */
@@ -70,7 +70,7 @@ function qmPagesHtml(doc, lines, calc, settings) {
 function qpFront(doc, calc, st, ctx, cov) {
   cov = cov || QM.COVERS[0];
   const co = ctx.co || {}, cu = doc.customer || {}, days = doc.valid_days != null && doc.valid_days !== '' ? doc.valid_days : st.valid_days;
-  const name = String(cu.name || '').trim() || '—', nm = name.length > 30 ? 19 : name.length > 22 ? 23 : 27;
+  const name = String(cu.name || '').trim() || '—', nm = name.length > 30 ? 15 : name.length > 22 ? 18 : 21;
   const addr = String(cu.address || '').split(/\n/)[0].trim(), place = addr.length > 46 ? addr.slice(0, 45).trim() + '…' : addr;
   const plant = calc.plantKw + ' kW ' + cov.kind + (calc.phase === 'three-phase' && !/phase/i.test(cov.kind) ? ' · 3-phase' : '');
   const parts = String(st.footer || '').split('·').map(x => x.trim()).filter(Boolean).slice(0, 3);
