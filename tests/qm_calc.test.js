@@ -84,6 +84,18 @@ test('customer scope (Additional structure): own category after the mounting str
   assert.deepEqual([c.net, c.subsidy, c.loan.loan, c.plantKw, c.dcKwp], [c0.net, c0.subsidy, c0.loan.loan, c0.plantKw, c0.dcKwp], 'price, subsidy and loan unchanged');
 });
 
+test('sheet roof: the Mounting structure line is not printed (no row, warranty or page) while Additional structure lines are in', () => {
+  const P6 = PRODUCTS.concat([{ id: 961, cat: 'addstr', name: 'Elevated GI structure', line: 'x', unit: 'set', qty: 1 }, { id: 962, code: 'str-hdg', cat: 'structure', name: 'Mounting structure', line: '', details: 'Hot-dip galvanised (HDG) steel structure.', unit: 'set', qty: 1, warranty: [{ years: 25, label: 'Structure design life' }], page: 'assets/quote/page-stormshield.jpg' }]);
+  const concrete = Object.assign({}, SETUP2, { items: Object.assign({}, SETUP2.items, { structure: [{ pid: 962 }] }) });
+  const sheet = Object.assign({}, concrete, { items: Object.assign({}, concrete.items, { addstr: [{ pid: 961 }] }) });
+  const lc = QM.resolve(concrete, P6), ls = QM.resolve(sheet, P6), cc = QM.calc(concrete, lc, SET, R), cs = QM.calc(sheet, ls, SET, R);
+  assert.equal(QM.isSheetRoof(lc), false); assert.equal(QM.isSheetRoof(ls), true); assert.equal(cs.sheetRoof, true);
+  assert.equal(QM.printed(lc, 'structure'), true); assert.equal(QM.printed(ls, 'structure'), false); assert.equal(QM.printed(ls, 'install'), true);
+  assert.ok(cc.warranties.some(w => w.label === 'Structure design life')); assert.ok(!cs.warranties.some(w => w.label === 'Structure design life'), 'no structure warranty box on a sheet roof');
+  assert.deepEqual(cc.pages.feature, ['assets/quote/page-stormshield.jpg']); assert.deepEqual(cs.pages.feature, []);
+  assert.equal(ls.structure.length, 1, 'the line itself stays in the quotation');
+});
+
 test('StormShield page: only with a hot-dip (HDG) structure, never with a welded GI one', () => {
   const S = 'assets/quote/page-stormshield.jpg';
   const P5 = PRODUCTS.concat([

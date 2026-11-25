@@ -38,7 +38,7 @@ const qpSplit = s => {
   const k = w.length > 2 && w[0].length < 7 ? 2 : 1;
   return [w.slice(0, k).join(' '), w.slice(k).join(' ')];
 };
-const qpCats = lines => QM.ROWS.concat(Object.keys(lines || {}).filter(k => QM.ROWS.indexOf(k) < 0 && QM.SCOPE.indexOf(k) < 0)); /* items-table rows: customer scope goes in its own box */
+const qpCats = lines => QM.ROWS.concat(Object.keys(lines || {}).filter(k => QM.ROWS.indexOf(k) < 0 && QM.SCOPE.indexOf(k) < 0)).filter(k => QM.printed(lines, k)); /* items-table rows: customer scope goes in its own box; no Mounting structure on a sheet roof */
 const qpKv = rows => '<table class="qp-kv" data-nofit="1">' + rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(qpVal(v))}</td></tr>`).join('') + '</table>';
 const qpCard = (title, body, cls) => `<div class="qp-card${cls ? ' ' + cls : ''}"><div class="qp-ct"><span class="qp-tick"></span>${esc(title)}</div>${body}</div>`;
 const qpSec = (title, cls) => `<div class="qp-sec${cls ? ' ' + cls : ''}"><span class="qp-dash"></span>${esc(title)}</div>`;
