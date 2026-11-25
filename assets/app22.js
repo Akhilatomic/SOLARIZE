@@ -288,7 +288,8 @@ function qmkEdItems(c) {
       <span class="qm-cp">${u ? `<img src="${esc(u)}" alt="" loading="lazy">` : ''}</span><span class="qm-cb"><b>${esc(qmkLabel(p))}</b><span class="qm-cd">${esc(p.details || p.line || '')}</span>
       ${w ? `<span class="qm-cw"><i class="i i-shield"></i>${esc(w)}</span>` : ''}${fin ? (+p.rate ? `<span class="qm-cr">₹${QM.inr(p.rate)} per ${esc(p.unit === 'no' ? 'unit' : p.unit)}</span>` : '<span class="qm-cr qm-nr">No rate yet</span>') : ''}${p.hidden ? pill('Hidden', 'y') : ''}</span>
       <span class="qm-ck"><i class="i i-check"></i></span></button>`; };
-  const drop = QM.SHEET_DROP.indexOf(c) >= 0 && QM.isSheetRoof(d.items) && its.length ? `<p class="qm-snap"><i class="i i-alert"></i><span>Not printed on this quotation: it has Additional structure items (sheet roof), so the mounting structure line, its warranty and its page are left out. It prints again if the Additional structure items are removed.</span></p>` : '';
+  const sl = c === 'structure' ? qmkCalc().lines : null; /* a sheet-roof quotation should carry the sheet-roof (elevated GI) structure: it is our supply */
+  const drop = sl && QM.isSheetRoof(sl) && !(sl.structure || []).some(QM.isSheetStr) ? `<p class="qm-snap"><i class="i i-alert"></i><span>This is a sheet-roof quotation (it has Additional structure items). Choose the Elevated GI structure here: the structure is included in our supply. Only the walkway, ladder and sliding door are customer scope.</span></p>` : '';
   const snap = drop + (QMK.snapOld ? `<p class="qm-snap"><i class="i i-alert"></i><span>The preview shows this quotation exactly as it was saved. Products or quotation settings have changed since; changing any item switches the whole quotation to today’s products and settings.</span></p>` : '');
   const add = `<button type="button" class="btn sec sm qm-add" data-a="add" data-k="${c}"><i class="i i-plus"></i> Add another component</button>`;
   const tip = scope ? 'Customer scope: prints in its own “charged extra” box under the items, with no amount, and is not part of the package price. Tap each item the customer needs; tap again to take it out.'
@@ -392,7 +393,7 @@ function qmkSum(c) {
 }
 function qmkGuide(lines) {
   let sum = 0, miss = 0;
-  Object.keys(lines).filter(c => QM.SCOPE.indexOf(c) < 0 && QM.printed(lines, c)).forEach(c => (lines[c] || []).forEach(l => { /* customer scope, and the structure on a sheet roof, are not in the package price */ const p = l.pid != null && qmkProd(l.pid), r = p ? +p.rate || 0 : 0; if (!r) miss++; else sum += r * (+l.qty > 0 ? +l.qty : 1); }));
+  Object.keys(lines).filter(c => QM.SCOPE.indexOf(c) < 0).forEach(c => (lines[c] || []).forEach(l => { /* customer scope is not in the package price */ const p = l.pid != null && qmkProd(l.pid), r = p ? +p.rate || 0 : 0; if (!r) miss++; else sum += r * (+l.qty > 0 ? +l.qty : 1); }));
   if (!sum) return `<i class="i i-coin"></i><span>No rates are filled in for these items yet (an admin adds them under Products &amp; rates). Rates are only a guide: the package price is what prints.</span>`;
   return `<i class="i i-coin"></i><span>Items add up to <b>₹${QM.inr(sum)}</b> at your rates${miss ? ` · ${miss} item${miss === 1 ? ' has' : 's have'} no rate yet` : ''}. Only a guide: the package price is what prints.</span>`;
 }

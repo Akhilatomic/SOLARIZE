@@ -1,7 +1,8 @@
-/* Sheet-roof page for the quotation (assets/quote/page-sheetroof.jpg): printed as the LAST page when a quotation has an Additional
-   structure item (QM.SCOPE; the products' "page" field). Owner, 2026-11-25: Kerala house with a sheet roof, panels on an elevated GI
+/* Sheet-roof page for the quotation (assets/quote/page-sheetroof.jpg): printed as the LAST page when a quotation has the elevated GI
+   structure or an Additional structure item (the products' "page" field). Owner, 2026-11-25: Kerala house with a sheet roof, panels on an elevated GI
    structure ~1 m above the sheets, walkway, sliding roof door, SolarEdge inverter on the ground-floor wall, conduit, workers in Jasper red;
-   no promises; "representation only"; GI not as recommended by MNRE (OM No. 318/61/2025-GCRT-Part(2), 19.05.2026); customer scope.
+   no promises; "representation only"; GI not as recommended by MNRE (OM No. 318/61/2025-GCRT-Part(2), 19.05.2026). Owner, 2026-11-25: "structure is
+   included - only additional works are customer scope - ladder / walkway / sliding door".
    Rebuild:  node tools/qm_sheetroof_page.js   (writes tools/out/sheetroof.html), then render at A4 200 dpi with headless Chrome:
      chrome --headless=new --hide-scrollbars --force-device-scale-factor=2.0831 --window-size=794,1123 --screenshot=tools/out/sheetroof.png tools/out/sheetroof.html
    and save the PNG as a JPEG (quality ~88, 1654 x 2339) over assets/quote/page-sheetroof.jpg. */
@@ -347,9 +348,9 @@ function marker(n, mx, my, tx, ty) {
 }
 
 const LEGEND = [
-  ['Elevated structure', 'GI, about 1&nbsp;m above the sheets'],
-  ['Walkway', 'on the roof sheets'],
-  ['Sliding roof door', 'in the roof sheets'],
+  ['Elevated structure', 'GI, 1&nbsp;m above sheets', 'in'],
+  ['Walkway', 'on the roof sheets', 'cs'],
+  ['Sliding roof door', 'in the roof sheets', 'cs'],
   ['SolarEdge inverter', 'on the ground-floor wall'],
   ['Cable conduit', 'from the panels to the inverter'],
 ];
@@ -363,7 +364,8 @@ const TAGS = [['rain', 'Heavy monsoon'], ['sun', 'Strong sun'], ['drop', 'Humid 
 function page() {
   const m1 = PR(0.12, 0.62), m2 = P(0.04, 0.105), m3 = P(0.95, 0.45), m4 = [592, 778], m5 = [622, 640];
   const markers = marker(1, 92, 318, m1[0], m1[1]) + marker(2, 70, 446, m2[0], m2[1]) + marker(3, 716, 330, m3[0], m3[1]) + marker(4, 704, 806, m4[0] + 20, m4[1] + 6) + marker(5, 712, 598, m5[0], m5[1]);
-  const legend = LEGEND.map((c, i) => `<div><span class="no">${i + 1}</span><span><b>${c[0]}</b><small>${c[1]}</small></span></div>`).join('');
+  const TAG = { in: 'Included', cs: 'Customer scope' };
+  const legend = LEGEND.map((c, i) => `<div><span class="no">${i + 1}</span><span><b>${c[0]}</b><small>${c[1]}</small>${c[2] ? `<i class="tg ${c[2]}">${TAG[c[2]]}</i>` : ''}</span></div>`).join('');
   const info = '<svg viewBox="0 0 20 20" width="15" height="15"><circle cx="10" cy="10" r="7.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 9v5M10 6.2v.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 @font-face{font-family:Poppins;font-weight:400;src:url(../../assets/fonts/Poppins-Regular.ttf)}
@@ -390,6 +392,9 @@ h1 span{color:${C.red}}
 .lg .no{flex:none;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:${C.red};color:#fff;font-size:10.5px;font-weight:700}
 .lg b{display:block;font-size:10.6px;line-height:13.5px;font-weight:600;white-space:nowrap}
 .lg small{display:block;font-size:9px;line-height:11.5px;color:#6B7280;margin-top:1px}
+.lg .tg{display:block;width:max-content;height:12px;margin-top:2px;padding:0 5px;border-radius:6px;font-size:7.6px;line-height:12px;font-weight:600;font-style:normal;letter-spacing:.02em}
+.tg.in{background:#E5F4EA;color:#1C7543}
+.tg.cs{background:#FCE9EA;color:#B4232A}
 .nt{position:absolute;left:36px;right:36px;top:972px;background:#fff;border:1px solid #F1C9CB;border-left:4px solid ${C.red};border-radius:10px;padding:8px 12px 8px 12px}
 .nt p{font-size:9.4px;line-height:13.2px;color:#374151}
 .nt p+p{margin-top:4px}
@@ -406,12 +411,12 @@ h1 span{color:${C.red}}
 <g fill="#fff" opacity=".9"><ellipse cx="560" cy="282" rx="46" ry="13"/><ellipse cx="590" cy="272" rx="28" ry="13"/></g>
 ${backdrop()}${scene()}${markers}
 </svg>
-<div class="hd"><div class="k">ADDITIONAL STRUCTURE · SHEET ROOF</div><h1>Solar on a <span>sheet roof</span></h1>
+<div class="hd"><div class="k">SHEET ROOF · STRUCTURE INCLUDED</div><h1>Solar on a <span>sheet roof</span></h1>
 <p class="sub">How a solar plant on a sheet roof is laid out: the panels on a GI structure about 1&nbsp;m above the roof sheets, a walkway on the sheets, a sliding roof door, and the inverter on the ground-floor wall.</p>
 <span class="rep">${info}Picture for representation only</span></div>
 <img class="logo" src="../../assets/quote/jasper-logo.png" alt="">
 <div class="lg">${legend}</div>
-<div class="nt"><p><b>Picture for representation only.</b> The actual structure, layout and fittings depend on the roof and the site.</p><p><b>Not as recommended by MNRE.</b> This elevated structure on the sheet roof is made of GI (galvanised iron, not hot-dip galvanised). For module mounting structures under PM Surya Ghar, MNRE allows hot-dip galvanised iron, aluminium, hot-dip galvanised mild steel or ZAM alloy (OM No.&nbsp;318/61/2025-GCRT-Part(2), 19.05.2026).</p><p><b>Customer scope.</b> The elevated structure, walkway, ladder and sliding roof door are in the customer’s scope and are charged extra.</p></div>
+<div class="nt"><p><b>Picture for representation only.</b> The actual structure, layout and fittings depend on the roof and the site.</p><p><b>Not as recommended by MNRE.</b> This elevated structure on the sheet roof is made of GI (galvanised iron, not hot-dip galvanised). For module mounting structures under PM Surya Ghar, MNRE allows hot-dip galvanised iron, aluminium, hot-dip galvanised mild steel or ZAM alloy (OM No.&nbsp;318/61/2025-GCRT-Part(2), 19.05.2026).</p><p><b>Structure included.</b> The elevated GI structure is part of our supply. <b>Customer scope:</b> only the walkway, ladder and sliding roof door, charged extra.</p></div>
 <div class="ft"><span>www.jasper.solar</span><i></i><span>info@jasper.solar</span><i></i><span>Nedumangad, Thiruvananthapuram</span><i></i><b>96055 25552</b></div>
 </div></body></html>`;
 }

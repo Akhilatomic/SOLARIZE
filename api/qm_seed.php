@@ -409,9 +409,11 @@ function qm_added(): array {
         'brands' => [['label' => '', 'logos' => ['assets/quote/logo-sungrow.png']]]]], [3, 4, 5, 6]),
     /* Rev 7 (owner, 2026-11-25): "Additional structure" for a sheet roof: walkway / ladder / sliding door, customer scope, charged extra.
        No rate, picture or warranty: the quotation lists them in the customer-scope box without an amount (owner chose "No amount"). */
-    /* Rev 8 (owner, 2026-11-25: "yes, add it"): the elevated GI structure itself as a customer-scope line, first in the tab (qm_fix rev 4 on older catalogues).
+    /* Rev 8 (owner, 2026-11-25: "yes, add it"): the elevated GI structure for a sheet roof. First a customer-scope line; then (owner, 2026-11-25:
+       "structure is included - only additional works are customer scope - ladder / walkway / sliding door") our supply, under Mounting
+       structure (qm_fix rev 5 moves it on older catalogues).
        GI that is not hot-dip galvanised is not among the MMS materials MNRE allows (OM No. 318/61/2025-GCRT-Part(2), 19.05.2026), as the sheet-roof page says. */
-    ['as-elev-gi', 'Elevated GI structure (sheet roof)', 'addstr', 'Elevated GI structure', 'A GI frame that holds the panels about 1 m above the roof sheets.',
+    ['as-elev-gi', 'Elevated GI structure (sheet roof)', 'structure', 'Elevated GI structure', 'A GI frame that holds the panels about 1 m above the roof sheets.',
       'GI (galvanised iron, not hot-dip galvanised) frame on legs fixed to the roof purlins, about 1 m above the sheets. Not among the module mounting structure materials recommended by MNRE. Size as per site.',
       ['unit' => 'set', 'qty' => 1, 'picture' => 'assets/quote/pic-elevated.png', 'page' => 'assets/quote/page-sheetroof.jpg']],
     ['as-walkway', 'Walkway (sheet roof)', 'addstr', 'Walkway', 'A safe path on the sheet roof, so the panels can be reached and cleaned without stepping on the sheets.',
@@ -442,7 +444,7 @@ function qm_add_new(PDO $db): void {
 /* Changes to products that are ALREADY in a catalogue (qm_added() only inserts new ones). Runs from qm boot; each rev runs once per
    database (settings qm_fix_rev) and only adds what is missing, so an admin's own edits stay. Add a fix = a new `if ($have < N)`
    block and bump QM_FIX_REV. Saved quotations keep printing what they were saved with (their snapshot). */
-const QM_FIX_REV = 4;
+const QM_FIX_REV = 5;
 function qm_fix(PDO $db): void {
   $r = $db->query("SELECT v FROM settings WHERE k='qm_fix_rev'")->fetchColumn();
   $have = $r === false ? 0 : (int)json_decode((string)$r, true);
@@ -473,7 +475,12 @@ function qm_fix(PDO $db): void {
     }
     if ($have < 4) { /* rev 4: the elevated GI structure (added by qm_added rev 8 at the end of the tab) moves to the front of Additional structure */
       $min = $db->query("SELECT MIN(sort) FROM qm_products WHERE cat='addstr' AND code<>'as-elev-gi'")->fetchColumn();
-      if ($min !== false && $min !== null) $db->prepare("UPDATE qm_products SET sort=? WHERE code='as-elev-gi' AND sort>?")->execute([(int)$min - 1, (int)$min - 1]);
+      if ($min !== false && $min !== null) $db->prepare("UPDATE qm_products SET sort=? WHERE code='as-elev-gi' AND cat='addstr' AND sort>?")->execute([(int)$min - 1, (int)$min - 1]);
+    }
+    if ($have < 5) { /* rev 5 (owner, 2026-11-25: "structure is included - only additional works are customer scope"): the elevated GI structure
+      leaves Additional structure (customer scope) for Mounting structure (our supply), last in that tab */
+      $max = (int)$db->query("SELECT COALESCE(MAX(sort),0) FROM qm_products WHERE cat='structure'")->fetchColumn();
+      $db->prepare("UPDATE qm_products SET cat='structure', sort=? WHERE code='as-elev-gi' AND cat='addstr'")->execute([$max + 1]);
     }
     $db->prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v')->execute(['qm_fix_rev', json_encode(QM_FIX_REV)]);
     $db->commit();

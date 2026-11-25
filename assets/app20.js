@@ -7,12 +7,13 @@ var QM = (function () {
   Q.SCOPE = ['addstr'];
   /* printed row order: optimisers come before the inverter, as in the SolarEdge quotations (warranty boxes keep CATS order) */
   Q.ROWS = ['panels', 'optimiser', 'inverter'].concat(Q.CATS.slice(3).filter(function (c) { return Q.SCOPE.indexOf(c) < 0; }));
-  /* a quotation with any customer-scope line (Additional structure) is a sheet-roof quotation: its Mounting structure (a concrete-roof
-     structure) is not printed at all: no row, warranty or page. The line stays in the quotation and prints again once the Additional
-     structure items are gone (owner, 2026-11-25: "remove mounting structure line for sheet roof quotes") */
-  Q.SHEET_DROP = ['structure'];
-  Q.isSheetRoof = function (lines) { lines = lines || {}; return Q.SCOPE.some(function (c) { return (lines[c] || []).length > 0; }); };
-  Q.printed = function (lines, cat) { return !(Q.SHEET_DROP.indexOf(cat) >= 0 && Q.isSheetRoof(lines)); };
+  /* sheet roof (owner, 2026-11-25: "structure is included - only additional works are customer scope - ladder / walkway / sliding door"):
+     the elevated GI structure is our supply, a Mounting structure line like any other (row, warranty, price); only the walkway, ladder and
+     sliding door (Additional structure, QM.SCOPE) are the customer's. A quotation is a sheet-roof one when it has an Additional structure
+     line or a sheet-roof structure: then no StormShield page, and the sheet-roof page prints last. */
+  Q.SHEET_PAGE = 'assets/quote/page-sheetroof.jpg';
+  Q.isSheetStr = function (l) { return !!l && (l.code === 'as-elev-gi' || /sheet[- ]?roof|elevated/i.test([l.name, l.line, l.details].join(' '))); };
+  Q.isSheetRoof = function (lines) { lines = lines || {}; return Q.SCOPE.some(function (c) { return (lines[c] || []).length > 0; }) || (lines.structure || []).some(Q.isSheetStr); };
   /* main equipment rows = the big brand logos (main1 / main2). Optimisers count too, so a SolarEdge optimiser row shows the same logo size
      as the SolarEdge inverter row next to it (owner, 2026-11-25: "why the SolarEdge logo is different in size") */
   Q.MAIN = ['panels', 'optimiser', 'inverter'];
@@ -168,7 +169,7 @@ var QM = (function () {
     }
 
     var warranties = [], feature = [], scopePages = [];
-    var sheetRoof = Q.isSheetRoof(lines); /* sheet roof: the Mounting structure lines give no warranty box and no page (StormShield) */
+    var sheetRoof = Q.isSheetRoof(lines); /* sheet roof: no StormShield page (owner, 2026-11-25: "remove stormshield page for sheet roof quotes") */
     /* StormShield (Q.HDG_PAGE) is the hot-dip galvanised structure's page: it prints only with a hot-dip line (the HDG product, or wording
        that says hot-dip / HDG), never with a welded or other GI structure (owner, 2026-11-25: "only for hot dip structure") */
     var hotDip = function (l) { return l.code === 'str-hdg' || /hot[- ]?dip|\bHDG\b/i.test([l.name, l.line, l.details].join(' ')); };
@@ -178,12 +179,12 @@ var QM = (function () {
         (lines[cat] || []).forEach(function (l) { if (l.page && scopePages.indexOf(l.page) < 0) scopePages.push(l.page); });
         return;
       }
-      if (!Q.printed(lines, cat)) return;
       (lines[cat] || []).forEach(function (l) {
         (l.warranty || []).forEach(function (w) { warranties.push({ years: str(w.years), label: w.label }); });
-        if (l.page && !(l.page === Q.HDG_PAGE && !hotDip(l)) && feature.indexOf(l.page) < 0) feature.push(l.page);
+        if (l.page && !(l.page === Q.HDG_PAGE && (!hotDip(l) || sheetRoof)) && feature.indexOf(l.page) < 0) feature.push(l.page);
       });
     });
+    if (feature.indexOf(Q.SHEET_PAGE) >= 0 && scopePages.indexOf(Q.SHEET_PAGE) < 0) scopePages.push(Q.SHEET_PAGE); /* the elevated structure's own page: last too */
     scopePages.forEach(function (p) { var i = feature.indexOf(p); if (i >= 0) feature.splice(i, 1); feature.push(p); });
 
     var phase = isThree(firstOf(lines, 'meter')) || (!firstOf(lines, 'meter') && isThree(inv)) ? 'three-phase' : 'single-phase';

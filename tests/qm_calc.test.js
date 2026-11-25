@@ -84,16 +84,27 @@ test('customer scope (Additional structure): own category after the mounting str
   assert.deepEqual([c.net, c.subsidy, c.loan.loan, c.plantKw, c.dcKwp], [c0.net, c0.subsidy, c0.loan.loan, c0.plantKw, c0.dcKwp], 'price, subsidy and loan unchanged');
 });
 
-test('sheet roof: the Mounting structure line is not printed (no row, warranty or page) while Additional structure lines are in', () => {
-  const P6 = PRODUCTS.concat([{ id: 961, cat: 'addstr', name: 'Elevated GI structure', line: 'x', unit: 'set', qty: 1 }, { id: 962, code: 'str-hdg', cat: 'structure', name: 'Mounting structure', line: '', details: 'Hot-dip galvanised (HDG) steel structure.', unit: 'set', qty: 1, warranty: [{ years: 25, label: 'Structure design life' }], page: 'assets/quote/page-stormshield.jpg' }]);
+test('sheet roof: the structure is our supply (row, warranty, price); only walkway / ladder / door are customer scope; no StormShield', () => {
+  const P6 = PRODUCTS.concat([{ id: 961, cat: 'addstr', name: 'Walkway', line: 'x', unit: 'set', qty: 1 }, { id: 962, code: 'str-hdg', cat: 'structure', name: 'Mounting structure', line: '', details: 'Hot-dip galvanised (HDG) steel structure.', unit: 'set', qty: 1, warranty: [{ years: 25, label: 'Structure design life' }], page: 'assets/quote/page-stormshield.jpg' }]);
   const concrete = Object.assign({}, SETUP2, { items: Object.assign({}, SETUP2.items, { structure: [{ pid: 962 }] }) });
   const sheet = Object.assign({}, concrete, { items: Object.assign({}, concrete.items, { addstr: [{ pid: 961 }] }) });
   const lc = QM.resolve(concrete, P6), ls = QM.resolve(sheet, P6), cc = QM.calc(concrete, lc, SET, R), cs = QM.calc(sheet, ls, SET, R);
   assert.equal(QM.isSheetRoof(lc), false); assert.equal(QM.isSheetRoof(ls), true); assert.equal(cs.sheetRoof, true);
-  assert.equal(QM.printed(lc, 'structure'), true); assert.equal(QM.printed(ls, 'structure'), false); assert.equal(QM.printed(ls, 'install'), true);
-  assert.ok(cc.warranties.some(w => w.label === 'Structure design life')); assert.ok(!cs.warranties.some(w => w.label === 'Structure design life'), 'no structure warranty box on a sheet roof');
-  assert.deepEqual(cc.pages.feature, ['assets/quote/page-stormshield.jpg']); assert.deepEqual(cs.pages.feature, []);
-  assert.equal(ls.structure.length, 1, 'the line itself stays in the quotation');
+  assert.equal(QM.printed, undefined, 'no category is hidden on a sheet roof any more');
+  assert.ok(cc.warranties.some(w => w.label === 'Structure design life')); assert.ok(cs.warranties.some(w => w.label === 'Structure design life'), 'the structure keeps its warranty box on a sheet roof');
+  assert.deepEqual(cc.pages.feature, ['assets/quote/page-stormshield.jpg']); assert.deepEqual(cs.pages.feature, [], 'no StormShield page on a sheet roof, even with a hot-dip structure');
+  assert.equal(ls.structure.length, 1);
+  const elev = { id: 963, code: 'as-elev-gi', cat: 'structure', name: 'Elevated GI structure', line: 'A GI frame about 1 m above the roof sheets.', details: 'GI frame (not hot-dip galvanised).', unit: 'set', qty: 1, page: QM.SHEET_PAGE };
+  const ins = { id: 964, cat: 'install', name: 'Installation', line: '', unit: 'set', qty: 1, page: 'assets/quote/page-inst.jpg' };
+  const P7 = P6.concat([elev, ins]);
+  const only = Object.assign({}, SETUP2, { items: Object.assign({}, SETUP2.items, { structure: [{ pid: 963 }], install: [{ pid: 964 }] }) });
+  const lo = QM.resolve(only, P7), co = QM.calc(only, lo, SET, R);
+  assert.equal(QM.isSheetStr(lo.structure[0]), true); assert.equal(QM.isSheetStr(ls.structure[0]), false, 'the HDG concrete-roof structure is not a sheet-roof one');
+  assert.equal(QM.isSheetRoof(lo), true, 'the elevated GI structure alone makes it a sheet-roof quotation'); assert.equal(co.sheetRoof, true);
+  assert.deepEqual(co.pages.feature, ['assets/quote/page-inst.jpg', QM.SHEET_PAGE], 'the sheet-roof page prints last, after the other pages');
+  const both = Object.assign({}, only, { items: Object.assign({}, only.items, { addstr: [{ pid: 961 }] }) });
+  const fb = QM.calc(both, QM.resolve(both, P7), SET, R).pages.feature;
+  assert.equal(fb.filter(p => p === QM.SHEET_PAGE).length, 1); assert.equal(fb[fb.length - 1], QM.SHEET_PAGE, 'with a walkway too: the sheet-roof page once, last');
 });
 
 test('StormShield page: only with a hot-dip (HDG) structure, never with a welded GI one', () => {
