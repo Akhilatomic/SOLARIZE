@@ -134,7 +134,8 @@
 .qp-sct{display:flex;align-items:center;font-size:12.5px;font-weight:700;line-height:18px;color:#1e2638}
 .qp-sct .qp-tick{height:14px}
 .qp-scs{font-size:10.3px;line-height:15px;color:#6b7280;margin:2px 12px 5px 12px}
-.qp-scr{display:grid;grid-template-columns:131px minmax(0,1fr) 92px;gap:0 12px;align-items:center;padding:7px 0;border-top:1px solid #eef0f4}
+.qp-scr{display:grid;grid-template-columns:141px minmax(0,1fr) 92px;gap:0 12px;align-items:center;padding:7px 0;border-top:1px solid #eef0f4}
+.qp-scr>.qp-it{padding-left:20px} /* centre = the table's Item column */
 .qp-scr .qp-qt{text-align:center}
 
 /* loan */

@@ -67,6 +67,7 @@ test('customer scope (Additional structure): own category after the mounting str
   const lines = QM.resolve(setup, P), c = QM.calc(setup, lines, SET, R), c0 = QM.calc(SETUP2, QM.resolve(SETUP2, PRODUCTS), SET, R);
   assert.equal(lines.addstr.length, 1); assert.equal(lines.addstr[0].qty, 0);
   assert.deepEqual(QM.qtyText(lines.addstr[0]), { main: 'As required', note: '' });
+  assert.deepEqual(QM.qtyText(Object.assign({}, lines.addstr[0], { qty: 1 })), { main: 'As required', note: '' }, 'never "1 As required"');
   assert.deepEqual(c.warranties, c0.warranties, 'no warranty box for customer-scope items');
   assert.deepEqual(c.pages.feature, c0.pages.feature, 'no feature page for customer-scope items');
   assert.deepEqual([c.net, c.subsidy, c.loan.loan, c.plantKw, c.dcKwp], [c0.net, c0.subsidy, c0.loan.loan, c0.plantKw, c0.dcKwp], 'price, subsidy and loan unchanged');

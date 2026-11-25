@@ -199,7 +199,7 @@ var QM = (function () {
 
   Q.qtyText = function (line, opts) {
     var qty = num(line.qty), unit = str(line.unit) || 'no', main, note = str(line.qty_note);
-    if (qty === 0) main = unit;
+    if (qty === 0 || /^as required$/i.test(unit)) main = unit; /* "As required" is never "1 As required" (owner's screenshot, 2026-11-25) */
     else if (unit === 'no') main = qty + (qty > 1 ? ' nos' : ' no');
     else if (unit === 'm + m') main = qty + ' m + ' + qty + ' m';
     else main = qty + ' ' + unit;

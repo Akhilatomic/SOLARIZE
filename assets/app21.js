@@ -125,10 +125,11 @@ function qpLogos(c) {
     Object.assign(i.style, { width: s.w + 'px', height: s.h + 'px', maxWidth: 'none', maxHeight: 'none' });
   });
 }
+/* the item picture tile (built-in drawings as they are, uploaded photos on a grey tile) */
+const qpPic = l => { const u = qmImgUrl(l.picture); return u ? `<span class="qp-pic${/^assets\/quote\/pic-/.test(l.picture) ? '' : ' qp-pic-up'}"><img src="${esc(u)}" alt=""></span>` : ''; };
 function qpRow(n, l, calc, main) {
-  const q = QM.qtyText(l, { dcKwp: calc.dcKwp }), u = qmImgUrl(l.picture);
-  const pic = u ? `<span class="qp-pic${/^assets\/quote\/pic-/.test(l.picture) ? '' : ' qp-pic-up'}"><img src="${esc(u)}" alt=""></span>` : '';
-  return `<tr><td class="qp-no">${n}</td><td class="qp-it"><div class="qp-nm">${esc(l.name)}</div>${pic}</td>`
+  const q = QM.qtyText(l, { dcKwp: calc.dcKwp });
+  return `<tr><td class="qp-no">${n}</td><td class="qp-it"><div class="qp-nm">${esc(l.name)}</div>${qpPic(l)}</td>`
     + `<td><div class="qp-ln">${esc(l.line)}</div>${l.details ? `<div class="qp-dt">${esc(l.details)}</div>` : ''}</td>`
     + `<td>${qpBrands(l.brands, main)}</td><td class="qp-qt"><b>${esc(q.main)}</b>${q.note ? `<span>${esc(q.note)}</span>` : ''}</td></tr>`;
 }
@@ -140,7 +141,7 @@ function qpScope(lines) {
   return '<div class="qp-scope"><div class="qp-sct"><span class="qp-tick"></span>Customer scope · charged extra</div>'
     + '<div class="qp-scs">Needed for safe access to the panels on this roof. Not included in the plant price; charged extra as per site measurement.</div>'
     + ls.map(l => { const q = QM.qtyText(l);
-      return `<div class="qp-scr"><div class="qp-nm">${esc(l.name)}</div><div><div class="qp-ln">${esc(l.line)}</div>${l.details ? `<div class="qp-dt">${esc(l.details)}</div>` : ''}</div>`
+      return `<div class="qp-scr"><div class="qp-it"><div class="qp-nm">${esc(l.name)}</div>${qpPic(l)}</div><div><div class="qp-ln">${esc(l.line)}</div>${l.details ? `<div class="qp-dt">${esc(l.details)}</div>` : ''}</div>`
         + `<div class="qp-qt"><b>${esc(q.main)}</b>${q.note ? `<span>${esc(q.note)}</span>` : ''}</div></div>`; }).join('') + '</div>';
 }
 function qpItems(lines, calc, ctx) {
