@@ -139,7 +139,7 @@ function qpScope(lines) {
   const ls = [].concat(...QM.SCOPE.map(c => lines[c] || []));
   if (!ls.length) return '';
   return '<div class="qp-scope"><div class="qp-sct"><span class="qp-tick"></span>Customer scope · charged extra</div>'
-    + '<div class="qp-scs">Needed for safe access to the panels on this roof. Not included in the plant price; charged extra as per site measurement.</div>'
+    + '<div class="qp-scs">Not included in the plant price. Charged extra as per site measurement.</div>'
     + ls.map(l => { const q = QM.qtyText(l);
       return `<div class="qp-scr"><div class="qp-it"><div class="qp-nm">${esc(l.name)}</div>${qpPic(l)}</div><div><div class="qp-ln">${esc(l.line)}</div>${l.details ? `<div class="qp-dt">${esc(l.details)}</div>` : ''}</div>`
         + `<div class="qp-qt"><b>${esc(q.main)}</b>${q.note ? `<span>${esc(q.note)}</span>` : ''}</div></div>`; }).join('') + '</div>';

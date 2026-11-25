@@ -325,7 +325,7 @@ function qm_seed(PDO $db): void {
 /* Products added after the first seed. qm_seed() only fills an empty catalogue, so these go into every database once
    (unique code, INSERT OR IGNORE), after the last product of their category; settings qm_added_rev remembers it,
    so an admin's later edits or Hide are kept. Add a product here = add a row and bump QM_ADDED_REV. */
-const QM_ADDED_REV = 7;
+const QM_ADDED_REV = 8;
 function qm_added(): array {
   $w = fn($years, $label) => ['years' => (string)$years, 'label' => $label];
   $panelW = [$w(12, 'Panels product'), $w(30, 'Panels performance')];
@@ -409,6 +409,11 @@ function qm_added(): array {
         'brands' => [['label' => '', 'logos' => ['assets/quote/logo-sungrow.png']]]]], [3, 4, 5, 6]),
     /* Rev 7 (owner, 2026-11-25): "Additional structure" for a sheet roof: walkway / ladder / sliding door, customer scope, charged extra.
        No rate, picture or warranty: the quotation lists them in the customer-scope box without an amount (owner chose "No amount"). */
+    /* Rev 8 (owner, 2026-11-25: "yes, add it"): the elevated GI structure itself as a customer-scope line, first in the tab (qm_fix rev 4 on older catalogues).
+       GI that is not hot-dip galvanised is not among the MMS materials MNRE allows (OM No. 318/61/2025-GCRT-Part(2), 19.05.2026), as the sheet-roof page says. */
+    ['as-elev-gi', 'Elevated GI structure (sheet roof)', 'addstr', 'Elevated GI structure', 'A GI frame that holds the panels about 1 m above the roof sheets.',
+      'GI (galvanised iron, not hot-dip galvanised) frame on legs fixed to the roof purlins, about 1 m above the sheets. Not among the module mounting structure materials recommended by MNRE. Size as per site.',
+      ['unit' => 'set', 'qty' => 1, 'picture' => 'assets/quote/pic-elevated.png', 'page' => 'assets/quote/page-sheetroof.jpg']],
     ['as-walkway', 'Walkway (sheet roof)', 'addstr', 'Walkway', 'A safe path on the sheet roof, so the panels can be reached and cleaned without stepping on the sheets.',
       'GI walkway along the panel rows, fixed to the roof purlins. Length as per site.', ['unit' => 'As required', 'qty' => 0, 'picture' => 'assets/quote/pic-walkway.png', 'page' => 'assets/quote/page-sheetroof.jpg']],
     ['as-ladder', 'Ladder (sheet roof)', 'addstr', 'Ladder', 'A fixed ladder to climb safely onto the sheet roof for cleaning and service.',
@@ -437,7 +442,7 @@ function qm_add_new(PDO $db): void {
 /* Changes to products that are ALREADY in a catalogue (qm_added() only inserts new ones). Runs from qm boot; each rev runs once per
    database (settings qm_fix_rev) and only adds what is missing, so an admin's own edits stay. Add a fix = a new `if ($have < N)`
    block and bump QM_FIX_REV. Saved quotations keep printing what they were saved with (their snapshot). */
-const QM_FIX_REV = 3;
+const QM_FIX_REV = 4;
 function qm_fix(PDO $db): void {
   $r = $db->query("SELECT v FROM settings WHERE k='qm_fix_rev'")->fetchColumn();
   $have = $r === false ? 0 : (int)json_decode((string)$r, true);
@@ -465,6 +470,10 @@ function qm_fix(PDO $db): void {
     if ($have < 3) { /* rev 3 (owner, 2026-11-25): the sheet-roof page (tools/qm_sheetroof_page.js) prints last when an Additional structure item is in the quote; only where no page is set */
       $put = $db->prepare("UPDATE qm_products SET page='assets/quote/page-sheetroof.jpg' WHERE code IN ('as-walkway','as-ladder','as-door') AND COALESCE(page,'')=''");
       $put->execute();
+    }
+    if ($have < 4) { /* rev 4: the elevated GI structure (added by qm_added rev 8 at the end of the tab) moves to the front of Additional structure */
+      $min = $db->query("SELECT MIN(sort) FROM qm_products WHERE cat='addstr' AND code<>'as-elev-gi'")->fetchColumn();
+      if ($min !== false && $min !== null) $db->prepare("UPDATE qm_products SET sort=? WHERE code='as-elev-gi' AND sort>?")->execute([(int)$min - 1, (int)$min - 1]);
     }
     $db->prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v')->execute(['qm_fix_rev', json_encode(QM_FIX_REV)]);
     $db->commit();

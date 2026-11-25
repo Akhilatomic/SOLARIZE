@@ -112,10 +112,10 @@ $ck = array_column($boot['cats'] ?? [], 0);
 chk(array_search('addstr', $ck, true) === array_search('structure', $ck, true) + 1 && ($boot['cats'][array_search('addstr', $ck, true)][1] ?? '') === 'Additional structure', 'Additional structure tab right after Mounting structure');
 $as = array_values(array_filter($boot['products'] ?? [], fn($p) => $p['cat'] === 'addstr'));
 usort($as, fn($x, $y) => $x['sort'] <=> $y['sort'] ?: $x['id'] <=> $y['id']);
-chk(array_column($as, 'code') === ['as-walkway', 'as-ladder', 'as-door'] && array_column($as, 'name') === ['Walkway', 'Ladder', 'Sliding door']
+chk(array_column($as, 'code') === ['as-elev-gi', 'as-walkway', 'as-ladder', 'as-door'] && array_column($as, 'name') === ['Elevated GI structure', 'Walkway', 'Ladder', 'Sliding door']
   && !array_filter($as, fn($p) => $p['is_default'] || $p['hidden'] || $p['warranty']), 'rev 7: walkway, ladder and sliding door under Additional structure (not default, no warranty)');
 chk(array_unique(array_column($as, 'page')) === ['assets/quote/page-sheetroof.jpg'] && is_file(__DIR__ . '/../assets/quote/page-sheetroof.jpg'), 'Additional structure items carry the sheet-roof page');
-chk(array_column($as, 'picture') === ['assets/quote/pic-walkway.png', 'assets/quote/pic-ladder.png', 'assets/quote/pic-door.png']
+chk(array_column($as, 'picture') === ['assets/quote/pic-elevated.png', 'assets/quote/pic-walkway.png', 'assets/quote/pic-ladder.png', 'assets/quote/pic-door.png']
   && !array_filter($as, fn($p) => !is_file(__DIR__ . '/../' . $p['picture'])), 'Additional structure items have their pictures');
 if ($dbPath && is_file($dbPath)) { /* a catalogue that got the rev 7 products before they had pictures (the live site): qm_fix rev 2 adds them, an admin's own picture stays */
   $pdo = new PDO('sqlite:' . $dbPath);
@@ -127,6 +127,14 @@ if ($dbPath && is_file($dbPath)) { /* a catalogue that got the rev 7 products be
   chk(($byCode($b5, 'as-walkway')[0]['page'] ?? '') === 'assets/quote/page-sheetroof.jpg' && ($byCode($b5, 'as-ladder')[0]['page'] ?? '') === 'assets/quote/page-sheetroof.jpg'
     && ($byCode($b5, 'as-door')[0]['page'] ?? '') === 'qm-89abcdef0123456789abcdef.jpg', 'older catalogue: sheet-roof page added where empty, own page kept');
   $pdo = new PDO('sqlite:' . $dbPath); $pdo->exec("UPDATE qm_products SET picture='assets/quote/pic-door.png', page='assets/quote/page-sheetroof.jpg' WHERE code='as-door'"); $pdo = null;
+  /* a catalogue from before rev 8 (the live site): the elevated GI structure is added once, then moved to the front of the tab */
+  $pdo = new PDO('sqlite:' . $dbPath);
+  $pdo->exec("DELETE FROM qm_products WHERE code='as-elev-gi'"); $pdo->exec("UPDATE settings SET v='7' WHERE k='qm_added_rev'"); $pdo->exec("UPDATE settings SET v='3' WHERE k='qm_fix_rev'"); $pdo = null;
+  $b6 = call($admin, 'qm', 'boot');
+  $as6 = array_values(array_filter($b6['products'] ?? [], fn($p) => $p['cat'] === 'addstr'));
+  usort($as6, fn($x, $y) => $x['sort'] <=> $y['sort'] ?: $x['id'] <=> $y['id']);
+  chk(array_column($as6, 'code') === ['as-elev-gi', 'as-walkway', 'as-ladder', 'as-door'] && count($byCode($b6, 'as-elev-gi')) === 1
+    && ($byCode($b6, 'as-elev-gi')[0]['page'] ?? '') === 'assets/quote/page-sheetroof.jpg', 'older catalogue: elevated GI structure added once, first in Additional structure');
 }
 chk(($boot['settings']['kseb']['reg_per_kw'] ?? 0) === 1000 && ($boot['settings']['loan']['rate'] ?? 0) == 6.0, 'defaults');
 chk(($boot['settings']['kseb']['reg_gst'] ?? null) === 18 && ($boot['settings']['kseb']['reg_label'] ?? '') === 'Registration fee (₹1,000 per kW + 18% GST, 80% refundable)', 'registration fee carries 18% GST by default');
