@@ -69,7 +69,11 @@ test('customer scope (Additional structure): own category after the mounting str
   assert.deepEqual(QM.qtyText(lines.addstr[0]), { main: 'As required', note: '' });
   assert.deepEqual(QM.qtyText(Object.assign({}, lines.addstr[0], { qty: 1 })), { main: 'As required', note: '' }, 'never "1 As required"');
   assert.deepEqual(c.warranties, c0.warranties, 'no warranty box for customer-scope items');
-  assert.deepEqual(c.pages.feature, c0.pages.feature, 'no feature page for customer-scope items');
+  assert.deepEqual(c.pages.feature, c0.pages.feature.concat(['assets/quote/page-x.jpg']), 'a customer-scope page prints after the other pages');
+  const P2 = P.concat([{ id: 902, cat: 'addstr', name: 'Ladder', line: '', unit: 'no', qty: 1, page: 'assets/quote/page-x.jpg' }, { id: 903, cat: 'structure', name: 'Frame', line: '', unit: 'set', qty: 1, page: 'assets/quote/page-x.jpg' }]);
+  const s2 = Object.assign({}, setup, { items: Object.assign({}, setup.items, { addstr: [{ pid: 901 }, { pid: 902 }], structure: (setup.items.structure || []).concat([{ pid: 903 }]) }) });
+  const f2 = QM.calc(s2, QM.resolve(s2, P2), SET, R).pages.feature;
+  assert.equal(f2[f2.length - 1], 'assets/quote/page-x.jpg'); assert.equal(f2.filter(x => x === 'assets/quote/page-x.jpg').length, 1, 'once, and last, even when an item of our own supply carries the same page');
   assert.deepEqual([c.net, c.subsidy, c.loan.loan, c.plantKw, c.dcKwp], [c0.net, c0.subsidy, c0.loan.loan, c0.plantKw, c0.dcKwp], 'price, subsidy and loan unchanged');
 });
 

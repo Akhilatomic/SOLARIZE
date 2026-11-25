@@ -410,11 +410,11 @@ function qm_added(): array {
     /* Rev 7 (owner, 2026-11-25): "Additional structure" for a sheet roof: walkway / ladder / sliding door, customer scope, charged extra.
        No rate, picture or warranty: the quotation lists them in the customer-scope box without an amount (owner chose "No amount"). */
     ['as-walkway', 'Walkway (sheet roof)', 'addstr', 'Walkway', 'A safe path on the sheet roof, so the panels can be reached and cleaned without stepping on the sheets.',
-      'GI walkway along the panel rows, fixed to the roof purlins. Length as per site.', ['unit' => 'As required', 'qty' => 0, 'picture' => 'assets/quote/pic-walkway.png']],
+      'GI walkway along the panel rows, fixed to the roof purlins. Length as per site.', ['unit' => 'As required', 'qty' => 0, 'picture' => 'assets/quote/pic-walkway.png', 'page' => 'assets/quote/page-sheetroof.jpg']],
     ['as-ladder', 'Ladder (sheet roof)', 'addstr', 'Ladder', 'A fixed ladder to climb safely onto the sheet roof for cleaning and service.',
-      'GI fixed ladder up to the roof. Height as per site.', ['unit' => 'no', 'qty' => 1, 'picture' => 'assets/quote/pic-ladder.png']],
+      'GI fixed ladder up to the roof. Height as per site.', ['unit' => 'no', 'qty' => 1, 'picture' => 'assets/quote/pic-ladder.png', 'page' => 'assets/quote/page-sheetroof.jpg']],
     ['as-door', 'Sliding door (sheet roof)', 'addstr', 'Sliding door', 'A sliding opening in the roof sheets, to get onto the roof for cleaning and service.',
-      'GI-framed sliding door in the roof sheets. Size as per site.', ['unit' => 'no', 'qty' => 1, 'picture' => 'assets/quote/pic-door.png']],
+      'GI-framed sliding door in the roof sheets. Size as per site.', ['unit' => 'no', 'qty' => 1, 'picture' => 'assets/quote/pic-door.png', 'page' => 'assets/quote/page-sheetroof.jpg']],
   ];
 }
 function qm_add_new(PDO $db): void {
@@ -437,7 +437,7 @@ function qm_add_new(PDO $db): void {
 /* Changes to products that are ALREADY in a catalogue (qm_added() only inserts new ones). Runs from qm boot; each rev runs once per
    database (settings qm_fix_rev) and only adds what is missing, so an admin's own edits stay. Add a fix = a new `if ($have < N)`
    block and bump QM_FIX_REV. Saved quotations keep printing what they were saved with (their snapshot). */
-const QM_FIX_REV = 2;
+const QM_FIX_REV = 3;
 function qm_fix(PDO $db): void {
   $r = $db->query("SELECT v FROM settings WHERE k='qm_fix_rev'")->fetchColumn();
   $have = $r === false ? 0 : (int)json_decode((string)$r, true);
@@ -461,6 +461,10 @@ function qm_fix(PDO $db): void {
     if ($have < 2) { /* rev 2 (owner, 2026-11-25: "add representing images like other items"): pictures for the Additional structure items, only where none is set */
       $put = $db->prepare("UPDATE qm_products SET picture=? WHERE code=? AND COALESCE(picture,'')=''");
       foreach (['as-walkway' => 'walkway', 'as-ladder' => 'ladder', 'as-door' => 'door'] as $code => $pic) $put->execute(["assets/quote/pic-$pic.png", $code]);
+    }
+    if ($have < 3) { /* rev 3 (owner, 2026-11-25): the sheet-roof page (tools/qm_sheetroof_page.js) prints last when an Additional structure item is in the quote; only where no page is set */
+      $put = $db->prepare("UPDATE qm_products SET page='assets/quote/page-sheetroof.jpg' WHERE code IN ('as-walkway','as-ladder','as-door') AND COALESCE(page,'')=''");
+      $put->execute();
     }
     $db->prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v')->execute(['qm_fix_rev', json_encode(QM_FIX_REV)]);
     $db->commit();

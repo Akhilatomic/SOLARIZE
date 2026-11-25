@@ -132,14 +132,19 @@ var QM = (function () {
       };
     }
 
-    var warranties = [], feature = [];
+    var warranties = [], feature = [], scopePages = [];
     Q.CATS.forEach(function (cat) {
-      if (Q.SCOPE.indexOf(cat) >= 0) return; /* customer scope: not our supply, no warranty box or feature page */
+      if (Q.SCOPE.indexOf(cat) >= 0) { /* customer scope: not our supply, no warranty box; its full-page picture prints LAST (owner,
+        2026-11-25: the sheet-roof page "as the final page if the additional structure is selected") */
+        (lines[cat] || []).forEach(function (l) { if (l.page && scopePages.indexOf(l.page) < 0) scopePages.push(l.page); });
+        return;
+      }
       (lines[cat] || []).forEach(function (l) {
         (l.warranty || []).forEach(function (w) { warranties.push({ years: str(w.years), label: w.label }); });
         if (l.page && feature.indexOf(l.page) < 0) feature.push(l.page);
       });
     });
+    scopePages.forEach(function (p) { var i = feature.indexOf(p); if (i >= 0) feature.splice(i, 1); feature.push(p); });
 
     var phase = isThree(firstOf(lines, 'meter')) || (!firstOf(lines, 'meter') && isThree(inv)) ? 'three-phase' : 'single-phase';
 
