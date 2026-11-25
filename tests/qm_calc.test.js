@@ -23,7 +23,7 @@ const PRODUCTS = [
   P(9, 'parts', 'Other electrical parts', { qty: 0, unit: 'As required', qty_note: 'measured on site' }),
   P(10, 'earthing', 'Earthing', { qty: 3, unit: 'earth pits' }),
   P(11, 'la', 'Lightning arrester'),
-  P(12, 'structure', 'Mounting structure', { unit: 'set', page: 'assets/quote/page-stormshield.jpg' }),
+  P(12, 'structure', 'Mounting structure', { unit: 'set', details: 'Hot-dip galvanised (HDG) steel structure, for a concrete roof.', page: 'assets/quote/page-stormshield.jpg' }),
   P(13, 'install', 'Installation', { unit: 'plant' }),
   P(20, 'panels', 'Solar panels', { wp: 550, qty: 10, details: 'ReNew RPS2MH72BD DCR, 550 Wp', warranty: [w(12, 'Panels product'), w(30, 'Panels performance')] }),
   P(21, 'inverter', 'Micro inverters', { title: 'Deye Micro Inverter', kw: 5, kw_line: 1, qty: 3, qty_note: '5 kW · 3-phase', warranty: [w(10, 'Deye micro inverters')] }),
@@ -82,6 +82,21 @@ test('customer scope (Additional structure): own category after the mounting str
   const s4 = Object.assign({}, setup, { items: Object.assign({}, setup.items, { addstr: [{ pid: null, qty: 1, custom: { name: 'Railing', line: 'x', unit: 'no' } }] }) });
   assert.deepEqual(QM.calc(s4, QM.resolve(s4, P), SET, R).pages.feature, [], 'a typed own line under Additional structure also makes it a sheet-roof quotation');
   assert.deepEqual([c.net, c.subsidy, c.loan.loan, c.plantKw, c.dcKwp], [c0.net, c0.subsidy, c0.loan.loan, c0.plantKw, c0.dcKwp], 'price, subsidy and loan unchanged');
+});
+
+test('StormShield page: only with a hot-dip (HDG) structure, never with a welded GI one', () => {
+  const S = 'assets/quote/page-stormshield.jpg';
+  const P5 = PRODUCTS.concat([
+    { id: 951, code: 'str-gi', cat: 'structure', name: 'Mounting structure', line: '', details: 'GI (galvanised iron) structure, spot welded, for a concrete roof.', unit: 'set', qty: 1, page: S },
+    { id: 952, code: 'str-hdg', cat: 'structure', name: 'Mounting structure', line: '', details: 'Steel structure.', unit: 'set', qty: 1, page: S },
+  ]);
+  const withStr = pid => Object.assign({}, SETUP2, { items: Object.assign({}, SETUP2.items, { structure: [{ pid }] }) });
+  const pages = pid => QM.calc(withStr(pid), QM.resolve(withStr(pid), P5), SET, R).pages.feature;
+  assert.deepEqual(pages(12), [S], 'HDG wording: StormShield prints');
+  assert.deepEqual(pages(951), [], 'welded GI structure: no StormShield, even when the page is attached to it');
+  assert.deepEqual(pages(952), [S], 'the HDG product (str-hdg) keeps it even when its words are changed');
+  const over = Object.assign({}, SETUP2, { items: Object.assign({}, SETUP2.items, { structure: [{ pid: 12, over: { details: 'GI spot welded frame.' } }] }) });
+  assert.deepEqual(QM.calc(over, QM.resolve(over, P5), SET, R).pages.feature, [], 'reworded to a welded structure for this quote: no StormShield');
 });
 
 test('emi', () => {

@@ -10,6 +10,7 @@ var QM = (function () {
   /* main equipment rows = the big brand logos (main1 / main2). Optimisers count too, so a SolarEdge optimiser row shows the same logo size
      as the SolarEdge inverter row next to it (owner, 2026-11-25: "why the SolarEdge logo is different in size") */
   Q.MAIN = ['panels', 'optimiser', 'inverter'];
+  Q.HDG_PAGE = 'assets/quote/page-stormshield.jpg';
 
   var num = function (v, d) { v = Number(v); return isFinite(v) ? v : (d || 0); };
   var r1 = function (x) { return Math.round(x * 10) / 10; };
@@ -136,6 +137,9 @@ var QM = (function () {
     /* a quotation with customer-scope lines (Additional structure) is a sheet-roof quotation: the full-page pictures of the Mounting
        structure lines (StormShield, a concrete-roof structure) are left out (owner, 2026-11-25: "remove stormshield page for sheet roof quotes") */
     var sheetRoof = Q.SCOPE.some(function (c) { return (lines[c] || []).length > 0; });
+    /* StormShield (Q.HDG_PAGE) is the hot-dip galvanised structure's page: it prints only with a hot-dip line (the HDG product, or wording
+       that says hot-dip / HDG), never with a welded or other GI structure (owner, 2026-11-25: "only for hot dip structure") */
+    var hotDip = function (l) { return l.code === 'str-hdg' || /hot[- ]?dip|\bHDG\b/i.test([l.name, l.line, l.details].join(' ')); };
     Q.CATS.forEach(function (cat) {
       if (Q.SCOPE.indexOf(cat) >= 0) { /* customer scope: not our supply, no warranty box; its full-page picture prints LAST (owner,
         2026-11-25: the sheet-roof page "as the final page if the additional structure is selected") */
@@ -144,7 +148,7 @@ var QM = (function () {
       }
       (lines[cat] || []).forEach(function (l) {
         (l.warranty || []).forEach(function (w) { warranties.push({ years: str(w.years), label: w.label }); });
-        if (l.page && !(sheetRoof && cat === 'structure') && feature.indexOf(l.page) < 0) feature.push(l.page);
+        if (l.page && !(sheetRoof && cat === 'structure') && !(l.page === Q.HDG_PAGE && !hotDip(l)) && feature.indexOf(l.page) < 0) feature.push(l.page);
       });
     });
     scopePages.forEach(function (p) { var i = feature.indexOf(p); if (i >= 0) feature.splice(i, 1); feature.push(p); });
