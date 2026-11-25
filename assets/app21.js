@@ -134,7 +134,7 @@ function qpRow(n, l, calc, main) {
 }
 function qpItems(lines, calc, ctx) {
   let n = 0;
-  const rows = qpCats(lines).map(cat => (lines[cat] || []).map(l => qpRow(++n, l, calc, cat === 'panels' || cat === 'inverter')).join('')).join('');
+  const rows = qpCats(lines).map(cat => (lines[cat] || []).map(l => qpRow(++n, l, calc, QM.MAIN.indexOf(cat) >= 0)).join('')).join('');
   return qpPage('qp-items', ctx, qpHead(ctx)
     + qpH1('What is included in your plant<span class="qp-contd">(continued)</span>', 'Every item has a picture, a simple explanation, the brand and the quantity.')
     + `<table class="qp-tb" data-nofit="1"><thead><tr><th>#</th><th>Item</th><th>What it is</th><th>Brand</th><th>Qty</th></tr></thead><tbody>${rows}</tbody></table>`

@@ -277,4 +277,5 @@ test('logoSize: panel and inverter logos share one look and grow; other logos gr
   assert.equal(QM.logoPlace(false, true, 3, false), 'labn', 'three logos after a label');
   assert.equal(QM.logoPlace(false, false, 3, false), 'three', 'three unlabelled logos (cables)');
   assert.equal(QM.logoPlace(false, false, 4, false), '', 'four or more unlabelled logos on a line keep the CSS caps');
+  assert.deepEqual(QM.MAIN, ['panels', 'optimiser', 'inverter'], 'optimiser rows get the same big logo as the inverter row (same SolarEdge logo size)');
 });

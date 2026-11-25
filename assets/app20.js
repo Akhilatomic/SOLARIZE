@@ -4,6 +4,9 @@ var QM = (function () {
   Q.CATS = ['panels', 'inverter', 'optimiser', 'acdb', 'dcdb', 'dccable', 'accable', 'isolator', 'meter', 'parts', 'earthing', 'la', 'structure', 'install'];
   /* printed row order: optimisers come before the inverter, as in the SolarEdge quotations (warranty boxes keep CATS order) */
   Q.ROWS = ['panels', 'optimiser', 'inverter'].concat(Q.CATS.slice(3));
+  /* main equipment rows = the big brand logos (main1 / main2). Optimisers count too, so a SolarEdge optimiser row shows the same logo size
+     as the SolarEdge inverter row next to it (owner, 2026-11-25: "why the SolarEdge logo is different in size") */
+  Q.MAIN = ['panels', 'optimiser', 'inverter'];
 
   var num = function (v, d) { v = Number(v); return isFinite(v) ? v : (d || 0); };
   var r1 = function (x) { return Math.round(x * 10) / 10; };
