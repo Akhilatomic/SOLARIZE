@@ -137,7 +137,7 @@ async function qmkUseTpl(id) {
   if ((QMK.touched || QMK.id) && !await ask(`Use the template “${t.name}”?\n\nIts components, price and texts replace the ones on this quotation. The customer and quote details stay.`)) { sel.value = QMK.tpl ? String(QMK.tpl) : ''; return; }
   const d = QMK.doc, data = qmkObj(qmkCopy(t.data)), next = qmkBlank();
   QMK_TPL.forEach(k => { if (data[k] !== undefined) next[k] = data[k]; });
-  QMK.doc = qmkNorm(Object.assign(next, { template_id: t.id, customer: d.customer, number: d.number, date: d.date, valid_days: d.valid_days, sales: d.sales, seal: !!d.seal, cover: !!d.cover }));
+  QMK.doc = qmkNorm(Object.assign(next, { template_id: t.id, customer: d.customer, number: d.number, date: d.date, valid_days: d.valid_days, sales: d.sales, seal: !!d.seal, cover: d.cover || false }));
   QMK.tpl = t.id; QMK.snapOld = false;
   qmkChanged(false, true); QMK.touched = false;
   qmkTplBtns(); qmkTab(QMK.tab);
@@ -239,18 +239,28 @@ function qmkEdHead() {
   return `<section class="qm-sec" data-pv=".qp-title"><h3>Quotation heading</h3><div class="two">${QMK_HEAD.map(([k, l]) => `<div class="full"><label for="qmh_${k}">${esc(l)}</label>
     <input id="qmh_${k}" data-h="${k}" maxlength="${k === 'pill' ? 60 : 120}" value="${esc(qmkHeadCustom(k, D[k]) ? QMK.doc[k] : D[k])}"><small class="qm-hint" id="qmhh_${k}">${qmkHeadHint(k, D[k])}</small></div>`).join('')}</div></section>`;
 }
+/* Cover page menu (owner, 2026-11-25: "create a menu to select cover page"): a card with a thumbnail per cover in QM.COVERS, plus
+   "No cover page" (the default). A tap chooses it (doc.cover) and the preview goes to page 1. */
+function qmkEdCovers() {
+  const cur = (QM.coverOf(QMK.doc) || {}).k || '';
+  const card = (k, img, name, sub) => `<button type="button" class="qm-cv${cur === k ? ' on' : ''}" data-a="cov" data-k="${esc(k)}" aria-pressed="${cur === k}">`
+    + `<span class="qm-cvp${img ? '' : ' qm-cvn'}">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : '<i class="i i-x"></i>'}</span>`
+    + `<b>${esc(name)}</b><small>${esc(sub)}</small><span class="qm-ck"><i class="i i-check"></i></span></button>`;
+  return `<section class="qm-sec" data-pv=".qp"><h3>Cover page</h3><div class="qm-cvs" role="group" aria-label="Cover page">`
+    + card('', '', 'No cover page', 'Start with the details page') + QM.COVERS.map(c => card(c.k, c.thumb, c.name, c.sub)).join('')
+    + '</div><p class="qm-hint">A picture page before page 1, with the customer and quote details filled in.</p></section>';
+}
 function qmkEdCustomer() {
   const d = QMK.doc, co = qmkSt().company || {}, so = qmkSt().signoff || {}, has = QMK.cust.customer_id || QMK.cust.lead_id, pick = !has || QMK.picking;
   const f = (k, l, o = {}) => `<div class="${o.full ? 'full' : ''}"><label>${esc(l)}</label>${o.ta ? `<textarea rows="2" data-f="${k}">${esc(qmkGet(d, k))}</textarea>`
     : `<input data-f="${k}" type="${o.t || 'text'}" value="${esc(qmkGet(d, k))}"${o.ph ? ` placeholder="${esc(o.ph)}"` : ''}${o.t === 'number' ? ' min="1" step="1"' : ''}>`}</div>`;
-  return `${qmkEdHead()}<section class="qm-sec"><h3>Customer</h3>${has ? qmkWhoHtml() : ''}
+  return `${qmkEdCovers()}${qmkEdHead()}<section class="qm-sec"><h3>Customer</h3>${has ? qmkWhoHtml() : ''}
     ${pick ? `<div class="qm-find"><i class="i i-search"></i><input id="qmcq" placeholder="Search customers and leads by name or phone" autocomplete="off" aria-label="Search customers and leads">${has ? '<button type="button" class="btn sec sm" data-a="whox">Cancel</button>' : ''}<div class="qm-res" id="qmres"></div></div>` : ''}
     <div class="two">${f('customer.name', 'Name')}${f('customer.mobile', 'Mobile')}${f('customer.email', 'Email')}${f('customer.consumer_no', 'Consumer number')}${f('customer.address', 'Address', { full: 1, ta: 1 })}</div>
     <p class="qm-hint">Changes here only change this quotation, not the customer record.</p></section>
    <section class="qm-sec"><h3>Quote details</h3><div class="two">
     <div><label>Quote number</label><input value="${esc(d.number || QMK.boot.next_number)}" readonly>${d.number ? '' : '<small class="qm-hint">The next free number, given when you save</small>'}</div>
     ${f('date', 'Date', { t: 'date' })}${f('valid_days', 'Valid for (days)', { t: 'number' })}${f('sales.name', 'Sales / engineer')}${f('sales.phone', 'Phone', { ph: co.phone })}${f('sales.email', 'Email', { ph: co.email })}</div>
-    <label class="qm-sw"><input type="checkbox" id="qmcover" ${d.cover ? 'checked' : ''}><span>Add the cover page (a picture page before page 1, with the customer and quote details)</span></label>
     ${QMK.boot.admin ? `<label class="qm-sw"><input type="checkbox" id="qmseal" ${d.seal ? 'checked' : ''}${so.sign || so.seal || d.seal ? '' : ' disabled'}><span>Add the company seal and signature (on the first page, over “authorised signatory”)</span></label>
     ${so.sign || so.seal ? '' : '<p class="qm-hint">Upload the seal and signature first: gear button › Quotation settings › Seal and signature.</p>'}` : ''}</section>`; /* seal and signature: admin only (the server sends nobody else the pictures) */
 }
@@ -664,7 +674,6 @@ function qmkOnChange(e) {
   if (t.id === 'qmtpl') qmkUseTpl(t.value);
   else if (t.id === 'qmst') { QMK.status = t.value; qmkChanged(false); }
   else if (t.id === 'qmloan') { QMK.doc.loan = t.checked; qmkChanged(true); if (t.checked) setTimeout(() => qmkPvShow($('#qmpages .qp-loan')), 450); }
-  else if (t.id === 'qmcover') { QMK.doc.cover = t.checked; qmkChanged(false); setTimeout(() => qmkPvShow($('#qmpages .qp')), 450); }
   else if (t.id === 'qmseal') { QMK.doc.seal = t.checked; qmkChanged(false); setTimeout(() => qmkPvShow($('#qmpages .qp-sign')), 450); }
 }
 function qmkOnBlur(e) {
@@ -701,6 +710,7 @@ function qmkOnClick(e) {
   }
   if (a === 'dq') { const [c, i, s] = k.split('|'), it = (d.items[c] || [])[i]; if (!it) return; const inp = $(`[data-l="${c}|${i}|qty"]`); qmkQty(c, +i, Math.max(0, (inp ? qmkNum(inp.value) : +it.qty || 0) + +s), null); if (inp) inp.value = it.qty; return; }
   if (a === 'add') return qmkAdd(k, b);
+  if (a === 'cov') { QMK.doc.cover = k || false; qmkChanged(false); qmkTab('customer'); setTimeout(() => qmkPvShow($('#qmpages .qp')), 450); return; }
   if (a === 'rstd') { d[k] = null; qmkChanged(true); return qmkTab('price'); }
   if (a === 'radd' || a === 'rrm') {
     const [key, i] = k.split('|'), rows = qmkRowsOf(key, qmkCalc().calc);

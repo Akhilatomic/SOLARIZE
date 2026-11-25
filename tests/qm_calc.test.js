@@ -111,6 +111,15 @@ test('StormShield page: only with a hot-dip (HDG) structure, never with a welded
   assert.deepEqual(QM.calc(over, QM.resolve(over, P5), SET, R).pages.feature, [], 'reworded to a welded structure for this quote: no StormShield');
 });
 
+test('cover pages: the list, and the cover a quotation prints with', () => {
+  assert.deepEqual(QM.COVERS.map(c => c.k), ['ongrid', 'hybrid']);
+  assert.ok(QM.COVERS.every(c => /^assets\/quote\/page-front[\w-]*\.jpg$/.test(c.pic) && /^assets\/quote\/thumb-front[\w-]*\.jpg$/.test(c.thumb) && c.name && c.sub && c.kind));
+  assert.ok(QM.COVERS.every(c => [c.pic, c.thumb].every(f => require('fs').existsSync(require('path').join(__dirname, '..', f)))), 'every cover picture and thumbnail is in the repo');
+  assert.equal(QM.coverOf({ cover: true }).k, 'ongrid', 'saved with the first tick box: the on-grid cover');
+  assert.equal(QM.coverOf({ cover: 'hybrid' }).kind, 'hybrid');
+  for (const d of [{}, { cover: false }, { cover: '' }, { cover: 'nope' }, null]) assert.equal(QM.coverOf(d), null);
+});
+
 test('emi', () => {
   assert.equal(QM.emi(153000, 6, 60), 2958); assert.equal(QM.emi(85800, 6, 60), 1659);
   assert.equal(QM.emi(153000, 6, 84), 2235); assert.equal(QM.emi(85800, 6, 84), 1253);

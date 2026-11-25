@@ -17,6 +17,14 @@ var QM = (function () {
      as the SolarEdge inverter row next to it (owner, 2026-11-25: "why the SolarEdge logo is different in size") */
   Q.MAIN = ['panels', 'optimiser', 'inverter'];
   Q.HDG_PAGE = 'assets/quote/page-stormshield.jpg';
+  /* cover pages to choose from on the Customer tab (doc.cover = key; owner, 2026-11-25: "add option to select cover page from the list").
+     The pictures are built from tools/qm_front; `kind` is printed after the plant size. A quotation saved with the first tick box has
+     cover: true, which means the on-grid one. */
+  Q.COVERS = [
+    { k: 'ongrid', name: 'On-grid', sub: 'With solar vs coal power', pic: 'assets/quote/page-front.jpg', thumb: 'assets/quote/thumb-front.jpg', kind: 'on-grid' },
+    { k: 'hybrid', name: 'Hybrid', sub: 'Lights on in a power cut', pic: 'assets/quote/page-front-hybrid.jpg', thumb: 'assets/quote/thumb-front-hybrid.jpg', kind: 'hybrid' },
+  ];
+  Q.coverOf = function (doc) { var k = doc && doc.cover === true ? 'ongrid' : doc && doc.cover; return Q.COVERS.filter(function (c) { return c.k === k; })[0] || null; };
 
   var num = function (v, d) { v = Number(v); return isFinite(v) ? v : (d || 0); };
   var r1 = function (x) { return Math.round(x * 10) / 10; };

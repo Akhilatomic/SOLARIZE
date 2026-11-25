@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- Hybrid quotation cover picture (assets/quote/page-front-hybrid.jpg, top 905 px of the A4 page; the details band is HTML from
+     qpFront() in assets/app21.js). Owner, 2026-11-25: the one home with solar + battery that stays lit in a power cut.
+     Photo (Pexels licence, free for commercial use, no credit needed): hybrid.jpg = https://www.pexels.com/photo/cars-parked-near-residential-houses-at-night-5980607/
+     Rebuild as front.html: --window-size=794,905 --force-device-scale-factor=2.0831, JPEG ~86 over assets/quote/page-front-hybrid.jpg. -->
+<html><head><meta charset="utf-8"><style>
+@font-face{font-family:IS;src:url(../../assets/fonts/InstrumentSerif-Regular.ttf)}
+@font-face{font-family:IS;font-style:italic;src:url(../../assets/fonts/InstrumentSerif-Italic.ttf)}
+@font-face{font-family:ISans;font-weight:400;src:url(../../assets/fonts/InstrumentSans-Regular.ttf)}
+@font-face{font-family:ISans;font-weight:700;src:url(../../assets/fonts/InstrumentSans-Bold.ttf)}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:794px;height:905px;overflow:hidden;background:#FBFAF7}
+.pg{position:relative;width:794px;height:905px;overflow:hidden;font-family:ISans,sans-serif;color:#1E2638;background:#FBFAF7}
+.ph{position:absolute;left:0;top:0;width:794px;height:905px;background:url(hybrid.jpg) 36.8% 0/1560px auto no-repeat;filter:saturate(1.05) contrast(1.05)}
+.shade{position:absolute;left:0;top:0;width:794px;height:460px;background:linear-gradient(180deg,rgba(4,8,20,.72) 0%,rgba(4,8,20,.42) 55%,rgba(4,8,20,0) 100%)}
+.vig{position:absolute;left:0;top:0;width:794px;height:905px;background:radial-gradient(ellipse 62% 48% at 50% 46%,rgba(4,8,20,0) 0%,rgba(4,8,20,0) 45%,rgba(4,8,20,.5) 100%)}
+.foot{position:absolute;left:0;top:740px;width:794px;height:165px;background:linear-gradient(180deg,rgba(4,8,20,0) 0%,rgba(4,8,20,.55) 100%)}
+.hd{position:absolute;left:46px;top:52px;width:460px;color:#fff}
+.k{font-size:10px;font-weight:700;letter-spacing:.26em;opacity:.92}
+h1{font-family:IS;font-weight:400;font-size:54px;line-height:53px;margin-top:16px;letter-spacing:-.005em;text-shadow:0 2px 16px rgba(0,0,0,.45)}
+h1 em{font-style:italic;color:#FFD27A}
+.sub{font-size:12.8px;line-height:19px;margin-top:16px;width:320px;text-shadow:0 1px 8px rgba(0,0,0,.5)}
+.logo{position:absolute;right:40px;top:40px;width:78px;height:78px;filter:drop-shadow(0 2px 10px rgba(0,0,0,.45))}
+.lb{position:absolute;left:46px;top:862px;font-size:9.6px;font-weight:700;letter-spacing:.24em;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.lb:before{content:"";display:block;width:150px;height:1px;background:rgba(255,255,255,.85);margin-bottom:7px}
+.info{position:absolute;left:48px;right:48px;top:931px;display:grid;grid-template-columns:1.5fr 1fr 1fr;column-gap:28px}
+.info small{display:block;font-size:8.6px;font-weight:700;letter-spacing:.2em;color:#8A8F99}
+.info b{display:block;font-weight:400;font-size:14px;line-height:19px;margin-top:4px}
+.info .nm{font-family:IS;font-size:27px;line-height:30px}
+.info span{display:block;font-size:11px;line-height:16px;color:#5B6372;margin-top:3px}
+.info .g{margin-top:13px}
+.info>div+div{border-left:1px solid #E6E2DA;padding-left:24px}
+.mn{position:absolute;left:48px;right:48px;top:1040px;border-top:1px solid #E6E2DA;padding-top:7px;font-size:9.4px;letter-spacing:.06em;color:#6B7280;display:flex;justify-content:space-between}
+.ft{position:absolute;left:0;right:0;bottom:0;height:40px;background:#1E2638;display:flex;align-items:center;justify-content:center;gap:16px;font-size:10.6px;letter-spacing:.04em;color:#E8EAEE}
+.ft i{width:3px;height:3px;border-radius:50%;background:#D8363D;display:inline-block}
+</style></head><body><div class="pg"><div class="ph"></div><div class="shade"></div><div class="foot"></div><div class="vig"></div>
+<div class="hd"><div class="k">HYBRID SOLAR QUOTATION</div><h1>Lights on,<br>even in a <em>power cut</em></h1>
+<p class="sub">Solar with battery backup, by Jasper Solar Solutions.</p></div>
+<img class="logo" src="../../assets/quote/jasper-logo.png" alt="">
+<div class="lb">SOLAR + BATTERY BACKUP</div>
+</div></body></html>
