@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 79; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 80; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -149,6 +149,11 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS disc_reads(user_id INTEGER, discussion_id INTEGER, last_id INTEGER, PRIMARY KEY(user_id, discussion_id))");
   $db->exec("CREATE TABLE IF NOT EXISTS notifs(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, kind TEXT, discussion_id INTEGER, customer_id INTEGER, lead_id INTEGER, from_id INTEGER, text TEXT, seen INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE INDEX IF NOT EXISTS notif_user ON notifs(user_id, seen)");
+  /* v80: signed quotations - who asked, who signed, the signed PDF (data/uploads), the share log; notifs can point at a quotation */
+  if (!in_array('quote_id', array_column($db->query("PRAGMA table_info(notifs)")->fetchAll(), 'name'))) { try { $db->exec("ALTER TABLE notifs ADD COLUMN quote_id INTEGER"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  $db->exec("CREATE TABLE IF NOT EXISTS quote_sign(quote_id INTEGER PRIMARY KEY, req_by INTEGER, req_at TEXT, signed_by INTEGER, signed_at TEXT, file TEXT DEFAULT '', name TEXT DEFAULT '', size INTEGER DEFAULT 0, ver TEXT DEFAULT '')");
+  $db->exec("CREATE TABLE IF NOT EXISTS quote_log(id INTEGER PRIMARY KEY AUTOINCREMENT, quote_id INTEGER, via TEXT, to_whom TEXT, to_addr TEXT DEFAULT '', user_id INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP)");
+  $db->exec("CREATE INDEX IF NOT EXISTS qlog_quote ON quote_log(quote_id)");
   // Nov 2026: money & bank details (Finance) only for admin, accounts and roles the admin grants — remove it from Sales and Engineer once
   if (!(int)($db->query("SELECT COUNT(*) FROM settings WHERE k='fin_v19'")->fetchColumn())) {
     $rp = $db->query("SELECT v FROM settings WHERE k='role_perms'")->fetchColumn();
@@ -643,7 +648,7 @@ function strip_fin($r) {
 function notif_add($to, $kind, $text, array $ref = [], $from = null) {
   $to = (int)$to; if (!$to) return;
   $id = fn($k) => (int)($ref[$k] ?? 0) ?: null;
-  q('INSERT INTO notifs(user_id,kind,discussion_id,customer_id,lead_id,from_id,text) VALUES(?,?,?,?,?,?,?)', [$to, (string)$kind, $id('discussion_id'), $id('customer_id'), $id('lead_id'), $from === null ? null : (int)$from, (string)$text]);
+  q('INSERT INTO notifs(user_id,kind,discussion_id,customer_id,lead_id,quote_id,from_id,text) VALUES(?,?,?,?,?,?,?,?)', [$to, (string)$kind, $id('discussion_id'), $id('customer_id'), $id('lead_id'), $id('quote_id'), $from === null ? null : (int)$from, (string)$text]);
 }
 /* ...from the signed-in person to somebody else (never to themself), cut to 200 characters */
 function notif_from_me($to, $kind, $text, array $ref = []) { if ((int)$to && (int)$to !== uid()) notif_add($to, $kind, mb_substr((string)$text, 0, 200), $ref, uid()); }

@@ -132,7 +132,7 @@ function handle_disc($a) {
     case 'notifs': // my unseen notifications (bell)
       try { callback_alerts(); } catch (Throwable $e) { }
       try { disc_reminders(); } catch (Throwable $e) { error_log('discussion reminders: ' . $e->getMessage()); } /* hourly reminders about unread discussions while office is open */
-      $r = rows('SELECT n.*, COALESCE(c.name, l.name) customer_name, u.name from_name, u.avatar from_av FROM notifs n LEFT JOIN customers c ON c.id=n.customer_id LEFT JOIN leads l ON l.id=n.lead_id LEFT JOIN users u ON u.id=n.from_id WHERE n.user_id=? AND n.seen=0 ORDER BY n.id DESC LIMIT 30', [$uid]);
+      $r = rows('SELECT n.*, COALESCE(c.name, l.name) customer_name, u.name from_name, u.avatar from_av, qq.number quote_no FROM notifs n LEFT JOIN customers c ON c.id=n.customer_id LEFT JOIN leads l ON l.id=n.lead_id LEFT JOIN quotes qq ON qq.id=n.quote_id LEFT JOIN users u ON u.id=n.from_id WHERE n.user_id=? AND n.seen=0 ORDER BY n.id DESC LIMIT 30', [$uid]);
       out(['rows' => $r, 'count' => (int)row('SELECT COUNT(*) c FROM notifs WHERE user_id=? AND seen=0', [$uid])['c']]);
 
     case 'seen':

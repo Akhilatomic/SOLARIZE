@@ -72,8 +72,8 @@ function handle_crud($t, $a) {
         if (in_array($f, $cols) && isset($_GET[$f]) && $_GET[$f] !== '') { $w[] = "$f=?"; $args[] = $_GET[$f]; }
       /* quotes: the list needs no doc (a maker quotation's doc is 8-10 KB) or old-style items/terms; quotes/get still returns them */
       /* ...plus who owns it: the customer's owner, else whoever claimed the lead (name + role, so the list can mark a Business Associate) */
-      if ($t === 'quotes') out(rows('SELECT q.id,q.customer_id,q.lead_id,q.number,q.date,q.gst_rate,q.subsidy,q.status,q.total,q.created,q.updated, u.id owner_id, u.name owner_name, u.role owner_role
-        FROM quotes q LEFT JOIN customers c ON c.id=q.customer_id LEFT JOIN leads l ON l.id=q.lead_id LEFT JOIN users u ON u.id=COALESCE(NULLIF(c.owner_id,0), NULLIF(l.assigned_to,0))'
+      if ($t === 'quotes') out(rows('SELECT q.id,q.customer_id,q.lead_id,q.number,q.date,q.gst_rate,q.subsidy,q.status,q.total,q.created,q.updated, u.id owner_id, u.name owner_name, u.role owner_role, CASE WHEN s.file<>\'\' THEN \'signed\' WHEN s.req_by>0 THEN \'waiting\' ELSE \'\' END sign_state, s.signed_at, CASE WHEN COALESCE(q.doc,\'\') NOT IN (\'\',\'null\',\'{}\',\'[]\') THEN 1 ELSE 0 END maker
+        FROM quotes q LEFT JOIN quote_sign s ON s.quote_id=q.id LEFT JOIN customers c ON c.id=q.customer_id LEFT JOIN leads l ON l.id=q.lead_id LEFT JOIN users u ON u.id=COALESCE(NULLIF(c.owner_id,0), NULLIF(l.assigned_to,0))'
         . ($w ? ' WHERE ' . implode(' AND ', array_map(fn($x) => 'q.' . $x, $w)) : '') . ' ORDER BY q.updated DESC, q.id DESC', $args));
       $sel = '*';
       out(rows("SELECT $sel FROM $t" . ($w ? ' WHERE ' . implode(' AND ', $w) : '') . ' ORDER BY updated DESC, id DESC', $args));
@@ -149,13 +149,14 @@ function handle_crud($t, $a) {
       if ($t === 'customers') {
         q('DELETE FROM kseb_logins WHERE customer_id=?', [$id]); q('DELETE FROM plant WHERE customer_id=?', [$id]); q('DELETE FROM subsidy_log WHERE customer_id=?', [$id]); q('DELETE FROM subsidy_track WHERE customer_id=?', [$id]); q('DELETE FROM fees WHERE customer_id=?', [$id]); q('DELETE FROM gen_docs WHERE customer_id=?', [$id]); q('DELETE FROM commissions WHERE customer_id=?', [$id]); q('DELETE FROM cust_cost WHERE customer_id=?', [$id]); q('DELETE FROM acc_track WHERE customer_id=?', [$id]);
         foreach (rows('SELECT id FROM projects WHERE customer_id=?', [$id]) as $p) purge_project($p['id']);
-        q('DELETE FROM quotes WHERE customer_id=?', [$id]); q('DELETE FROM messages WHERE customer_id=?', [$id]); q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$id]);
+        qs_purge_where('customer_id=?', [$id]); q('DELETE FROM quotes WHERE customer_id=?', [$id]); q('DELETE FROM messages WHERE customer_id=?', [$id]); q('UPDATE leads SET customer_id=NULL WHERE customer_id=?', [$id]);
       }
       if ($t === 'projects') { purge_project($id); q('DELETE FROM project_steps WHERE project_id=?', [$id]); q('DELETE FROM stage_data WHERE project_id=?', [$id]); q('DELETE FROM services WHERE project_id=?', [$id]); }
       if ($t === 'leads' || $t === 'customers') { $col = $t === 'leads' ? 'lead_id' : 'customer_id';
         foreach (rows("SELECT id FROM discussions WHERE $col=?", [$id]) as $d) { q('DELETE FROM disc_msgs WHERE discussion_id=?', [$d['id']]); q('DELETE FROM disc_reads WHERE discussion_id=?', [$d['id']]); }
         q("DELETE FROM discussions WHERE $col=?", [$id]); q("DELETE FROM notifs WHERE $col=?", [$id]); }
       if ($t === 'campaigns') { q('DELETE FROM ad_spend WHERE campaign_id=?', [$id]); q('UPDATE leads SET campaign_id=NULL WHERE campaign_id=?', [$id]); }
+      if ($t === 'quotes') qs_purge_where('id=?', [$id]);
       q("DELETE FROM $t WHERE id=?", [$id]); q('DELETE FROM notes WHERE entity=? AND entity_id=?', [$t, $id]);
       audit('delete', $t, $id); db()->exec('COMMIT'); out(['ok' => true]);
     case 'revert': // customer → back to leads (undo a conversion)
@@ -245,7 +246,7 @@ function detail($t, $r) {
   if ($t === 'customers') {
     $r['notes_log'] = $notes();
     $r['projects'] = rows('SELECT p.*, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p WHERE customer_id=? ORDER BY id DESC', [$id]);
-    $r['quotes'] = rows('SELECT q.id,q.number,q.date,q.total,q.status,q.created,q.updated, m.name made_name, e.name edit_name FROM quotes q LEFT JOIN users m ON m.id=q.made_by LEFT JOIN users e ON e.id=q.edit_by WHERE q.customer_id=? ORDER BY q.id DESC', [$id]); /* with who made it and who changed it last */
+    $r['quotes'] = rows('SELECT q.id,q.number,q.date,q.total,q.status,q.created,q.updated, m.name made_name, e.name edit_name, CASE WHEN s.file<>\'\' THEN \'signed\' WHEN s.req_by>0 THEN \'waiting\' ELSE \'\' END sign_state, s.signed_at, CASE WHEN COALESCE(q.doc,\'\') NOT IN (\'\',\'null\',\'{}\',\'[]\') THEN 1 ELSE 0 END maker FROM quotes q LEFT JOIN quote_sign s ON s.quote_id=q.id LEFT JOIN users m ON m.id=q.made_by LEFT JOIN users e ON e.id=q.edit_by WHERE q.customer_id=? ORDER BY q.id DESC', [$id]); /* with who made it and who changed it last */
     $r['files'] = rows('SELECT id,name,kind,item,size,created,life,gen,(SELECT name FROM users WHERE username=files.user) by_name FROM files WHERE customer_id=? AND ' . DOCS_NO_PAPERS . ' ORDER BY id DESC', [$id]); /* KSEB / bank papers: on the project's KSEB documents tab */
     $r['messages'] = is_ba() ? [] : rows('SELECT * FROM messages WHERE customer_id=? ORDER BY id DESC', [$id]); // BA: no WhatsApp history
   }
@@ -267,7 +268,7 @@ function detail($t, $r) {
       $r['checklist_' . $kind] = array_map(fn($it) => $saved["$kind|$it"] ?? ['kind' => $kind, 'item' => $it, 'status' => 'Pending', 'date' => '', 'notes' => ''], $items);
     }
   }
-  if ($t === 'quotes') $r['items'] = json_decode($r['items'] ?: '[]', true);
+  if ($t === 'quotes') { $r['items'] = json_decode($r['items'] ?: '[]', true); $r['sign'] = qs_out($id, $r); }
   return $r;
 }
 
