@@ -25,6 +25,11 @@ const kdTab = () => { const B = KB(); return B.tabs.some(t => t[0] === TAB[KDS.b
 const kdDoc = () => { const t = kdTab(); return KD.DOCS[t] ? t : null; }; /* null on the MNRE warranty card tab */
 const kdFields = doc => KD.DOCS[doc].groups.flatMap(gr => gr.fields.map(f => Object.assign({ g: gr.g }, f)));
 const kdCtx = g => ({ customer: g.customer || {}, plant: g.plant || {}, project: g.project || null, defaults: g.defaults || {}, items: S.kseb_items || [], bill: g.bill || null, company: g.company || null, today: today() });
+/* the company seal / signature (Quotations › gear › Quotation settings): the server sends the pictures to admins only;
+   kdSoRefs = their picture refs, kdSo = which of the two can print ({sign, seal}) for KD.layout, null = none */
+const kdIsAdmin = () => !!(ME && ME.role === 'admin');
+const kdSoRefs = (g = KDS.g) => { const so = ((g && g.company) || {}).signoff || {}; return kdIsAdmin() && typeof qmImgUrl === 'function' && (qmImgUrl(so.sign) || qmImgUrl(so.seal)) ? so : null; };
+const kdSo = (g = KDS.g) => { const so = kdSoRefs(g); return so ? { sign: !!qmImgUrl(so.sign), seal: !!qmImgUrl(so.seal) } : null; };
 /* api() already showed its own errors; anything else becomes a red toast */
 const kdErr = e => { if (!e || !e.error) { console.error(e); toast((e && e.message) || String(e), true); } };
 
@@ -34,6 +39,26 @@ const kdLibs = () => KD_LIBS = KD_LIBS || (window.PDFLib ? Promise.resolve() : q
   .then(() => { if (!window.PDFLib) throw new Error('Could not load the PDF library'); return window.PDFLib; })
   .catch(e => { KD_LIBS = null; throw e; });
 const kdMeasure = () => KDS.mP = KDS.mP || kdLibs().then(L => KD.measurer(L)).then(m => (KDS.measure = m)).catch(e => { KDS.mP = null; throw e; });
+/* a seal / signature picture as pdf-lib takes it: PNG or JPEG as uploaded, anything else (WebP) redrawn as PNG; loaded once */
+const KD_PIC = {};
+const kdPic = url => KD_PIC[url] = KD_PIC[url] || fetch(url, { credentials: 'same-origin' })
+  .then(r => { if (!r.ok) throw new Error('Could not load the seal or signature picture'); return r.arrayBuffer(); })
+  .then(async ab => {
+    const b = new Uint8Array(ab, 0, Math.min(4, ab.byteLength));
+    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return { bytes: ab, kind: 'png' };
+    if (b[0] === 0xFF && b[1] === 0xD8) return { bytes: ab, kind: 'jpg' };
+    const bmp = await createImageBitmap(new Blob([ab])), c = document.createElement('canvas');
+    c.width = bmp.width; c.height = bmp.height; c.getContext('2d').drawImage(bmp, 0, 0);
+    const png = await new Promise((ok, no) => c.toBlob(x => x ? ok(x) : no(new Error('Could not read the seal or signature picture')), 'image/png'));
+    return { bytes: await png.arrayBuffer(), kind: 'png' };
+  })
+  .catch(e => { delete KD_PIC[url]; throw e; });
+/* the pictures the img ops of a layout name, for KD.buildPdf */
+async function kdPics(ops, g) {
+  const so = kdSoRefs(g) || {}, keys = [...new Set(ops.filter(o => o.img).map(o => o.img))], out = {};
+  for (const k of keys) { const url = qmImgUrl(so[k]); if (url) { const p = await kdPic(url); out[k] = { bytes: p.bytes.slice(0), kind: p.kind }; } }
+  return out;
+}
 const KD_TPL = {};
 const kdTpl = page => KD_TPL[page] = KD_TPL[page] || fetch(KD.PAGES[page].pdf, { credentials: 'same-origin' })
   .then(r => { if (!r.ok) throw new Error('Could not load the document template'); return r.arrayBuffer(); })
@@ -134,12 +159,19 @@ function kdPagesHtml(doc, n) {
   return Array.from({ length: n }, (_, i) => `<div class="kd-pvs"${i ? '' : ' id="kdpvs"'} style="aspect-ratio:${P.w}/${P.h}"><div class="kd-page"${i ? '' : ' id="kdpage"'} style="width:${P.w}px;height:${P.h}px;background-image:url('${P.png}')">${i ? '' : '<p class="kd-load">Loading preview…</p>'}</div></div>`).join('');
 }
 function kdGroup(doc, gr, w) {
+  if (gr.admin && !kdIsAdmin()) return '';
   const share = gr.fields.some(f => f.share);
   return `<section class="kd-sec"><h3>${esc(gr.g)}</h3><div class="kd-grid">${gr.fields.map(f => kdField(doc, f)).join('')}</div>
     ${share ? `<div class="kd-gf"><small>Company details, the same for every customer.</small>${w ? '<button type="button" class="btn sec sm" data-a="def" title="Use the vendor and signatory details shown here for every customer">Save as default</button>' : ''}</div>` : ''}</section>`;
 }
 function kdField(doc, f) {
   const v = esc(KDS.vals[doc][f.k] ?? ''), id = 'kdf_' + f.k, a = `id="${id}" data-k="${f.k}"`;
+  if (f.t === 'check') { /* a tick box ('1' / ''); no "edited" or "missing" marks (no data-f) */
+    const on = !!kdT(KDS.vals[doc][f.k]), so = kdSoRefs();
+    return `<div class="kd-f kd-full kd-chk"><label for="${id}"><input type="checkbox" ${a}${on ? ' checked' : ''}${!so && !on ? ' disabled' : ''}><span>${esc(f.l)}</span></label>
+      <small>${so ? 'Off unless ticked: for a report sent by email, so it need not be printed, signed and scanned. Only admins see this.'
+        : 'Upload the seal and signature first: Quotations › gear › Quotation settings › Seal and signature.'}</small></div>`;
+  }
   const inp = f.t === 'area' ? `<textarea ${a} rows="${f.rows || 2}">${v}</textarea>`
     : f.t === 'opts' ? `<select ${a}>${f.opts.map(o => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov)}"${ov === KDS.vals[doc][f.k] ? ' selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>`
     : f.t === 'date' ? `<div class="kd-date"><input ${a} type="date" value="${v}"><button type="button" class="btn sec sm" data-a="today">Today</button></div><small class="kd-dh" id="kddh"></small>`
@@ -152,9 +184,9 @@ function kdField(doc, f) {
 function kdOnInput(e) {
   const el = e.target;
   if (el.id === 'kdq') { if (e.type === 'input') kdFind(); return; }
-  const doc = kdDoc(), k = el.dataset.k;
-  if (!doc || !k || !KDS.vals[doc] || KDS.vals[doc][k] === el.value) return;
-  KDS.vals[doc][k] = el.value; kdMarks(); kdLayoutSoon();
+  const doc = kdDoc(), k = el.dataset.k, val = el.type === 'checkbox' ? (el.checked ? '1' : '') : el.value;
+  if (!doc || !k || !KDS.vals[doc] || KDS.vals[doc][k] === val) return;
+  KDS.vals[doc][k] = val; kdMarks(); kdLayoutSoon();
 }
 function kdSet(doc, k, v) {
   KDS.vals[doc][k] = v;
@@ -202,9 +234,10 @@ function kdState() {
 function kdLayout() {
   clearTimeout(KDS.t);
   const doc = kdDoc(), pg = $('#kdpage'); if (!doc || !pg || !KDS.g || !KDS.measure) return;
-  const L = KDS.lay[doc] = KD.layout(doc, KDS.vals[doc], KDS.measure);
-  const rgb = c => c ? `rgb(${c.map(x => Math.round(x * 255)).join(',')})` : '#000';
-  const opHtml = o => o.rc ? `<i class="kd-ln" style="left:${o.rc[0]}px;top:${o.rc[1]}px;width:${o.rc[2]}px;height:${o.rc[3]}px;background:${rgb(o.fill)}"></i>`
+  const L = KDS.lay[doc] = KD.layout(doc, KDS.vals[doc], KDS.measure, kdSo());
+  const rgb = c => c ? `rgb(${c.map(x => Math.round(x * 255)).join(',')})` : '#000', so = kdSoRefs() || {};
+  const opHtml = o => o.img ? `<img class="kd-im" src="${esc(qmImgUrl(so[o.img]))}" alt="" style="left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px;object-position:${o.al === 'r' ? 'right' : o.al === 'c' ? 'center' : 'left'} bottom${o.o ? ';opacity:' + o.o : ''}">`
+    : o.rc ? `<i class="kd-ln" style="left:${o.rc[0]}px;top:${o.rc[1]}px;width:${o.rc[2]}px;height:${o.rc[3]}px;background:${rgb(o.fill)}"></i>`
     : o.ln && o.ln[0] !== o.ln[2] && o.ln[1] !== o.ln[3] /* a slanted line (the tick in a box): a thin bar turned to its angle */
       ? `<i class="kd-ln" style="left:${o.ln[0]}px;top:${o.ln[1] - (o.w || .5) / 2}px;width:${Math.hypot(o.ln[2] - o.ln[0], o.ln[3] - o.ln[1])}px;height:${o.w || .5}px;transform-origin:0 50%;transform:rotate(${Math.atan2(o.ln[3] - o.ln[1], o.ln[2] - o.ln[0])}rad);background:${rgb(o.c)}"></i>`
     : o.ln ? `<i class="kd-ln" style="left:${Math.min(o.ln[0], o.ln[2]) - (o.w || .5) / 2}px;top:${Math.min(o.ln[1], o.ln[3]) - (o.w || .5) / 2}px;width:${Math.abs(o.ln[2] - o.ln[0]) + (o.w || .5)}px;height:${Math.abs(o.ln[3] - o.ln[1]) + (o.w || .5)}px;background:${rgb(o.c)}"></i>`
@@ -315,7 +348,7 @@ async function kdSave() {
   KDS.busy = true; b.disabled = true; b.textContent = 'Saving…';
   try { const s = kdSnap(doc), r = await kdSaveDoc(s); let kept = false;
     /* KSEB papers: a PDF copy is kept on every save too (project › KSEB documents), not only on a download */
-    if (KDS.book === 'kseb') { try { kept = !!(await docKeep(s.id, 'kseb:' + doc, 'KSEB · ' + KD.DOCS[doc].file, kdFileName(doc, s.g), await kdBuild(doc, s.vals))); } catch (e) { } }
+    if (KDS.book === 'kseb') { try { kept = !!(await docKeep(s.id, 'kseb:' + doc, 'KSEB · ' + KD.DOCS[doc].file, kdFileName(doc, s.g), await kdBuild(doc, s.vals, s.g))); } catch (e) { } }
     toast(KD.DOCS[doc].file + ' saved' + (kept ? ' · PDF copy kept' : '') + kdFilledNote(doc, r)); } catch (e) { kdErr(e); }
   finally { KDS.busy = false; b.disabled = false; b.textContent = 'Save'; }
 }
@@ -331,7 +364,7 @@ async function kdSaveAll() {
     for (let i = 0; i < docs.length; i++) { const d = docs[i], s = kdSnap(d), name = kdFileName(d, s.g);
       b.innerHTML = `<i class="i i-folder"></i>Saving ${i + 1} of ${docs.length}…`;
       try {
-        const bytes = await kdBuild(d, s.vals);
+        const bytes = await kdBuild(d, s.vals, s.g);
         if (w && kdFields(d).some(f => kdT(s.vals[f.k]) !== kdT((KDS.base[d] || {})[f.k]))) await kdSaveDoc(s); /* typed changes are kept with the paper */
         if (await docKeep(s.id, kdGen(book) + ':' + d, kdLabel(book) + ' · ' + KD.DOCS[d].file, name, bytes)) done.push(d); else skipped.push(KD.DOCS[d].tab);
       } catch (e) { skipped.push(KD.DOCS[d].tab); if (!e || !e.error) console.error(e); }
@@ -340,11 +373,11 @@ async function kdSaveAll() {
   } finally { KDS.busy = false; b.innerHTML = old; b.disabled = false; kdMarks(); }
 }
 /* PDF bytes for one document from the given values (no saving, no download) */
-async function kdBuild(doc, vals = KDS.vals[doc]) {
-  const m = await kdMeasure(), L = KD.layout(doc, vals, m);
+async function kdBuild(doc, vals = KDS.vals[doc], g = KDS.g) {
+  const m = await kdMeasure(), L = KD.layout(doc, vals, m, kdSo(g));
   if (L.overflow) throw new Error('Too much text to fit — shorten the longest field');
-  const [lib, tpl] = await Promise.all([kdLibs(), kdTpl(KD.DOCS[doc].page)]);
-  return KD.buildPdf(lib, tpl.slice(0), L.ops);
+  const [lib, tpl, pics] = await Promise.all([kdLibs(), kdTpl(KD.DOCS[doc].page), kdPics(L.ops, g)]);
+  return KD.buildPdf(lib, tpl.slice(0), L.ops, pics);
 }
 const kdFileName = (doc, g) => (KD.DOCS[doc].file + ' - ' + (kdT(g.customer && g.customer.name) || 'Customer'))
   .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 180) + '.pdf';
@@ -359,7 +392,7 @@ async function kdPdf() {
   const s = kdSnap(doc), name = kdFileName(doc, s.g), old = b.innerHTML;
   KDS.busy = true; b.disabled = true; b.innerHTML = '<i class="i i-download"></i>Making PDF…';
   try {
-    const bytes = await kdBuild(doc, s.vals); /* build first (it refuses overflow): a failed template fetch or build stores nothing */
+    const bytes = await kdBuild(doc, s.vals, s.g); /* build first (it refuses overflow): a failed template fetch or build stores nothing */
     const r = canW(KB().perm) ? await kdSaveDoc(s) : null;
     kdSaveFile(bytes, name);
     const kept = await docKeep(s.id, kdGen(KDS.book) + ':' + doc, kdLabel(KDS.book) + ' · ' + KD.DOCS[doc].file, name, bytes); /* a copy for the project's KSEB documents tab (not the customer's Documents page) */

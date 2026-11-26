@@ -33,6 +33,8 @@ function handle_bank($a) {
       $doc = (string)($in['doc'] ?? ''); if (!in_array($doc, BANK_DOCS, true)) fail('Unknown document');
       $cid = (int)($in['customer_id'] ?? 0); if (!row('SELECT 1 FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
       $data = gen_clean((array)($in['data'] ?? []));
+      /* seal & signature on the feasibility report: an admin's choice only; anyone else's save keeps what the saved copy had */
+      if (!is_admin()) { $was = (string)((bank_saved($cid, $doc)['data'] ?? [])['seal'] ?? ''); if ($was !== '') $data['seal'] = $was; else unset($data['seal']); }
       /* typed for a profile field that is still empty: it goes into the profile instead (as on the KSEB documentation page) */
       $filled = !empty($in['fill']) && is_array($in['fill']) && can('customers', true) ? kseb_fill($cid, $in['fill']) : [];
       foreach ($filled as $k) unset($data[$k]);

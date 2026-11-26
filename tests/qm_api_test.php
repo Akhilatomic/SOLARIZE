@@ -714,6 +714,18 @@ chk((call($admin, 'bank', 'save', ['customer_id' => $bkc, 'doc' => 'bag', 'data'
 $bg = call($admin, 'bank', 'get', null, "&customer_id=$bkc");
 chk(($bg['saved']['bfr']['data']['status'] ?? '') === 'Not Feasible' && ($bg['saved']['bag']['data']['pay1'] ?? '') === '50' && ($bg['saved']['bag']['issued_on'] ?? '') === '2026-11-05', 'bank docs: the saved edits come back');
 chk((call($admin, 'bank', 'save', ['customer_id' => $bkc, 'doc' => 'wcr', 'data' => []])['_code'] ?? 0) === 400, 'bank docs: a KSEB document cannot be saved here');
+/* seal & signature on the feasibility report: the admin's choice; a sales save neither turns it on nor takes it off */
+$bseal = fn() => call($admin, 'bank', 'get', null, "&customer_id=$bkc")['saved']['bfr']['data']['seal'] ?? '';
+call($sales, 'bank', 'save', ['customer_id' => $bkc, 'doc' => 'bfr', 'data' => ['status' => 'Not Feasible', 'seal' => '1']]);
+chk($bseal() === '', 'bank docs: sales cannot tick the seal & signature');
+chk((call($sales, 'bank', 'get', null, "&customer_id=$bkc")['company']['signoff'] ?? ['x']) === ['sign' => '', 'seal' => ''], 'bank docs: sales get no seal or signature pictures');
+call($admin, 'bank', 'save', ['customer_id' => $bkc, 'doc' => 'bfr', 'data' => ['status' => 'Not Feasible', 'seal' => '1']]);
+chk($bseal() === '1', 'bank docs: the admin ticks the seal & signature');
+call($sales, 'bank', 'save', ['customer_id' => $bkc, 'doc' => 'bfr', 'data' => ['status' => 'Not Feasible', 'cost' => '2,30,000/-']]);
+$bg2 = call($admin, 'bank', 'get', null, "&customer_id=$bkc")['saved']['bfr']['data'] ?? [];
+chk(($bg2['seal'] ?? '') === '1' && ($bg2['cost'] ?? '') === '2,30,000/-', 'bank docs: a sales save keeps the admin’s seal choice and their own edits');
+call($admin, 'bank', 'save', ['customer_id' => $bkc, 'doc' => 'bfr', 'data' => ['status' => 'Not Feasible', 'cost' => '2,30,000/-']]);
+chk($bseal() === '', 'bank docs: the admin unticks it');
 $bau = call($admin, 'admin', 'user_save', ['name' => 'Bank BA', 'username' => 'bankba', 'role' => 'ba', 'active' => 1, 'can_claim' => 0, 'password' => $pw]);
 $bba = actor('bankba'); call($bba, 'auth', 'login', ['username' => 'bankba', 'password' => $pw]);
 chk(in_array(call($bba, 'bank', 'get', null, "&customer_id=$bkc")['_code'] ?? 0, [403, 404], true), 'bank docs: a Business Associate (no money) cannot open them (refused: 403, or 404 for a customer not theirs)');

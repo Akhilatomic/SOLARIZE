@@ -72,6 +72,11 @@ main.pg-kseb{max-width:none;padding-left:24px;padding-right:24px}
 .kd-page{position:absolute;left:0;top:0;background:#fff center/100% 100% no-repeat;transform-origin:0 0}
 .kd-page span{position:absolute;white-space:pre;line-height:1;color:#000}
 .kd-page .kd-ln{position:absolute;background:#000}
+.kd-page .kd-im{position:absolute;object-fit:contain;max-width:none;pointer-events:none}
+.kd-chk label{display:flex;align-items:center;gap:8px;margin:12px 0 4px;font-weight:500;cursor:pointer}
+.kd-chk input{width:18px;height:18px;margin:0;flex:none;accent-color:var(--pri)}
+.kd-chk input:disabled+span{color:var(--mut)}
+.kd-chk small{display:block;font-size:12.5px;color:var(--mut)}
 .kd-pvs+.kd-pvs{margin-top:14px}
 .kd-load{position:absolute;left:0;right:0;top:45%;margin:0;padding:0 40px;text-align:center;font-size:15px;color:var(--mut)}
 

@@ -417,6 +417,10 @@ var KD = (function () {
           { k: 'cap_actual', l: 'Actual RTS capacity to be installed (kW)', src: 'p.capacity' },
           { k: 'status', l: 'Feasibility report status', t: 'opts', opts: ['Feasible', 'Not Feasible'] },
           { k: 'cost', l: 'Project cost (all inclusive)' }
+        ] },
+        /* admin only, off unless ticked: the seal and signature pictures of the quotation settings over "Authorised Signatory" */
+        { g: 'Seal & signature', admin: true, fields: [
+          { k: 'seal', l: 'Print the company seal & signature', t: 'check', opt: true }
         ] }
       ]
     },
@@ -602,7 +606,7 @@ var KD = (function () {
           address: trim(c.address), district: trim(c.district), state: 'KERALA', pincode: trim(c.pincode),
           oem: 'NA', channel: 'NA', epc_address: trim(co.address) || trim(sd.vendor_address),
           epc_bank: trim(bk.bank), epc_acname: trim(bk.name) || trim(co.name), epc_acno: trim(bk.account), epc_ifsc: trim(bk.ifsc), mnre: 'Yes',
-          cap_applied: kwN, cap_actual: kwN, status: 'Feasible', cost: amt ? inrS(amt) + '/-' : ''
+          cap_applied: kwN, cap_actual: kwN, status: 'Feasible', cost: amt ? inrS(amt) + '/-' : '', seal: ''
         };
       } else {
         var binv = Array.isArray(p.inverters) ? p.inverters : [];
@@ -1367,7 +1371,10 @@ var KD = (function () {
      (Helvetica for the form's Calibri), the label and its value on one line, an empty value as a line of underscores,
      item 13 as a neat block (Bank / Account name / Account No. / IFSC Code with their colons in one column), 17 with a box
      after each answer and a tick in the chosen one, item 19 as a line (the images go up to the portal), then the signature. */
-  var BFR = { x0: 72, x1: 523.3, titleY: 84, top: 122, pitch: 19.8, s: 12, blank: '____________________' };
+  /* room: how much lower "Authorised Signatory" goes when the seal and signature print (as far as the page allows);
+     sign / seal: the boxes the pictures fit in (aspect kept, bottom-aligned), above that line at its left / right end */
+  var BFR = { x0: 72, x1: 523.3, titleY: 84, top: 122, pitch: 19.8, s: 12, blank: '____________________',
+    room: 24, sign: { w: 160, h: 56, gap: 13 }, seal: { w: 68, h: 68, gap: 11 } };
   var BFR_ROWS = [
     ['1. Name of the Consumer: ', 'name'], ['2. Discom Consumer ID: ', 'consumer_no'], ['3. Discom ID: ', 'discom_id'],
     ['4. PM Surya Shakti Portal ID: ', 'portal_id'], ['5. Jan Samarth ID: ', 'jansamarth_id'], ['6. Address for Installation: ', 'address', 11],
@@ -1379,7 +1386,8 @@ var KD = (function () {
     ['17. Feasibility Report Status:', '#status'], ['18. Project Cost (all inclusive):', 'cost'],
     ['19. Site Layout - Images (2-4 images to be uploaded):', '#photos']
   ];
-  var layoutBfr = function (v, measure) {
+  /* so = the company pictures this user may print ({sign, seal}: true when uploaded; null = none or not an admin) */
+  var layoutBfr = function (v, measure, so) {
     var D = BFR, s = D.s, ops = [], y = D.top, w = D.x1 - D.x0;
     var T = function (t, x, yy, f, sz, pg) { if (t) ops.push(Object.assign(op(t, x, yy, f || 'H', sz || s), pg ? { p: pg } : {})); };
     var L = function (x1, y1, x2, y2, wd) { ops.push({ ln: [r2(x1), r2(y1), r2(x2), r2(y2)], w: wd || 0.6 }); };
@@ -1422,8 +1430,15 @@ var KD = (function () {
       if (r[1] === '#photos') { T(r[0], D.x0, y, 'H'); y += 0.85 * D.pitch; return; }
       line(r[0], val(r[1]), r[2]);
     });
-    T('Authorised Signatory of the vendor with Stamp', D.x1 - measure('Authorised Signatory of the vendor with Stamp', 'H', s), y + 67, 'H');
-    return { ops: ops, size: s, overflow: y + 67 > 800 };
+    var sig = 'Authorised Signatory of the vendor with Stamp', sx = D.x1 - measure(sig, 'H', s), by = y + 67;
+    if (clean(v.seal) && so && (so.sign || so.seal)) {
+      by += Math.max(0, Math.min(D.room, 800 - by));
+      /* img op: picture key, top-left x/y and box w/h in points; al = which side of the box it keeps to; o = opacity */
+      if (so.sign) ops.push({ img: 'sign', x: r2(sx), y: r2(by - D.sign.gap - D.sign.h), w: D.sign.w, h: D.sign.h, al: 'l' });
+      if (so.seal) ops.push({ img: 'seal', x: r2(D.x1 - D.seal.w), y: r2(by - D.seal.gap - D.seal.h), w: D.seal.w, h: D.seal.h, al: 'r', o: 0.92 });
+    }
+    T(sig, sx, by, 'H');
+    return { ops: ops, size: s, overflow: by > 800 };
   };
 
   /* ---- Bank: Agreement between the applicant and the vendor (MNRE model for PM Surya Ghar) ----
@@ -2021,12 +2036,13 @@ var KD = (function () {
     return r;
   };
 
-  K.layout = function (docKey, values, measure) {
+  /* so (optional): the company seal / signature pictures this user may print, {sign, seal} (only the feasibility report uses it) */
+  K.layout = function (docKey, values, measure, so) {
     if (docKey === 'req') return layoutReq(values || {}, measure);
     if (docKey === 'almm') return layoutAlmm(values || {}, measure);
     if (docKey === 'dcr') return layoutDcr(values || {}, measure);
     values = values || {};
-    if (docKey === 'bfr') return layoutBfr(values, measure);
+    if (docKey === 'bfr') return layoutBfr(values, measure, so || null);
     if (docKey === 'bag') return layoutBag(values, measure);
     if (docKey === 'mas') return layoutBag(values, measure); /* stamp paper: the stamp part of page 1 stays empty */
     if (docKey === 'mag') return layoutBag(values, measure, true); /* plain paper */
@@ -2041,19 +2057,33 @@ var KD = (function () {
 
   /* template PDF + ops -> PDF bytes; every op drawn on page 0 in black.
      Saved with a classic xref table (no object streams): readable by older PDF software, and never smaller than the template. */
-  K.buildPdf = function (PDFLib, templateBytes, ops) {
-    ops = ops || [];
+  /* imgs (optional): the pictures img ops name, {key: {bytes, kind: 'png' | 'jpg'}}; an img op without its picture is skipped */
+  K.buildPdf = function (PDFLib, templateBytes, ops, imgs) {
+    ops = ops || []; imgs = imgs || {};
     return PDFLib.PDFDocument.load(templateBytes).then(function (doc) {
-      var first = doc.getPage(0).getMediaBox(), black = PDFLib.rgb(0, 0, 0), keys = [];
+      var first = doc.getPage(0).getMediaBox(), black = PDFLib.rgb(0, 0, 0), keys = [], pics = [];
       var col = function (c) { return c ? PDFLib.rgb(c[0], c[1], c[2]) : black; };
       var pageOf = function (i) { while (doc.getPageCount() <= (i || 0)) doc.addPage([first.width, first.height]); return doc.getPage(i || 0); };
-      ops.forEach(function (o) { if (o.f && keys.indexOf(o.f) < 0) keys.push(o.f); });
-      return Promise.all(keys.map(function (k) { return doc.embedFont(PDFLib.StandardFonts[K.FONTS[k]]); }))
+      ops.forEach(function (o) {
+        if (o.f && keys.indexOf(o.f) < 0) keys.push(o.f);
+        if (o.img && imgs[o.img] && pics.indexOf(o.img) < 0) pics.push(o.img);
+      });
+      var embedded = {};
+      /* a fresh byte array: pdf-lib's JPEG reader ignores a view's offset into a larger buffer */
+      return Promise.all(pics.map(function (k) { var b = new Uint8Array(imgs[k].bytes); return (imgs[k].kind === 'jpg' ? doc.embedJpg(b) : doc.embedPng(b)).then(function (im) { embedded[k] = im; }); }))
+        .then(function () { return Promise.all(keys.map(function (k) { return doc.embedFont(PDFLib.StandardFonts[K.FONTS[k]]); })); })
         .then(function (list) {
           var fonts = {};
           keys.forEach(function (k, i) { fonts[k] = list[i]; });
           ops.forEach(function (o) {
             var page = pageOf(o.p), box = page.getMediaBox();
+            if (o.img) { /* fitted into its box, aspect kept, on the box's bottom edge */
+              var im = embedded[o.img]; if (!im) return;
+              var k = Math.min(o.w / im.width, o.h / im.height), dw = im.width * k, dh = im.height * k;
+              var dx = o.al === 'r' ? o.x + o.w - dw : o.al === 'c' ? o.x + (o.w - dw) / 2 : o.x;
+              page.drawImage(im, { x: box.x + dx, y: box.y + box.height - o.y - o.h, width: dw, height: dh, opacity: o.o || 1 });
+              return;
+            }
             if (o.rc) {
               page.drawRectangle({ x: box.x + o.rc[0], y: box.y + box.height - o.rc[1] - o.rc[3], width: o.rc[2], height: o.rc[3], color: col(o.fill) });
               return;

@@ -628,6 +628,32 @@ test('feasibility report: the official form on one plain page', async () => {
   assert.equal((await PDFLib.PDFDocument.load(out)).getPageCount(), 1);
 });
 
+test('feasibility report: company seal & signature only when ticked and the pictures are there', async () => {
+  const measure = await KD.measurer(PDFLib);
+  const v = KD.values('bfr', LOAN, {}), on = Object.assign({}, v, { seal: '1' }), both = { sign: true, seal: true };
+  assert.equal(v.seal, '', 'off by default');
+  assert.ok(KD.DOCS.bfr.groups.find(g => g.fields.some(f => f.k === 'seal')).admin, 'the tick box is in an admin-only group');
+  assert.ok(!KD.empty('bfr', v).includes('Print the company seal & signature'), 'an unticked box is not "still empty"');
+  const sig = 'Authorised Signatory of the vendor with Stamp', lineY = r => r.ops.find(o => o.t === sig).y;
+  const plain = KD.layout('bfr', v, measure, both), noPics = KD.layout('bfr', on, measure, null), r = KD.layout('bfr', on, measure, both);
+  assert.ok(!plain.ops.some(o => o.img) && !noPics.ops.some(o => o.img), 'not ticked, or no pictures (not an admin): nothing drawn');
+  assert.equal(lineY(noPics), lineY(plain), 'and the form keeps its place');
+  const imgs = r.ops.filter(o => o.img), sg = imgs.find(o => o.img === 'sign'), se = imgs.find(o => o.img === 'seal'), y = lineY(r);
+  assert.equal(imgs.length, 2); assert.equal(r.overflow, false);
+  assert.ok(y > lineY(plain) && y <= 800, 'the signatory line moves down to make room');
+  const lastText = Math.max(...r.ops.filter(o => o.t && o.t !== sig).map(o => o.y));
+  for (const o of imgs) assert.ok(o.y > lastText + 4 && o.y + o.h < y - 8 && o.x >= 72 && o.x + o.w <= 523.5, o.img + ' sits between the form and the signatory line');
+  assert.ok(sg.x + sg.w < se.x, 'signature at the left, seal at the right end, apart');
+  assert.deepEqual(KD.layout('bfr', on, measure, { sign: false, seal: true }).ops.filter(o => o.img).map(o => o.img), ['seal'], 'only the picture that is uploaded');
+  const tpl = fs.readFileSync(path.join(ROOT, 'assets/kseb/blank.pdf'));
+  const pics = { sign: { bytes: fs.readFileSync(path.join(ROOT, 'assets/logo.png')), kind: 'png' }, seal: { bytes: fs.readFileSync(path.join(ROOT, 'assets/quote/thumb-front-hybrid.jpg')), kind: 'jpg' } };
+  const out = await KD.buildPdf(PDFLib, tpl, r.ops, pics), doc = await PDFLib.PDFDocument.load(out);
+  const nPics = d => { const xo = d.getPage(0).node.Resources().lookup(PDFLib.PDFName.of('XObject')); return xo ? xo.keys().length : 0; };
+  assert.equal(nPics(doc), 2, 'both pictures in the PDF');
+  const bare = await PDFLib.PDFDocument.load(await KD.buildPdf(PDFLib, tpl, r.ops, {}));
+  assert.equal(nPics(bare), 0, 'a picture that is not given is left out, not an error');
+});
+
 test('agreement: the MNRE wording filled in, below the stamp, signatures together', async () => {
   const measure = await KD.measurer(PDFLib);
   const v = KD.values('bag', LOAN, {});
