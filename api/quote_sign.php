@@ -21,7 +21,7 @@ function qs_state(?array $row): string {
 }
 function qs_doc($q): array { $d = json_decode((string)($q['doc'] ?? ''), true); return is_array($d) ? $d : []; }
 function qs_out(int $qid, ?array $quote = null): array {
-  $quote = $quote ?? row('SELECT doc FROM quotes WHERE id=?', [$qid]) ?? [];
+  $quote = $quote ?? row('SELECT doc FROM quotes WHERE id=?', [$qid]) ?: [];
   $doc = qs_doc($quote); $s = qs_row($qid);
   $nm = fn($id) => (int)$id ? (string)(row('SELECT name FROM users WHERE id=?', [(int)$id])['name'] ?? '') : '';
   return ['state' => qs_state($s), 'ver' => qs_ver($doc), 'signed_at' => (string)($s['signed_at'] ?? ''), 'signed_by' => (int)($s['signed_by'] ?? 0), 'signed_name' => $nm($s['signed_by'] ?? 0),
@@ -34,4 +34,50 @@ function qs_admins(): array {
 function qs_purge_where(string $w, array $p): void {
   q("DELETE FROM quote_sign WHERE quote_id IN (SELECT id FROM quotes WHERE $w)", $p);
   q("DELETE FROM quote_log WHERE quote_id IN (SELECT id FROM quotes WHERE $w)", $p);
+}
+
+/* the actions: POST qm sign_req / sign_cancel, GET qm sign_info (routed here from handle_qm) */
+function qs_handle(string $a, array $in): void {
+  switch ($a) {
+    case 'sign_req': {
+      need('quotes', true);
+      $id = (int)($in['id'] ?? 0);
+      $qt = row('SELECT q.id,q.number,q.doc,q.lead_id,q.customer_id,c.name AS cname,l.name AS lname FROM quotes q LEFT JOIN customers c ON c.id=q.customer_id LEFT JOIN leads l ON l.id=q.lead_id WHERE q.id=?', [$id]);
+      if (!$qt) fail('Quotation not found', 404);
+      if (!qs_doc($qt)) fail('Open this quotation in the Quotation maker and save it first');
+      $cur = qs_row($id);
+      if (qs_state($cur) === 'signed') fail('already signed', 409);
+      if (is_admin()) out(['ok' => true, 'sign' => qs_out($id, $qt)]); /* an admin signs directly: nothing to ask */
+      if (qs_state($cur) === 'waiting') out(['ok' => true, 'sign' => qs_out($id, $qt)]);
+      q("INSERT INTO quote_sign(quote_id,req_by,req_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(quote_id) DO UPDATE SET req_by=excluded.req_by, req_at=excluded.req_at", [$id, uid()]);
+      $who = (string)(row('SELECT name FROM users WHERE id=?', [uid()])['name'] ?? '');
+      $nm = (string)($qt['cname'] ?: $qt['lname'] ?: '');
+      foreach (qs_admins() as $ad) notif_from_me($ad, 'sign_req', "$who asks you to sign quotation {$qt['number']} · $nm", ['quote_id' => $id, 'lead_id' => (int)$qt['lead_id'], 'customer_id' => (int)$qt['customer_id']]);
+      audit('quote_sign_req', 'quotes', $id, (string)$qt['number']);
+      out(['ok' => true, 'sign' => qs_out($id, $qt)]);
+    }
+    case 'sign_cancel': {
+      need('quotes', true);
+      $id = (int)($in['id'] ?? 0);
+      $qt = row('SELECT id,number,doc FROM quotes WHERE id=?', [$id]);
+      if (!$qt) fail('Quotation not found', 404);
+      $cur = qs_row($id); $st = qs_state($cur);
+      if ($st === 'signed') fail('already signed', 409);
+      if ($st === 'waiting') {
+        if (!is_admin() && (int)$cur['req_by'] !== uid()) fail('Only the person who asked, or an admin, can cancel this request', 403);
+        q('DELETE FROM quote_sign WHERE quote_id=? AND COALESCE(file,\'\')=\'\'', [$id]);
+        audit('quote_sign_cancel', 'quotes', $id, (string)$qt['number']);
+      }
+      out(['ok' => true, 'sign' => qs_out($id, $qt)]);
+    }
+    case 'sign_info': {
+      need('quotes');
+      $id = (int)($_GET['id'] ?? $in['id'] ?? 0);
+      $qt = row('SELECT id,doc FROM quotes WHERE id=?', [$id]);
+      if (!$qt) fail('Quotation not found', 404);
+      $shares = rows('SELECT l.via, l.to_whom, l.to_addr, COALESCE(u.name,\'\') AS who, l.created FROM quote_log l LEFT JOIN users u ON u.id=l.user_id WHERE l.quote_id=? ORDER BY l.id DESC LIMIT 5', [$id]);
+      out(['sign' => qs_out($id, $qt), 'shares' => $shares]);
+    }
+  }
+  fail('Unknown action', 404);
 }

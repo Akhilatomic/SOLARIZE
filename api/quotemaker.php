@@ -199,6 +199,7 @@ function handle_qm($a) {
       audit('qm_template_delete', 'qm_templates', $id, (string)$cur['name']);
       out(['ok' => true]);
     }
+    case 'sign_req': case 'sign_cancel': case 'sign_info': qs_handle($a, $in); /* signed quotations: api/quote_sign.php */
     case 'status': { /* Quotations list: change the status without opening the quotation */
       need('quotes', true);
       $id = (int)($in['id'] ?? 0); $status = (string)($in['status'] ?? '');

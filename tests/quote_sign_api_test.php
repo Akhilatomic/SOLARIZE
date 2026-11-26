@@ -94,4 +94,57 @@ $hit = null; foreach (call($admin, 'disc', 'notifs')['rows'] ?? [] as $n) if (($
 chk($hit && (int)$hit['quote_id'] === $q1 && ($hit['quote_no'] ?? '') !== '', 'notifs feed returns quote_id and quote_no');
 $db->exec("DELETE FROM notifs WHERE text='probe'");
 
+/* ---- step 2: ask an admin to sign / cancel ---- */
+$sellerName = (string)$db->query("SELECT name FROM users WHERE username='qsseller'")->fetchColumn();
+$sellerId = (int)$db->query("SELECT id FROM users WHERE username='qsseller'")->fetchColumn();
+call($admin, 'admin', 'user_save', ['name' => 'QS Other', 'username' => 'qsother', 'role' => 'sales', 'active' => 1, 'can_claim' => 0, 'password' => $pw]);
+$other = actor('other'); call($other, 'auth', 'login', ['username' => 'qsother', 'password' => $pw]);
+call($admin, 'admin', 'user_save', ['name' => 'QS Associate', 'username' => 'qsba', 'role' => 'ba', 'active' => 1, 'can_claim' => 0, 'password' => $pw]);
+$ba = actor('ba'); call($ba, 'auth', 'login', ['username' => 'qsba', 'password' => $pw]);
+$q3 = (int)(call($admin, 'qm', 'save', ['lead_id' => $lead, 'status' => 'Draft', 'doc' => $doc('Test Sign Lead', 170000)])['id'] ?? 0);
+$no3 = (string)$db->query("SELECT number FROM quotes WHERE id=$q3")->fetchColumn();
+$nCount = fn($qid) => (int)$db->query("SELECT COUNT(*) FROM notifs WHERE kind='sign_req' AND quote_id=$qid")->fetchColumn();
+$r = call($sales, 'qm', 'sign_req', ['id' => $q3]);
+chk(($r['ok'] ?? false) && ($r['sign']['state'] ?? '') === 'waiting' && (int)$r['sign']['req_by'] === $sellerId, 'sign_req: sales asks, answer is ok with sign.state waiting');
+$admins = array_map('intval', $db->query("SELECT id FROM users WHERE role='admin' AND active=1")->fetchAll(PDO::FETCH_COLUMN));
+$want = "$sellerName asks you to sign quotation $no3 · Test Sign Lead"; $okN = count($admins) > 0;
+foreach ($admins as $aid) { $st = $db->prepare("SELECT text FROM notifs WHERE kind='sign_req' AND quote_id=? AND user_id=?"); $st->execute([$q3, $aid]); $t = $st->fetchAll(PDO::FETCH_COLUMN); if ($t !== [$want]) $okN = false; }
+chk($okN && $nCount($q3) === count($admins), 'sign_req: every admin gets a sign_req notif with quote_id and the exact text');
+$lr = null; foreach (call($sales, 'quotes', 'list') as $x) if (is_array($x) && ($x['id'] ?? 0) == $q3) $lr = $x;
+$g3 = call($sales, 'quotes', 'get', null, "&id=$q3");
+chk($lr && $lr['sign_state'] === 'waiting' && $g3['sign']['state'] === 'waiting', 'sign_req: state becomes waiting on list and get');
+$r = call($sales, 'qm', 'sign_req', ['id' => $q3]);
+chk(($r['ok'] ?? false) && $nCount($q3) === count($admins), 'sign_req twice: ok and no second notification');
+$cust2 = (int)(onb($admin, 'customers', 'save', ['name' => 'Test Sign Customer Two', 'phone' => '9800000403'])['id'] ?? 0);
+$q4 = (int)(call($admin, 'qm', 'save', ['customer_id' => $cust2, 'status' => 'Draft', 'doc' => $doc('Test Sign Customer Two')])['id'] ?? 0);
+call($sales, 'qm', 'sign_req', ['id' => $q4]);
+chk(strpos((string)$db->query("SELECT text FROM notifs WHERE kind='sign_req' AND quote_id=$q4 LIMIT 1")->fetchColumn(), '· Test Sign Customer Two') !== false, 'sign_req: a customer quotation uses the customer name');
+$mk($q4, "qs_test_$q4.pdf");
+$r = call($sales, 'qm', 'sign_req', ['id' => $q4]);
+chk($r['_code'] === 409 && ($r['error'] ?? '') === 'already signed', 'sign_req on a signed quotation: 409 "already signed"');
+$db->exec("INSERT INTO quotes(lead_id,number,date,items,gst_rate,subsidy,terms,status,total,doc,made_by) VALUES($lead,'QS-NODOC','2026-11-26','[]',0,0,'','Draft',0,'',1)");
+$q5 = (int)$db->lastInsertId();
+chk(call($sales, 'qm', 'sign_req', ['id' => $q5])['_code'] === 400 && call($sales, 'qm', 'sign_req', ['id' => 99999999])['_code'] === 404, 'sign_req on a quotation without a maker doc: 400 (unknown id 404)');
+chk(call($ba, 'qm', 'sign_req', ['id' => $q3])['_code'] === 403, 'sign_req: a BA gets 403');
+$q6 = (int)(call($admin, 'qm', 'save', ['lead_id' => $lead, 'status' => 'Draft', 'doc' => $doc('Test Sign Lead', 180000)])['id'] ?? 0);
+$r = call($admin, 'qm', 'sign_req', ['id' => $q6]);
+chk(($r['ok'] ?? false) && $nCount($q6) === 0 && ($r['sign']['state'] ?? 'x') === '', 'sign_req by an admin: ok, no request created, no notification');
+chk(call($other, 'qm', 'sign_cancel', ['id' => $q3])['_code'] === 403 && ($db->query("SELECT req_by FROM quote_sign WHERE quote_id=$q3")->fetchColumn() == $sellerId), 'sign_cancel by another sales user: 403, request stays');
+$r = call($sales, 'qm', 'sign_cancel', ['id' => $q3]);
+chk(($r['ok'] ?? false) && ($r['sign']['state'] ?? 'x') === '' && (int)$db->query("SELECT COUNT(*) FROM quote_sign WHERE quote_id=$q3")->fetchColumn() === 0, 'sign_cancel by the requester clears it');
+call($sales, 'qm', 'sign_req', ['id' => $q3]);
+$r = call($admin, 'qm', 'sign_cancel', ['id' => $q3]);
+chk(($r['ok'] ?? false) && ($r['sign']['state'] ?? 'x') === '', 'sign_cancel by an admin: ok');
+$r = call($sales, 'qm', 'sign_cancel', ['id' => $q3]);
+chk(($r['ok'] ?? false) && ($r['sign']['state'] ?? 'x') === '', 'sign_cancel with nothing waiting: ok');
+chk(call($sales, 'qm', 'sign_cancel', ['id' => $q4])['_code'] === 409, 'sign_cancel on a signed quotation: 409 (the signed copy stays)');
+call($sales, 'qm', 'sign_req', ['id' => $q3]);
+$db->prepare('INSERT INTO quote_log(quote_id,via,to_whom,to_addr,user_id) VALUES(?,?,?,?,?)')->execute([$q3, 'email', 'customer', 'x@example.com', $sellerId]);
+$si = call($sales, 'qm', 'sign_info', null, "&id=$q3");
+chk(($si['sign']['state'] ?? '') === 'waiting' && count($si['shares'] ?? []) === 1 && $si['shares'][0]['via'] === 'email' && $si['shares'][0]['to_addr'] === 'x@example.com' && $si['shares'][0]['who'] === $sellerName && !empty($si['shares'][0]['created']), 'sign_info: sales gets state and shares');
+chk(call($ba, 'qm', 'sign_info', null, "&id=$q3")['_code'] === 403, 'sign_info: a BA gets 403');
+for ($i = 0; $i < 6; $i++) $db->prepare('INSERT INTO quote_log(quote_id,via,to_whom) VALUES(?,?,?)')->execute([$q3, 'whatsapp', 'customer']);
+chk(count(call($sales, 'qm', 'sign_info', null, "&id=$q3")['shares']) === 5, 'sign_info: only the latest 5 shares');
+
+
 echo "\n$pass passed, $fail failed\n"; exit($fail ? 1 : 0);
