@@ -78,6 +78,7 @@ chk($tid > 0 && is_file("$tdir/qs_test_$q1.pdf"), 'the signed copy sits in the R
 $rs = call($admin, 'trash', 'restore', ['id' => $tid]);
 chk(($rs['ok'] ?? false) && is_file("$dir/qs_test_$q1.pdf") && (int)$db->query("SELECT COUNT(*) FROM quote_sign WHERE quote_id=$q1")->fetchColumn() === 1 && (int)$db->query("SELECT COUNT(*) FROM quotes WHERE id=$q1")->fetchColumn() === 1, 'restore: quotation, row and file are back');
 chk(call($admin, 'quotes', 'get', null, "&id=$q1")['sign']['state'] === 'signed', 'restored quotation is signed again');
+chk((int)$db->query("SELECT COUNT(*) FROM quote_log WHERE quote_id=$q1 AND via='whatsapp'")->fetchColumn() === 1, 'restore: the share log row is back');
 
 /* customer get rows, and deleting the customer keeps the signed copy in the bin too */
 $mk($q2, "qs_test_$q2.pdf");

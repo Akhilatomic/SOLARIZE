@@ -46,7 +46,7 @@ function trash_spec_customer($cid, $withLinked = true) {
   $s = [['customers', 'id=?', [$cid]], ['plant', 'customer_id=?', [$cid]], ['fees', 'customer_id=?', [$cid]], ['gen_docs', 'customer_id=?', [$cid]], ['commissions', 'customer_id=?', [$cid]], ['cust_cost', 'customer_id=?', [$cid]], ['acc_track', 'customer_id=?', [$cid]], ['subsidy_track', 'customer_id=?', [$cid]], ['subsidy_log', 'customer_id=?', [$cid]]];
   foreach (rows('SELECT id FROM projects WHERE customer_id=?', [$cid]) as $p) $s = array_merge($s, trash_spec_project($p['id']));
   $s[] = ['files', 'customer_id=? AND (project_id IS NULL OR project_id=0)', [$cid]];
-  if ($withLinked) { $s[] = ['quotes', 'customer_id=?', [$cid]]; $s[] = ['quote_sign', 'quote_id IN (SELECT id FROM quotes WHERE customer_id=?)', [$cid]]; $s[] = ['messages', 'customer_id=?', [$cid]]; $s[] = ['notes', "entity='customers' AND entity_id=?", [$cid]];
+  if ($withLinked) { $s[] = ['quotes', 'customer_id=?', [$cid]]; $s[] = ['quote_sign', 'quote_id IN (SELECT id FROM quotes WHERE customer_id=?)', [$cid]]; $s[] = ['quote_log', 'quote_id IN (SELECT id FROM quotes WHERE customer_id=?)', [$cid]]; $s[] = ['messages', 'customer_id=?', [$cid]]; $s[] = ['notes', "entity='customers' AND entity_id=?", [$cid]];
     $s[] = ['discussions', 'customer_id=?', [$cid]]; $s[] = ['disc_msgs', 'discussion_id IN (SELECT id FROM discussions WHERE customer_id=?)', [$cid]]; }
   return $s;
 }
@@ -61,7 +61,7 @@ function trash_crud($t, $id) {
     case 'leads': trash_put('Lead', $r['name'] . ($r['phone'] ? ' · ' . $r['phone'] : ''), trash_spec_lead($id)); break;
     case 'customers': trash_put('Customer', $r['name'] . ' (with projects, documents, quotes)', trash_spec_customer($id), [], [['leads', 'customer_id', $id, array_column(rows('SELECT id FROM leads WHERE customer_id=?', [$id]), 'id')]]); break;
     case 'projects': trash_put('Project', ($r['title'] ?: 'Project') . ' · ' . (row('SELECT name FROM customers WHERE id=?', [$r['customer_id']])['name'] ?? ''), trash_spec_project($id), [['customers', $r['customer_id'], 'the customer']]); break;
-    case 'quotes': trash_put('Quotation', ($r['number'] ?: 'Quote') . ' · ₹' . number_format((float)$r['total']), [['quotes', 'id=?', [$id]], ['quote_sign', 'quote_id=?', [$id]], ['notes', "entity='quotes' AND entity_id=?", [$id]]]); break;
+    case 'quotes': trash_put('Quotation', ($r['number'] ?: 'Quote') . ' · ₹' . number_format((float)$r['total']), [['quotes', 'id=?', [$id]], ['quote_sign', 'quote_id=?', [$id]], ['quote_log', 'quote_id=?', [$id]], ['notes', "entity='quotes' AND entity_id=?", [$id]]]); break;
     case 'payments': trash_put('Payment', '₹' . number_format((float)$r['amount']) . ' · ' . $r['date'] . ' · ' . (row('SELECT title FROM projects WHERE id=?', [$r['project_id']])['title'] ?? ''), [['payments', 'id=?', [$id]]], [['projects', $r['project_id'], 'the project']]); break;
     case 'campaigns': trash_put('Ad campaign', $r['name'], [['campaigns', 'id=?', [$id]], ['ad_spend', 'campaign_id=?', [$id]]], [], [['leads', 'campaign_id', $id, array_column(rows('SELECT id FROM leads WHERE campaign_id=?', [$id]), 'id')]]); break;
     case 'ad_spend': trash_put('Ad spend', $r['date'] . ' · ₹' . number_format((float)$r['spend']), [['ad_spend', 'id=?', [$id]]], [['campaigns', $r['campaign_id'], 'the campaign']]); break;
@@ -115,7 +115,7 @@ function lead_quotes_expire() {
   $n = 0;
   foreach (rows("SELECT q.id, q.number, l.name FROM quotes q LEFT JOIN leads l ON l.id=q.lead_id WHERE q.lead_id>0 AND COALESCE(q.customer_id,0)=0 AND COALESCE(l.customer_id,0)=0
       AND COALESCE(q.updated, q.created) < datetime('now', ?) LIMIT 200", ['-' . LEAD_QUOTE_DAYS . ' days']) as $qr) {
-    trash_put('Quotation', 'Quotation ' . $qr['number'] . ($qr['name'] ? ' · lead ' . $qr['name'] : '') . ' · ' . LEAD_QUOTE_DAYS . ' days old', [['quotes', 'id=?', [$qr['id']]], ['quote_sign', 'quote_id=?', [$qr['id']]]]);
+    trash_put('Quotation', 'Quotation ' . $qr['number'] . ($qr['name'] ? ' · lead ' . $qr['name'] : '') . ' · ' . LEAD_QUOTE_DAYS . ' days old', [['quotes', 'id=?', [$qr['id']]], ['quote_sign', 'quote_id=?', [$qr['id']]], ['quote_log', 'quote_id=?', [$qr['id']]]]);
     qs_purge_where('id=?', [$qr['id']]); q('DELETE FROM quotes WHERE id=?', [$qr['id']]); $n++;
   }
   if ($n) audit('quotes_expired', 'quotes', null, "$n lead quotation(s) older than " . LEAD_QUOTE_DAYS . ' days moved to the Recycle bin');
