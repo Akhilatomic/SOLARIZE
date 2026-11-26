@@ -216,6 +216,61 @@ function acc_sup_v1($db) {
     $db->exec('COMMIT');
   } catch (Throwable $e) { try { $db->exec('ROLLBACK'); } catch (Throwable $e2) { } throw $e; }
 }
+/* Usha Electricals, Trivandrum: tax invoice 23405/26-27 of 26-11-2026 (prices before GST, all 18 %). The owner sent the bill and asked
+   to update the price list with it (2026-11-26), so unlike v1 these prices become the dealer prices in use; the older supplier prices
+   stay under each item to switch back with Use. The bill gives no colour for the 6 sq mm cables, so the price goes on every colour.
+   items: [category, name, unit, GST %, new item?, brand, price, the line as printed on the bill]. */
+function acc_sup_v2_data() {
+  $A = 'AC cables & lugs'; $DC = 'DC cables & connectors'; $P = 'Pipes & conduit fittings'; $C = 'Cable accessories & consumables';
+  $dc = ['FINOLEX SOLAR CABLE 6SQ.MM', 'Finolex', 80.51]; $cu = ['6SQ.MM CU WIRE', '', 132];
+  $items = [];
+  foreach (['red', 'black'] as $col) $items[] = [$DC, "KEI / Polycab / V-Guard / Microtek – DC 6 sq mm cable, $col", 'm', 18, 0, $dc[1], $dc[2], $dc[0]];
+  foreach (['red (phase R)', 'yellow (phase Y)', 'blue (phase B)', 'black (neutral)'] as $col) $items[] = [$A, "V-Guard / Polycab / Havells / equivalent – AC cable 6 sq mm, $col", 'm', 18, 0, $cu[1], $cu[2], $cu[0]];
+  return [
+    'supplier' => ['Usha Electricals', 'Usha', '0471-3570534, 9446435522', 'ushaelectricals@ymail.com', '32AAGFU0623D1ZS', 'Attakulangara, Trivandrum 695036', 'Other numbers: 8111889585, 9847492324'],
+    'paper' => ['23405/26-27', '2026-11-26'],
+    'items' => array_merge($items, [
+      [$C, 'Heat shrink tube 5 mm', 'm', 18, 1, '', 12, 'H.S.TUBE 5 MM'],
+      [$C, 'Heat shrink tube 7 mm', 'm', 18, 1, '', 13, 'H.S.TUBE 7 MM'],
+      [$P, 'Precision – 20 mm PVC conduit adaptor', 'Nos', 18, 1, 'Precision', 7.88, 'PRECISION PVC ADAPTOR 20 M'],
+      [$P, 'Steel reinforced flexible pipe 20 mm', 'm', 18, 1, '', 48, 'STEEL REINFORCED FLE PIPE 20MM'],
+      [$P, 'PVC flexible coupling 20 mm', 'Nos', 18, 1, '', 7.10, 'FLEXIBLE COUPLING PVC 20'],
+      [$C, 'Portable gas torch', 'Nos', 18, 1, '', 161.02, 'GAS PORTABLE'],
+    ]),
+  ];
+}
+/* Loads that once (flag acc_sup_v2): the supplier is found by name or added; a listed item is found by name in any category and skipped
+   when it was renamed or deleted; a new item is added unless one of that name is there. Each item gets Usha's price (one per item +
+   supplier + brand, so a price already there is replaced) and its dealer price follows it. */
+function acc_sup_v2($db) {
+  if ($db->query("SELECT 1 FROM settings WHERE k='acc_sup_v2'")->fetch()) return;
+  $d = acc_sup_v2_data();
+  $one = function ($sql, $a) use ($db) { $s = $db->prepare($sql); $s->execute($a); return $s->fetch(PDO::FETCH_ASSOC); };
+  $db->exec('BEGIN');
+  try {
+    [$name, $tag, $phone, $email, $gstin, $addr, $note] = $d['supplier'];
+    $r = $one('SELECT id FROM acc_suppliers WHERE lower(name)=lower(?)', [$name]);
+    if (!$r) { $db->prepare('INSERT INTO acc_suppliers(name,tag,phone,email,gstin,address,note) VALUES(?,?,?,?,?,?,?)')->execute([$name, $tag, $phone, $email, $gstin, $addr, $note]); $sid = (int)$db->lastInsertId(); }
+    else $sid = (int)$r['id'];
+    [$ref, $date] = $d['paper'];
+    $sort = (int)$db->query('SELECT COALESCE(MAX(sort),0) FROM acc_materials')->fetchColumn();
+    foreach ($d['items'] as [$grp, $iname, $unit, $gst, $new, $brand, $rate, $line]) {
+      $m = $one('SELECT id FROM acc_materials WHERE lower(trim(name))=lower(?)', [$iname]);
+      if (!$m) {
+        if (!$new) continue;
+        $db->prepare('INSERT INTO acc_materials(grp,name,unit,gst,rate,sort) VALUES(?,?,?,?,0,?)')->execute([$grp, $iname, $unit, $gst, ++$sort]);
+        $m = ['id' => (int)$db->lastInsertId()];
+      }
+      $mid = (int)$m['id'];
+      $o = $one('SELECT id FROM acc_offers WHERE material_id=? AND supplier_id=? AND lower(brand)=lower(?)', [$mid, $sid, $brand]);
+      if ($o) { $oid = (int)$o['id']; $db->prepare('UPDATE acc_offers SET rate=?, ref=?, on_date=?, note=?, updated=CURRENT_TIMESTAMP WHERE id=?')->execute([$rate, $ref, $date, 'On the bill: ' . $line, $oid]); }
+      else { $db->prepare('INSERT INTO acc_offers(material_id,supplier_id,brand,rate,ref,on_date,note) VALUES(?,?,?,?,?,?,?)')->execute([$mid, $sid, $brand, $rate, $ref, $date, 'On the bill: ' . $line]); $oid = (int)$db->lastInsertId(); }
+      $db->prepare('UPDATE acc_materials SET rate=?, offer_id=?, updated=CURRENT_TIMESTAMP WHERE id=?')->execute([$rate, $oid, $mid]);
+    }
+    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_sup_v2','1')");
+    $db->exec('COMMIT');
+  } catch (Throwable $e) { try { $db->exec('ROLLBACK'); } catch (Throwable $e2) { } throw $e; }
+}
 function acc_seed($db) {
   if ((int)$db->query('SELECT COUNT(*) FROM acc_materials')->fetchColumn() > 0) return; // only fills an empty list
   $ins = $db->prepare('INSERT OR IGNORE INTO acc_materials(grp,name,unit,gst,rate,sort) VALUES(?,?,?,?,0,?)');
