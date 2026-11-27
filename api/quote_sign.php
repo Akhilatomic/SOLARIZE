@@ -73,6 +73,21 @@ function qs_after_save(int $id, array $old, array $new, bool $admin): void {
   audit('quote_sign_lost', 'quotes', $id, $no);
 }
 
+/* the wording of the mails / WhatsApp texts that go with a signed quotation: stored once for the whole team (settings key qm_share_tpl), these are the defaults.
+   Placeholders: {name} {quote_no} {amount} {date} {company} {sender} {sender_phone} */
+const QS_TPL_DEFAULT = [
+  'cust_subject' => 'Signed quotation {quote_no} – rooftop solar plant – {company}',
+  'cust_body' => "Dear {name},\n\nPlease find attached our signed quotation {quote_no} dated {date} for ₹{amount}.\n\nRegards,\n{sender}\n{company}\n{sender_phone}",
+  'bank_subject' => 'Signed quotation {quote_no} – rooftop solar plant of {name} – {company}',
+  'bank_body' => "Dear Sir/Madam,\n\nPlease find attached the signed quotation {quote_no} dated {date} for ₹{amount} for the rooftop solar plant of our customer {name}, for the loan application.\n\nRegards,\n{sender}\n{company}\n{sender_phone}",
+];
+/* the stored wording over the defaults; keys that are not templates are dropped */
+function qs_tpl(): array {
+  $st = kv_get('qm_share_tpl', []); $o = [];
+  foreach (QS_TPL_DEFAULT as $k => $def) $o[$k] = isset($st[$k]) && is_string($st[$k]) && trim($st[$k]) !== '' ? $st[$k] : $def;
+  return $o;
+}
+
 /* the actions: POST qm sign_req / sign_cancel, GET qm sign_info (routed here from handle_qm) */
 function qs_handle(string $a, array $in): void {
   switch ($a) {
@@ -148,6 +163,30 @@ function qs_handle(string $a, array $in): void {
       if (qs_state($s) !== 'signed') fail('This quotation is not signed', 404);
       serve_file(up_dir() . '/' . basename((string)$s['file']), (string)$s['name'], ['download' => !empty($_GET['dl']), 'cache' => 'private, no-store', 'mime' => 'application/pdf',
         'csp' => "default-src 'none'; object-src 'self'; frame-ancestors 'self'"]);
+    }
+    case 'share_log': {
+      need('quotes');
+      $id = (int)($in['id'] ?? 0);
+      $via = (string)($in['via'] ?? ''); $to = (string)($in['to_whom'] ?? '');
+      if (!in_array($via, ['whatsapp', 'email', 'pdf'], true)) fail('Unknown way of sharing');
+      if (!in_array($to, ['customer', 'bank'], true)) fail('Unknown receiver');
+      $qt = row('SELECT id,number FROM quotes WHERE id=?', [$id]);
+      if (!$qt) fail('Quotation not found', 404);
+      if (qs_state(qs_row($id)) !== 'signed') out(['error' => 'This quotation is not signed'], 409);
+      q('INSERT INTO quote_log(quote_id,via,to_whom,to_addr,user_id) VALUES(?,?,?,?,?)', [$id, $via, $to, mb_substr(trim((string)($in['to_addr'] ?? '')), 0, 120), uid()]);
+      audit('quote_share', 'quotes', $id, "{$qt['number']} · $via · $to");
+      out(['ok' => true]);
+    }
+    case 'share_tpl_save': {
+      if (!is_admin()) fail('Only an admin can change the share wording', 403);
+      $st = kv_get('qm_share_tpl', []); $o = [];
+      foreach (QS_TPL_DEFAULT as $k => $def) {
+        if (array_key_exists($k, $in)) $st[$k] = mb_substr((string)$in[$k], 0, 4000);
+        if (isset($st[$k]) && is_string($st[$k])) $o[$k] = $st[$k];
+      }
+      kv_set('qm_share_tpl', $o);
+      audit('quote_share_tpl', 'settings', 0, '');
+      out(['ok' => true, 'share_tpl' => qs_tpl()]);
     }
     case 'sign_info': {
       need('quotes');

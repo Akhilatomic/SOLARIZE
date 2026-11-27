@@ -305,4 +305,22 @@ $db->exec("UPDATE quote_sign SET signed_at=datetime('now','-100 days') WHERE quo
 call($admin, 'quotes', 'list');
 chk($has($qC) === 0, 'lead clock: once the signature itself is over 90 days old it expires');
 
+/* ---- step 5: share log and share templates ---- */
+$sl = call($sales, 'qm', 'share_log', ['id' => $q4, 'via' => 'whatsapp', 'to_whom' => 'customer', 'to_addr' => '  9800000999  ']);
+$si = call($admin, 'qm', 'sign_info', null, "&id=$q4");
+$sh = $si['shares'][0] ?? [];
+chk(($sl['ok'] ?? false) && ($sh['via'] ?? '') === 'whatsapp' && ($sh['to_whom'] ?? '') === 'customer' && ($sh['to_addr'] ?? '') === '9800000999' && ($sh['who'] ?? '') === $sellerName, 'share_log: sales logs a WhatsApp share to the customer; sign_info shows it with who');
+call($sales, 'qm', 'share_log', ['id' => $q4, 'via' => 'email', 'to_whom' => 'bank', 'to_addr' => str_repeat('a', 200)]);
+$si = call($sales, 'qm', 'sign_info', null, "&id=$q4");
+chk(strlen($si['shares'][0]['to_addr'] ?? '') === 120 && ($si['shares'][0]['via'] ?? '') === 'email' && (int)$db->query("SELECT COUNT(*) FROM audit_log WHERE action='quote_share'")->fetchColumn() >= 2, 'share_log: to_addr cut to 120, audit quote_share written');
+chk(call($sales, 'qm', 'share_log', ['id' => $q4, 'via' => 'sms', 'to_whom' => 'customer'])['_code'] === 400 && call($sales, 'qm', 'share_log', ['id' => $q4, 'via' => 'pdf', 'to_whom' => 'neighbour'])['_code'] === 400, 'share_log: unknown via or to_whom 400');
+$r = call($sales, 'qm', 'share_log', ['id' => $q6, 'via' => 'pdf', 'to_whom' => 'customer']);
+chk($r['_code'] === 409 && ($r['error'] ?? '') === 'This quotation is not signed' && call($sales, 'qm', 'share_log', ['id' => 99999999, 'via' => 'pdf', 'to_whom' => 'customer'])['_code'] === 404 && call($ba, 'qm', 'share_log', ['id' => $q4, 'via' => 'pdf', 'to_whom' => 'customer'])['_code'] === 403, 'share_log: unsigned quotation 409, unknown 404, BA 403');
+$tb = call($sales, 'qm', 'boot')['share_tpl'] ?? [];
+chk(array_keys($tb) === ['cust_subject', 'cust_body', 'bank_subject', 'bank_body'] && str_contains($tb['cust_body'], '{quote_no}') && str_contains($tb['bank_body'], 'Dear Sir/Madam,') && str_contains($tb['bank_body'], '{name}'), 'share_tpl: boot has defaults');
+chk(call($sales, 'qm', 'share_tpl_save', ['bank_body' => 'x'])['_code'] === 403, 'share_tpl: sales cannot save (403)');
+$r = call($admin, 'qm', 'share_tpl_save', ['bank_body' => 'Hello bank {name} {quote_no}', 'bogus' => 'zzz', 'cust_subject' => str_repeat('s', 5000)]);
+$tb = call($sales, 'qm', 'boot')['share_tpl'] ?? [];
+chk(($r['ok'] ?? false) && $tb['bank_body'] === 'Hello bank {name} {quote_no}' && strlen($tb['cust_subject']) === 4000 && !isset($tb['bogus']) && str_contains($tb['cust_body'], 'Dear {name}'), 'share_tpl: admin saves bank_body and boot returns it (limit 4000, unknown keys ignored, rest default)');
+
 echo "\n$pass passed, $fail failed\n"; exit($fail ? 1 : 0);

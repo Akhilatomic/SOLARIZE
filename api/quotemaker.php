@@ -101,7 +101,7 @@ function handle_qm($a) {
       $templates = array_map(function ($t) { $t['id'] = (int)$t['id']; $t['data'] = json_decode((string)$t['data'], true) ?: new stdClass(); $t['created_by'] = $t['created_by'] === null ? null : (int)$t['created_by']; $t['created_name'] = (string)($t['created_name'] ?? ''); return $t; },
         rows('SELECT t.id,t.name,t.data,t.created_by,u.name AS created_name,t.updated FROM qm_templates t LEFT JOIN users u ON u.id=t.created_by ORDER BY t.id'));
       $st = qm_settings(); $st['signoff'] = qm_signoff_mine($st);
-      out(['cats' => QM_CATS, 'products' => $products, 'templates' => $templates, 'settings' => $st, 'admin' => is_admin() ? 1 : 0, 'finance' => $fin ? 1 : 0, 'next_number' => qm_number(), 'next_n' => qm_next_n()]);
+      out(['cats' => QM_CATS, 'products' => $products, 'templates' => $templates, 'settings' => $st, 'admin' => is_admin() ? 1 : 0, 'finance' => $fin ? 1 : 0, 'next_number' => qm_number(), 'next_n' => qm_next_n(), 'share_tpl' => qs_tpl()]);
     }
     case 'product_save': {
       if (!is_admin()) fail('Only an admin can change the product list', 403);
@@ -199,7 +199,7 @@ function handle_qm($a) {
       audit('qm_template_delete', 'qm_templates', $id, (string)$cur['name']);
       out(['ok' => true]);
     }
-    case 'sign_req': case 'sign_cancel': case 'sign_info': case 'sign': case 'signed': qs_handle($a, $in); /* signed quotations: api/quote_sign.php */
+    case 'sign_req': case 'sign_cancel': case 'sign_info': case 'sign': case 'signed': case 'share_log': case 'share_tpl_save': qs_handle($a, $in); /* signed quotations: api/quote_sign.php */
     case 'status': { /* Quotations list: change the status without opening the quotation */
       need('quotes', true);
       $id = (int)($in['id'] ?? 0); $status = (string)($in['status'] ?? '');
