@@ -212,4 +212,12 @@ chk($g1['code'] === 200 && $g1['body'] === $pdfBytes && stripos($g1['head'], 'ap
 chk($g2['code'] === 200 && stripos($g2['head'], 'attachment; filename="Signed Quote.pdf"') !== false, 'signed GET: dl=1 is an attachment');
 chk(rawget($ba, "&id=$qS")['code'] === 403 && rawget($sales, '&id=99999999')['code'] === 404 && rawget($sales, "&id=$q6")['code'] === 404, 'signed GET: BA 403; unknown id 404; unsigned quotation 404');
 
+/* a stored doc that is not a JSON object cannot be signed: 400, no file, no row */
+$qB = (int)(call($admin, 'qm', 'save', ['lead_id' => $lead, 'status' => 'Draft', 'doc' => $doc('Test Sign Lead', 196000)])['id'] ?? 0);
+$db->exec("UPDATE quotes SET doc='[1,2]' WHERE id=$qB");
+$upBefore = count(glob("$dir/*.pdf"));
+$r = mcall($admin, 'sign', ['id' => $qB, 'ver' => qs_ver([1, 2])]);
+chk($r['_code'] === 400 && ($r['error'] ?? '') === 'This quotation cannot be signed' && !(int)$db->query("SELECT COUNT(*) FROM quote_sign WHERE quote_id=$qB")->fetchColumn() && count(glob("$dir/*.pdf")) === $upBefore, 'sign: a non-object doc is refused (400), nothing stored');
+/* the Documents copy failing (copy() returns false) is not reachable without breaking the filesystem: not tested */
+
 echo "\n$pass passed, $fail failed\n"; exit($fail ? 1 : 0);

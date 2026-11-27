@@ -77,6 +77,8 @@ function qs_handle(string $a, array $in): void {
       if (!$qt) fail('Quotation not found', 404);
       $doc = qs_doc($qt);
       if (!$doc) fail('Open this quotation in the Quotation maker and save it first');
+      $rawDoc = json_decode((string)$qt['doc']);
+      if (!($rawDoc instanceof stdClass)) fail('This quotation cannot be signed'); /* the seal is written into the stored doc, so it has to be a JSON object */
       $ver = qs_ver($doc);
       if (!hash_equals($ver, (string)($in['ver'] ?? ''))) out(['error' => 'This quotation was changed — open it again', 'quiet' => 0], 409);
       $fl = $_FILES['file'] ?? null; sec_upload($fl, ['pdf'], 25);
@@ -84,18 +86,20 @@ function qs_handle(string $a, array $in): void {
       $fname = mb_substr(trim(preg_replace('~[\\\\/:*?"<>|\x00-\x1f]+~', '-', basename((string)$fl['name']))), 0, 190); if (!preg_match('/\.pdf$/i', $fname)) $fname = ($fname === '' ? "Quotation $no" : $fname) . '.pdf';
       $dir = up_dir(); $file = bin2hex(random_bytes(12)) . '.pdf';
       if (!move_uploaded_file($fl['tmp_name'], "$dir/$file")) fail('Could not save file', 500);
+      $cid = (int)$qt['customer_id']; $copy = '';
+      if ($cid > 0) { /* the customer's Documents keep their own copy: made first, so a failure leaves nothing half done */
+        $copy = bin2hex(random_bytes(12)) . '.pdf';
+        if (!@copy("$dir/$file", "$dir/$copy")) { @unlink("$dir/$file"); error_log("quote_sign: could not copy the signed PDF of quotation $id into Documents"); fail('Could not save the signed copy to the customer Documents. Nothing was changed - please try again', 500); }
+      }
       $old = qs_row($id); $had = qs_state($old) === 'signed'; $reqBy = (int)($old['req_by'] ?? 0);
       if ($old) { if ($had) trash_put('Signed quotation', "$no · $nm", [['quote_sign', 'quote_id=?', [$id]]]); q('DELETE FROM quote_sign WHERE quote_id=?', [$id]); }
       q('INSERT INTO quote_sign(quote_id,req_by,req_at,signed_by,signed_at,file,name,size,ver) VALUES(?,NULL,NULL,?,CURRENT_TIMESTAMP,?,?,?,?)', [$id, uid(), $file, $fname, (int)$fl['size'], $ver]);
       /* the seal goes into the stored doc only: updated / edit_by stay as they were. Decoded as objects so an empty {} stays {} */
-      $raw = json_decode((string)$qt['doc']); if ($raw instanceof stdClass) { $raw->seal = true; q('UPDATE quotes SET doc=? WHERE id=?', [json_encode($raw, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION), $id]); }
-      $cid = (int)$qt['customer_id'];
-      if ($cid > 0) { /* the customer's Documents keep their own copy of the signed paper */
-        $key = "quote:$id"; $copy = bin2hex(random_bytes(12)) . '.pdf';
-        if (@copy("$dir/$file", "$dir/$copy")) {
-          foreach (rows('SELECT id, path FROM files WHERE customer_id=? AND gen=?', [$cid, $key]) as $o) { @unlink("$dir/" . basename($o['path'])); q('DELETE FROM files WHERE id=?', [$o['id']]); }
-          q('INSERT INTO files(customer_id,kind,item,name,path,size,user,life,gen) VALUES(?,?,?,?,?,?,?,?,?)', [$cid, 'gen', "Quotation $no · signed", $fname, $copy, (int)$fl['size'], $_SESSION['username'], 0, $key]);
-        }
+      $rawDoc->seal = true; q('UPDATE quotes SET doc=? WHERE id=?', [json_encode($rawDoc, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION), $id]);
+      if ($copy !== '') {
+        $key = "quote:$id";
+        foreach (rows('SELECT id, path FROM files WHERE customer_id=? AND gen=?', [$cid, $key]) as $o) { @unlink("$dir/" . basename($o['path'])); q('DELETE FROM files WHERE id=?', [$o['id']]); }
+        q('INSERT INTO files(customer_id,kind,item,name,path,size,user,life,gen) VALUES(?,?,?,?,?,?,?,?,?)', [$cid, 'gen', "Quotation $no · signed", $fname, $copy, (int)$fl['size'], $_SESSION['username'], 0, $key]);
       }
       $who = (string)(row('SELECT name FROM users WHERE id=?', [uid()])['name'] ?? '');
       $txt = $had ? "$who updated the signed quotation $no · $nm" : "$who added the seal & signature to quotation $no · $nm";
