@@ -220,4 +220,89 @@ $r = mcall($admin, 'sign', ['id' => $qB, 'ver' => qs_ver([1, 2])]);
 chk($r['_code'] === 400 && ($r['error'] ?? '') === 'This quotation cannot be signed' && !(int)$db->query("SELECT COUNT(*) FROM quote_sign WHERE quote_id=$qB")->fetchColumn() && count(glob("$dir/*.pdf")) === $upBefore, 'sign: a non-object doc is refused (400), nothing stored');
 /* the Documents copy failing (copy() returns false) is not reachable without breaking the filesystem: not tested */
 
+
+/* ---- step 4: edits after signing, the Documents copy, the lead clock ---- */
+$cust3 = (int)(onb($admin, 'customers', 'save', ['name' => 'Test Sign Customer Three', 'phone' => '9800000404'])['id'] ?? 0);
+$adminIds = array_map('intval', $db->query("SELECT id FROM users WHERE role='admin' AND active=1")->fetchAll(PDO::FETCH_COLUMN));
+$signNew = function ($doc3, $cid = null, $leadId = null) use ($admin, $sales) {
+  $body = ['status' => 'Draft', 'doc' => $doc3]; if ($cid) $body['customer_id'] = $cid; else $body['lead_id'] = $leadId;
+  $id = (int)(call($sales, 'qm', 'save', $body)['id'] ?? 0);
+  $ver = call($admin, 'quotes', 'get', null, "&id=$id")['sign']['ver'];
+  $r = mcall($admin, 'sign', ['id' => $id, 'ver' => $ver]);
+  return [$id, $r];
+};
+$fileOf = fn($qid) => (string)$db->query("SELECT COALESCE(file,'') FROM quote_sign WHERE quote_id=$qid")->fetchColumn();
+$sealOf = fn($qid) => (json_decode((string)$db->query("SELECT doc FROM quotes WHERE id=$qid")->fetchColumn(), true)['seal'] ?? false);
+$lostN = fn($qid) => $db->query("SELECT user_id||':'||text FROM notifs WHERE kind='sign_lost' AND quote_id=$qid ORDER BY user_id")->fetchAll(PDO::FETCH_COLUMN);
+$dcopy = fn($qid) => $db->query("SELECT * FROM files WHERE gen='quote:$qid'")->fetch();
+
+/* no-change save and a status change keep the signature */
+[$qK, $r] = $signNew($doc('Test Sign Customer Three', 210000), $cust3);
+$noK = (string)$db->query("SELECT number FROM quotes WHERE id=$qK")->fetchColumn(); $fK = $fileOf($qK);
+chk(($r['ok'] ?? false) && $fK !== '' && $sealOf($qK) === true, 'step 4 set-up: a quotation made by sales is signed');
+$r = call($sales, 'qm', 'save', ['id' => $qK, 'customer_id' => $cust3, 'status' => 'Draft', 'doc' => $doc('Test Sign Customer Three', 210000)]);
+chk(($r['id'] ?? 0) == $qK && ($r['sign']['state'] ?? '') === 'signed' && ($r['sign']['sealed'] ?? null) === true && preg_match('/^[0-9a-f]{40}$/', $r['ver'] ?? '') === 1 && $r['ver'] === $r['sign']['ver'], 'no-change staff save keeps the signature (answer carries sign and ver)');
+chk($fileOf($qK) === $fK && is_file("$dir/$fK") && $sealOf($qK) === true && $lostN($qK) === [], 'no-change staff save: file still there, doc.seal true, no notification');
+$r = call($sales, 'qm', 'status', ['id' => $qK, 'status' => 'Accepted']);
+chk(($r['ok'] ?? false) && $fileOf($qK) === $fK && call($sales, 'quotes', 'get', null, "&id=$qK")['sign']['state'] === 'signed', 'staff status change keeps the signature');
+$r = call($sales, 'qm', 'save', ['id' => $qK, 'customer_id' => $cust3, 'status' => 'Accepted', 'doc' => $doc('Test Sign Customer Three', 210000) + ['seal' => true]]);
+chk(($r['sign']['state'] ?? '') === 'signed' && $sealOf($qK) === true, 'staff save that sends the seal flag for unchanged content: still signed');
+
+/* a staff content change removes it */
+$db->exec("UPDATE files SET created='2020-01-01 00:00:00' WHERE gen='quote:$qK'"); $db->exec("DELETE FROM notifs WHERE quote_id=$qK");
+$trashBefore = (int)$db->query("SELECT COUNT(*) FROM trash WHERE kind='Signed quotation'")->fetchColumn();
+$r = call($sales, 'qm', 'save', ['id' => $qK, 'customer_id' => $cust3, 'status' => 'Accepted', 'doc' => $doc('Test Sign Customer Three', 215000)]);
+chk(($r['sign']['state'] ?? 'x') === '' && ($r['sign']['sealed'] ?? null) === false && (int)$db->query("SELECT COUNT(*) FROM quote_sign WHERE quote_id=$qK")->fetchColumn() === 0 && $sealOf($qK) === false, "staff content change: state '', quote_sign row gone, seal off");
+clearstatcache();
+chk(!is_file("$dir/$fK") && is_file("$tdir/$fK") && (int)$db->query("SELECT COUNT(*) FROM trash WHERE kind='Signed quotation'")->fetchColumn() === $trashBefore + 1, 'staff content change: the signed file is in the Recycle bin');
+$wantLost = array_map(fn($i) => "$i:Quotation $noK · Test Sign Customer Three was changed after signing by $sellerName — sign it again", $adminIds); sort($wantLost, SORT_STRING);
+$gotLost = $lostN($qK); sort($gotLost, SORT_STRING);
+chk($wantLost && $gotLost === $wantLost, 'staff content change: every admin gets sign_lost with the exact text');
+$dc = $dcopy($qK);
+chk($dc && (int)$dc['life'] === 120 && $dc['created'] > '2026-01-01', 'staff content change: Documents life is gen_days (120), clock restarted from today');
+
+/* the admin unticks */
+$db->exec("UPDATE files SET life=0 WHERE gen='quote:$qK'");
+$verK = call($admin, 'quotes', 'get', null, "&id=$qK")['sign']['ver'];
+$r = mcall($admin, 'sign', ['id' => $qK, 'ver' => $verK]); $fK2 = $fileOf($qK);
+chk(($r['ok'] ?? false) && $fK2 !== '' && (int)$dcopy($qK)['life'] === 0, 'step 4 set-up: signed again, Documents copy life 0');
+$db->exec("DELETE FROM notifs WHERE quote_id=$qK"); $db->exec("UPDATE files SET created='2020-01-01 00:00:00' WHERE gen='quote:$qK'");
+$r = call($admin, 'qm', 'save', ['id' => $qK, 'customer_id' => $cust3, 'status' => 'Accepted', 'doc' => $doc('Test Sign Customer Three', 215000)]);
+clearstatcache();
+chk(($r['sign']['state'] ?? 'x') === '' && $fileOf($qK) === '' && !is_file("$dir/$fK2") && is_file("$tdir/$fK2") && $sealOf($qK) === false, 'admin unticks: the signed copy goes to the Recycle bin, state cleared');
+chk($lostN($qK) === [] && (int)$db->query("SELECT COUNT(*) FROM notifs WHERE quote_id=$qK")->fetchColumn() === 0 && (int)$dcopy($qK)['life'] === 120 && $dcopy($qK)['created'] > '2026-01-01', 'admin unticks: no notification, Documents life back to gen_days');
+
+/* admin ticks with changed content: the old signed file goes, no notification */
+$verK = call($admin, 'quotes', 'get', null, "&id=$qK")['sign']['ver'];
+mcall($admin, 'sign', ['id' => $qK, 'ver' => $verK]); $fK3 = $fileOf($qK);
+$r = call($admin, 'qm', 'save', ['id' => $qK, 'customer_id' => $cust3, 'status' => 'Accepted', 'doc' => $doc('Test Sign Customer Three', 220000) + ['seal' => true]]);
+clearstatcache();
+chk($fK3 !== '' && $fileOf($qK) === '' && is_file("$tdir/$fK3") && $sealOf($qK) === true && ($r['sign']['state'] ?? 'x') === '' && ($r['sign']['sealed'] ?? null) === true && $lostN($qK) === [], 'admin saves seal true with changed content: old signed file in the bin, seal stays, no notification');
+
+/* files keep of a signed quotation stores the signed file */
+$verK = call($admin, 'quotes', 'get', null, "&id=$qK")['sign']['ver'];
+mcall($admin, 'sign', ['id' => $qK, 'ver' => $verK]); $fK4 = $fileOf($qK); $noK = (string)$db->query("SELECT number FROM quotes WHERE id=$qK")->fetchColumn();
+$other = sys_get_temp_dir() . '/qs_other_' . getmypid() . '.pdf'; file_put_contents($other, "%PDF-1.4\n% some other quotation pdf\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
+$ch = curl_init("$base/api.php?m=files&a=keep&customer_id=$cust3&gen=quote:$qK");
+curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEJAR => $sales['jar'], CURLOPT_COOKIEFILE => $sales['jar'], CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['X-Solarize: 1'],
+  CURLOPT_POSTFIELDS => ['file' => new CURLFile($other, 'application/pdf', 'Quotation.pdf'), 'title' => 'Quotation']]);
+$kj = json_decode((string)curl_exec($ch), true); curl_close($ch); @unlink($other);
+$dc = $dcopy($qK); $dn = (int)$db->query("SELECT COUNT(*) FROM files WHERE gen='quote:$qK'")->fetchColumn();
+chk(is_array($kj) && (int)($kj['life'] ?? -1) === 0 && ($kj['signed'] ?? 0) === 1 && ($kj['id'] ?? 0) == ($dc['id'] ?? -1) && $dn === 1 && (int)$dc['life'] === 0 && $dc['item'] === "Quotation $noK · signed"
+  && is_file("$dir/" . $dc['path']) && file_get_contents("$dir/" . $dc['path']) === $pdfBytes && $dc['path'] !== $fK4, 'files keep of a signed quotation stores the signed file (life 0, signed 1, separate copy)');
+
+/* lead clock */
+[$qC, $r] = $signNew($doc('Test Sign Lead', 230000), null, $lead);
+$qU = (int)(call($sales, 'qm', 'save', ['lead_id' => $lead, 'status' => 'Draft', 'doc' => $doc('Test Sign Lead', 231000)])['id'] ?? 0);
+chk(($r['ok'] ?? false) && $qU > 0, 'lead clock set-up: one signed and one unsigned lead quotation');
+$db->exec("UPDATE quotes SET updated=datetime('now','-100 days'), created=datetime('now','-100 days') WHERE id IN ($qC,$qU)");
+$db->exec("DELETE FROM settings WHERE k='hk_last'");
+call($admin, 'quotes', 'list');
+$has = fn($qid) => (int)$db->query("SELECT COUNT(*) FROM quotes WHERE id=$qid")->fetchColumn();
+chk($has($qU) === 0, 'lead clock: housekeeping ran and expired the unsigned lead quotation older than 90 days');
+chk($has($qC) === 1 && $fileOf($qC) !== '', 'lead clock: a signed lead quotation older than 90 days by updated but signed today is not expired');
+$db->exec("UPDATE quote_sign SET signed_at=datetime('now','-100 days') WHERE quote_id=$qC"); $db->exec("DELETE FROM settings WHERE k='hk_last'");
+call($admin, 'quotes', 'list');
+chk($has($qC) === 0, 'lead clock: once the signature itself is over 90 days old it expires');
+
 echo "\n$pass passed, $fail failed\n"; exit($fail ? 1 : 0);

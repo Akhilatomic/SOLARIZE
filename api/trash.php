@@ -113,8 +113,8 @@ const LEAD_QUOTE_DAYS = 90;
 const LEAD_QUOTE_DOC_DAYS = 200;
 function lead_quotes_expire() {
   $n = 0;
-  foreach (rows("SELECT q.id, q.number, l.name FROM quotes q LEFT JOIN leads l ON l.id=q.lead_id WHERE q.lead_id>0 AND COALESCE(q.customer_id,0)=0 AND COALESCE(l.customer_id,0)=0
-      AND COALESCE(q.updated, q.created) < datetime('now', ?) LIMIT 200", ['-' . LEAD_QUOTE_DAYS . ' days']) as $qr) {
+  foreach (rows("SELECT q.id, q.number, l.name FROM quotes q LEFT JOIN leads l ON l.id=q.lead_id LEFT JOIN quote_sign s ON s.quote_id=q.id WHERE q.lead_id>0 AND COALESCE(q.customer_id,0)=0 AND COALESCE(l.customer_id,0)=0
+      AND MAX(COALESCE(q.updated, q.created), COALESCE(s.signed_at, '')) < datetime('now', ?) LIMIT 200", ['-' . LEAD_QUOTE_DAYS . ' days']) as $qr) {
     trash_put('Quotation', 'Quotation ' . $qr['number'] . ($qr['name'] ? ' · lead ' . $qr['name'] : '') . ' · ' . LEAD_QUOTE_DAYS . ' days old', [['quotes', 'id=?', [$qr['id']]], ['quote_sign', 'quote_id=?', [$qr['id']]], ['quote_log', 'quote_id=?', [$qr['id']]]]);
     qs_purge_where('id=?', [$qr['id']]); q('DELETE FROM quotes WHERE id=?', [$qr['id']]); $n++;
   }

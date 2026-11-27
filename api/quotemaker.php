@@ -241,6 +241,8 @@ function handle_qm($a) {
           kv_set('qm_next', $n + 1);
         }
         $doc['number'] = $number; $doc['date'] = $date;
+        $old = $cur ? qs_doc($cur) : [];
+        if (!is_admin() && ($old['seal'] ?? false) === true && qs_ver($old) === qs_ver($doc)) $doc['seal'] = true; /* nothing but the status or the like changed: the signature stays, whoever saves */
         $json = json_encode($doc, JSON_UNESCAPED_UNICODE);
         if ($json === false || strlen($json) > 500000) { $db->exec('ROLLBACK'); $tx = false; fail('That quotation is too large'); }
         if ($cur) {
@@ -252,7 +254,8 @@ function handle_qm($a) {
         $db->exec('COMMIT'); $tx = false;
       } catch (Throwable $e) { if ($tx) { try { $db->exec('ROLLBACK'); } catch (Throwable $_) { } } throw $e; }
       audit('quote_save', 'quotes', $id, $number);
-      out(['id' => $id, 'number' => $number]);
+      if ($cur) qs_after_save($id, $old, $doc, is_admin());
+      out(['id' => $id, 'number' => $number, 'sign' => qs_out($id), 'ver' => qs_ver($doc)]);
     }
   }
   fail('Unknown action', 404);

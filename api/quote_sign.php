@@ -36,6 +36,43 @@ function qs_purge_where(string $w, array $p): void {
   q("DELETE FROM quote_log WHERE quote_id IN (SELECT id FROM quotes WHERE $w)", $p);
 }
 
+/* the customer's Documents copy of a signed quotation (files.gen 'quote:<id>', kept until deleted): a separate file, so the Documents page and the quotation
+   can each be deleted without touching the other. qs_doc_make copies the stored signed file and returns the new file name ('' when the copy failed);
+   qs_doc_put swaps the row in, replacing the older copy of the same quotation like `files keep` does. Used by sign and by `files keep`. */
+function qs_doc_make(string $file): string {
+  $dir = up_dir(); $copy = bin2hex(random_bytes(12)) . '.pdf';
+  return @copy("$dir/" . basename($file), "$dir/$copy") ? $copy : '';
+}
+function qs_doc_put(int $qid, int $cid, string $no, string $copy, string $fname, int $size): int {
+  $dir = up_dir(); $key = "quote:$qid";
+  foreach (rows('SELECT id, path FROM files WHERE customer_id=? AND gen=?', [$cid, $key]) as $o) { @unlink("$dir/" . basename($o['path'])); q('DELETE FROM files WHERE id=?', [$o['id']]); }
+  q('INSERT INTO files(customer_id,kind,item,name,path,size,user,life,gen) VALUES(?,?,?,?,?,?,?,?,?)', [$cid, 'gen', "Quotation $no · signed", $fname, $copy, $size, $_SESSION['username'] ?? '', 0, $key]);
+  return (int)db()->lastInsertId();
+}
+/* the quotation's signed file leaves it: to the Recycle bin, the quote_sign row goes (no row = nothing signed or asked), and the customer's Documents copy
+   goes back to the normal keeping time, counted from today (files.life is measured from files.created, so that is restarted too) */
+function qs_unsign(int $id, string $no, string $nm, int $fromLead): void {
+  trash_put('Signed quotation', "$no · $nm", [['quote_sign', 'quote_id=?', [$id]]]);
+  q('DELETE FROM quote_sign WHERE quote_id=?', [$id]);
+  q("UPDATE files SET life=?, created=CURRENT_TIMESTAMP WHERE gen=?", [$fromLead ? LEAD_QUOTE_DOC_DAYS : rule('gen_days'), "quote:$id"]);
+}
+/* after a save (api/quotemaker.php): what a change does to a signed quotation. $old / $new are the stored docs before and after (seal already decided).
+   A non-admin change of the content takes the signature off and tells the admins; an admin who unticks the seal, or changes the content, takes the
+   old signed file off with no message (the browser uploads a fresh signed PDF right after a ticked save). Same content and seal kept: nothing happens. */
+function qs_after_save(int $id, array $old, array $new, bool $admin): void {
+  if (qs_state(qs_row($id)) !== 'signed') return;
+  $same = qs_ver($old) === qs_ver($new); $sealed = ($new['seal'] ?? false) === true;
+  if ($admin ? ($sealed && $same) : $same) return;
+  $qt = row('SELECT q.number,q.lead_id,q.customer_id,c.name AS cname,l.name AS lname FROM quotes q LEFT JOIN customers c ON c.id=q.customer_id LEFT JOIN leads l ON l.id=q.lead_id WHERE q.id=?', [$id]);
+  if (!$qt) return;
+  $no = (string)$qt['number']; $nm = (string)($qt['cname'] ?: $qt['lname'] ?: '');
+  qs_unsign($id, $no, $nm, (int)$qt['lead_id'] > 0 ? 1 : 0);
+  if ($admin) return;
+  $who = (string)(row('SELECT name FROM users WHERE id=?', [uid()])['name'] ?? '');
+  foreach (qs_admins() as $ad) notif_from_me($ad, 'sign_lost', "Quotation $no · $nm was changed after signing by $who — sign it again", ['quote_id' => $id, 'lead_id' => (int)$qt['lead_id'], 'customer_id' => (int)$qt['customer_id']]);
+  audit('quote_sign_lost', 'quotes', $id, $no);
+}
+
 /* the actions: POST qm sign_req / sign_cancel, GET qm sign_info (routed here from handle_qm) */
 function qs_handle(string $a, array $in): void {
   switch ($a) {
@@ -88,19 +125,15 @@ function qs_handle(string $a, array $in): void {
       if (!move_uploaded_file($fl['tmp_name'], "$dir/$file")) fail('Could not save file', 500);
       $cid = (int)$qt['customer_id']; $copy = '';
       if ($cid > 0) { /* the customer's Documents keep their own copy: made first, so a failure leaves nothing half done */
-        $copy = bin2hex(random_bytes(12)) . '.pdf';
-        if (!@copy("$dir/$file", "$dir/$copy")) { @unlink("$dir/$file"); error_log("quote_sign: could not copy the signed PDF of quotation $id into Documents"); fail('Could not save the signed copy to the customer Documents. Nothing was changed - please try again', 500); }
+        $copy = qs_doc_make($file);
+        if ($copy === '') { @unlink("$dir/$file"); error_log("quote_sign: could not copy the signed PDF of quotation $id into Documents"); fail('Could not save the signed copy to the customer Documents. Nothing was changed - please try again', 500); }
       }
       $old = qs_row($id); $had = qs_state($old) === 'signed'; $reqBy = (int)($old['req_by'] ?? 0);
       if ($old) { if ($had) trash_put('Signed quotation', "$no · $nm", [['quote_sign', 'quote_id=?', [$id]]]); q('DELETE FROM quote_sign WHERE quote_id=?', [$id]); }
       q('INSERT INTO quote_sign(quote_id,req_by,req_at,signed_by,signed_at,file,name,size,ver) VALUES(?,NULL,NULL,?,CURRENT_TIMESTAMP,?,?,?,?)', [$id, uid(), $file, $fname, (int)$fl['size'], $ver]);
       /* the seal goes into the stored doc only: updated / edit_by stay as they were. Decoded as objects so an empty {} stays {} */
       $rawDoc->seal = true; q('UPDATE quotes SET doc=? WHERE id=?', [json_encode($rawDoc, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION), $id]);
-      if ($copy !== '') {
-        $key = "quote:$id";
-        foreach (rows('SELECT id, path FROM files WHERE customer_id=? AND gen=?', [$cid, $key]) as $o) { @unlink("$dir/" . basename($o['path'])); q('DELETE FROM files WHERE id=?', [$o['id']]); }
-        q('INSERT INTO files(customer_id,kind,item,name,path,size,user,life,gen) VALUES(?,?,?,?,?,?,?,?,?)', [$cid, 'gen', "Quotation $no · signed", $fname, $copy, (int)$fl['size'], $_SESSION['username'], 0, $key]);
-      }
+      if ($copy !== '') qs_doc_put($id, $cid, $no, $copy, $fname, (int)$fl['size']);
       $who = (string)(row('SELECT name FROM users WHERE id=?', [uid()])['name'] ?? '');
       $txt = $had ? "$who updated the signed quotation $no · $nm" : "$who added the seal & signature to quotation $no · $nm";
       foreach (array_unique([(int)$qt['made_by'], $reqBy]) as $to) notif_from_me($to, 'signed', $txt, ['quote_id' => $id, 'lead_id' => (int)$qt['lead_id'], 'customer_id' => $cid]);
