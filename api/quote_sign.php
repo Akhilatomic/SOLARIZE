@@ -150,7 +150,10 @@ function qs_handle(string $a, array $in): void {
       $rawDoc->seal = true; q('UPDATE quotes SET doc=? WHERE id=?', [json_encode($rawDoc, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION), $id]);
       if ($copy !== '') qs_doc_put($id, $cid, $no, $copy, $fname, (int)$fl['size']);
       $who = (string)(row('SELECT name FROM users WHERE id=?', [uid()])['name'] ?? '');
-      $txt = $had ? "$who updated the signed quotation $no · $nm" : "$who added the seal & signature to quotation $no · $nm";
+      /* resign: the admin's browser signs again right after its own save changed a signed quotation (that save already took the old signed copy off,
+         so no signed row is left); it only changes the wording of the notification */
+      $existed = $had || !empty($in['resign']);
+      $txt = $existed ? "$who updated the signed quotation $no · $nm" : "$who added the seal & signature to quotation $no · $nm";
       foreach (array_unique([(int)$qt['made_by'], $reqBy]) as $to) notif_from_me($to, 'signed', $txt, ['quote_id' => $id, 'lead_id' => (int)$qt['lead_id'], 'customer_id' => $cid]);
       audit('quote_sign', 'quotes', $id, $no);
       out(['ok' => true, 'sign' => qs_out($id)]);

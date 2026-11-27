@@ -2,7 +2,7 @@
    qsBadge(sign)            the badge (green Signed & sealed · 26 Nov, amber Waiting for signature, '' when not signed)
    qsBtns(can, q, o)        the buttons for a quotation (data-qsg); qsBind(root, getQ, who, done) wires them to qsAct
    qsAsk(q) / qsCancel(q)   ask the admins to sign / withdraw the request (POST qm sign_req / sign_cancel) -> the new sign object
-   qsSign(id, ver)          admin: makes the PDF of the saved quotation with the seal drawn in (off screen) and uploads it (POST qm sign)
+   qsSign(id, ver, resign)  admin: makes the PDF of the saved quotation with the seal drawn in (off screen) and uploads it (POST qm sign)
    qsReview(id, done)       admin: the saved quotation with the seal drawn in, and Add seal & signature (or Make the signed copy)
    qsView(q) / qsDownload(q) / qsShare(q, who)   the stored signed PDF: the document window, a download, the share window
    Uses QSIGN (app51.js), qmSavedPages / QMB / QMK (app22.js), qmMount / qmDownloadPdf (app21.js), docViewer (app12.js), acDownload /
@@ -72,8 +72,9 @@ async function qsCancel(q) {
 
 /* ---- signing (admin) ---- */
 /* ver: the version of the quotation the admin looked at (a save's answer, or the review); the server refuses the PDF when the quotation
-   changed since (409). Every failure is shown here (a toast) and rejects with {error, shown}. Resolves to the new sign object. */
-async function qsSign(id, ver) {
+   changed since (409). resign: the quotation was signed before the admin's save that changed it (the creator is told "updated the signed
+   quotation"). Every failure is shown here (a toast) and rejects with {error, shown}. Resolves to the new sign object. */
+async function qsSign(id, ver, resign) {
   if (!ME || ME.role !== 'admin') throw qsFail('Only an admin can sign a quotation');
   let q; try { q = await api('quotes', 'get', undefined, '&id=' + (+id)); } catch (e) { throw { error: (e && e.error) || 'Could not open the quotation', shown: 1 }; } /* api() showed it */
   if (!await qsPicsNow()) throw qsFail(QS_NOPICS); /* first: the pages are drawn with the catalogue's settings, pictures included */
@@ -85,6 +86,7 @@ async function qsSign(id, ver) {
   catch (e) { throw qsFail((e && e.message) || 'Could not make the PDF'); }
   finally { box.remove(); }
   const fd = new FormData(); fd.append('id', String(+id)); fd.append('ver', String(ver || (q.sign && q.sign.ver) || '')); fd.append('file', new File([blob], sp.name, { type: 'application/pdf' }));
+  if (resign) fd.append('resign', '1');
   let r; try { r = await fetch('api.php?m=qm&a=sign', { method: 'POST', headers: { 'X-Solarize': '1' }, body: fd }); } catch (e) { throw qsFail('No connection: the quotation is not signed yet. Please try again.'); }
   const j = await r.json().catch(() => ({ error: 'Bad server response' }));
   if (!r.ok || j.error) throw qsFail(j.error || 'The signed copy could not be saved');
@@ -156,7 +158,7 @@ async function qsShare(q, who) {
   const T = QSIGN.targets(ctx).filter(t => t.to_whom === 'customer' || (isCust && loans)); /* a lead, or no Loans access: customer and download only */
   const co = (S && S.company) || {}, qco = ((QMB && QMB.settings) || {}).company || {}, tpl = (QMB && QMB.share_tpl) || {};
   const vars = { name: cu.name || who.name || dc.name || '', quote_no: full.number || '', amount: QM.inr(full.total), date: full.date ? dmy(full.date) : '', company: co.name || qco.name || '',
-    sender: (ME && ME.name) || '', sender_phone: (ME && ME.phone) || '' };
+    sender: (ME && ME.name) || '', sender_phone: (ME && ME.phone) || qco.phone || co.phone || '' }; /* the company phone when the user has none, as on receipts (app35.js) */
   const fill = k => QSIGN.fill(tpl[k] || '', vars).replace(/\s+$/, '');
   const name = qsName(Object.assign({}, full, { sign })), VIA = { whatsapp: ['whatsapp', 'WhatsApp'], email: ['mail', 'Email'] };
   body.innerHTML = `<p class="mut qsg-sub">Signed &amp; sealed by ${esc(sign.signed_name || 'an admin')} · ${esc(dmy(sign.signed_at))}. This exact PDF is what goes out.</p>
@@ -221,7 +223,10 @@ function qsMakerHead() {
 function qsMakerSet(id, s) {
   if (!s || typeof QMK === 'undefined' || !qmkOn() || +QMK.id !== +id) return;
   QMK.sign = s;
-  if (s.state === 'signed') { QMK.doc.seal = true; const cb = $('#qmseal'); if (cb) cb.checked = true; }
+  if (s.state === 'signed') { /* the stored doc has the seal now: the saved-copy mark (QMK.base) follows, so Save still sees no edit */
+    const clean = QMK.base === qmkBase(); QMK.doc.seal = true;
+    if (clean) QMK.base = qmkBase(); else { try { const b = JSON.parse(QMK.base); b[0].seal = true; QMK.base = JSON.stringify(b); } catch (e) { } }
+    const cb = $('#qmseal'); if (cb) cb.checked = true; }
   qmkHead();
 }
 async function qsMakerAct(a) {
@@ -233,10 +238,11 @@ async function qsMakerAct(a) {
   const q = { id, number: d.number, total: d.price, date: d.date, customer_id: QMK.cust.customer_id, lead_id: QMK.cust.lead_id, maker: 1, sign: QMK.sign };
   return qsAct(a, q, { name: d.customer.name, phone: d.customer.mobile, email: d.customer.email }, s => qsMakerSet(id, s));
 }
-/* after an admin's save with the seal ticked: the signed copy is made and uploaded (the server puts it in the customer's Documents) */
-function qsMakerSign(id, ver) {
+/* after an admin's save with the seal ticked: the signed copy is made and uploaded (the server puts it in the customer's Documents);
+   resign: it was signed before that save */
+function qsMakerSign(id, ver, resign) {
   QMK.signing = true; qmkHead();
-  const p = qsSign(id, ver).then(s => { qsMakerSet(id, s); return s; }, () => null)
+  const p = qsSign(id, ver, resign).then(s => { qsMakerSet(id, s); return s; }, () => null)
     .finally(() => { if (QMK.signP === p) QMK.signP = null; QMK.signing = false; if (qmkOn()) qmkHead(); });
   QMK.signP = p;
   return p;

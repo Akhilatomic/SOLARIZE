@@ -2,13 +2,14 @@
 // It reads what the CRM already polls (bell notifications, new leads, leave requests, who is online) — no request of its own.
 // The line changes every few seconds with a short slide; a click opens what it is about. Pure part first (unit tested).
 const SFEED = { i: 0, t: 0, list: [], on: false, hover: false, EVERY: 4500,
-  ICON: { callback: 'phone', assign: 'users', feas: 'clock', mention: 'chat', reply: 'chat', leave: 'leave' },
+  ICON: { callback: 'phone', assign: 'users', feas: 'clock', mention: 'chat', reply: 'chat', leave: 'leave', sign_req: 'award', signed: 'award', sign_lost: 'award' },
+  QS: { sign_req: 1, signed: 1, sign_lost: 1 }, /* signed quotations (app52.js): a line opens its quotation; none when it was deleted (quote_no empty) */
   cut(s, n) { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s; },
-  /* pure: the lines to show. d = { notifs: [{kind, text, created, customer_id, lead_id}], leads: n, leave: n, online: n, ago: fn } */
+  /* pure: the lines to show. d = { notifs: [{kind, text, created, customer_id, lead_id, quote_id, quote_no}], leads: n, leave: n, online: n, ago: fn } */
   items(d) {
     d = d || {}; const out = [], ago = d.ago || (() => '');
     (d.notifs || []).slice(0, 8).forEach(n => out.push({ icon: SFEED.ICON[n.kind] || 'bell', text: SFEED.cut(n.text, 96), sub: ago(n.created),
-      go: n.lead_id ? '#/leads' : n.customer_id ? '#/customers/' + n.customer_id : '' }));
+      go: SFEED.QS[n.kind] && n.quote_id ? (n.quote_no ? '#/quotes/' + (+n.quote_id) : '') : n.lead_id ? '#/leads' : n.customer_id ? '#/customers/' + n.customer_id : '' }));
     if (+d.leads > 0) out.push({ icon: 'target', text: d.leads + ' new lead' + (+d.leads === 1 ? '' : 's') + ' waiting', sub: 'Leads', go: '#/leads' });
     if (+d.leave > 0) out.push({ icon: 'leave', text: d.leave + ' leave request' + (+d.leave === 1 ? '' : 's') + ' to review', sub: 'Leave', go: '#/leaves' });
     if (+d.online > 0) out.push({ icon: 'users', text: d.online + ' teammate' + (+d.online === 1 ? '' : 's') + ' online now', sub: 'Team', go: '' });

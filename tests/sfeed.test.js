@@ -14,6 +14,14 @@ test('notifications first, then leads, leave requests and who is online', () => 
   assert.deepEqual(L.slice(2).map(x => x.text), ['2 new leads waiting', '1 leave request to review', '3 teammates online now']);
   assert.ok(L.every(x => !x.idle));
 });
+test('signed-quotation notifications open the quotation; a deleted one has no link', () => {
+  const L = SFEED.items({ notifs: [{ kind: 'sign_req', text: 'Test Seller asks you to sign quotation JS/QT/2026/0001 · Test Person', quote_id: 12, quote_no: 'JS/QT/2026/0001', customer_id: 3 },
+    { kind: 'signed', text: 'Boss added the seal & signature to quotation JS/QT/2026/0002 · Test Lead', quote_id: '13', quote_no: 'JS/QT/2026/0002', lead_id: 7 },
+    { kind: 'sign_lost', text: 'Quotation JS/QT/2026/0003 · Test Person was changed after signing by Test Seller — sign it again', quote_id: 14, quote_no: null, customer_id: 3 },
+    { kind: 'signed', text: 'no quotation id', quote_id: null, lead_id: 7 }] });
+  assert.deepEqual(L.map(x => x.go), ['#/quotes/12', '#/quotes/13', '', '#/leads']);
+  assert.deepEqual(L.map(x => x.icon), ['award', 'award', 'award', 'award']);
+});
 test('singular wording, unknown kinds, long text and at most eight notifications', () => {
   assert.equal(SFEED.items({ leads: 1 })[0].text, '1 new lead waiting');
   assert.equal(SFEED.items({ online: 1 })[0].text, '1 teammate online now');

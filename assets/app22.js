@@ -66,6 +66,8 @@ function qmkSnapOld() {
   return QM.frozen(d) && JSON.stringify(QM.snapSettings(ss, ss.subsidy_rates)) !== JSON.stringify(QM.snapSettings(boot.settings, S.subsidy_rates));
 }
 const qmkPrintDoc = () => Object.assign({}, QMK.doc, { number: QMK.doc.number || QMK.boot.next_number });
+/* the content as last loaded or saved (QMK.base, with QMK.baseStatus): a signed quotation whose content is the same is not sent again on Save */
+const qmkBase = () => JSON.stringify([Object.assign({}, QMK.doc, { number: undefined }), QMK.cust.customer_id || null, QMK.cust.lead_id || null]);
 const qmkMainProd = c => (QMK.doc.items[c] || []).map(x => !x.custom && qmkProd(x.pid)).find(Boolean);
 const qmkPanels = () => (QMK.doc.items.panels || []).reduce((s, x) => s + (+(x.qty != null ? x.qty : (qmkProd(x.pid) || {}).qty) || 0), 0);
 
@@ -94,6 +96,7 @@ async function pgQuoteMaker(id, q) {
       QMK.cust = { customer_id: +pre.customer_id || null, lead_id: +pre.lead_id || null };
     }
   }
+  QMK.base = qmkBase(); QMK.baseStatus = QMK.status;
   const main = $('#main'); main.classList.add('qm-wide');
   main.innerHTML = qmkShell();
   const root = $('#qmk');
@@ -495,22 +498,38 @@ async function qmkSave() {
   const d = QMK.doc;
   if (!(QMK.cust.customer_id || QMK.cust.lead_id)) { QMK.picking = false; qmkTab('customer'); toast('Choose a customer or lead first', true); const q = $('#qmcq'); if (q) q.focus(); return false; }
   if (!(+d.price > 0)) { qmkTab('price'); toast('Type the package price first', true); const p = $('#qmprice'); if (p) p.focus(); return false; }
+  const wasSigned = QSIGN.state(QMK.sign).k === 'signed';
+  /* a signed quotation with its content untouched keeps the signature: the doc is not sent (nor its snapshot taken again), a changed status goes alone */
+  if (QMK.id && wasSigned && QMK.base === qmkBase()) return qmkSaveStatus();
   const { lines, calc } = qmkCalc(), st = qmkSt(), b = $('#qmsave');
   d.snap = qmkCopy(lines); /* the saved quotation keeps printing exactly these lines, even if products change later */
   d.snap_settings = QM.snapSettings(st, st.subsidy_rates); /* ...with these settings and subsidy rates (dropped with snap on an item edit) */
   QMK.busy = true; if (b) { b.disabled = true; b.textContent = 'Saving…'; }
-  const rev = QMK.rev;
+  const rev = QMK.rev, sent = qmkBase(), sentSt = QMK.status;
   try {
     const r = await api('qm', 'save', { id: QMK.id || undefined, customer_id: QMK.cust.customer_id || null, lead_id: QMK.cust.lead_id || null, status: QMK.status, subsidy: calc.subsidy, doc: d });
     d.number = r.number; QMK.id = r.id; QMK.dirty = QMK.rev !== rev; /* typed while saving: still unsaved */ QMK.snapOld = false;
     QMK.sign = r.sign || null; /* a change of the content took the signature off on the server; a save without one kept it */
+    QMK.base = sent; QMK.baseStatus = sentSt;
     const h = '#/quotes/' + r.id; if (location.hash !== h) history.replaceState(null, '', h); QMK.hash = h;
     qmkHead(); if (QMK.tab === 'customer') qmkTab('customer');
     toast('Saved · ' + r.number); qmkRender();
     const signed = QSIGN.state(r.sign).k === 'signed';
     /* an admin's save with the seal ticked: the signed copy is made from the saved quotation and kept with it (and in the customer's Documents) */
-    if (QMK.boot.admin && d.seal) { if (!signed) qsMakerSign(r.id, r.ver); }
+    if (QMK.boot.admin && d.seal) { if (!signed) qsMakerSign(r.id, r.ver, wasSigned); } /* wasSigned: the creator is told "updated the signed quotation" */
     else if (QMK.cust.customer_id && !signed) qmKeepNote(r.id, QMK.status === 'Accepted'); /* every save of a customer's quotation: the PDF in the customer's Documents is replaced by this version (a signed one keeps its signed copy) */
+    return true;
+  } catch (e) { if (!e || !e.error) { console.error(e); toast((e && e.message) || String(e), true); } return false; }
+  finally { QMK.busy = false; if (b) { b.disabled = false; b.textContent = 'Save'; } }
+}
+/* Save on a signed quotation whose content is as saved: only a changed status is saved (qm status never touches the doc), else nothing */
+async function qmkSaveStatus() {
+  if (QMK.status === QMK.baseStatus) { QMK.dirty = false; qmkHead(); toast('No changes to save'); return true; }
+  const b = $('#qmsave'), rev = QMK.rev, s = QMK.status;
+  QMK.busy = true; if (b) { b.disabled = true; b.textContent = 'Saving…'; }
+  try {
+    await api('qm', 'status', { id: QMK.id, status: s });
+    QMK.baseStatus = s; QMK.dirty = QMK.rev !== rev; qmkHead(); toast(`Saved · ${QMK.doc.number} · ${s}`);
     return true;
   } catch (e) { if (!e || !e.error) { console.error(e); toast((e && e.message) || String(e), true); } return false; }
   finally { QMK.busy = false; if (b) { b.disabled = false; b.textContent = 'Save'; } }

@@ -279,6 +279,12 @@ $r = call($admin, 'qm', 'save', ['id' => $qK, 'customer_id' => $cust3, 'status' 
 clearstatcache();
 chk($fK3 !== '' && $fileOf($qK) === '' && is_file("$tdir/$fK3") && $sealOf($qK) === true && ($r['sign']['state'] ?? 'x') === '' && ($r['sign']['sealed'] ?? null) === true && $lostN($qK) === [], 'admin saves seal true with changed content: old signed file in the bin, seal stays, no notification');
 
+/* the admin's browser signs again right after that save and says so (resign=1): the creator hears "updated", though no signed row was left */
+$db->exec("DELETE FROM notifs WHERE quote_id=$qK");
+$verK = call($admin, 'quotes', 'get', null, "&id=$qK")['sign']['ver'];
+$r = mcall($admin, 'sign', ['id' => $qK, 'ver' => $verK, 'resign' => 1]);
+chk(($r['sign']['state'] ?? '') === 'signed' && $nt($qK, $sellerId) === ["$admName updated the signed quotation $noK · Test Sign Customer Three"], 'sign with resign=1 and no signed row: the creator is told "updated the signed quotation"');
+
 /* files keep of a signed quotation stores the signed file */
 $verK = call($admin, 'quotes', 'get', null, "&id=$qK")['sign']['ver'];
 mcall($admin, 'sign', ['id' => $qK, 'ver' => $verK]); $fK4 = $fileOf($qK); $noK = (string)$db->query("SELECT number FROM quotes WHERE id=$qK")->fetchColumn();
