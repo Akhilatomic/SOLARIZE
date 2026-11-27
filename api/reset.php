@@ -54,20 +54,20 @@ function handle_reset($a) {
   if (!copy(dirname(__DIR__) . '/data/crm.sqlite', backups_dir() . "/$name")) fail('Could not create the safety backup — nothing was deleted', 500);
 
   // 2) collect files to remove from disk after the database is cleared
-  $up = dirname(__DIR__) . '/data/uploads'; $paths = array_column(rows('SELECT path FROM files'), 'path');
+  $up = dirname(__DIR__) . '/data/uploads'; $paths = array_merge(array_column(rows('SELECT path FROM files'), 'path'), array_column(rows("SELECT file FROM quote_sign WHERE file<>''"), 'file')); /* signed quotations' PDFs are not in files */
   if (!empty($o['datasheets'])) $paths = array_merge($paths, array_column(rows('SELECT path FROM datasheets'), 'path'));
 
   $db->beginTransaction();
   try {
-    foreach (['customers', 'projects', 'quotes', 'payments', 'checklist', 'files', 'project_steps', 'stage_data', 'services', 'events', 'notes', 'messages', 'wa_chats', 'wa_msgs', 'plant', 'fees', 'gen_docs', 'commissions', 'cust_cost', 'acc_track', 'subsidy_track', 'subsidy_log'] as $t) $db->exec("DELETE FROM $t");
+    foreach (['customers', 'projects', 'quotes', 'quote_sign', 'quote_log', 'payments', 'checklist', 'files', 'project_steps', 'stage_data', 'services', 'events', 'notes', 'messages', 'wa_chats', 'wa_msgs', 'plant', 'fees', 'gen_docs', 'commissions', 'cust_cost', 'acc_track', 'subsidy_track', 'subsidy_log'] as $t) $db->exec("DELETE FROM $t"); /* quote_sign / quote_log too: the quotation numbers start again, so a new quotation would take over an old signature */
     $db->exec('DELETE FROM disc_msgs WHERE discussion_id IN (SELECT id FROM discussions WHERE customer_id IS NOT NULL)'); $db->exec('DELETE FROM disc_reads WHERE discussion_id IN (SELECT id FROM discussions WHERE customer_id IS NOT NULL)');
-    $db->exec('DELETE FROM discussions WHERE customer_id IS NOT NULL'); $db->exec('DELETE FROM notifs WHERE customer_id IS NOT NULL');
+    $db->exec('DELETE FROM discussions WHERE customer_id IS NOT NULL'); $db->exec('DELETE FROM notifs WHERE customer_id IS NOT NULL OR quote_id IS NOT NULL');
     $db->exec("UPDATE leads SET customer_id=NULL, status=CASE WHEN status='Won' THEN 'Contacted' ELSE status END"); // leads stay; links to deleted customers removed
     if (!empty($o['audit'])) $db->exec('DELETE FROM audit_log');
     if (!empty($o['datasheets'])) $db->exec('DELETE FROM datasheets');
     if (!empty($o['settings'])) $db->exec("DELETE FROM settings WHERE k NOT IN ('meta_cfg','meta_state','v1_migrated','pipe_v2')");
     if (!empty($o['users'])) { $db->prepare('DELETE FROM users WHERE id<>?')->execute([uid()]); $db->prepare('DELETE FROM mail_accounts WHERE user_id<>?')->execute([uid()]); /* their saved email passwords go too */ $db->exec('UPDATE leads SET assigned_to=NULL, claimed_at=\'\' WHERE assigned_to IS NOT NULL'); }
-    try { $db->exec("DELETE FROM sqlite_sequence WHERE name IN ('customers','projects','quotes','payments','checklist','files','project_steps','services','events','notes','messages'" . (!empty($o['datasheets']) ? ",'datasheets'" : '') . ')'); } catch (Throwable $e) { }
+    try { $db->exec("DELETE FROM sqlite_sequence WHERE name IN ('customers','projects','quotes','quote_log','payments','checklist','files','project_steps','services','events','notes','messages'" . (!empty($o['datasheets']) ? ",'datasheets'" : '') . ')'); } catch (Throwable $e) { }
     $db->commit();
   } catch (Throwable $e) { $db->rollBack(); fail('Reset failed, nothing was changed: ' . $e->getMessage(), 500); }
 

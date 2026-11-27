@@ -80,6 +80,7 @@ function trash_restore($id) {
   $t = row('SELECT * FROM trash WHERE id=?', [$id]); if (!$t) fail('Not found — it may have been removed for good', 404);
   $d = json_decode($t['data'], true) ?: [];
   foreach ($d['needs'] ?? [] as [$tb, $nid, $lbl]) if ($nid && !row("SELECT 1 FROM $tb WHERE id=?", [$nid])) fail("Restore $lbl first — it is deleted too (look for it in the Recycle bin).");
+  $qs = $t['kind'] === QS_BIN ? qs_restore_check($d) : []; /* a signed quotation's copy comes back only while it matches the quotation (api/quote_sign.php) */
   $db = db(); $db->beginTransaction();
   try {
     foreach ($d['rows'] ?? [] as [$tb, $rs]) {
@@ -94,8 +95,9 @@ function trash_restore($id) {
       if ($tb === 'leads' && $col === 'customer_id' && $ids) q("UPDATE leads SET status='Won' WHERE id IN (" . implode(',', $ids) . ')');
     }
     $db->commit();
-  } catch (Throwable $e) { $db->rollBack(); fail('Could not restore: ' . $e->getMessage()); }
+  } catch (Throwable $e) { $db->rollBack(); qs_restore_done($qs, false); fail('Could not restore: ' . $e->getMessage()); }
   foreach ($d['files'] ?? [] as $f) if (is_file(trash_dir() . "/$f")) @rename(trash_dir() . "/$f", up_dir() . "/$f");
+  qs_restore_done($qs, true); /* the seal back on the stored doc, the customer's Documents copy signed again */
   if ($t['kind'] === 'Document (expired)') foreach ($d['rows'] ?? [] as [$tb, $rs]) if ($tb === 'files') foreach ($rs as $r) q('UPDATE files SET created=CURRENT_TIMESTAMP WHERE id=?', [$r['id']]); /* a fresh keeping time */
   q('DELETE FROM trash WHERE id=?', [$id]);
   return $t;

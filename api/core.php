@@ -344,10 +344,11 @@ function handle_files($a) {
     [$mod, $life] = GEN_KEEP[$mm[1]]; if ($life) $life = $mm[1] === 'kseb' ? KSEB_GEN_DAYS : rule('gen_days'); need('customers'); need($mod);
     if ($mm[1] === 'quote' && preg_match('/^quote:(\d+)$/', $key, $qm) && (int)(row('SELECT lead_id FROM quotes WHERE id=?', [(int)$qm[1]])['lead_id'] ?? 0) > 0) $life = LEAD_QUOTE_DOC_DAYS; /* the quotation of a converted lead: 200 days */
     if (!$cid || !row('SELECT id FROM customers WHERE id=?', [$cid])) fail('Customer not found', 404);
-    if (isset($qm[1]) && ($sg = qs_row((int)$qm[1])) && qs_state($sg) === 'signed') { /* a signed quotation: its Documents copy is the signed file, whatever the browser built (also for a lead that became a customer) */
+    $qn = isset($qm[1]) ? row('SELECT id,number,customer_id,doc FROM quotes WHERE id=?', [(int)$qm[1]]) : null;
+    if ($qn && ($sg = qs_live((int)$qn['id'], $qn))) { /* a signed quotation: its Documents copy is the signed file, whatever the browser built (also for a lead that became a customer) */
+      if ((int)$qn['customer_id'] !== $cid) fail('This quotation belongs to another customer', 409); /* the signed file goes only into its own customer's Documents */
       $cp = qs_doc_make((string)$sg['file']); if ($cp === '') fail('Could not save the signed copy to the customer Documents', 500);
-      $qn = row('SELECT number FROM quotes WHERE id=?', [(int)$qm[1]]);
-      $id = qs_doc_put((int)$qm[1], $cid, (string)($qn['number'] ?? ''), $cp, (string)$sg['name'], (int)$sg['size']); audit('doc_autosave', 'files', $id, 'Quotation ' . ($qn['number'] ?? '') . ' · signed · customer ' . $cid);
+      $id = qs_doc_put((int)$qn['id'], $cid, (string)$qn['number'], $cp, (string)$sg['name'], (int)$sg['size']); audit('doc_autosave', 'files', $id, 'Quotation ' . $qn['number'] . ' · signed · customer ' . $cid);
       out(['id' => $id, 'life' => 0, 'signed' => 1]);
     }
     $fl = $_FILES['file'] ?? null; sec_upload($fl, ['pdf'], 25);

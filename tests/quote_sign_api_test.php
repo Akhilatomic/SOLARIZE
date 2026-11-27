@@ -32,6 +32,7 @@ $cols = fn($t) => array_column($db->query("PRAGMA table_info($t)")->fetchAll(), 
 chk($cols('quote_sign') === ['quote_id', 'req_by', 'req_at', 'signed_by', 'signed_at', 'file', 'name', 'size', 'ver'] && $cols('quote_log') === ['id', 'quote_id', 'via', 'to_whom', 'to_addr', 'user_id', 'created'] && in_array('quote_id', $cols('notifs'), true),
   'schema: quote_sign and quote_log exist, notifs has quote_id');
 chk((int)$db->query('PRAGMA user_version')->fetchColumn() >= 80, 'schema version is 80');
+chk((int)$db->query("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND tbl_name='notifs' AND sql LIKE '%(quote_id)%'")->fetchColumn() === 1, 'schema: notifs has an index on quote_id');
 
 $doc = fn($name, $price = 150000) => ['price' => $price, 'customer' => ['name' => $name], 'items' => new stdClass()];
 $lead = (int)(call($admin, 'leads', 'save', ['name' => 'Test Sign Lead', 'phone' => '9800000401'])['id'] ?? 0);
@@ -62,7 +63,9 @@ chk(call($admin, 'quotes', 'get', null, "&id=$q1")['sign']['ver'] !== $v0, 'a pr
 
 /* a signed copy in uploads goes to the Recycle bin with the quotation and comes back with it */
 $dir = dirname($dbPath) . '/uploads'; $tdir = dirname($dbPath) . '/trash'; if (!is_dir($dir)) mkdir($dir, 0750, true);
-$mk = function ($qid, $fn) use ($db, $dir) { file_put_contents("$dir/$fn", "%PDF-1.4 signed\n"); $db->prepare("INSERT OR REPLACE INTO quote_sign(quote_id,req_by,req_at,signed_by,signed_at,file,name,size,ver) VALUES(?,1,'2026-11-26 10:00:00',1,'2026-11-26 11:00:00',?,?,16,'v')")->execute([$qid, $fn, 'signed.pdf']); };
+/* a signed row made by hand: its ver is the version of the stored doc, as `sign` writes it (a row whose ver does not match counts as not signed) */
+$mk = function ($qid, $fn) use ($db, $dir) { file_put_contents("$dir/$fn", "%PDF-1.4 signed\n"); $ver = qs_ver(qs_doc(['doc' => $db->query('SELECT doc FROM quotes WHERE id=' . (int)$qid)->fetchColumn()]));
+  $db->prepare("INSERT OR REPLACE INTO quote_sign(quote_id,req_by,req_at,signed_by,signed_at,file,name,size,ver) VALUES(?,1,'2026-11-26 10:00:00',1,'2026-11-26 11:00:00',?,?,16,?)")->execute([$qid, $fn, 'signed.pdf', $ver]); };
 $stateOf = function ($who, $qid) { foreach (call($who, 'quotes', 'list') as $x) if (is_array($x) && ($x['id'] ?? 0) == $qid) return $x['sign_state'] . '|' . $x['signed_at']; return 'missing'; };
 $mk($q1, "qs_test_$q1.pdf");
 chk($stateOf($sales, $q1) === 'signed|2026-11-26 11:00:00', 'quotes list shows signed and the date for a signed quotation');
@@ -162,6 +165,18 @@ function rawget($who, $qs) {
   $res = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); $hs = curl_getinfo($ch, CURLINFO_HEADER_SIZE); curl_close($ch);
   return ['code' => $code, 'head' => substr($res, 0, $hs), 'body' => substr($res, $hs)];
 }
+/* files keep of a quotation's PDF as a browser makes it (not the signed file) */
+function keep($who, $cid, $qid) {
+  global $base; $pdf = sys_get_temp_dir() . '/qs_keep_' . getmypid() . '.pdf'; file_put_contents($pdf, "%PDF-1.4\n% a quotation pdf made in the browser\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
+  $ch = curl_init("$base/api.php?m=files&a=keep&customer_id=$cid&gen=quote:$qid");
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEJAR => $who['jar'], CURLOPT_COOKIEFILE => $who['jar'], CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['X-Solarize: 1'],
+    CURLOPT_POSTFIELDS => ['file' => new CURLFile($pdf, 'application/pdf', 'Quotation.pdf'), 'title' => 'Quotation']]);
+  $txt = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch); @unlink($pdf);
+  $j = json_decode((string)$txt, true); if (!is_array($j)) $j = ['_text' => $txt]; $j['_code'] = $code; return $j;
+}
+/* the Recycle bin entry (kind Signed quotation) that holds a signed file */
+$binOf = fn($f) => (int)$db->query("SELECT id FROM trash WHERE kind='Signed quotation' AND data LIKE " . $db->quote('%' . $f . '%') . ' ORDER BY id DESC LIMIT 1')->fetchColumn();
+$NOMATCH = 'This signed copy no longer matches the quotation — sign it again';
 $pdfBytes = file_get_contents(__DIR__ . '/../assets/kseb/blank.pdf');
 $adminId = (int)$db->query("SELECT id FROM users WHERE username='boss'")->fetchColumn();
 $admName = (string)$db->query("SELECT name FROM users WHERE username='boss'")->fetchColumn();
@@ -206,11 +221,30 @@ chk(($r['ok'] ?? false) && $sr2['file'] !== $oldFile && is_file("$dir/" . $sr2['
 chk(count($cf2) === 1 && $cf2[0]['path'] !== $oldDoc, 're-sign: the Documents copy is replaced, still one');
 $wantUpd = "$admName updated the signed quotation $noS · Test Sign Customer Two";
 chk($nt($qS, $otherId) === [$wantSigned, $wantUpd], 're-sign: notif text "updated the signed quotation"');
+/* the older copy of a re-signed quotation cannot come back over the newer one */
+$tOld = $binOf($oldFile); $r = call($admin, 'trash', 'restore', ['id' => $tOld]); clearstatcache();
+chk($tOld > 0 && $r['_code'] === 409 && ($r['error'] ?? '') === $NOMATCH && (string)$db->query("SELECT file FROM quote_sign WHERE quote_id=$qS")->fetchColumn() === $sr2['file'] && is_file("$tdir2/$oldFile") && !is_file("$dir/$oldFile")
+  && (int)$db->query("SELECT COUNT(*) FROM trash WHERE id=$tOld")->fetchColumn() === 1 && count($db->query("SELECT id FROM files WHERE gen='quote:$qS'")->fetchAll()) === 1, 're-sign: restoring the older signed copy is refused (409), the newer one stays');
+/* a signed copy whose quotation is gone does not come back (it would sit there and turn up on a later quotation of that id) */
+$db->prepare("INSERT INTO trash(kind,label,data,deleted_by,deleted_at) VALUES('Signed quotation','gone',?,'Test',CURRENT_TIMESTAMP)")->execute([json_encode(['rows' => [['quote_sign', [['quote_id' => 99999999, 'signed_by' => 1, 'signed_at' => '2026-11-26 11:00:00', 'file' => 'qs_gone.pdf', 'name' => 'x.pdf', 'size' => 1, 'ver' => 'v']]]], 'files' => [], 'needs' => [], 'relink' => []])]);
+$tGone = (int)$db->lastInsertId(); $r = call($admin, 'trash', 'restore', ['id' => $tGone]);
+chk($r['_code'] === 409 && ($r['error'] ?? '') === $NOMATCH && !(int)$db->query('SELECT COUNT(*) FROM quote_sign WHERE quote_id=99999999')->fetchColumn(), 'restore of a signed copy whose quotation is deleted: refused (409), no row');
+$db->exec("DELETE FROM trash WHERE id=$tGone");
 /* GET */
 $g1 = rawget($sales, "&id=$qS"); $g2 = rawget($sales, "&id=$qS&dl=1");
 chk($g1['code'] === 200 && $g1['body'] === $pdfBytes && stripos($g1['head'], 'application/pdf') !== false && stripos($g1['head'], 'inline; filename="Signed Quote.pdf"') !== false && stripos($g1['head'], 'private, no-store') !== false, 'signed GET: sales downloads the same bytes, inline');
 chk($g2['code'] === 200 && stripos($g2['head'], 'attachment; filename="Signed Quote.pdf"') !== false, 'signed GET: dl=1 is an attachment');
 chk(rawget($ba, "&id=$qS")['code'] === 403 && rawget($sales, '&id=99999999')['code'] === 404 && rawget($sales, "&id=$q6")['code'] === 404, 'signed GET: BA 403; unknown id 404; unsigned quotation 404');
+
+/* a signed row whose ver is not the version of the stored doc (the content changed, the file was not taken off) counts as not signed */
+$db->exec("UPDATE quote_sign SET ver='stale' WHERE quote_id=$qS");
+$gS = call($sales, 'quotes', 'get', null, "&id=$qS"); $slS = call($sales, 'qm', 'share_log', ['id' => $qS, 'via' => 'pdf', 'to_whom' => 'customer']);
+chk(($gS['sign']['state'] ?? 'x') === '' && ($gS['sign']['signed_at'] ?? 'x') === '' && (call($sales, 'qm', 'sign_info', null, "&id=$qS")['sign']['state'] ?? 'x') === '', 'a row whose ver no longer matches: quotes get and sign_info report it unsigned');
+chk(rawget($sales, "&id=$qS")['code'] === 404 && $slS['_code'] === 409 && ($slS['error'] ?? '') === 'This quotation is not signed', 'a row whose ver no longer matches: signed GET 404, share_log 409');
+$k = keep($sales, $cust2, $qS); $dS = $db->query("SELECT * FROM files WHERE gen='quote:$qS'")->fetch();
+chk($k['_code'] === 200 && !isset($k['signed']) && (int)($k['life'] ?? -1) === 120 && $dS && $dS['item'] === 'Quotation' && file_get_contents("$dir/" . $dS['path']) !== $pdfBytes, 'a row whose ver no longer matches: files keep stores the browser copy, not the signed file');
+$db->prepare('UPDATE quote_sign SET ver=? WHERE quote_id=?')->execute([$verS, $qS]);
+chk((call($sales, 'quotes', 'get', null, "&id=$qS")['sign']['state'] ?? '') === 'signed' && rawget($sales, "&id=$qS")['code'] === 200, 'the ver matching again: signed again');
 
 /* a stored doc that is not a JSON object cannot be signed: 400, no file, no row */
 $qB = (int)(call($admin, 'qm', 'save', ['lead_id' => $lead, 'status' => 'Draft', 'doc' => $doc('Test Sign Lead', 196000)])['id'] ?? 0);
@@ -260,6 +294,10 @@ $gotLost = $lostN($qK); sort($gotLost, SORT_STRING);
 chk($wantLost && $gotLost === $wantLost, 'staff content change: every admin gets sign_lost with the exact text');
 $dc = $dcopy($qK);
 chk($dc && (int)$dc['life'] === 120 && $dc['created'] > '2026-01-01', 'staff content change: Documents life is gen_days (120), clock restarted from today');
+chk($dc && $dc['item'] === "Quotation $noK", 'staff content change: the Documents copy is no longer named "· signed"');
+$tK = $binOf($fK); $r = call($admin, 'trash', 'restore', ['id' => $tK]); clearstatcache();
+chk($tK > 0 && $r['_code'] === 409 && ($r['error'] ?? '') === $NOMATCH && $fileOf($qK) === '' && is_file("$tdir/$fK") && $sealOf($qK) === false && (call($sales, 'quotes', 'get', null, "&id=$qK")['sign']['state'] ?? 'x') === '',
+  'staff content change: restoring the signed copy is refused (409), the quotation stays unsigned');
 
 /* the admin unticks */
 $db->exec("UPDATE files SET life=0 WHERE gen='quote:$qK'");
@@ -271,6 +309,11 @@ $r = call($admin, 'qm', 'save', ['id' => $qK, 'customer_id' => $cust3, 'status' 
 clearstatcache();
 chk(($r['sign']['state'] ?? 'x') === '' && $fileOf($qK) === '' && !is_file("$dir/$fK2") && is_file("$tdir/$fK2") && $sealOf($qK) === false, 'admin unticks: the signed copy goes to the Recycle bin, state cleared');
 chk($lostN($qK) === [] && (int)$db->query("SELECT COUNT(*) FROM notifs WHERE quote_id=$qK")->fetchColumn() === 0 && (int)$dcopy($qK)['life'] === 120 && $dcopy($qK)['created'] > '2026-01-01', 'admin unticks: no notification, Documents life back to gen_days');
+/* ...and the unticked copy can be put back from the Recycle bin: the content is still the one it was signed for */
+$tK2 = $binOf($fK2); $r = call($admin, 'trash', 'restore', ['id' => $tK2]); clearstatcache(); $dc = $dcopy($qK);
+chk($tK2 > 0 && ($r['ok'] ?? false) && $fileOf($qK) === $fK2 && is_file("$dir/$fK2") && !is_file("$tdir/$fK2") && $sealOf($qK) === true && (call($sales, 'quotes', 'get', null, "&id=$qK")['sign']['state'] ?? '') === 'signed', 'admin unticked: restoring the signed copy is allowed, signed and sealed again');
+chk($dc && $dc['item'] === "Quotation $noK · signed" && (int)$dc['life'] === 0 && $dc['path'] !== $fK2 && file_get_contents("$dir/" . $dc['path']) === file_get_contents("$dir/$fK2") && (int)$db->query("SELECT COUNT(*) FROM files WHERE gen='quote:$qK'")->fetchColumn() === 1,
+  'restored: the Documents copy is the signed file again (life 0, named "· signed", a separate copy, still one)');
 
 /* admin ticks with changed content: the old signed file goes, no notification */
 $verK = call($admin, 'quotes', 'get', null, "&id=$qK")['sign']['ver'];
@@ -296,6 +339,8 @@ $kj = json_decode((string)curl_exec($ch), true); curl_close($ch); @unlink($other
 $dc = $dcopy($qK); $dn = (int)$db->query("SELECT COUNT(*) FROM files WHERE gen='quote:$qK'")->fetchColumn();
 chk(is_array($kj) && (int)($kj['life'] ?? -1) === 0 && ($kj['signed'] ?? 0) === 1 && ($kj['id'] ?? 0) == ($dc['id'] ?? -1) && $dn === 1 && (int)$dc['life'] === 0 && $dc['item'] === "Quotation $noK · signed"
   && is_file("$dir/" . $dc['path']) && file_get_contents("$dir/" . $dc['path']) === $pdfBytes && $dc['path'] !== $fK4, 'files keep of a signed quotation stores the signed file (life 0, signed 1, separate copy)');
+$k = keep($sales, $cust2, $qK);
+chk($k['_code'] === 409 && ($k['error'] ?? '') === 'This quotation belongs to another customer' && !(int)$db->query("SELECT COUNT(*) FROM files WHERE customer_id=$cust2 AND gen='quote:$qK'")->fetchColumn(), 'files keep of a signed quotation named for another customer: refused (409), nothing stored there');
 
 /* lead clock */
 [$qC, $r] = $signNew($doc('Test Sign Lead', 230000), null, $lead);
@@ -319,6 +364,14 @@ chk(($sl['ok'] ?? false) && ($sh['via'] ?? '') === 'whatsapp' && ($sh['to_whom']
 call($sales, 'qm', 'share_log', ['id' => $q4, 'via' => 'email', 'to_whom' => 'bank', 'to_addr' => str_repeat('a', 200)]);
 $si = call($sales, 'qm', 'sign_info', null, "&id=$q4");
 chk(strlen($si['shares'][0]['to_addr'] ?? '') === 120 && ($si['shares'][0]['via'] ?? '') === 'email' && (int)$db->query("SELECT COUNT(*) FROM audit_log WHERE action='quote_share'")->fetchColumn() >= 2, 'share_log: to_addr cut to 120, audit quote_share written');
+/* without Loans read the bank's phone / email in the share history are blank (the customer's stay) */
+$perm = call($admin, 'settings', 'get')['roles_now'] ?? [];
+foreach (['read', 'write'] as $rw) $perm['sales'][$rw] = array_values(array_diff($perm['sales'][$rw] ?? [], ['loans']));
+call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => $perm]);
+$si = call($sales, 'qm', 'sign_info', null, "&id=$q4"); $byTo = []; foreach ($si['shares'] ?? [] as $x) $byTo[$x['to_whom']][] = $x['to_addr'];
+call($admin, 'settings', 'save', ['key' => 'role_perms', 'value' => []]); /* back to defaults */
+$si2 = call($sales, 'qm', 'sign_info', null, "&id=$q4");
+chk(($byTo['bank'] ?? null) === [''] && ($byTo['customer'] ?? null) === ['9800000999'] && strlen($si2['shares'][0]['to_addr'] ?? '') === 120, 'sign_info: without Loans read the bank address is blank, the customer one stays; with Loans read it shows');
 chk(call($sales, 'qm', 'share_log', ['id' => $q4, 'via' => 'sms', 'to_whom' => 'customer'])['_code'] === 400 && call($sales, 'qm', 'share_log', ['id' => $q4, 'via' => 'pdf', 'to_whom' => 'neighbour'])['_code'] === 400, 'share_log: unknown via or to_whom 400');
 $r = call($sales, 'qm', 'share_log', ['id' => $q6, 'via' => 'pdf', 'to_whom' => 'customer']);
 chk($r['_code'] === 409 && ($r['error'] ?? '') === 'This quotation is not signed' && call($sales, 'qm', 'share_log', ['id' => 99999999, 'via' => 'pdf', 'to_whom' => 'customer'])['_code'] === 404 && call($ba, 'qm', 'share_log', ['id' => $q4, 'via' => 'pdf', 'to_whom' => 'customer'])['_code'] === 403, 'share_log: unsigned quotation 409, unknown 404, BA 403');

@@ -62,4 +62,6 @@ RC=0
 "$PHP" "$TMP/tests/feas_pop_test.php" "http://localhost:$PORT" || RC=1
 "$PHP" "$TMP/tests/feas_reset_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
 "$PHP" "$TMP/tests/find_test.php" "http://localhost:$PORT" || RC=1
+# last: a total reset wipes the shared test database
+"$PHP" "$TMP/tests/quote_sign_reset_test.php" "http://localhost:$PORT" "$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")/data/crm.sqlite" || RC=1
 exit $RC

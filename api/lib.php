@@ -154,6 +154,7 @@ function migrate($db) {
   $db->exec("CREATE TABLE IF NOT EXISTS quote_sign(quote_id INTEGER PRIMARY KEY, req_by INTEGER, req_at TEXT, signed_by INTEGER, signed_at TEXT, file TEXT DEFAULT '', name TEXT DEFAULT '', size INTEGER DEFAULT 0, ver TEXT DEFAULT '')");
   $db->exec("CREATE TABLE IF NOT EXISTS quote_log(id INTEGER PRIMARY KEY AUTOINCREMENT, quote_id INTEGER, via TEXT, to_whom TEXT, to_addr TEXT DEFAULT '', user_id INTEGER, created TEXT DEFAULT CURRENT_TIMESTAMP)");
   $db->exec("CREATE INDEX IF NOT EXISTS qlog_quote ON quote_log(quote_id)");
+  $db->exec("CREATE INDEX IF NOT EXISTS notif_quote ON notifs(quote_id)");
   // Nov 2026: money & bank details (Finance) only for admin, accounts and roles the admin grants — remove it from Sales and Engineer once
   if (!(int)($db->query("SELECT COUNT(*) FROM settings WHERE k='fin_v19'")->fetchColumn())) {
     $rp = $db->query("SELECT v FROM settings WHERE k='role_perms'")->fetchColumn();
