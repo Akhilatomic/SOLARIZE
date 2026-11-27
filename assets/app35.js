@@ -2,6 +2,7 @@
    acReceipt(paymentId)            the receipt window (gives the payment its receipt number the first time)
    acPdfFromHtml(html, css, name)  one A4 page PDF (html2canvas picture in jsPDF), returned as a File called `name`
    acShare(o)                      PDF download, email (compose window with the PDF attached) or WhatsApp; each share is logged (acc/log)
+   acWaFile / acShareClick         the WhatsApp-with-a-PDF step and a share button's click (also used by the signed quotations, app52.js)
    Uses ACC (app32.js), composeMail / EM (app19.js), qpLibs (app21.js), DOC_CSS, fdt, inr2, rupeeWords, printDoc (app18.js). */
 
 /* the customer's own wording; the editable templates (Accounts settings, ac_tpl) are written to the bank manager */
@@ -114,33 +115,42 @@ async function acShare(o) {
   const phone = String((bank ? cu.loan_mgr_phone : cu.phone) || '').trim();
   if (!phone.replace(/\D/g, '')) { toast(bank ? "Add the bank manager's phone on the Bank & loan page" : 'This customer has no phone number', true); return false; }
   const text = ACC.fill((bank ? await acTpl() : ACX_CUST)[k + '_body'], o.vars);
-  /* a phone: the share sheet sends the PDF itself */
-  if (acMobile() && navigator.share && navigator.canShare) {
-    let can = false; try { can = navigator.canShare({ files: [file] }); } catch (e) { }
-    if (can) { try { await navigator.share({ files: [file], text }); acLog(o, phone); return true; } catch (e) { if (e && e.name === 'AbortError') return true; } }
-  }
-  /* a computer: the PDF downloads and WhatsApp opens with the message ready; staff attach the file and press send */
-  acDownload(file);
-  const url = ACC.waLink(phone, text);
-  if (o.win && !o.win.closed) o.win.location.href = url; else window.open(url, '_blank', 'noopener');
-  toast('PDF downloaded. Attach it in WhatsApp, then send.');
-  acLog(o, phone);
+  if (await acWaFile(file, phone, text, o.win) === 'sent') acLog(o, phone);
   return true;
 }
 
-/* a share button (data-via, data-to): make() -> Promise<o> builds the PDF. WhatsApp on a computer opens its window right at the
-   click, because a pop-up opened after the PDF is made can be blocked. */
-async function acShareBtn(btn, make) {
+/* A PDF to WhatsApp (receipts, tax bills, signed quotations): on a phone the share sheet sends the file itself; on a computer the file
+   downloads and WhatsApp opens with the message ready (in win, the window opened at the click, when there is one), and staff attach the file
+   and press send. Gives 'sent' (log it) or 'cancelled' (the share sheet was closed). */
+async function acWaFile(file, phone, text, win) {
+  if (acMobile() && navigator.share && navigator.canShare) {
+    let can = false; try { can = navigator.canShare({ files: [file] }); } catch (e) { }
+    if (can) { try { await navigator.share({ files: [file], text }); return 'sent'; } catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; } }
+  }
+  acDownload(file);
+  const url = ACC.waLink(phone, text);
+  if (win && !win.closed) win.location.href = url; else window.open(url, '_blank', 'noopener');
+  toast('PDF downloaded. Attach it in WhatsApp, then send.');
+  return 'sent';
+}
+
+/* A share button's click. WhatsApp (wa) on a computer opens its window right at the click, because a pop-up opened after the PDF is
+   made can be blocked; run(win) -> true when the share went ahead, else that window closes again. An error becomes a red toast (fail). */
+async function acShareClick(btn, wa, run, fail = 'Could not make the PDF') {
   let win = null;
-  if (btn.dataset.via === 'whatsapp' && !acMobile()) {
+  if (wa && !acMobile()) {
     win = window.open('', '_blank');
     if (win) { try { win.opener = null; win.document.title = 'WhatsApp'; win.document.body.textContent = 'Opening WhatsApp…'; } catch (e) { } }
   }
   btn.disabled = true; let ok = false;
-  try { const o = await make(); o.win = win; ok = await acShare(o); }
-  catch (e) { toast((e && (e.message || e.error)) || 'Could not make the PDF', true); }
+  try { ok = await run(win); }
+  catch (e) { toast((e && (e.message || e.error)) || fail, true); }
   if (!ok && win && !win.closed) win.close();
   btn.disabled = false;
+}
+/* a receipt / tax bill share button (data-via, data-to): make() -> Promise<o> builds the PDF */
+async function acShareBtn(btn, make) {
+  return acShareClick(btn, btn.dataset.via === 'whatsapp', async win => { const o = await make(); o.win = win; return acShare(o); });
 }
 
 /* the signature box; seal = print the company seal and signature (admin only: r.company.signoff is empty for anyone else) */

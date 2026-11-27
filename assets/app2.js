@@ -5,7 +5,7 @@ async function pgQuotes() {
   const [qs, cs, ls] = await Promise.all([list('quotes'), list('customers'), list('leads')]);
   const nm = q => (cs.find(c => c.id === q.customer_id) || ls.find(l => l.id === q.lead_id) || {}).name || '—', w = canW('quotes'), adm = ME.role === 'admin';
   /* signed quotations (app52.js): the badge, and for an admin the chip that shows only the quotations waiting for a signature */
-  const sg = q => ({ state: q.sign_state || '', signed_at: q.signed_at || '' }), nWait = qs.filter(q => q.sign_state === 'waiting').length;
+  const sg = qsOf, nWait = qs.filter(q => q.sign_state === 'waiting').length; /* sg: a row's sign_state / signed_at as a sign object (ruling R2, app52.js) */
   let only = false; try { only = adm && nWait > 0 && sessionStorage.qsgWait === '1'; } catch (e) { }
   $('#main').innerHTML = `<div class="bar">${adm && nWait ? `<button type="button" class="btn sec sm qsg-chip${only ? ' on' : ''}" id="qsgw" aria-pressed="${only}" title="${only ? 'Show all quotations' : 'Show only the quotations waiting for the seal and signature'}"><i class="i i-award"></i> Waiting for signature (${nWait})</button>` : ''}<span class="sp"></span>${canW('quotes') ? '<button class="btn" id="qn">+ New quotation</button>' : ''}</div>` +
     table([['No.', q => `<b>${esc(q.number)}</b>`], ['For', q => esc(nm(q))],

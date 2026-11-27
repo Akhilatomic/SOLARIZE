@@ -495,6 +495,9 @@ function qmkPage(dir) {
 
 /* ---- save, PDF, more ---- */
 async function qmkSave() {
+  /* the signed copy of the last save is still being made (app52.js qsMakerSign): wait for it, so this save sees the quotation as it is now
+     and never overtakes that upload; a second Save pressed meanwhile stops here */
+  if (QMK.signP) { await QMK.signP; if (QMK.busy) return false; }
   const d = QMK.doc;
   if (!(QMK.cust.customer_id || QMK.cust.lead_id)) { QMK.picking = false; qmkTab('customer'); toast('Choose a customer or lead first', true); const q = $('#qmcq'); if (q) q.focus(); return false; }
   if (!(+d.price > 0)) { qmkTab('price'); toast('Type the package price first', true); const p = $('#qmprice'); if (p) p.focus(); return false; }
@@ -617,7 +620,7 @@ async function qmShowQuote(ids, who) {
     b.disabled = true; try { await api('qm', 'status', { id: q.id, status: s }); q.status = s; meta(); toast(`${q.number} · ${s === 'Accepted' ? 'Accepted' : 'no longer accepted (Sent)'}`);
       if (s === 'Accepted' && q.customer_id) qmKeepNote(q.id); } catch (x) { } b.disabled = false; };
   if ($('#qmve', m)) $('#qmve', m).onclick = () => { if (!q) return; m.remove(); location.hash = '#/quotes/' + q.id; }; /* opens it in the quotation maker */
-  const fit = () => { const b = $('#qmvb', m), p = b && b.querySelector('.qm-pages'); if (p) p.style.zoom = Math.min(1, (b.clientWidth - 8) / 794); };
+  const fit = qsFit(m, $('#qmvb', m)); /* app52.js: the pages zoomed to the window's width while it is open */
   /* the signature badge and Share / Ask admin to sign / Review & sign; a change loads the quotation again */
   const sgHead = () => { const h = $('#qmvsg', m); if (!h || !q) return; const s = q.sign || {}, qq = q;
     h.innerHTML = qsBadge(s) + qsBtns(QSIGN.can(s, ME, q, canW('quotes')), q, { view: false });
@@ -635,8 +638,6 @@ async function qmShowQuote(ids, who) {
   if ($('#qmvs', m)) $('#qmvs', m).onchange = e => load(+e.target.value);
   $('#qmvd', m).onclick = async e => { if (!cur) return; if (cur.signed) return qsDownload(q); const btn = e.currentTarget; btn.disabled = true;
     try { await qmDownloadPdf(cur.box, cur.name, true); } catch (x) { toast((x && x.message) || 'Could not make the PDF', true); } btn.disabled = false; };
-  addEventListener('resize', fit);
-  new MutationObserver((r, ob) => { if (!document.body.contains(m)) { ob.disconnect(); removeEventListener('resize', fit); } }).observe(document.body, { childList: true });
   load(ids[0]);
 }
 /* Lead → customer: every quotation of the lead is kept as a PDF in the new customer's Documents (200 days, api/core.php files keep) */

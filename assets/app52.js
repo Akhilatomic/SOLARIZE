@@ -5,8 +5,8 @@
    qsSign(id, ver, resign)  admin: makes the PDF of the saved quotation with the seal drawn in (off screen) and uploads it (POST qm sign)
    qsReview(id, done)       admin: the saved quotation with the seal drawn in, and Add seal & signature (or Make the signed copy)
    qsView(q) / qsDownload(q) / qsShare(q, who)   the stored signed PDF: the document window, a download, the share window
-   Uses QSIGN (app51.js), qmSavedPages / QMB / QMK (app22.js), qmMount / qmDownloadPdf (app21.js), docViewer (app12.js), acDownload /
-   acMobile / acMailReady / acSharedHtml (app35.js), composeMail (app19.js), ACC.waLink (app32.js). CSS: .qsg- in assets/quote.css.
+   Uses QSIGN (app51.js), qmSavedPages / QMB / QMK (app22.js), qmMount / qmDownloadPdf (app21.js), docViewer (app12.js), acWaFile /
+   acShareClick / acMailReady / acSharedHtml (app35.js), composeMail (app19.js), ACC.waLink (app32.js). CSS: .qsg- in assets/quote.css.
    Every value shown in HTML goes through esc(). */
 const qsUrl = (id, dl) => 'api.php?m=qm&a=signed&id=' + (+id) + (dl ? '&dl=1' : '');
 const qsName = q => (q.sign && q.sign.file_name) || ('Quotation ' + String(q.number || '').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-') + '.pdf').replace(/\s+/g, ' ');
@@ -108,7 +108,8 @@ async function qsReview(id, done) {
   const v = $('#qsgv', m), fit = qsFit(m, v);
   let q; try { q = await api('quotes', 'get', undefined, '&id=' + (+id)); } catch (e) { v.innerHTML = `<p class="over">${esc((e && e.error) || 'Could not open the quotation')}</p>`; return; }
   const pics = await qsPicsNow(); /* before the pages: they are drawn with the pictures */
-  let sp = null; try { sp = await qmSavedPages(qsSealed(q)); } catch (e) { sp = null; }
+  let sp = null, bad = ''; /* a drawing failure is said as qsSign says it, not taken for an older quotation */
+  try { sp = await qmSavedPages(qsSealed(q)); } catch (e) { bad = qsFail('The quotation could not be drawn: ' + ((e && (e.error || e.message)) || e)).error; }
   if (!m.isConnected) return;
   const s = q.sign || {}, k = QSIGN.state(s).k, nm = sp ? sp.d.customer.name : '';
   $('#qsgm', m).textContent = [q.number, nm, q.date ? dmy(q.date) : '', q.total ? inr(q.total) : '', q.status].filter(Boolean).join(' · ');
@@ -123,7 +124,7 @@ async function qsReview(id, done) {
   const b = $('#qsggo', m);
   if (b) b.onclick = async () => { b.disabled = true; b.innerHTML = '<i class="i i-award"></i> Adding the seal &amp; signature…';
     try { const ns = await qsSign(q.id, s.ver); m.remove(); if (done) done(ns); } catch (e) { if (b.isConnected) { b.disabled = false; b.innerHTML = go; } } };
-  if (!sp) { v.innerHTML = '<p class="mut">This quotation was made before the quotation maker, so it has no pages to sign.</p>'; return; }
+  if (!sp) { v.innerHTML = bad ? `<p class="over">${esc(bad)}</p>` : '<p class="mut">This quotation was made before the quotation maker, so it has no pages to sign.</p>'; return; }
   v.innerHTML = '<div class="qm-pages"></div>'; qmMount(v.firstChild, sp.pages); fit();
 }
 
@@ -177,6 +178,7 @@ async function qsShare(q, who) {
     .then(r => { if (!r.ok) throw new Error('The signed PDF could not be loaded'); return r.blob(); })
     .then(b => new File([b], name, { type: 'application/pdf' })).catch(e => { fileP = null; throw e; });
   getFile().catch(() => { });
+  /* email: the compose window with the PDF attached; WhatsApp: acWaFile (app35.js), the same step as receipts. true = the share went ahead */
   const send = async (t, win) => {
     const file = await getFile(), bank = t.to_whom === 'bank';
     if (t.via === 'email') {
@@ -184,27 +186,10 @@ async function qsShare(q, who) {
       composeMail({ to: t.addr, subject: fill(bank ? 'bank_subject' : 'cust_subject'), body: fill(bank ? 'bank_body' : 'cust_body'), attach: [file], onSent: () => log('email', t.to_whom, t.addr) });
       return true;
     }
-    const text = fill(bank ? 'bank_body' : 'cust_body');
-    if (acMobile() && navigator.share && navigator.canShare) { /* a phone: the share sheet sends the PDF itself */
-      let can = false; try { can = navigator.canShare({ files: [file] }); } catch (e) { }
-      if (can) { try { await navigator.share({ files: [file], text }); log('whatsapp', t.to_whom, t.addr); return true; } catch (e) { if (e && e.name === 'AbortError') return true; } }
-    }
-    acDownload(file); /* a computer: the PDF downloads and WhatsApp opens with the message ready */
-    const url = ACC.waLink(t.addr, text);
-    if (win && !win.closed) win.location.href = url; else window.open(url, '_blank', 'noopener');
-    toast('PDF downloaded. Attach it in WhatsApp, then send.');
-    log('whatsapp', t.to_whom, t.addr);
+    if (await acWaFile(file, t.addr, fill(bank ? 'bank_body' : 'cust_body'), win) === 'sent') log('whatsapp', t.to_whom, t.addr);
     return true;
   };
-  $$('[data-t]', m).forEach(btn => btn.onclick = async () => {
-    const t = T[+btn.dataset.t]; if (!t || !t.ok) return;
-    let win = null; /* WhatsApp on a computer: its window opens right at the click (one opened later can be blocked) */
-    if (t.via === 'whatsapp' && !acMobile()) { win = window.open('', '_blank'); if (win) { try { win.opener = null; win.document.title = 'WhatsApp'; win.document.body.textContent = 'Opening WhatsApp…'; } catch (e) { } } }
-    btn.disabled = true; let ok = false;
-    try { ok = await send(t, win); } catch (e) { toast((e && (e.message || e.error)) || 'Could not share the PDF', true); }
-    if (!ok && win && !win.closed) win.close();
-    if (btn.isConnected) btn.disabled = false;
-  });
+  $$('[data-t]', m).forEach(btn => btn.onclick = () => { const t = T[+btn.dataset.t]; if (t && t.ok) acShareClick(btn, t.via === 'whatsapp', win => send(t, win), 'Could not share the PDF'); });
   $('[data-qd]', m).onclick = () => { qsDownload({ id, number: full.number, sign }); log('pdf', 'customer', ''); };
   $('[data-qv]', m).onclick = () => qsView({ id, number: full.number, sign });
   return m;
@@ -239,11 +224,16 @@ async function qsMakerAct(a) {
   return qsAct(a, q, { name: d.customer.name, phone: d.customer.mobile, email: d.customer.email }, s => qsMakerSet(id, s));
 }
 /* after an admin's save with the seal ticked: the signed copy is made and uploaded (the server puts it in the customer's Documents);
-   resign: it was signed before that save */
+   resign: it was signed before that save. Only the signing still current (QMK.signP === p) touches the maker, so a quotation opened since,
+   or a later signing, keeps its own state; qmkSave waits for this before it saves again, so two never overlap. */
 function qsMakerSign(id, ver, resign) {
   QMK.signing = true; qmkHead();
-  const p = qsSign(id, ver, resign).then(s => { qsMakerSet(id, s); return s; }, () => null)
-    .finally(() => { if (QMK.signP === p) QMK.signP = null; QMK.signing = false; if (qmkOn()) qmkHead(); });
+  const p = qsSign(id, ver, resign).then(s => s, () => null).then(s => {
+    if (QMK.signP !== p) return s;
+    QMK.signP = null; QMK.signing = false;
+    if (s) qsMakerSet(id, s); else if (qmkOn()) qmkHead();
+    return s;
+  });
   QMK.signP = p;
   return p;
 }
