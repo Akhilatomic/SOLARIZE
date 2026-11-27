@@ -133,24 +133,8 @@ async function boot(pre) {
   if (typeof startIdle === 'function' && startIdle()) return; /* not used for too long: signing out */
   shell(); mountBell(); if (typeof startSideFeed === 'function') startSideFeed(); if (typeof startPresence === 'function') startPresence(); if (typeof startFeas === 'function') startFeas(); if (typeof startFeasPop === 'function') startFeasPop(); startMeta(); startCal(); startWa(); startHr(); startDisc(); if (typeof startMail === 'function') startMail(); route();
 }
-function loginView(setup, brand) {
-  if (APPLITE) setTimeout(() => appCall('ready'), 0); /* Android app: the sign-in page is up, its opening screen may go */
-  const bg = brand.bg ? `url('${brand.bg}') center/cover no-repeat` : '';
-  app.innerHTML = `<div class="lg" style="${bg ? 'background:' + bg : ''}"><div class="lg-dim" style="opacity:${bg ? (brand.dim ?? 35) / 100 : 0}"></div>
-   <form class="lg-card" id="lf" autocomplete="on"><img src="assets/logo.png" alt="Jasper" class="lg-logo">
-    <h2>${setup ? 'Welcome' : 'Welcome back'}</h2><p class="lg-sub">${esc(brand.tagline || 'Max speed CRM')}</p>
-    ${setup ? '<p class="lg-note">First run: create the administrator account.</p><div class="lg-f"><i class="i i-user"></i><input id="nm" placeholder="Your name" autocomplete="name"></div>' : ''}
-    <div class="lg-f"><i class="i i-user"></i><input id="un" placeholder="Username" autocomplete="username" autofocus></div>
-    <div class="lg-f"><i class="i i-lock"></i><input id="pw" type="password" placeholder="Password${setup ? ' (min 8 characters)' : ''}" autocomplete="${setup ? 'new-password' : 'current-password'}"><button type="button" class="lg-eye" id="eye" title="Show password" tabindex="-1"><i class="i i-eye"></i></button></div>
-    ${setup || APPLITE ? '' : `<label class="lg-rem"><input type="checkbox" id="rem"${lgRem() ? ' checked' : ''}> Remember this device for 7 days</label>`}
-    <div class="err" id="e"></div><button class="btn lg-go" id="go" type="submit">${setup ? 'Create admin account' : 'Sign in'}</button>
-    <p class="lg-foot">Jasper Solar Solutions</p></form></div>`;
-  $('#eye').onclick = () => { const p = $('#pw'); p.type = p.type === 'password' ? 'text' : 'password'; };
-  $('#lf').onsubmit = async e => { e.preventDefault(); if ($('#rem')) { try { localStorage.setItem('lgRem', $('#rem').checked ? '1' : '0'); } catch (x) { } } const b = $('#go'); b.disabled = true; b.textContent = 'Please wait…'; try { const r = await api('auth', setup ? 'setup' : 'login', { name: $('#nm')?.value, username: $('#un').value, password: $('#pw').value, phone: isPhone() ? 1 : 0, remember: $('#rem') && $('#rem').checked ? 1 : 0, app: APPLITE ? 1 : 0, device: APPLITE ? appCall('device') : '' }); if (APPLITE && r.app_token) appCall('setToken', r.app_token);
-      /* owner's rule (2026-11-22): every sign-in starts on the Dashboard, not on the page or tabs open before (a reload while signed in still keeps them) */
-      if (!APPLITE) { try { sessionStorage.removeItem(typeof TABR !== 'undefined' ? TABR.KEY : 'mtabs'); } catch (x) { } try { history.replaceState(null, '', '#/dashboard'); } catch (x) { } }
-      boot(r.status); } catch (j) { $('#e').textContent = j.error || 'Failed'; b.disabled = false; b.textContent = setup ? 'Create admin account' : 'Sign in'; } };
-}
+/* the sign-in screen: glass over the sunrise or the owner's login photo, with the sign-in animation (assets/app54.js, login.css) */
+function loginView(setup, brand) { return lgView(setup, brand); }
 function shell() {
   const items = MODS.filter(m => APPLITE ? m[0] === 'leads' : m[0] === 'admin' ? ME.role === 'admin' : m[0] === 'fees' ? feesNavItems().length > 0 : canR(m[3]));
   app.innerHTML = `<div id="shell"><aside id="side"><h1 class="brand"><img src="assets/logo.png" alt="Jasper"><span class="bt">Solarize <span>CRM</span></span><button type="button" class="sbpin" id="sbpin" aria-pressed="false"><i class="i i-pin"></i></button></h1>
