@@ -11,15 +11,26 @@ function bank_saved($cid, $doc) {
   return $r ? ['data' => json_decode($r['data'], true) ?: [], 'issued_on' => $r['issued_on'], 'updated' => $r['updated'], 'updated_by' => $r['updated_by']] : null;
 }
 
-/* the customer's quotation-maker quotations (newest first, at most 10, with their doc) for the agreements made before installation
-   (KD.pickQuote / KD.quoteFacts fill what the profile leaves empty); none for someone who cannot read Quotations */
+/* the customer's quotation-maker quotations (newest first, at most 10) for the agreements made before installation (KD.pickQuote /
+   KD.quoteFacts fill what the profile leaves empty). Only what the agreement uses is sent: the price and the panel / inverter lines.
+   Owner's rule (2026-11-27): everyone who opens the bank papers prints the same agreement, so someone without Quotations access gets
+   those values too, but not the quotation's number or date (no picker for them). */
+function bank_quote_doc(array $d) {
+  $snap = is_array($d['snap'] ?? null) ? $d['snap'] : [];
+  $keep = fn($l, $keys) => array_intersect_key(is_array($l) ? $l : [], array_flip($keys));
+  $pan = is_array($snap['panels'] ?? null) ? array_slice(array_values($snap['panels']), 0, 1) : [];
+  $inv = is_array($snap['inverter'] ?? null) ? array_slice(array_values($snap['inverter']), 0, 20) : [];
+  return ['price' => is_numeric($d['price'] ?? null) ? +$d['price'] : 0, 'snap' => [
+    'panels' => array_map(fn($l) => $keep($l, ['label', 'details', 'name', 'wp', 'qty']), $pan),
+    'inverter' => array_map(fn($l) => $keep($l, ['title', 'name', 'details', 'kw', 'qty', 'kw_line']), $inv)]];
+}
 function bank_quotes($cid) {
-  if (!can('quotes')) return [];
-  $out = [];
+  $full = can('quotes'); $out = [];
   /* newest made first (by id: a status change or a re-save must not make an older quotation the "newest") */
   foreach (rows("SELECT id, number, date, status, doc FROM quotes WHERE customer_id=? AND doc IS NOT NULL AND doc<>'' ORDER BY id DESC LIMIT 10", [(int)$cid]) as $q) {
     $d = json_decode((string)$q['doc'], true);
-    if (is_array($d) && $d && array_keys($d) !== range(0, count($d) - 1)) $out[] = ['id' => (int)$q['id'], 'number' => (string)$q['number'], 'date' => (string)$q['date'], 'status' => (string)$q['status'], 'doc' => $d];
+    if (is_array($d) && $d && array_keys($d) !== range(0, count($d) - 1))
+      $out[] = ['id' => (int)$q['id'], 'number' => $full ? (string)$q['number'] : '', 'date' => $full ? (string)$q['date'] : '', 'status' => (string)$q['status'], 'doc' => bank_quote_doc($d)];
   }
   return $out;
 }

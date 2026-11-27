@@ -37,8 +37,10 @@ customer's quotation already has most of them.
 - C. Copy the quotation into Plant details — every paper benefits, but guessed values would sit in the profile as if installed.
 
 ## Build notes (Claude's calls)
-- `api/bank.php` `get` also returns `quotes`: the customer's maker quotations (id, number, date, status, `doc`), newest first, at most
-  10 — only when the user can read Quotations (`can('quotes')`); otherwise none and the agreement behaves as today.
+- `api/bank.php` `get` also returns `quotes`: the customer's maker quotations (id, number, date, status, `doc`), newest made first, at
+  most 10; `doc` is trimmed to what the agreement uses (price, first panel line, inverter lines). **Owner's decision (2026-11-27,
+  after the review):** everyone who can open the bank papers gets these values, so an agreement prints the same for every user;
+  without Quotations access (e.g. the assistant manager role) the number and date are left out and no line / picker is shown.
 - Pure helper in `assets/app24.js`: `KD.quoteFacts(doc)` → `{kw, module_make, module_wp, inv_make, price}` from `doc.snap` lines
   (uses `QM.calc` when present, else the same sums inline, so it stays Node-testable); `K.defaults` for bag/mas/mag takes
   `ctx.quote` (the chosen quotation's doc) and fills only empty values.

@@ -207,12 +207,20 @@ $bq = call($admin, 'bank', 'get', null, "&customer_id=$qc");
 chk(array_column($bq['quotes'] ?? [], 'id') === [(int)$q2['id'], (int)$q1['id']] && ($bq['quotes'][1]['status'] ?? '') === 'Accepted'
   && (float)($bq['quotes'][0]['doc']['price'] ?? 0) === 210000.0 && ($bq['quotes'][0]['number'] ?? '') !== '', 'bank get lists the customer\'s maker quotations newest first with their doc');
 chk(isset($bq['quotes']) && count($bq['quotes']) === 2 && !in_array('OLD/1', array_column($bq['quotes'], 'number'), true), 'bank get skips quotations without a maker doc');
+$qd = $bq['quotes'][0]['doc'] ?? [];
+chk(array_keys($qd) === ['price', 'snap'] && array_keys($qd['snap'] ?? []) === ['panels', 'inverter'] && ($qd['snap']['inverter'][0]['kw'] ?? 0) == 3,
+  'only what the agreement uses is sent: the price and the panel / inverter lines');
 call($admin, 'qm', 'status', ['id' => (int)$q1['id'], 'status' => 'Rejected']);
 chk(array_column(call($admin, 'bank', 'get', null, "&customer_id=$qc")['quotes'] ?? [], 'id') === [(int)$q2['id'], (int)$q1['id']], 'a status change does not make an older quotation the newest');
 chk(call($admin, 'admin', 'user_save', ['name' => 'Test AM', 'username' => 'kstestam', 'role' => 'assistant_manager', 'active' => 1, 'can_claim' => 0, 'password' => $pw])['_code'] === 200, 'an assistant manager (no Quotations access by default) created');
 $am = actor('am'); call($am, 'auth', 'login', ['username' => 'kstestam', 'password' => $pw]);
 $ag = call($am, 'bank', 'get', null, "&customer_id=$qc");
-chk(($ag['_code'] ?? 0) === 200 && ($ag['quotes'] ?? null) === [], 'bank get without Quotations access has no quotes');
+/* owner's rule (2026-11-27): everyone who opens the bank papers prints the same agreement — without Quotations access they get the
+   values the agreement uses (price, panel / inverter lines), not the quotation's number or date (no picker for them) */
+chk(($ag['_code'] ?? 0) === 200 && array_column($ag['quotes'] ?? [], 'id') === [(int)$q2['id'], (int)$q1['id']]
+  && array_column($ag['quotes'], 'number') === ['', ''] && array_column($ag['quotes'], 'date') === ['', '']
+  && (float)($ag['quotes'][0]['doc']['price'] ?? 0) === 210000.0 && array_keys($ag['quotes'][0]['doc']) === ['price', 'snap'],
+  'bank get without Quotations access: the agreement values only, no quotation number or date');
 @unlink($am['jar']);
 
 echo "\n$pass passed, $fail failed\n";
