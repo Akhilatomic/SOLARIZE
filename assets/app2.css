@@ -1048,36 +1048,37 @@ body.sbah aside.mini a:hover{transform:none}
 #newleads .nlx-radar i{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(0,113,227,.34),rgba(0,113,227,0) 28%,transparent 100%);animation:nlxSweep 3.2s linear infinite}
 #newleads .nlx-radar b{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--pri);box-shadow:0 0 10px rgba(0,113,227,.6)}
 #newleads .nlx-et b{display:block;font-size:17px;color:var(--tx);margin-bottom:4px}#newleads .nlx-et p{margin:0;font-size:13px;line-height:1.55;color:var(--mut);max-width:560px}
-/* leads waiting: the dark card */
-#newleads .nlc.hot{background:linear-gradient(135deg,#0d1628 0%,#11203d 55%,#0d1a33 100%);color:var(--blue-tint);border:1px solid rgba(255,99,88,.45);box-shadow:0 14px 40px rgba(8,16,36,.28);animation:nlxHot 2.4s ease-in-out infinite}
+/* leads waiting: the black-and-gold card (owner, 2026-11-27: "update the colour to gold"; was navy with blue / purple / teal) */
+#newleads .nlc.hot{background:linear-gradient(135deg,#17110a 0%,#2a1e0c 55%,#1c1408 100%);color:#f3e3bd;border:1px solid rgba(232,190,92,.55);box-shadow:0 14px 40px rgba(28,18,4,.32);animation:nlxHot 2.4s ease-in-out infinite}
 #newleads .nlc.hot .nlx-bg{display:block;position:absolute;inset:0;z-index:-1;pointer-events:none;background:
-  radial-gradient(38% 60% at 18% 20%,rgba(64,132,255,.34),transparent 70%),
-  radial-gradient(34% 56% at 82% 14%,rgba(120,84,255,.26),transparent 70%),
-  radial-gradient(40% 60% at 60% 96%,rgba(0,200,180,.18),transparent 70%);background-size:140% 140%;animation:nlxDrift 18s ease-in-out infinite alternate}
+  radial-gradient(38% 60% at 18% 20%,rgba(240,196,84,.30),transparent 70%),
+  radial-gradient(34% 56% at 82% 14%,rgba(201,145,46,.26),transparent 70%),
+  radial-gradient(40% 60% at 60% 96%,rgba(255,214,120,.16),transparent 70%);background-size:140% 140%;animation:nlxDrift 18s ease-in-out infinite alternate}
 #newleads .nlc.hot::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.5;
-  background-image:linear-gradient(rgba(148,170,214,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(148,170,214,.07) 1px,transparent 1px);background-size:28px 28px;
+  background-image:linear-gradient(rgba(232,190,92,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(232,190,92,.07) 1px,transparent 1px);background-size:28px 28px;
   -webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.9),transparent 85%);mask-image:linear-gradient(180deg,rgba(0,0,0,.9),transparent 85%)}
-#newleads .nlc.hot .nlx-h h3{color:var(--white)}
-#newleads .nlc.hot .nlx-bell{background:linear-gradient(135deg,rgba(77,148,255,.45),rgba(120,84,255,.35));box-shadow:0 0 18px rgba(77,148,255,.45);animation:nlxRing 1.6s ease-in-out infinite;transform-origin:50% 10%}
-#newleads .nlc.hot .nlx-bell .i{background:var(--white)}
-#newleads .nlc.hot .mut{color:rgba(190,206,240,.72)!important}
-#newleads .nlc.hot .nlx-h .pill{background:rgba(148,170,214,.18);color:var(--purple-tint)}#newleads .nlc.hot .nlx-h .pill.r{background:var(--red);color:var(--white);box-shadow:0 0 14px rgba(255,90,79,.6)}
-#newleads .nlc.hot .btn.sec{background:rgba(148,170,214,.14);color:var(--blue-tint);border:1px solid rgba(148,170,214,.26);box-shadow:none}
-#newleads .nlc.hot .btn.sec:hover{background:rgba(148,170,214,.26)}#newleads .nlc.hot .btn.sec .i{background:var(--blue-tint)}
-#newleads .nlc.hot .btn:not(.sec){background:linear-gradient(135deg,var(--blue),var(--purple));color:var(--white);box-shadow:0 6px 18px rgba(47,123,255,.4)}
-#newleads .nlc.hot .btn.claim{background:linear-gradient(135deg,#00c2a8,var(--blue))}
+#newleads .nlc.hot .nlx-h h3{color:#fff8e6}
+#newleads .nlc.hot .nlx-bell{background:linear-gradient(135deg,rgba(245,205,104,.55),rgba(201,145,46,.45));box-shadow:0 0 18px rgba(240,196,84,.45);animation:nlxRing 1.6s ease-in-out infinite;transform-origin:50% 10%}
+#newleads .nlc.hot .nlx-bell .i{background:#fff8e6}
+#newleads .nlc.hot .mut{color:rgba(236,214,166,.72)!important}
+#newleads .nlc.hot .nlx-h .pill{background:rgba(232,190,92,.18);color:#f6dc97}#newleads .nlc.hot .nlx-h .pill.r{background:var(--red);color:var(--white);box-shadow:0 0 14px rgba(255,90,79,.6)}
+#newleads .nlc.hot .btn.sec{background:rgba(232,190,92,.12);color:#f3e3bd;border:1px solid rgba(232,190,92,.3);box-shadow:none}
+#newleads .nlc.hot .btn.sec:hover{background:rgba(232,190,92,.22)}#newleads .nlc.hot .btn.sec .i{background:#f3e3bd}
+#newleads .nlc.hot .btn:not(.sec){background:linear-gradient(135deg,#f7d778,#d39b33);color:#2a1d07;box-shadow:0 6px 18px rgba(214,160,52,.42)}
+#newleads .nlc.hot .btn:not(.sec) .i{background:#2a1d07}
+#newleads .nlc.hot .btn.claim{background:linear-gradient(135deg,#ffe49a,#e0a83c)}
 /* the list of leads: the only part that scrolls, and only up and down */
-#newleads .nlx-list{display:flex;flex-direction:column;gap:8px;margin-top:8px;flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:2px 4px 2px 0;scrollbar-width:thin;scrollbar-color:rgba(148,170,214,.4) transparent}
+#newleads .nlx-list{display:flex;flex-direction:column;gap:8px;margin-top:8px;flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:2px 4px 2px 0;scrollbar-width:thin;scrollbar-color:rgba(232,190,92,.4) transparent}
 #newleads .nlx-list>.nl{flex-shrink:0}
-#newleads .nlc.hot .nl{border:1px solid rgba(148,170,214,.18)!important;background:rgba(255,255,255,.06);border-radius:12px;padding:10px 12px;transition:transform .18s ease,background .18s ease,border-color .18s ease;animation:nlxIn .45s cubic-bezier(.2,.8,.2,1) both}
-#newleads .nlc.hot .nl:hover{transform:translateY(-1px);background:rgba(255,255,255,.1);border-color:rgba(120,170,255,.5)!important}
+#newleads .nlc.hot .nl{border:1px solid rgba(232,190,92,.2)!important;background:rgba(255,236,190,.06);border-radius:12px;padding:10px 12px;transition:transform .18s ease,background .18s ease,border-color .18s ease;animation:nlxIn .45s cubic-bezier(.2,.8,.2,1) both}
+#newleads .nlc.hot .nl:hover{transform:translateY(-1px);background:rgba(255,236,190,.1);border-color:rgba(240,196,84,.55)!important}
 #newleads .nlc.hot .nl:nth-child(2){animation-delay:.06s}#newleads .nlc.hot .nl:nth-child(3){animation-delay:.12s}#newleads .nlc.hot .nl:nth-child(4){animation-delay:.18s}#newleads .nlc.hot .nl:nth-child(5){animation-delay:.24s}#newleads .nlc.hot .nl:nth-child(6){animation-delay:.3s}#newleads .nlc.hot .nl:nth-child(7){animation-delay:.36s}#newleads .nlc.hot .nl:nth-child(8){animation-delay:.42s}
-#newleads .nlc.hot .nlm b{color:var(--white)}#newleads .nlc.hot .nlm{color:rgba(214,226,250,.9)}#newleads .nlc.hot .nl .pill{background:rgba(148,170,214,.18);color:var(--purple-tint)}#newleads .nlc.hot .nl .pill.y{background:rgba(255,196,0,.2);color:#ffd866}
+#newleads .nlc.hot .nlm b{color:#fff8e6}#newleads .nlc.hot .nlm{color:rgba(243,227,189,.9)}#newleads .nlc.hot .nl .pill{background:rgba(232,190,92,.18);color:#f6dc97}#newleads .nlc.hot .nl .pill.y{background:rgba(255,196,0,.2);color:#ffd866}
 @keyframes nlxDrift{0%{background-position:0% 0%}100%{background-position:100% 100%}}
 @keyframes nlxSweep{to{transform:rotate(360deg)}}
 @keyframes nlxPing{0%{transform:scale(.25);opacity:.9}100%{transform:scale(1);opacity:0}}
 @keyframes nlxIn{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:none}}
-@keyframes nlxHot{0%,100%{box-shadow:0 14px 40px rgba(8,16,36,.28),0 0 0 0 rgba(255,90,79,.0)}50%{box-shadow:0 14px 40px rgba(8,16,36,.28),0 0 0 5px rgba(255,90,79,.18)}}
+@keyframes nlxHot{0%,100%{box-shadow:0 14px 40px rgba(28,18,4,.32),0 0 0 0 rgba(232,190,92,0)}50%{box-shadow:0 14px 40px rgba(28,18,4,.32),0 0 0 5px rgba(232,190,92,.22)}}
 @keyframes nlxRing{0%,100%{transform:rotate(0)}15%{transform:rotate(-14deg)}30%{transform:rotate(12deg)}45%{transform:rotate(-8deg)}60%{transform:rotate(5deg)}75%{transform:rotate(0)}}
 @media(max-width:600px){#newleads .nlx-empty{gap:14px}#newleads .nlx-radar{width:72px;height:72px}#newleads .nlc{min-height:0}}
 @media(prefers-reduced-motion:reduce){#newleads .nlx-bg,#newleads .nlc.hot,#newleads .nlx-bell,#newleads .nlx-radar span,#newleads .nlx-radar i,#newleads .nl,#newleads .nlx-live{animation:none!important}#newleads .nlx-radar span{opacity:.35}}
