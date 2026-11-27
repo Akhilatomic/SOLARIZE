@@ -147,4 +147,69 @@ for ($i = 0; $i < 6; $i++) $db->prepare('INSERT INTO quote_log(quote_id,via,to_w
 chk(count(call($sales, 'qm', 'sign_info', null, "&id=$q3")['shares']) === 5, 'sign_info: only the latest 5 shares');
 
 
+/* ---- step 3: the admin signs (uploads the signed PDF), everyone downloads it ---- */
+function mcall($who, $a, $fields, $file = true, $qs = '') {
+  global $base; $pdf = __DIR__ . '/../assets/kseb/blank.pdf';
+  $ch = curl_init("$base/api.php?m=qm&a=$a$qs");
+  $post = $fields; if ($file) $post['file'] = new CURLFile($pdf, 'application/pdf', 'Signed Quote.pdf');
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEJAR => $who['jar'], CURLOPT_COOKIEFILE => $who['jar'], CURLOPT_POST => true, CURLOPT_POSTFIELDS => $post, CURLOPT_HTTPHEADER => ['X-Solarize: 1']]);
+  $txt = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+  $j = json_decode((string)$txt, true); if (!is_array($j)) $j = ['_text' => $txt]; $j['_code'] = $code; return $j;
+}
+function rawget($who, $qs) {
+  global $base; $ch = curl_init("$base/api.php?m=qm&a=signed$qs");
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_COOKIEJAR => $who['jar'], CURLOPT_COOKIEFILE => $who['jar']]);
+  $res = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); $hs = curl_getinfo($ch, CURLINFO_HEADER_SIZE); curl_close($ch);
+  return ['code' => $code, 'head' => substr($res, 0, $hs), 'body' => substr($res, $hs)];
+}
+$pdfBytes = file_get_contents(__DIR__ . '/../assets/kseb/blank.pdf');
+$adminId = (int)$db->query("SELECT id FROM users WHERE username='boss'")->fetchColumn();
+$admName = (string)$db->query("SELECT name FROM users WHERE username='boss'")->fetchColumn();
+$qS = (int)(call($admin, 'qm', 'save', ['customer_id' => $cust2, 'status' => 'Draft', 'doc' => $doc('Test Sign Customer Two', 190000)])['id'] ?? 0); $otherId = (int)$db->query("SELECT id FROM users WHERE username='qsother'")->fetchColumn(); $db->exec("UPDATE quotes SET made_by=$otherId WHERE id=$qS");
+call($sales, "qm", "sign_req", ["id" => $qS]);
+$noS = (string)$db->query("SELECT number FROM quotes WHERE id=$qS")->fetchColumn();
+$verS = call($admin, 'quotes', 'get', null, "&id=$qS")['sign']['ver'];
+chk(mcall($sales, 'sign', ['id' => $qS, 'ver' => $verS])['_code'] === 403, 'sign: sales gets 403');
+chk(mcall($ba, 'sign', ['id' => $qS, 'ver' => $verS])['_code'] === 403, 'sign: a BA gets 403');
+chk(mcall($admin, 'sign', ['id' => 99999999, 'ver' => $verS])['_code'] === 404, 'sign: unknown quotation 404');
+chk(mcall($admin, 'sign', ['id' => $q5, 'ver' => 'x'])['_code'] === 400, 'sign: a quotation without a maker doc 400');
+$r = mcall($admin, 'sign', ['id' => $qS, 'ver' => str_repeat('0', 40)]);
+chk($r['_code'] === 409 && ($r['error'] ?? '') === 'This quotation was changed — open it again' && ($r['quiet'] ?? null) === 0 && (string)$db->query("SELECT COALESCE(file,'') FROM quote_sign WHERE quote_id=$qS")->fetchColumn() === '', 'stale version refused (409, nothing stored)');
+chk(mcall($admin, 'sign', ['id' => $qS, 'ver' => $verS], false)['_code'] === 400, 'sign: no file 400');
+$db->exec("UPDATE quotes SET updated='2026-01-01 00:00:00', edit_by='' WHERE id=$qS"); $beforeEdit = $db->query("SELECT updated||'|'||COALESCE(edit_by,'') FROM quotes WHERE id=$qS")->fetchColumn();
+$db->exec("DELETE FROM notifs WHERE quote_id=$qS");
+$r = mcall($admin, 'sign', ['id' => $qS, 'ver' => $verS]);
+$sr = $db->query("SELECT * FROM quote_sign WHERE quote_id=$qS")->fetch();
+$stored = $sr ? $dir . '/' . $sr['file'] : '';
+chk(($r['ok'] ?? false) && ($r['sign']['state'] ?? '') === 'signed' && $sr && preg_match('/^[0-9a-f]{24}\.pdf$/', $sr['file']) && is_file($stored) && file_get_contents($stored) === $pdfBytes && $sr['name'] === 'Signed Quote.pdf' && (int)$sr['signed_by'] === $adminId && (int)$sr['req_by'] === 0 && $sr['ver'] === $verS && (int)$sr['size'] === strlen($pdfBytes), 'sign: admin stores the file, state signed, req cleared');
+$sd = json_decode((string)$db->query("SELECT doc FROM quotes WHERE id=$qS")->fetchColumn(), true);
+chk(($sd['seal'] ?? null) === true && $db->query("SELECT updated||'|'||COALESCE(edit_by,'') FROM quotes WHERE id=$qS")->fetchColumn() === $beforeEdit && call($admin, 'quotes', 'get', null, "&id=$qS")['sign']['ver'] === $verS, 'sign: doc.seal true, updated/edit_by untouched, ver unchanged');
+$nt = fn($qid, $uid) => $db->query("SELECT text FROM notifs WHERE kind='signed' AND quote_id=$qid AND user_id=$uid")->fetchAll(PDO::FETCH_COLUMN);
+$wantSigned = "$admName added the seal & signature to quotation $noS · Test Sign Customer Two";
+chk($nt($qS, $adminId) === [] && $nt($qS, $sellerId) === [$wantSigned] && $nt($qS, $otherId) === [$wantSigned], 'signed: creator and requester notified once each with the exact text; the admin is not');
+$cf = $db->query("SELECT * FROM files WHERE customer_id=$cust2 AND gen='quote:$qS'")->fetchAll();
+chk(count($cf) === 1 && $cf[0]['kind'] === 'gen' && $cf[0]['item'] === "Quotation $noS · signed" && $cf[0]['life'] !== null && (int)$cf[0]['life'] === 0 && $cf[0]['path'] !== $sr['file'] && is_file("$dir/" . $cf[0]['path']) && file_get_contents("$dir/" . $cf[0]['path']) === $pdfBytes, 'signed: customer quotation → Documents copy gen quote:<id>, life 0, item "Quotation <no> · signed", a separate copy');
+/* lead quotation: no files row */
+$qL = (int)(call($sales, 'qm', 'save', ['lead_id' => $lead, 'status' => 'Draft', 'doc' => $doc('Test Sign Lead', 195000)])['id'] ?? 0);
+$verL = call($admin, 'quotes', 'get', null, "&id=$qL")['sign']['ver'];
+$filesBefore = (int)$db->query('SELECT COUNT(*) FROM files')->fetchColumn();
+$r = mcall($admin, 'sign', ['id' => $qL, 'ver' => $verL]);
+chk(($r['ok'] ?? false) && (int)$db->query('SELECT COUNT(*) FROM files')->fetchColumn() === $filesBefore, 'signed: lead quotation → no files row');
+/* re-sign */
+$oldFile = $sr['file']; $oldDoc = $cf[0]['path'];
+$r = mcall($admin, 'sign', ['id' => $qS, 'ver' => $verS]);
+$sr2 = $db->query("SELECT * FROM quote_sign WHERE quote_id=$qS")->fetch();
+$tdir2 = dirname($dbPath) . '/trash';
+$inBin = (int)$db->query("SELECT COUNT(*) FROM trash WHERE kind='Signed quotation'")->fetchColumn() >= 1;
+$cf2 = $db->query("SELECT * FROM files WHERE customer_id=$cust2 AND gen='quote:$qS'")->fetchAll();
+chk(($r['ok'] ?? false) && $sr2['file'] !== $oldFile && is_file("$dir/" . $sr2['file']) && !is_file("$dir/$oldFile") && is_file("$tdir2/$oldFile") && $inBin, 're-sign: older file goes to the Recycle bin');
+chk(count($cf2) === 1 && $cf2[0]['path'] !== $oldDoc, 're-sign: the Documents copy is replaced, still one');
+$wantUpd = "$admName updated the signed quotation $noS · Test Sign Customer Two";
+chk($nt($qS, $otherId) === [$wantSigned, $wantUpd], 're-sign: notif text "updated the signed quotation"');
+/* GET */
+$g1 = rawget($sales, "&id=$qS"); $g2 = rawget($sales, "&id=$qS&dl=1");
+chk($g1['code'] === 200 && $g1['body'] === $pdfBytes && stripos($g1['head'], 'application/pdf') !== false && stripos($g1['head'], 'inline; filename="Signed Quote.pdf"') !== false && stripos($g1['head'], 'private, no-store') !== false, 'signed GET: sales downloads the same bytes, inline');
+chk($g2['code'] === 200 && stripos($g2['head'], 'attachment; filename="Signed Quote.pdf"') !== false, 'signed GET: dl=1 is an attachment');
+chk(rawget($ba, "&id=$qS")['code'] === 403 && rawget($sales, '&id=99999999')['code'] === 404 && rawget($sales, "&id=$q6")['code'] === 404, 'signed GET: BA 403; unknown id 404; unsigned quotation 404');
+
 echo "\n$pass passed, $fail failed\n"; exit($fail ? 1 : 0);
