@@ -1652,7 +1652,13 @@ main.mo-in .ovw-bar>i,main.mo-in .ovw-st>i{transform-origin:left;animation:moBar
   .ovw-open{width:100%;justify-content:center}.pfgrid .pfa-g{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}}
 /* ===== Call buttons in phone-call green (owner, 2026-11-27: "make the Call buttons on the Leads page green too", then the customer page;
    the same green as the dashboard's New leads card): the row's phone icon and the lead window's Call ===== */
-#ltb td.lact .apcall{background:linear-gradient(135deg,#3ddc6e,#12963f);color:#fff;border-radius:8px;box-shadow:0 3px 10px rgba(34,197,94,.32)}
+#ltb td.lact .apcall{background:linear-gradient(135deg,#3ddc6e,#12963f);color:#fff;border-radius:8px;box-shadow:0 2px 6px rgba(34,197,94,.28)}
+/* the row's action icons sit edge to edge (no gap in the markup): a filled button needs room so it, its glow and the discussion
+   button's count badge never touch the icons next to it (owner, 2026-11-27: "avoid overlap") */
+#ltb td.lact .ib{vertical-align:middle}
+#ltb td.lact .apcall{margin:0 6px}
+#ltb td.lact .xdb+.apcall{margin-left:10px}
+table.stack td.lact .apcall,html.applite #ltb.stack td.lact .apcall{margin:0}
 #ltb td.lact .apcall .i{background:#fff!important}
 #ltb td.lact .apcall:hover{background:linear-gradient(135deg,#4ee67c,#15a447);color:#fff}
 .btn.call{background:linear-gradient(135deg,#3ddc6e,#12963f);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(34,197,94,.3)}
