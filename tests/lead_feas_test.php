@@ -68,6 +68,9 @@ $cv = call($admin, 'leads', 'convert', ['id' => $b, 'plant_cost' => '250000', 'n
 $fb = $feasRow($admin, 'Feas Lead B');
 chk((int)($cv['customer_id'] ?? 0) > 0 && $fb && (int)$fb['customer_id'] === (int)$cv['customer_id'] && (int)$fb['is_lead'] === 0 && (int)$fb['paid'] === 0, 'Convert to customer takes the unpaid feasibility row along');
 
+$cl = []; foreach (call($admin, 'customers', 'list') as $x) if (is_array($x) && isset($x['name'])) $cl[$x['name']] = $x;
+chk(isset($cl['Feas Lead B']) && $cl['Feas Lead B']['feas'] !== null && (int)$cl['Feas Lead B']['feas'] === 0 && (int)$cl['Feas Lead A']['feas'] === 1 && $cl['Feas Direct']['feas'] === null, 'the customers list says who is on the feasibility list (and paid)');
+
 // remove a lead row
 call($admin, 'fees', 'lead_add', ['lead_id' => $c]);
 $fc = $feasRow($admin, 'Feas Lead C');

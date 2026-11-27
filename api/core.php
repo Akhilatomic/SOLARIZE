@@ -64,7 +64,7 @@ function handle_crud($t, $a) {
   if ($t === 'customers') cust_guard($a, $in);
   switch ($a) {
     case 'list':
-      if ($t === 'customers') out(array_map(fn($r) => mask_customer(strip_fin($r)), rows("SELECT c.*, lp.id project_id, lp.stage, COALESCE(NULLIF(c.plant_kw,0), lp.kw) kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects, ou.name owner_name
+      if ($t === 'customers') out(array_map(fn($r) => mask_customer(strip_fin($r)), rows("SELECT c.*, lp.id project_id, lp.stage, COALESCE(NULLIF(c.plant_kw,0), lp.kw) kw, (SELECT COUNT(*) FROM projects WHERE customer_id=c.id) projects, (SELECT f.paid FROM fees f WHERE f.customer_id=c.id AND f.kind='feasibility') feas, ou.name owner_name
         FROM customers c LEFT JOIN projects lp ON lp.id=(SELECT id FROM projects WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) LEFT JOIN users ou ON ou.id=c.owner_id WHERE " . cust_scope('c') . " ORDER BY c.created DESC, c.id DESC")));
       if ($t === 'projects') out(array_map('strip_fin', rows('SELECT p.*, c.name customer, c.phone, COALESCE((SELECT SUM(amount) FROM payments WHERE project_id=p.id),0) paid FROM projects p LEFT JOIN customers c ON c.id=p.customer_id WHERE ' . cust_scope('c') . ' ORDER BY p.updated DESC')));
       $w = []; $args = [];
