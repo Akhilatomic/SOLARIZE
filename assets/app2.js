@@ -3,17 +3,25 @@
 // ---------- Quotations ----------
 async function pgQuotes() {
   const [qs, cs, ls] = await Promise.all([list('quotes'), list('customers'), list('leads')]);
-  const nm = q => (cs.find(c => c.id === q.customer_id) || ls.find(l => l.id === q.lead_id) || {}).name || '—', w = canW('quotes');
-  $('#main').innerHTML = `<div class="bar"><span class="sp"></span>${canW('quotes') ? '<button class="btn" id="qn">+ New quotation</button>' : ''}</div>` +
+  const nm = q => (cs.find(c => c.id === q.customer_id) || ls.find(l => l.id === q.lead_id) || {}).name || '—', w = canW('quotes'), adm = ME.role === 'admin';
+  /* signed quotations (app52.js): the badge, and for an admin the chip that shows only the quotations waiting for a signature */
+  const sg = q => ({ state: q.sign_state || '', signed_at: q.signed_at || '' }), nWait = qs.filter(q => q.sign_state === 'waiting').length;
+  let only = false; try { only = adm && nWait > 0 && sessionStorage.qsgWait === '1'; } catch (e) { }
+  $('#main').innerHTML = `<div class="bar">${adm && nWait ? `<button type="button" class="btn sec sm qsg-chip${only ? ' on' : ''}" id="qsgw" aria-pressed="${only}" title="${only ? 'Show all quotations' : 'Show only the quotations waiting for the seal and signature'}"><i class="i i-award"></i> Waiting for signature (${nWait})</button>` : ''}<span class="sp"></span>${canW('quotes') ? '<button class="btn" id="qn">+ New quotation</button>' : ''}</div>` +
     table([['No.', q => `<b>${esc(q.number)}</b>`], ['For', q => esc(nm(q))],
       ['Lead owner', q => q.owner_name ? `<span class="own${+q.owner_id === +ME.id ? ' me' : ''}"><i class="i i-user"></i><span class="clip">${esc(+q.owner_id === +ME.id ? 'You' : q.owner_name)}</span></span>${q.owner_role === 'ba' ? ' <span class="pill qla-ba" title="Business Associate">BA</span>' : ''}` : '<span class="mut">—</span>'], ['Date', q => dmy(q.date) || esc(q.date)], ['Total (incl. GST)', q => inr(q.total), 'num'], ['Status', q => pill(q.status, stageCls(q.status === 'Accepted' ? 'Approved' : q.status === 'Rejected' ? 'Lost' : q.status === 'Sent' ? 'Submitted' : ''))],
+      ['Signature', q => qsBadge(sg(q))],
       ['Actions', q => { const b = (a, ic, t, c = '') => `<button type="button" class="ib${c}" data-qa="${a}" data-id="${q.id}" title="${t}" aria-label="${t} ${esc(q.number)}"><i class="i i-${ic}"></i></button>`;
-        const acc = q.status === 'Accepted', rej = q.status === 'Rejected';
-        return `<span class="qla">${b('wa', 'whatsapp', 'Share on WhatsApp')}${w ? b('edit', 'pencil', 'Edit') + b('acc', 'check', acc ? 'Accepted' : 'Mark accepted — saves the PDF in the customer’s Documents', ' qla-acc' + (acc ? ' on' : '')) + b('rej', 'x', rej ? 'Rejected' : 'Mark rejected', ' qla-rej' + (rej ? ' on' : '')) + b('more', 'dots', 'More actions') : b('edit', 'eye', 'View')}</span>`; }, 'qla-c']], qs, id => location.hash = '#/quotes/' + id);
+        const acc = q.status === 'Accepted', rej = q.status === 'Rejected', signed = q.sign_state === 'signed';
+        return `<span class="qla">${b('wa', 'whatsapp', signed ? 'Share the signed PDF' : 'Share on WhatsApp')}${adm && q.sign_state === 'waiting' && q.maker ? b('sign', 'award', 'Review &amp; sign', ' qla-sg') : ''}${w ? b('edit', 'pencil', 'Edit') + b('acc', 'check', acc ? 'Accepted' : 'Mark accepted — saves the PDF in the customer’s Documents', ' qla-acc' + (acc ? ' on' : '')) + b('rej', 'x', rej ? 'Rejected' : 'Mark rejected', ' qla-rej' + (rej ? ' on' : '')) + b('more', 'dots', 'More actions') : b('edit', 'eye', 'View')}</span>`; }, 'qla-c']], only ? qs.filter(q => q.sign_state === 'waiting') : qs, id => location.hash = '#/quotes/' + id);
   if ($('#qn')) $('#qn').onclick = () => { sessionStorage.removeItem('lead2quote'); location.hash = '#/quotes/new'; };
   const nav = ROUTE_N, redraw = () => { if (nav === ROUTE_N && location.hash.replace(/\/$/, '') === '#/quotes') pgQuotes(); };
+  if ($('#qsgw')) $('#qsgw').onclick = () => { try { sessionStorage.qsgWait = only ? '0' : '1'; } catch (e) { } redraw(); };
   $$('#main [data-qa]').forEach(b => b.onclick = async e => { e.stopPropagation(); const q = qs.find(x => x.id == b.dataset.id), a = b.dataset.qa; if (!q) return;
     if (a === 'edit') { location.hash = '#/quotes/' + q.id; return; }
+    const who = cs.find(c => c.id === q.customer_id) || ls.find(l => l.id === q.lead_id) || {};
+    const qsDo = m => qsAct(m, q, { name: who.name, phone: who.phone, email: who.email }, redraw);
+    if (a === 'sign') return qsDo('sign');
     const setSt = async s => { await api('qm', 'status', { id: q.id, status: s }); toast(`${q.number} · ${s}`); redraw(); };
     if (a === 'acc' || a === 'rej') { const s = a === 'acc' ? 'Accepted' : 'Rejected';
       if (q.status === s) return toast(`${q.number} is already ${s.toLowerCase()}`);
@@ -22,8 +30,11 @@ async function pgQuotes() {
       return; }
     const del = async () => { if (!await ask(`Delete quotation ${q.number}?\n\nIt goes to the Recycle bin.`)) return;
       await api('quotes', 'delete', { id: q.id }); toast('Deleted · ' + q.number); redraw(); };
-    if (a === 'more') return popMenu(b, [q.status !== 'Draft' && ['Draft', 'tag', 'Mark as draft'], q.status !== 'Sent' && ['Sent', 'tag', 'Mark as sent'], ['del', 'trash', 'Delete quotation']], m => m === 'del' ? del() : setSt(m));
-    const who = cs.find(c => c.id === q.customer_id) || ls.find(l => l.id === q.lead_id) || {};
+    const c = QSIGN.can(sg(q), ME, q, w), QSA = ['ask', 'cancel', 'sign', 'view', 'dl'];
+    if (a === 'more') return popMenu(b, [q.status !== 'Draft' && ['Draft', 'tag', 'Mark as draft'], q.status !== 'Sent' && ['Sent', 'tag', 'Mark as sent'],
+      q.maker && c.ask && ['ask', 'award', 'Ask admin to sign'], c.cancel && ['cancel', 'x', 'Cancel the signature request'], q.maker && c.sign && ['sign', 'award', 'Review &amp; sign'],
+      c.share && ['view', 'eye', 'View the signed PDF'], c.share && ['dl', 'download', 'Download the signed PDF'], ['del', 'trash', 'Delete quotation']], m => m === 'del' ? del() : QSA.includes(m) ? qsDo(m) : setSt(m));
+    if (q.sign_state === 'signed') return qsDo('share'); /* a signed quotation: the share window sends the signed PDF; unsigned ones keep the text message */
     b.disabled = true; try { await qmShareQuote(q.id, { name: who.name, phone: who.phone }); } catch (x) { } finally { b.disabled = false; } });
 }
 // New quotations and quotations made with the quotation maker open in the maker (app22.js); older ones keep this simple editor.

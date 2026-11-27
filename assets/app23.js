@@ -12,7 +12,7 @@ async function qmOpenSettings() {
   let b;
   try { b = await api('qm', 'boot'); } catch (e) { return; }
   QMG.b = b; QMG.tab = 'prod'; QMG.cat = (b.cats[0] || [''])[0]; QMG.E = null; QMG.dirty = false;
-  QMG.ST = qmgClone(b.settings); QMG.nextN = QMG.next0 = +b.next_n || 144;
+  QMG.ST = qmgClone(b.settings); QMG.nextN = QMG.next0 = +b.next_n || 144; QMG.TP = qmgClone(b.share_tpl || {}); QMG.tpDirty = false;
   const m = modal('<div id="qmg"></div>', true); m.classList.add('qmgmod'); QMG.m = m;
   const guard = e => { if (e.target === m && QMG.dirty && document.body.contains(m)) { if (!confirm('You have changes that are not saved. Close anyway?')) { e.stopPropagation(); e.preventDefault(); m._md = false; } } };
   document.addEventListener('mouseup', guard, true);
@@ -120,7 +120,7 @@ function qmgPick() {
     f.click();
   });
 }
-async function qmgReload() { const b = await api('qm', 'boot'); QMG.b = b; if (!QMG.dirty) { QMG.ST = qmgClone(b.settings); QMG.next0 = QMG.nextN = +b.next_n || 144; } }
+async function qmgReload() { const b = await api('qm', 'boot'); QMG.b = b; if (!QMG.dirty) { QMG.ST = qmgClone(b.settings); QMG.next0 = QMG.nextN = +b.next_n || 144; QMG.TP = qmgClone(b.share_tpl || {}); QMG.tpDirty = false; } }
 async function qmgSaveProduct() {
   const E = QMG.E, b = QMG.b;
   if (!String(E.label).trim()) return toast('Enter the short name shown in the maker');
@@ -185,6 +185,9 @@ function qmgSettings() {
       + Object.keys(S.loan.texts_small || {}).filter(k => typeof S.loan.texts_small[k] === 'string').map(k => qmgField('loan.texts_small.' + k, qmgLbl(k), QMG_LONG.has(k) || String(S.loan.texts_small[k]).length > 60)).join('')
       + qmgList('loan.texts_small.terms', 'SBI loan terms (list)') + qmgList('loan.texts_small.who', 'Who can apply (list)'), true),
     qmgSec('terms', 'Terms and conditions', qmgList('terms', 'Terms'), true),
+    qmgSec('share', 'Sharing a signed quotation', '<p class="qm-hint full">The words that go with the signed PDF when anyone shares it from a quotation: the email subject, and the message used for the email and for WhatsApp. These fill in: <code>{name} {quote_no} {amount} {date} {company} {sender} {sender_phone}</code>. A box left empty uses the standard wording.</p>'
+      + [['cust_subject', 'To the customer: email subject'], ['cust_body', 'To the customer: message', 1], ['bank_subject', 'To the bank: email subject'], ['bank_body', 'To the bank: message', 1]]
+        .map(([k, l, long]) => `<div class="full"><label>${esc(l)}</label>${long ? `<textarea data-tp="${k}" rows="7">${esc(QMG.TP[k] || '')}</textarea>` : `<input data-tp="${k}" value="${esc(QMG.TP[k] || '')}">`}</div>`).join('')),
   ].join('');
   body.innerHTML = `<div class="qmg-hintbox"><b>Placeholders</b> that fill in automatically (loan texts, delivery, payment and terms): <code>${esc(QMG_PH)}</code><br>
     <b>**Bold**</b>: put two stars round words to print them bold. It works in the delivery texts, payment step texts, terms and the loan texts (title, labels, notes, helpline, steps, lists), but not in the loan sub-line or the four loan headings (EMI, terms, who can apply, how to apply), and not in the company, bank, footer, pill or KSEB label fields.</div>
@@ -197,6 +200,8 @@ async function qmgSaveSettings() {
   if (!(nn >= 1)) return toast('The next quotation number must be 1 or more');
   if (nn !== QMG.next0) body.next_number = nn;
   try { await api('qm', 'settings_save', body); } catch (e) { return; }
+  if (QMG.tpDirty) { /* the share wording is kept on its own (qm share_tpl_save); the share window reads it from qm boot */
+    try { const r = await api('qm', 'share_tpl_save', QMG.TP); QMG.tpDirty = false; if (typeof QMB !== 'undefined' && QMB) QMB.share_tpl = r.share_tpl; } catch (e) { return; } }
   QMG.dirty = false; await qmgReload(); QMG.dirty = false; toast('Settings saved'); qmgSettings();
 }
 
@@ -208,6 +213,7 @@ function qmgRead(t) {
   if (t.dataset.eW !== undefined && E) { E.warranty[+t.dataset.eW][t.dataset.f] = t.value; QMG.dirty = true; }
   if (t.dataset.p) { qmgSet(t.dataset.p, t.dataset.num ? (t.value === '' ? '' : +t.value) : t.value); }
   if (t.dataset.next !== undefined) { QMG.nextN = t.value; QMG.dirty = true; }
+  if (t.dataset.tp) { QMG.TP[t.dataset.tp] = t.value; QMG.dirty = true; QMG.tpDirty = true; QMG.open = 'share'; }
 }
 function qmgInput(e) { qmgRead(e.target); }
 function qmgChange(e) {
@@ -245,7 +251,7 @@ async function qmgClick(e) {
     if (r) toast(`${k === 'sign' ? 'Signature' : 'Seal'} added — Save settings to keep it`); return qmgSettings();
   }
   if (a === 'ssave') return qmgSaveSettings();
-  if (a === 'sreset') { if (QMG.dirty && !await ask('Discard all unsaved changes to the settings?')) return; QMG.ST = qmgClone(QMG.b.settings); QMG.nextN = QMG.next0; QMG.dirty = false; return qmgSettings(); }
+  if (a === 'sreset') { if (QMG.dirty && !await ask('Discard all unsaved changes to the settings?')) return; QMG.ST = qmgClone(QMG.b.settings); QMG.nextN = QMG.next0; QMG.TP = qmgClone(QMG.b.share_tpl || {}); QMG.tpDirty = false; QMG.dirty = false; return qmgSettings(); }
   if (a === 'ladd') {
     const [path, keys] = k.split('|'), arr = qmgGet(path); if (!Array.isArray(arr)) return;
     arr.push(keys ? Object.fromEntries(keys.split(',').map(x => [x, ''])) : (path === 'loan.months' ? 60 : '')); QMG.dirty = true; QMG.open = (e.target.closest('details') || {}).id.replace('qmgs-', ''); return qmgSettings();
