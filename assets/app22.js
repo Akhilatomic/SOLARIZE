@@ -501,7 +501,15 @@ async function qmkSave() {
   const d = QMK.doc;
   if (!(QMK.cust.customer_id || QMK.cust.lead_id)) { QMK.picking = false; qmkTab('customer'); toast('Choose a customer or lead first', true); const q = $('#qmcq'); if (q) q.focus(); return false; }
   if (!(+d.price > 0)) { qmkTab('price'); toast('Type the package price first', true); const p = $('#qmprice'); if (p) p.focus(); return false; }
-  const wasSigned = QSIGN.state(QMK.sign).k === 'signed';
+  let wasSigned = QSIGN.state(QMK.sign).k === 'signed';
+  /* the maker may not know the quotation was signed since it was opened (signed in another window, or in a menu tab that does not hear the bell):
+     a full save of the unchanged content would take the signature off (an admin's unticked box, a staff save's fresh snapshot), so ask first */
+  if (QMK.id && !wasSigned && QMK.base === qmkBase()) {
+    const id = QMK.id; let j = null;
+    QMK.busy = true; try { j = await api('qm', 'sign_info', undefined, '&id=' + (+id)); } catch (e) { return false; } finally { QMK.busy = false; } /* api() said why */
+    if (+QMK.id !== +id) return false; /* another quotation was opened meanwhile */
+    if (j && j.sign && QSIGN.state(j.sign).k === 'signed') { qsMakerSet(id, j.sign); wasSigned = true; }
+  }
   /* a signed quotation with its content untouched keeps the signature: the doc is not sent (nor its snapshot taken again), a changed status goes alone */
   if (QMK.id && wasSigned && QMK.base === qmkBase()) return qmkSaveStatus();
   const { lines, calc } = qmkCalc(), st = qmkSt(), b = $('#qmsave');

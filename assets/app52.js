@@ -6,7 +6,7 @@
    qsReview(id, done)       admin: the saved quotation with the seal drawn in, and Add seal & signature (or Make the signed copy)
    qsView(q) / qsDownload(q) / qsShare(q, who)   the stored signed PDF: the document window, a download, the share window
    Uses QSIGN (app51.js), qmSavedPages / QMB / QMK (app22.js), qmMount / qmDownloadPdf (app21.js), docViewer (app12.js), acWaFile /
-   acShareClick / acMailReady / acSharedHtml (app35.js), composeMail (app19.js), ACC.waLink (app32.js). CSS: .qsg- in assets/quote.css.
+   acShareClick / acMailReady / acSharedHtml / acDownload (app35.js), composeMail (app19.js), ACC.waLink (app32.js). CSS: .qsg- in assets/quote.css.
    Every value shown in HTML goes through esc(). */
 const qsUrl = (id, dl) => 'api.php?m=qm&a=signed&id=' + (+id) + (dl ? '&dl=1' : '');
 const qsName = q => (q.sign && q.sign.file_name) || ('Quotation ' + String(q.number || '').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-') + '.pdf').replace(/\s+/g, ' ');
@@ -71,11 +71,12 @@ async function qsCancel(q) {
 }
 
 /* ---- signing (admin) ---- */
-/* ver: the version of the quotation the admin looked at (a save's answer, or the review); the server refuses the PDF when the quotation
+/* ver (required): the version of the quotation the admin looked at (a save's answer, or the review); the server refuses the PDF when the quotation
    changed since (409). resign: the quotation was signed before the admin's save that changed it (the creator is told "updated the signed
    quotation"). Every failure is shown here (a toast) and rejects with {error, shown}. Resolves to the new sign object. */
 async function qsSign(id, ver, resign) {
   if (!ME || ME.role !== 'admin') throw qsFail('Only an admin can sign a quotation');
+  if (!ver) throw qsFail('Open the quotation again, then sign it'); /* never the version loaded here: the server must check the one the admin looked at */
   let q; try { q = await api('quotes', 'get', undefined, '&id=' + (+id)); } catch (e) { throw { error: (e && e.error) || 'Could not open the quotation', shown: 1 }; } /* api() showed it */
   if (!await qsPicsNow()) throw qsFail(QS_NOPICS); /* first: the pages are drawn with the catalogue's settings, pictures included */
   let sp = null; try { sp = await qmSavedPages(qsSealed(q)); } catch (e) { throw qsFail('The quotation could not be drawn: ' + ((e && (e.error || e.message)) || e)); }
@@ -85,7 +86,7 @@ async function qsSign(id, ver, resign) {
   try { qmMount(box, sp.pages); blob = await qmDownloadPdf(box, sp.name, false); }
   catch (e) { throw qsFail((e && e.message) || 'Could not make the PDF'); }
   finally { box.remove(); }
-  const fd = new FormData(); fd.append('id', String(+id)); fd.append('ver', String(ver || (q.sign && q.sign.ver) || '')); fd.append('file', new File([blob], sp.name, { type: 'application/pdf' }));
+  const fd = new FormData(); fd.append('id', String(+id)); fd.append('ver', String(ver)); fd.append('file', new File([blob], sp.name, { type: 'application/pdf' }));
   if (resign) fd.append('resign', '1');
   let r; try { r = await fetch('api.php?m=qm&a=sign', { method: 'POST', headers: { 'X-Solarize': '1' }, body: fd }); } catch (e) { throw qsFail('No connection: the quotation is not signed yet. Please try again.'); }
   const j = await r.json().catch(() => ({ error: 'Bad server response' }));
@@ -132,8 +133,13 @@ async function qsReview(id, done) {
 function qsView(q) {
   docViewer([{ id: +q.id, name: qsName(q), item: 'Quotation ' + (q.number || '') + ' · signed' }], 0, (f, d) => qsUrl(q.id, d === 1));
 }
-function qsDownload(q) {
-  const a = document.createElement('a'); a.href = qsUrl(q.id, 1); a.download = qsName(q); document.body.appendChild(a); a.click(); a.remove();
+/* fetched first, so a refusal (not signed any more, deleted) is said in a toast instead of being saved as a ".pdf". Resolves true once downloaded */
+async function qsDownload(q) {
+  let r; try { r = await fetch(qsUrl(q.id, 1), { credentials: 'same-origin' }); } catch (e) { toast('No connection: the signed PDF could not be downloaded', true); return false; }
+  if (!r.ok) { const j = await r.json().catch(() => ({})); toast(j.error || 'The signed PDF could not be downloaded', true); return false; }
+  let b; try { b = await r.blob(); } catch (e) { toast('The signed PDF could not be downloaded', true); return false; }
+  acDownload(new File([b], qsName(q), { type: 'application/pdf' }));
+  return true;
 }
 
 /* ---- share ---- */
@@ -190,7 +196,7 @@ async function qsShare(q, who) {
     return true;
   };
   $$('[data-t]', m).forEach(btn => btn.onclick = () => { const t = T[+btn.dataset.t]; if (t && t.ok) acShareClick(btn, t.via === 'whatsapp', win => send(t, win), 'Could not share the PDF'); });
-  $('[data-qd]', m).onclick = () => { qsDownload({ id, number: full.number, sign }); log('pdf', 'customer', ''); };
+  $('[data-qd]', m).onclick = async () => { if (await qsDownload({ id, number: full.number, sign })) log('pdf', 'customer', ''); }; /* logged only once it downloaded */
   $('[data-qv]', m).onclick = () => qsView({ id, number: full.number, sign });
   return m;
 }
