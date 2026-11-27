@@ -208,17 +208,25 @@ function handle_crud($t, $a) {
       $l = row('SELECT * FROM leads WHERE id=?', [(int)($in['id'] ?? 0)]); if (!$l) fail('Not found', 404);
       if ($l['customer_id']) out(['customer_id' => $l['customer_id']]);
       $onb = onboard_check($in); /* approved quotation + plant cost */
-      q('INSERT INTO customers(name,phone,email,address,district,notes,added_by,owner_id) VALUES(?,?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '', (int)$l['assigned_to'] ?: uid()]); // the lead's owner keeps the customer
-      $cid = (int)db()->lastInsertId(); q('UPDATE customers SET lead_type=? WHERE id=?', [lead_type_of($l), $cid]); // the incentive follows the lead type
-      q("UPDATE leads SET customer_id=?, status='Won', updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
-      lead_to_customer_plant($l, $cid); cap_reconcile($cid); /* the capacity asked for on the lead is the customer's plant capacity until changed */
-      // site condition + proposed plant → customer's Plant details
-      onboard_store($cid, $onb);
-      q('UPDATE quotes SET customer_id=? WHERE lead_id=? AND customer_id IS NULL', [$cid, $l['id']]);
-      q('UPDATE discussions SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]); q('UPDATE notifs SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]);
-      audit('convert', 'leads', $l['id'], "→ customer $cid"); out(['customer_id' => $cid]);
+      out(['customer_id' => lead_convert($l, $onb)]);
   }
   fail('Unknown action', 404);
+}
+
+/* Lead → customer. $onb = approved quotation + plant cost (null when the lead converts itself because its feasibility was paid);
+   $owner = who keeps the customer when nobody claimed the lead (default: the person doing it). Returns the new customer id. */
+function lead_convert(array $l, $onb, $owner = 0, $why = '') {
+  q('INSERT INTO customers(name,phone,email,address,district,notes,added_by,owner_id) VALUES(?,?,?,?,?,?,?,?)', [$l['name'], $l['phone'], $l['email'], trim(($l['city'] ? $l['city'] . ', ' : '') . ($l['location'] ?: $l['address'])), $l['city'] ?? '', $l['notes'], $_SESSION['name'] ?? '', (int)$l['assigned_to'] ?: ((int)$owner ?: uid())]); // the lead's owner keeps the customer
+  $cid = (int)db()->lastInsertId(); q('UPDATE customers SET lead_type=? WHERE id=?', [lead_type_of($l), $cid]); // the incentive follows the lead type
+  q("UPDATE leads SET customer_id=?, status='Won', updated=CURRENT_TIMESTAMP WHERE id=?", [$cid, $l['id']]);
+  lead_to_customer_plant($l, $cid); cap_reconcile($cid); /* the capacity asked for on the lead is the customer's plant capacity until changed */
+  // site condition + proposed plant → customer's Plant details
+  onboard_store($cid, $onb);
+  q('UPDATE quotes SET customer_id=? WHERE lead_id=? AND customer_id IS NULL', [$cid, $l['id']]);
+  q('UPDATE discussions SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]); q('UPDATE notifs SET customer_id=?, lead_id=NULL WHERE lead_id=?', [$cid, $l['id']]);
+  q('UPDATE fees SET customer_id=? WHERE lead_id=? AND customer_id IS NULL', [$cid, $l['id']]); /* its Finance lists (Feasibility fee) follow */
+  audit('convert', 'leads', $l['id'], "→ customer $cid" . ($why ? " · $why" : ''));
+  return $cid;
 }
 
 function purge_project($id) { // files were already moved to the Recycle bin by trash_put

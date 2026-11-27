@@ -730,7 +730,7 @@ async function pgLeads() {
     const loc = l => { const c = l.city || '', o = l.location || l.address || ''; return o && o.toLowerCase() !== c.toLowerCase() ? (c ? c + ' · ' + o : o) : c; };
     const cell = {
       date: l => `<td class="dt" title="${esc(dmy(l.created) + (l.added_by ? ' · added by ' + l.added_by : ''))}">${dshort(l.created)}<small>${esc(l.added_by || '')}</small></td>`,
-      name: l => ed(l, 'name', `<div class="nm">${l.notify ? '<span class="ndot" title="New lead — not contacted yet"></span>' : ''}<b>${esc(l.name)}</b>${BA() ? '' : ltBadge(l.lead_type || (l.meta_id || l.source === 'Meta Ads' ? 'meta' : 'office'))}</div>`, l.name),
+      name: l => ed(l, 'name', `<div class="nm">${l.notify ? '<span class="ndot" title="New lead — not contacted yet"></span>' : ''}<b>${esc(l.name)}</b>${BA() ? '' : ltBadge(l.lead_type || (l.meta_id || l.source === 'Meta Ads' ? 'meta' : 'office'))}${l.feas != null && !l.customer_id ? '<span class="pill y" title="On Finance › Feasibility fee — becomes a customer when the feasibility is paid">Feasibility</span>' : ''}</div>`, l.name),
       phone: l => ed(l, 'phone', `<span class="ph">${esc(l.phone)}</span>`),
       status: l => ed(l, 'status', pill(l.status, stageCls(l.status))),
       city: l => ed(l, 'city', `<span class="clip">${esc(loc(l))}</span>`, loc(l)),
@@ -780,6 +780,7 @@ async function pgLeads() {
     if (a === 'sv') return svAddBox(l.customer_id ? { customer_id: l.customer_id, name: l.name } : { lead_id: l.id, name: l.name }); /* Site survey: first stage of the project */
     if (a === 'cv') return convertBox(l, r => { location.hash = '#/customers/' + r.customer_id; });
     if (a === 'oc') location.hash = '#/customers/' + l.customer_id;
+    if (a === 'feas') { if (await leadToFeas(l)) draw(); return; }
     if (a === 'qt') { sessionStorage.lead2quote = JSON.stringify({ lead_id: l.id, customer_id: l.customer_id || '', name: l.name }); location.hash = '#/quotes/new'; }
   };
   /* "Add remark": a box with spell check (the browser's prompt() has none). Ctrl+Enter saves, Esc closes. */
@@ -795,7 +796,7 @@ async function pgLeads() {
   const closeMenu = () => { const m = $('#lmenu'); if (m) m.remove(); };
   const moreMenu = (l, btn) => {
     closeMenu();
-    const items = [l.phone && !BA() ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['rh', 'clock', 'Remark history'], ['cb', 'phone', l.callback_at ? 'Call back: ' + cbWhen(l.callback_at) : 'Call back reminder'], ['ed', 'pencil', 'Edit lead'], canW('survey') ? ['sv', 'pin', 'Add to site survey'] : null, l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null, l.q_ids && canR('quotes') ? ['qv', 'file', 'Show quotation'] : null,
+    const items = [l.phone && !BA() ? ['wa', 'whatsapp', 'WhatsApp'] : null, ['rm', 'note', 'Add remark'], ['rh', 'clock', 'Remark history'], ['cb', 'phone', l.callback_at ? 'Call back: ' + cbWhen(l.callback_at) : 'Call back reminder'], ['ed', 'pencil', 'Edit lead'], canW('survey') ? ['sv', 'pin', 'Add to site survey'] : null, l.customer_id ? ['oc', 'user', 'Open customer'] : ['cv', 'userplus', 'Convert to customer'], l.feas != null ? ['feas', 'check', 'On feasibility list'] : ['feas', 'clipboard', 'Add to feasibility'], canW('quotes') ? ['qt', 'receipt', 'Create quotation'] : null, l.q_ids && canR('quotes') ? ['qv', 'file', 'Show quotation'] : null,
       l.assigned_to && (isAdm() || l.assigned_to == ME.id) ? ['unlock', 'lock', l.assigned_to == ME.id ? 'Unclaim (release lead)' : 'Unclaim / unlock (admin)'] : null, canReassignLead(l) ? ['assign', 'users', l.assigned_to ? 'Reassign to…' : 'Assign to…'] : null].filter(Boolean);
     const m = document.createElement('div'); m.id = 'lmenu'; m.className = 'card menu';
     m.innerHTML = items.map(([a, i, t]) => `<button data-m="${a}"><i class="i i-${i}"></i>${t}</button>`).join('');
@@ -920,6 +921,17 @@ function onbForm(m, fields) {
   Object.entries(fields).forEach(([k, v]) => { if (v != null && typeof v !== 'object') fd.append(k, v); });
   fd.append('plant_cost', cost); fd.append('kseb_extra', extra ? '1' : '0'); if (extra) fd.append('kseb_extra_amt', onbNum($('[data-onb="amt"]', m).value));
   if (f) fd.append('quote', f); else fd.append('no_quote', '1'); return fd;
+}
+/* Leads ⋯ › Add to feasibility (owner's rule 2026-11-27: any user; the lead STAYS a lead on Finance › Feasibility fee and becomes a
+   customer by itself when the feasibility is marked paid — or earlier only by Convert to customer). true = the row should redraw. */
+async function leadToFeas(l) {
+  if (l.feas != null) { /* already on the list */
+    if (canR('fees')) { if (typeof FEEQ !== 'undefined') { FEEQ.q = l.name || ''; FEEQ.f.feasibility = 'all'; } location.hash = '#/fees/feasibility'; }
+    else toast(`${l.name || 'This lead'} is on the feasibility list — it becomes a customer when the feasibility is paid`);
+    return false; }
+  const r = await api('fees', 'lead_add', { lead_id: l.id }); l.feas = 0;
+  toast(r.added ? `${l.name || 'Lead'} added to the feasibility list${l.customer_id ? '' : ' — stays a lead until the feasibility is paid'}` : `${l.name || 'Lead'} is already on the feasibility list`);
+  return true;
 }
 /* Convert a lead to a customer: asks for the approved quotation and the total plant cost, then done({customer_id}) */
 function convertBox(l, done) {

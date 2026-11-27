@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 80; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 81; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -165,6 +165,11 @@ function migrate($db) {
   }
   $db->exec("CREATE TABLE IF NOT EXISTS gen_docs(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, kind TEXT, number TEXT, issued_on TEXT, data TEXT, updated TEXT DEFAULT CURRENT_TIMESTAMP, updated_by TEXT DEFAULT '', UNIQUE(customer_id, kind))");
   $db->exec("CREATE TABLE IF NOT EXISTS fees(id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, kind TEXT, amount REAL DEFAULT 0, demanded INTEGER DEFAULT 0, demanded_on TEXT DEFAULT '', paid INTEGER DEFAULT 0, paid_on TEXT DEFAULT '', ref TEXT DEFAULT '', note TEXT DEFAULT '', alert INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP, updated TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(customer_id, kind))");
+  /* v81: a lead can be on Finance › Feasibility fee (owner's rule 2026-11-27: it stays a lead until the feasibility is paid, then it
+     becomes a customer). fees.lead_id = that lead (customer_id NULL until then); by_uid = who put it on the list. */
+  $fc = array_column($db->query("PRAGMA table_info(fees)")->fetchAll(), 'name');
+  foreach (['lead_id' => 'INTEGER', 'by_uid' => 'INTEGER'] as $col => $ty) if (!in_array($col, $fc)) { try { $db->exec("ALTER TABLE fees ADD COLUMN $col $ty"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }
+  $db->exec("CREATE INDEX IF NOT EXISTS fees_lead ON fees(lead_id)");
   $db->exec("CREATE TABLE IF NOT EXISTS login_guard(k TEXT PRIMARY KEY, fails INTEGER DEFAULT 0, first INTEGER DEFAULT 0, until INTEGER DEFAULT 0)");
   $ucols = array_column($db->query('PRAGMA table_info(users)')->fetchAll(), 'name');
   if (!in_array('avatar', $ucols)) { try { $db->exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''"); } catch (PDOException $e) { if (stripos($e->getMessage(), 'duplicate column') === false) throw $e; } }

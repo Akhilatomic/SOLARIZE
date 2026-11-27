@@ -45,7 +45,7 @@ async function pgFees() {
      ${rows.map((r, i) => { const s = st(r);
        const life = kind === 'feasibility' && +r.paid ? `<div class="fval"><small>Paid ${fdate(r.paid_on)}</small><small>Expires ${fdate(r.expires)}</small>${r.days_left < 0 ? `<span class="fbad r">Expired ${-r.days_left}d ago</span>${w ? `<button class="btn sm" data-renew="${r.id}">Renew</button>` : ''}` : `<span class="fbad ${r.days_left <= d.alert_days ? 'r' : r.days_left <= 10 ? 'y' : 'g'}">${r.days_left === 0 ? 'Expires today' : r.days_left + 'd left'}</span>`}</div>` : +r.paid && r.paid_on ? `<div class="fval"><small>${fdate(r.paid_on)}</small>${r.ref ? `<small>Ref ${esc(r.ref)}</small>` : ''}</div>` : '';
        return `<tr class="${s === 'expired' ? 'fexp' : ''}"><td class="mut">${i + 1}</td>
-        <td><a href="#/customers/${r.customer_id}"><b>${esc(r.name)}</b></a><div class="fsm">${esc(r.phone || '')}</div>${r.consumer_no ? `<div class="fsm mut">${esc(r.consumer_no)}</div>` : ''}</td>
+        <td>${+r.is_lead ? `<b>${esc(r.name)}</b> <span class="pill y" title="Still a lead — becomes a customer when the feasibility is paid">Lead</span>` : `<a href="#/customers/${r.customer_id}"><b>${esc(r.name)}</b></a>`}<div class="fsm">${esc(r.phone || '')}</div>${r.consumer_no ? `<div class="fsm mut">${esc(r.consumer_no)}</div>` : ''}</td>
         <td class="fadr">${esc(r.address || '—')}${r.district ? `<div class="mut">${esc(r.district)}</div>` : ''}${r.pincode ? `<div class="fpin">${esc(r.pincode)}</div>` : ''}</td>
         <td>${esc(r.kseb_section || '—')}</td>
         <td>${w ? `<button class="famt" data-amt="${r.id}" title="Change amount">${inr(r.amount)}</button>` : inr(r.amount)}</td>
@@ -55,14 +55,14 @@ async function pgFees() {
       || `<tr><td colspan="8" class="mut" style="text-align:center;padding:28px">${d.rows.length ? 'Nothing matches.' : `No customers on this list yet.${w ? ' Use <b>Add customers</b>.' : ''}`}</td></tr>`}</tbody>`;
     bind(); };
   const reload = () => pgFees();
-  const payModal = r => { const m = modal(`<h2 class="u-mt0">${kind === 'stamp' ? 'Stamp paper purchased' : (+r.paid ? 'Renew ' : '') + K.title + ' paid'}</h2><p class="mut u-mtn6">${esc(r.name)}</p>
+  const payModal = r => { const m = modal(`<h2 class="u-mt0">${kind === 'stamp' ? 'Stamp paper purchased' : (+r.paid ? 'Renew ' : '') + K.title + ' paid'}</h2><p class="mut u-mtn6">${esc(r.name)}</p>${+r.is_lead ? '<p class="mut u-fs13">This is still a lead. Saving the payment makes it a customer (owner: whoever claimed the lead, else whoever added it to this list).</p>' : ''}
       <div class="two"><div><label>${kind === 'stamp' ? 'Purchased on' : 'Paid on'}</label><input type="date" id="fpo" value="${today()}" max="${today()}"></div><div><label>${kind === 'stamp' ? 'Stamp value (₹)' : 'Amount (₹)'}</label><input id="fpa" inputmode="decimal" value="${+r.amount || ''}"></div>
       <div class="full"><label>Receipt / reference no. (optional)</label><input id="fpr" value="${esc(r.ref || '')}" maxlength="80"></div></div>
       ${kind === 'feasibility' ? `<p class="mut u-fs13">Valid until <b id="fpx"></b> (${d.valid_days} days). You’ll be reminded ${d.alert_days} days before.</p>` : ''}
       <div class="bar u-mt12"><button class="btn" id="fps">Save</button><button class="btn sec" id="fpc">Cancel</button></div>`);
     const upx = () => { if ($('#fpx', m)) { const x = new Date($('#fpo', m).value + 'T00:00:00'); x.setDate(x.getDate() + d.valid_days); $('#fpx', m).textContent = isNaN(x) ? '—' : x.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } };
     $('#fpo', m).oninput = upx; upx(); $('#fpc', m).onclick = () => m.remove();
-    $('#fps', m).onclick = async () => { await api('fees', 'set', { id: r.id, paid: 1, paid_on: $('#fpo', m).value, amount: $('#fpa', m).value, ref: $('#fpr', m).value }); m.remove(); toast(`${K.title}: ${r.name} marked ${K.paid.toLowerCase()}`); reload(); if (typeof pipeOffer === 'function' && (kind === 'feasibility' || kind === 'registration')) pipeOffer({ customer_id: r.customer_id }, kind === 'feasibility' ? 'feas_pay' : 'reg_pay'); }; };
+    $('#fps', m).onclick = async () => { const res = await api('fees', 'set', { id: r.id, paid: 1, paid_on: $('#fpo', m).value, amount: $('#fpa', m).value, ref: $('#fpr', m).value }); m.remove(); toast(`${K.title}: ${r.name} marked ${K.paid.toLowerCase()}${res.converted ? ' — now a customer' : ''}`); reload(); if (typeof pipeOffer === 'function' && (kind === 'feasibility' || kind === 'registration') && (res.converted || r.customer_id)) pipeOffer({ customer_id: res.converted || r.customer_id }, kind === 'feasibility' ? 'feas_pay' : 'reg_pay'); }; };
   const bind = () => {
     $$('[data-dem]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.dem); await api('fees', 'set', { id: r.id, demanded: +r.demanded ? 0 : 1, demanded_on: today() }); reload(); });
     $$('[data-paid]').forEach(b => b.onclick = async () => { const r = d.rows.find(x => x.id == b.dataset.paid);

@@ -63,7 +63,9 @@ function handle_fees($a) {
   switch ($a) {
     case 'list':
       need('fees'); $kind = fee_kind($_GET['kind'] ?? '');
-      $rs = rows('SELECT f.*, c.name, c.phone, c.consumer_no, c.address, c.district, c.pincode, c.kseb_section, c.landmark FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.kind=? ORDER BY f.paid ASC, CASE WHEN f.paid_on<>\'\' THEN f.paid_on ELSE f.created END DESC, f.id DESC', [$kind]);
+      /* a lead on the list (not a customer until its feasibility is paid) shows with the lead's name, phone and place */
+      $rs = rows('SELECT f.*, COALESCE(c.name, ld.name) name, COALESCE(c.phone, ld.phone) phone, c.consumer_no, COALESCE(c.address, NULLIF(ld.location,\'\'), ld.address) address, COALESCE(c.district, ld.city) district, c.pincode, c.kseb_section, c.landmark, CASE WHEN c.id IS NULL THEN 1 ELSE 0 END is_lead
+        FROM fees f LEFT JOIN customers c ON c.id=f.customer_id LEFT JOIN leads ld ON f.customer_id IS NULL AND ld.id=f.lead_id WHERE f.kind=? AND (c.id IS NOT NULL OR ld.id IS NOT NULL) ORDER BY f.paid ASC, CASE WHEN f.paid_on<>\'\' THEN f.paid_on ELSE f.created END DESC, f.id DESC', [$kind]);
       if ($kind === 'feasibility') { $today = new DateTime(date('Y-m-d'));
         foreach ($rs as &$r) if ((int)$r['paid'] && $r['paid_on']) { $e = (new DateTime($r['paid_on']))->modify('+' . rule('feas_valid_days') . ' days'); $r['expires'] = $e->format('Y-m-d'); $r['days_left'] = (int)$today->diff($e)->format('%r%a'); }
         unset($r); }
@@ -112,7 +114,7 @@ function handle_fees($a) {
     case 'member': // which Finance lists each customer is on (for the customer menus)
       need('fees'); $cid = (int)($_GET['customer_id'] ?? 0);
       $m = []; $today = new DateTime(date('Y-m-d'));
-      foreach (rows('SELECT customer_id, kind, paid, paid_on, demanded, demanded_on, amount FROM fees' . ($cid ? ' WHERE customer_id=' . $cid : '')) as $r) {
+      foreach (rows('SELECT customer_id, kind, paid, paid_on, demanded, demanded_on, amount FROM fees WHERE customer_id IS NOT NULL' . ($cid ? ' AND customer_id=' . $cid : '')) as $r) {
         $m[$r['customer_id']][$r['kind']] = (int)$r['paid'];
         if ($r['kind'] === 'feasibility') { $x = ['paid' => (int)$r['paid'], 'paid_on' => $r['paid_on'], 'demanded' => (int)$r['demanded'], 'demanded_on' => $r['demanded_on'], 'amount' => (float)$r['amount']];
           if ($x['paid'] && $r['paid_on']) { $e = (new DateTime($r['paid_on']))->modify('+' . rule('feas_valid_days') . ' days'); $x['expires'] = $e->format('Y-m-d'); $x['days_left'] = (int)$today->diff($e)->format('%r%a'); }
@@ -121,7 +123,7 @@ function handle_fees($a) {
       out($m ?: new stdClass);
     case 'candidates': // customers not yet on this list
       need('fees'); $kind = fee_kind($_GET['kind'] ?? '');
-      out(rows('SELECT c.id, c.name, c.phone, c.consumer_no, c.district, c.kseb_section FROM customers c WHERE c.id NOT IN (SELECT customer_id FROM fees WHERE kind=?) ORDER BY c.created DESC LIMIT 1000', [$kind]));
+      out(rows('SELECT c.id, c.name, c.phone, c.consumer_no, c.district, c.kseb_section FROM customers c WHERE c.id NOT IN (SELECT customer_id FROM fees WHERE kind=? AND customer_id IS NOT NULL) ORDER BY c.created DESC LIMIT 1000', [$kind]));
 
     case 'add':
       need('fees', true); $kind = fee_kind($in['kind'] ?? ''); $amt = fee_default_amount($kind); $n = 0;
@@ -129,9 +131,26 @@ function handle_fees($a) {
         if (row('SELECT 1 FROM customers WHERE id=?', [$cid]) && !row('SELECT 1 FROM fees WHERE customer_id=? AND kind=?', [$cid, $kind])) { q('INSERT INTO fees(customer_id,kind,amount) VALUES(?,?,?)', [$cid, $kind, $amt]); $n++; }
       audit('fees_add', 'fees', null, FEE_KINDS[$kind] . ": $n customer(s)"); out(['ok' => true, 'added' => $n]);
 
+    case 'lead_add': // Leads ⋯ › Add to feasibility — anyone who can see the lead. It stays a lead; marking the feasibility paid makes it a customer.
+      need('leads'); $kind = 'feasibility';
+      $l = row('SELECT l.* FROM leads l WHERE l.id=? AND ' . lead_scope(), [(int)($in['lead_id'] ?? 0)]); if (!$l) fail('Not found', 404);
+      if ($l['customer_id']) { $cid = (int)$l['customer_id']; /* converted already: the customer goes on the list */
+        if (row('SELECT 1 FROM fees WHERE customer_id=? AND kind=?', [$cid, $kind])) out(['ok' => true, 'added' => 0]);
+        q('INSERT INTO fees(customer_id,lead_id,kind,amount,by_uid) VALUES(?,?,?,?,?)', [$cid, $l['id'], $kind, fee_default_amount($kind), uid()]);
+        audit('fees_add', 'customers', $cid, FEE_KINDS[$kind] . ' · from Leads'); out(['ok' => true, 'added' => 1]); }
+      if (row('SELECT 1 FROM fees WHERE lead_id=? AND kind=?', [$l['id'], $kind])) out(['ok' => true, 'added' => 0]);
+      q('INSERT INTO fees(lead_id,kind,amount,by_uid) VALUES(?,?,?,?)', [$l['id'], $kind, fee_default_amount($kind), uid()]);
+      audit('fees_add', 'leads', $l['id'], FEE_KINDS[$kind]); out(['ok' => true, 'added' => 1]);
+
     case 'set':
       need('fees', true);
-      $f = row('SELECT f.*, c.name FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.id=?', [(int)($in['id'] ?? 0)]); if (!$f) fail('Not found', 404);
+      $f = row('SELECT f.*, COALESCE(c.name, ld.name) name FROM fees f LEFT JOIN customers c ON c.id=f.customer_id LEFT JOIN leads ld ON f.customer_id IS NULL AND ld.id=f.lead_id WHERE f.id=? AND (c.id IS NOT NULL OR ld.id IS NOT NULL)', [(int)($in['id'] ?? 0)]); if (!$f) fail('Not found', 404);
+      $conv = 0;
+      if (!$f['customer_id'] && !empty($in['paid'])) { /* a lead whose feasibility is paid becomes a customer now (no quotation / plant cost asked) */
+        $l = row('SELECT * FROM leads WHERE id=?', [(int)$f['lead_id']]); if (!$l) fail('Not found', 404);
+        if ($l['customer_id']) { q('UPDATE fees SET customer_id=? WHERE id=?', [(int)$l['customer_id'], $f['id']]); $f['customer_id'] = (int)$l['customer_id']; }
+        else { $f['customer_id'] = lead_convert($l, null, (int)$f['by_uid'], 'feasibility paid'); $conv = $f['customer_id']; }
+      }
       $u = [];
       if (array_key_exists('demanded', $in)) { $u['demanded'] = empty($in['demanded']) ? 0 : 1; $u['demanded_on'] = $u['demanded'] ? fee_date($in['demanded_on'] ?? '') : ''; }
       if (array_key_exists('paid', $in)) { $u['paid'] = empty($in['paid']) ? 0 : 1; $u['paid_on'] = $u['paid'] ? fee_date($in['paid_on'] ?? '') : ''; if ($u['paid'] !== (int)$f['paid'] || $u['paid_on'] !== (string)$f['paid_on']) $u['alert'] = 0; /* a new payment (date) restarts the expiry warnings */ if ($u['paid'] && !(int)$f['demanded']) { $u['demanded'] = 1; $u['demanded_on'] = $u['paid_on']; } }
@@ -143,13 +162,16 @@ function handle_fees($a) {
       q("UPDATE fees SET $set, updated=CURRENT_TIMESTAMP WHERE id=?", [...array_values($u), $f['id']]);
       if (isset($u['paid']) || ((int)$f['paid'] && (isset($u['amount']) || isset($u['ref'])))) fee_sync_expense($f['customer_id'], $f['kind']); /* paid / purchased → Project cost sheet */
       if (isset($u['paid'])) { try { pipe_fee_sync((int)$f['customer_id'], $f['kind']); } catch (Throwable $e) { error_log('fee → pipeline sync: ' . $e->getMessage()); } } /* paid / not paid → the pipeline step */
-      if (isset($u['paid'])) fee_feas_clean($f['customer_id']); /* feasibility paid again / registration fee paid: the old expiry notifications go */
+      if (isset($u['paid']) && $f['customer_id']) fee_feas_clean($f['customer_id']); /* feasibility paid again / registration fee paid: the old expiry notifications go */
+      if (!$f['customer_id']) { audit('fees_edit', 'leads', $f['lead_id'], FEE_KINDS[$f['kind']]); out(['ok' => true]); } /* a lead: nothing synced until it is paid */
       audit('fees_' . (isset($u['paid']) ? ($u['paid'] ? 'paid' : 'unpaid') : (isset($u['demanded']) ? 'demanded' : 'edit')), 'customers', $f['customer_id'], FEE_KINDS[$f['kind']] . (isset($u['paid_on']) && $u['paid_on'] ? ' · ' . $u['paid_on'] : '') . (isset($u['amount']) ? ' · ₹' . $u['amount'] : ''));
-      out(['ok' => true]);
+      out(['ok' => true] + ($conv ? ['converted' => $conv] : []));
 
     case 'remove':
       need('fees', true);
-      $f = row('SELECT f.*, c.name FROM fees f JOIN customers c ON c.id=f.customer_id WHERE f.id=?', [(int)($in['id'] ?? 0)]); if (!$f) fail('Not found', 404);
+      $f = row('SELECT f.*, COALESCE(c.name, ld.name) name FROM fees f LEFT JOIN customers c ON c.id=f.customer_id LEFT JOIN leads ld ON f.customer_id IS NULL AND ld.id=f.lead_id WHERE f.id=? AND (c.id IS NOT NULL OR ld.id IS NOT NULL)', [(int)($in['id'] ?? 0)]); if (!$f) fail('Not found', 404);
+      if (!$f['customer_id']) { trash_put('Finance entry', FEE_KINDS[$f['kind']] . ' · ' . $f['name'] . ' (lead)', [['fees', 'id=?', [$f['id']]]], [['leads', $f['lead_id'], 'the lead']]);
+        q('DELETE FROM fees WHERE id=?', [$f['id']]); audit('fees_remove', 'leads', $f['lead_id'], FEE_KINDS[$f['kind']]); out(['ok' => true]); }
       trash_put('Finance entry', FEE_KINDS[$f['kind']] . ' · ' . $f['name'], [['fees', 'id=?', [$f['id']]]], [['customers', $f['customer_id'], 'the customer']]);
       q('DELETE FROM fees WHERE id=?', [$f['id']]); try { pipe_fee_sync((int)$f['customer_id'], $f['kind']); } catch (Throwable $e) { } fee_feas_clean($f['customer_id']); audit('fees_remove', 'customers', $f['customer_id'], FEE_KINDS[$f['kind']]); out(['ok' => true]);
   }
