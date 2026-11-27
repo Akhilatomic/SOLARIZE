@@ -1071,6 +1071,10 @@ body.sbah aside.mini a:hover{transform:none}
 #newleads .nlc.hot .btn:not(.sec){background:linear-gradient(135deg,#43f2bd,#0fb7aa);color:#032a22;box-shadow:0 6px 18px rgba(20,220,170,.42),inset 0 1px 0 rgba(255,255,255,.45)}
 #newleads .nlc.hot .btn:not(.sec) .i{background:#032a22}
 #newleads .nlc.hot .btn.claim{background:linear-gradient(135deg,#8affdc,#1cc7b4)}
+/* Call: a clear phone-call green (owner, 2026-11-27: "call button — green colour") */
+#newleads .nlc.hot .btn[href^="tel:"]{background:linear-gradient(135deg,#3ddc6e,#12963f);color:#fff;text-shadow:0 1px 1px rgba(0,60,20,.25);box-shadow:0 6px 18px rgba(34,197,94,.45),inset 0 1px 0 rgba(255,255,255,.4)}
+#newleads .nlc.hot .btn[href^="tel:"] .i{background:#fff}
+#newleads .nlc.hot .btn[href^="tel:"]:hover{background:linear-gradient(135deg,#4ee67c,#15a447)}
 /* the list of leads: the only part that scrolls, and only up and down */
 #newleads .nlx-list{display:flex;flex-direction:column;gap:8px;margin-top:8px;flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:2px 4px 2px 0;scrollbar-width:thin;scrollbar-color:rgba(160,255,226,.4) transparent}
 #newleads .nlx-list>.nl{flex-shrink:0}
