@@ -1,7 +1,7 @@
 // Quotation maker screen (#/quotes/new, and quotations saved with the maker): template bar, tabs (customer, one per item
 // category, price & loan), live A4 preview, save and PDF. Needs QM (app20.js) and qmLines / qmPagesHtml / qmMount /
 // qmDownloadPdf (app21.js). UI classes start with .qm (assets/quote.css). Every value shown in HTML goes through esc().
-const QMK = { boot: null, doc: null, tab: 'customer', dirty: false, id: null, status: 'Draft', cust: {}, tpl: '', hash: '', cs: [], ls: [], over: [], stale: true, busy: false, pdf: false, touched: false, snapOld: false, picking: false, t: 0 };
+const QMK = { boot: null, doc: null, tab: 'customer', dirty: false, id: null, status: 'Draft', cust: {}, tpl: '', hash: '', cs: [], ls: [], over: [], stale: true, busy: false, pdf: false, touched: false, snapOld: false, picking: false, t: 0, sign: null, signing: false, signP: null };
 const QMK_TPL = ['items', 'price', 'subsidy', 'loan', 'title', 'project', 'pill', 'kseb', 'pay', 'terms', 'delivery'];
 const QMK_ST = ['Draft', 'Sent', 'Accepted', 'Rejected'];
 const qmkCopy = o => o == null ? o : JSON.parse(JSON.stringify(o));
@@ -74,7 +74,8 @@ async function pgQuoteMaker(id, q) {
   const [boot, cs, ls, row] = await Promise.all([api('qm', 'boot'), canR('customers') ? list('customers') : [], canR('leads') ? list('leads') : [],
     id && !q ? api('quotes', 'get', undefined, '&id=' + id) : (q || null)]);
   if (nav !== ROUTE_N) return;
-  Object.assign(QMK, { boot, cs, ls, id: id || null, dirty: false, touched: false, over: [], stale: true, busy: false, pdf: false, hash: location.hash, tab: 'customer', status: 'Draft', cust: {}, tpl: '', snapOld: false, picking: false });
+  Object.assign(QMK, { boot, cs, ls, id: id || null, dirty: false, touched: false, over: [], stale: true, busy: false, pdf: false, hash: location.hash, tab: 'customer', status: 'Draft', cust: {}, tpl: '', snapOld: false, picking: false,
+    sign: (row && row.sign) || null, signing: false, signP: null }); /* sign: the signed-quotation state (app52.js) */
   const st = boot.settings, co = st.company || {};
   if (row) {
     let d = {}; try { d = JSON.parse(row.doc || '{}') || {}; } catch (e) { }
@@ -105,7 +106,7 @@ async function pgQuoteMaker(id, q) {
 
 function qmkShell() {
   const w = canW('quotes'), gear = QMK.boot.admin && typeof qmOpenSettings === 'function';
-  return `<div id="qmk" class="qmk"><div class="qm-head"><h2 id="qmh"></h2><span id="qmstate" class="qm-state"></span></div>
+  return `<div id="qmk" class="qmk"><div class="qm-head"><h2 id="qmh"></h2><span id="qmstate" class="qm-state"></span><span id="qmsign" class="qsg-h"></span></div>
    <div class="qm-bar card"><div class="qm-tplw"><i class="i i-file"></i><select id="qmtpl" aria-label="Template"></select></div>
     ${w ? `<button type="button" class="btn sec sm" id="qmtnew" title="Keep these components, price and texts as a template for later quotations"><i class="i i-plus"></i><span class="qm-wl">Save as new template</span><span class="qm-nl">New template</span></button>
     <button type="button" class="btn sec sm" id="qmtupd"><i class="i i-refresh"></i> Update template</button>
@@ -127,6 +128,7 @@ function qmkHead() {
   s.textContent = QMK.dirty ? 'Unsaved changes' : QMK.id ? 'Saved' : 'Not saved yet';
   s.classList.toggle('qm-dirty', QMK.dirty);
   $('#qmmore').hidden = !QMK.id;
+  qsMakerHead(); /* the signature badge and buttons (app52.js) */
 }
 function qmkTplSel() {
   const sel = $('#qmtpl'), groups = {};
@@ -501,10 +503,14 @@ async function qmkSave() {
   try {
     const r = await api('qm', 'save', { id: QMK.id || undefined, customer_id: QMK.cust.customer_id || null, lead_id: QMK.cust.lead_id || null, status: QMK.status, subsidy: calc.subsidy, doc: d });
     d.number = r.number; QMK.id = r.id; QMK.dirty = QMK.rev !== rev; /* typed while saving: still unsaved */ QMK.snapOld = false;
+    QMK.sign = r.sign || null; /* a change of the content took the signature off on the server; a save without one kept it */
     const h = '#/quotes/' + r.id; if (location.hash !== h) history.replaceState(null, '', h); QMK.hash = h;
     qmkHead(); if (QMK.tab === 'customer') qmkTab('customer');
     toast('Saved · ' + r.number); qmkRender();
-    if (QMK.cust.customer_id) qmKeepNote(r.id, QMK.status === 'Accepted'); /* every save of a customer's quotation: the PDF in the customer's Documents is replaced by this version */
+    const signed = QSIGN.state(r.sign).k === 'signed';
+    /* an admin's save with the seal ticked: the signed copy is made from the saved quotation and kept with it (and in the customer's Documents) */
+    if (QMK.boot.admin && d.seal) { if (!signed) qsMakerSign(r.id, r.ver); }
+    else if (QMK.cust.customer_id && !signed) qmKeepNote(r.id, QMK.status === 'Accepted'); /* every save of a customer's quotation: the PDF in the customer's Documents is replaced by this version (a signed one keeps its signed copy) */
     return true;
   } catch (e) { if (!e || !e.error) { console.error(e); toast((e && e.message) || String(e), true); } return false; }
   finally { QMK.busy = false; if (b) { b.disabled = false; b.textContent = 'Save'; } }
@@ -516,6 +522,8 @@ async function qmkPdf() {
   if (QMK.busy) return;
   if (canW('quotes') && (QMK.dirty || !QMK.id)) { if (!await qmkSave()) return; }
   else if (!QMK.id) { toast('Save the quotation first', true); return; }
+  if (QMK.signP) await QMK.signP;
+  if (QSIGN.state(QMK.sign).k === 'signed') return qsDownload({ id: QMK.id, number: QMK.doc.number, sign: QMK.sign }); /* signed: the signed file, never a copy made here */
   if (!qmkPvVisible()) qmkTab('preview'); /* phones: the pages have to be on screen to be measured and drawn */
   const b = $('#qmpdf'), box = $('#qmpages'), old = b.innerHTML;
   QMK.busy = true; b.disabled = true; b.innerHTML = '<i class="i i-download"></i> Making PDF…';
@@ -550,6 +558,8 @@ async function qmkWa() {
   if (QMK.busy) return;
   if (canW('quotes') && (QMK.dirty || !QMK.id)) { if (!await qmkSave()) return; }
   else if (!QMK.id) { toast('Save the quotation first', true); return; }
+  if (QMK.signP) await QMK.signP;
+  if (QSIGN.state(QMK.sign).k === 'signed') return qsMakerAct('share'); /* signed: the share window sends the signed PDF, as on the Quotations list */
   const d = QMK.doc, c = QMK.cust, { calc } = qmkCalc();
   waOpen({ name: d.customer.name, phone: d.customer.mobile, customer_id: c.customer_id || null, lead_id: c.lead_id || null, amount: QM.inr(d.price), quote_no: d.number, date: d.date, text: qmWaText(d, calc, qmkSt()) });
 }
@@ -569,12 +579,13 @@ async function qmShareQuote(id, person) {
    Gives { kept } or { kept: false, why: 'lead' | 'old' } — a lead has no Documents page yet; quotations from before the
    quotation maker have no pages to print here. */
 /* Leads › Show quotation (owner's rule 2026-11-20): the lead's saved quotation, read-only, exactly as it was shared. ids = the lead's
-   quotations, newest first; with more than one a picker switches between them. Download PDF makes the same PDF the customer got. */
+   quotations, newest first; with more than one a picker switches between them. Download PDF makes the same PDF the customer got.
+   A signed quotation shows (and downloads) its stored signed PDF; the signature badge and buttons sit in the header (app52.js). */
 async function qmShowQuote(ids, who) {
   ids = (ids || []).map(Number).filter(Boolean); if (!ids.length) return;
   const m = modal(`<div class="qmv"><div class="qmv-h"><div><h2>Quotation${who ? ' · ' + esc(who) : ''}</h2><small class="mut" id="qmvm"></small></div><span class="sp"></span>
     ${ids.length > 1 ? `<select id="qmvs" aria-label="Quotation">${ids.map((x, i) => `<option value="${x}">${i ? 'Older quotation ' + (i + 1) : 'Newest quotation'}</option>`).join('')}</select>` : ''}
-    ${canW('quotes') ? '<button class="btn sec" id="qmva" type="button" hidden></button><button class="btn sec" id="qmve" type="button"><i class="i i-pencil"></i> Modify</button>' : ''}
+    <span class="qsg-h" id="qmvsg"></span>${canW('quotes') ? '<button class="btn sec" id="qmva" type="button" hidden></button><button class="btn sec" id="qmve" type="button"><i class="i i-pencil"></i> Modify</button>' : ''}
     <button class="btn sec" id="qmvd" type="button"><i class="i i-download"></i> Download PDF</button><button class="btn sec" id="qmvx" type="button">Close</button></div>
     <div class="qmv-b" id="qmvb"><p class="mut">Loading…</p></div></div>`, true);
   m.classList.add('qmvm');
@@ -588,17 +599,22 @@ async function qmShowQuote(ids, who) {
       if (s === 'Accepted' && q.customer_id) qmKeepNote(q.id); } catch (x) { } b.disabled = false; };
   if ($('#qmve', m)) $('#qmve', m).onclick = () => { if (!q) return; m.remove(); location.hash = '#/quotes/' + q.id; }; /* opens it in the quotation maker */
   const fit = () => { const b = $('#qmvb', m), p = b && b.querySelector('.qm-pages'); if (p) p.style.zoom = Math.min(1, (b.clientWidth - 8) / 794); };
+  /* the signature badge and Share / Ask admin to sign / Review & sign; a change loads the quotation again */
+  const sgHead = () => { const h = $('#qmvsg', m); if (!h || !q) return; const s = q.sign || {}, qq = q;
+    h.innerHTML = qsBadge(s) + qsBtns(QSIGN.can(s, ME, q, canW('quotes')), q, { view: false });
+    qsBind(h, () => qq, { name: who }, () => { if (document.body.contains(m) && q && q.id === qq.id) load(qq.id); }); };
   const load = async id => {
     const b = $('#qmvb', m); b.innerHTML = '<p class="mut">Loading…</p>'; cur = null;
     q = null; try { q = await api('quotes', 'get', undefined, '&id=' + id); } catch (e) { b.innerHTML = `<p class="over">${esc((e && e.error) || 'Could not open the quotation')}</p>`; return; }
+    meta(); sgHead();
+    if (QSIGN.state(q.sign).k === 'signed') { b.innerHTML = `<iframe class="qsg-pdf" src="${qsUrl(q.id)}#view=FitH&navpanes=0" title="${esc('Signed quotation ' + q.number)}"></iframe>`; cur = { signed: true }; return; }
     const sp = await qmSavedPages(q);
-    meta();
     if (!sp) { b.innerHTML = '<p class="mut">This quotation was made before the quotation maker, so it has no pages to show.</p>'; return; }
     b.innerHTML = '<div class="qm-pages"></div>'; const box = b.firstChild; qmMount(box, sp.pages); cur = { box, name: sp.name }; fit();
   };
   $('#qmvx', m).onclick = () => m.remove();
   if ($('#qmvs', m)) $('#qmvs', m).onchange = e => load(+e.target.value);
-  $('#qmvd', m).onclick = async e => { if (!cur) return; const btn = e.currentTarget; btn.disabled = true;
+  $('#qmvd', m).onclick = async e => { if (!cur) return; if (cur.signed) return qsDownload(q); const btn = e.currentTarget; btn.disabled = true;
     try { await qmDownloadPdf(cur.box, cur.name, true); } catch (x) { toast((x && x.message) || 'Could not make the PDF', true); } btn.disabled = false; };
   addEventListener('resize', fit);
   new MutationObserver((r, ob) => { if (!document.body.contains(m)) { ob.disconnect(); removeEventListener('resize', fit); } }).observe(document.body, { childList: true });
@@ -704,6 +720,7 @@ function qmkOnClick(e) {
   const tb = e.target.closest('[data-qt]'); if (tb) return qmkTab(tb.dataset.qt);
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const id = b.id, a = b.dataset.a, k = b.dataset.k || '', d = QMK.doc;
+  if (b.dataset.qsg) return qsMakerAct(b.dataset.qsg); /* the signature buttons in the header (app52.js) */
   if (id === 'qmsave') return qmkSaveBtn();
   if (id === 'qmpdf') return qmkPdf();
   if (id === 'qmwa') return qmkWa();
