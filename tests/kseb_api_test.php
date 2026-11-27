@@ -207,6 +207,8 @@ $bq = call($admin, 'bank', 'get', null, "&customer_id=$qc");
 chk(array_column($bq['quotes'] ?? [], 'id') === [(int)$q2['id'], (int)$q1['id']] && ($bq['quotes'][1]['status'] ?? '') === 'Accepted'
   && (float)($bq['quotes'][0]['doc']['price'] ?? 0) === 210000.0 && ($bq['quotes'][0]['number'] ?? '') !== '', 'bank get lists the customer\'s maker quotations newest first with their doc');
 chk(isset($bq['quotes']) && count($bq['quotes']) === 2 && !in_array('OLD/1', array_column($bq['quotes'], 'number'), true), 'bank get skips quotations without a maker doc');
+call($admin, 'qm', 'status', ['id' => (int)$q1['id'], 'status' => 'Rejected']);
+chk(array_column(call($admin, 'bank', 'get', null, "&customer_id=$qc")['quotes'] ?? [], 'id') === [(int)$q2['id'], (int)$q1['id']], 'a status change does not make an older quotation the newest');
 chk(call($admin, 'admin', 'user_save', ['name' => 'Test AM', 'username' => 'kstestam', 'role' => 'assistant_manager', 'active' => 1, 'can_claim' => 0, 'password' => $pw])['_code'] === 200, 'an assistant manager (no Quotations access by default) created');
 $am = actor('am'); call($am, 'auth', 'login', ['username' => 'kstestam', 'password' => $pw]);
 $ag = call($am, 'bank', 'get', null, "&customer_id=$qc");

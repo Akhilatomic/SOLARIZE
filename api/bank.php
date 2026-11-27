@@ -16,7 +16,8 @@ function bank_saved($cid, $doc) {
 function bank_quotes($cid) {
   if (!can('quotes')) return [];
   $out = [];
-  foreach (rows("SELECT id, number, date, status, doc FROM quotes WHERE customer_id=? AND doc IS NOT NULL AND doc<>'' ORDER BY updated DESC, id DESC LIMIT 10", [(int)$cid]) as $q) {
+  /* newest made first (by id: a status change or a re-save must not make an older quotation the "newest") */
+  foreach (rows("SELECT id, number, date, status, doc FROM quotes WHERE customer_id=? AND doc IS NOT NULL AND doc<>'' ORDER BY id DESC LIMIT 10", [(int)$cid]) as $q) {
     $d = json_decode((string)$q['doc'], true);
     if (is_array($d) && $d && array_keys($d) !== range(0, count($d) - 1)) $out[] = ['id' => (int)$q['id'], 'number' => (string)$q['number'], 'date' => (string)$q['date'], 'status' => (string)$q['status'], 'doc' => $d];
   }

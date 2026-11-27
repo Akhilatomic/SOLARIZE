@@ -545,11 +545,13 @@ var KD = (function () {
   };
 
   /* ---- the customer's quotation, for the agreements (bag, mas, mag) made before installation ---- */
-  /* quotes newest first: the saved pick while it still exists, else the accepted one, else the newest; null when there is none */
+  /* quotes newest first: the saved pick while it still exists, else the accepted one, else the newest one that was not rejected
+     (a rejected quotation fills an agreement only when picked by hand); null when there is none */
   K.pickQuote = function (quotes, savedId) {
     quotes = Array.isArray(quotes) ? quotes : [];
     var find = function (ok) { for (var i = 0; i < quotes.length; i++) if (quotes[i] && ok(quotes[i])) return quotes[i]; return null; };
-    return (+savedId > 0 && find(function (q) { return +q.id === +savedId; })) || find(function (q) { return q.status === 'Accepted'; }) || quotes[0] || null;
+    return (+savedId > 0 && find(function (q) { return +q.id === +savedId; })) || find(function (q) { return q.status === 'Accepted'; })
+      || find(function (q) { return q.status !== 'Rejected'; });
   };
   /* words that only say what kind of inverter it is ("SolarEdge 3-Phase Inverter" -> make "SolarEdge") */
   var QF_KIND = /^(inverters?|microinverters?|micro|3-phase|three-phase|single-phase|hybrid|string)$/i;

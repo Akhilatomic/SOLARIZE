@@ -692,6 +692,13 @@ test('pickQuote falls back when the saved pick is gone', () => {
   assert.equal(KD.pickQuote(null, 0), null);
 });
 
+test('pickQuote skips a rejected quotation unless it is picked', () => {
+  const qs = [{ id: 3, status: 'Rejected' }, { id: 2, status: 'Sent' }, { id: 1, status: 'Sent' }];
+  assert.equal(KD.pickQuote(qs, 0).id, 2, 'none accepted: the newest that is not rejected');
+  assert.equal(KD.pickQuote(qs, 3).id, 3, 'a rejected quotation picked by hand is kept');
+  assert.equal(KD.pickQuote([{ id: 3, status: 'Rejected' }], 0), null, 'only rejected ones: none');
+});
+
 test('agreement: profile wins, quotation fills empty', () => {
   const p = KD.defaults('bag', Object.assign({}, LOAN, { quote: QDOC }));
   assert.deepEqual([p.capacity, p.module_make, p.module_wp, p.inv_make, p.inv_kw, p.cost], ['3', 'ReNew', '550', 'Solar Edge', '3', 'Rs.2,22,223 + KSEB Charges.'], 'profile and tax bill kept');

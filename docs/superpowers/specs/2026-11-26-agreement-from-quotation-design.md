@@ -21,7 +21,7 @@ customer's quotation already has most of them.
   - `cost` ← tax bill total, else project cost, else the quotation price (`doc.price`), written "Rs.X + KSEB Charges." as today
   - `module_model`, `module_eff` and the payment split (60/30/10) stay as today: quotations do not carry them reliably (quotation
     payment rows are 70% / 30%).
-- **Which quotation:** the customer's Accepted quotation, else the latest one (quotation-maker quotations only). A line at the top of
+- **Which quotation:** the customer's Accepted quotation, else the latest one that was not Rejected (quotation-maker quotations only; a Rejected one only when picked by hand; "latest" = most recently made, so a status change never reorders them). A line at the top of
   the fields says "Details from quotation JS/QT/2026/0150 · Accepted"; with more than one quotation it is a picker. A pick is saved with
   the agreement (`quote_id` in its saved data) so a reprint uses the same quotation; no pick = follow Accepted / latest.
   No quotation: the line says so and the fields behave as today.
