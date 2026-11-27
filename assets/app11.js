@@ -144,7 +144,7 @@ async function pgCustomer(id) {
   $('#main').innerHTML = `
    <div class="card cuh"><div class="cuh-top"><div class="cuh-av" aria-hidden="true">${esc(initials)}</div>
      <div class="cuh-id"><h2>${esc(c.name)}</h2><div class="cuh-meta">${p0 ? pill(p0.stage, typeof stepCls === 'function' ? stepCls(p0.stage) : '') : pill('No project yet')}${typeof feasSpot === 'function' ? feasSpot(c.id) : ''}${meta}</div></div>
-     <div class="cuh-act">${c.phone ? `<a class="btn sec" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn sec" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}<button class="btn sec" id="dsc">${discBtnLabel(id)}</button><button class="btn sec cuh-more" id="pfmore" title="More: edit, project cost, KYC PDF…" aria-label="More actions"><i class="i i-dots"></i></button></div></div>
+     <div class="cuh-act">${c.phone ? `<a class="btn call" href="tel:${esc(c.phone)}"><i class="i i-phone"></i> Call</a>${BA() ? '' : `<button class="btn sec" id="wa"><i class="i i-whatsapp"></i> WhatsApp</button>`}` : ''}<button class="btn sec" id="dsc">${discBtnLabel(id)}</button><button class="btn sec cuh-more" id="pfmore" title="More: edit, project cost, KYC PDF…" aria-label="More actions"><i class="i i-dots"></i></button></div></div>
     <div class="cuh-facts">${c.phone ? fact('Phone', cpv(c.phone, 'phone')) : ''}${c.consumer_no ? fact('Consumer no.', cpv(c.consumer_no, 'consumer no.')) : ''}${c.kseb_section ? fact('KSEB section', esc(c.kseb_section)) : ''}${c.district ? fact('District', esc(c.district)) : ''}${fact('Owner', own)}</div>
     ${tabsH.tabs}${tabsH.subs}</div>
    <div id="pfbody"></div>
