@@ -544,6 +544,35 @@ var KD = (function () {
     return out;
   };
 
+  /* ---- the customer's quotation, for the agreements (bag, mas, mag) made before installation ---- */
+  /* quotes newest first: the saved pick while it still exists, else the accepted one, else the newest one that was not rejected
+     (a rejected quotation fills an agreement only when picked by hand); null when there is none */
+  K.pickQuote = function (quotes, savedId) {
+    quotes = Array.isArray(quotes) ? quotes : [];
+    var find = function (ok) { for (var i = 0; i < quotes.length; i++) if (quotes[i] && ok(quotes[i])) return quotes[i]; return null; };
+    return (+savedId > 0 && find(function (q) { return +q.id === +savedId; })) || find(function (q) { return q.status === 'Accepted'; })
+      || find(function (q) { return q.status !== 'Rejected'; });
+  };
+  /* words that only say what kind of inverter it is ("SolarEdge 3-Phase Inverter" -> make "SolarEdge") */
+  var QF_KIND = /^(inverters?|microinverters?|micro|3-phase|three-phase|single-phase|hybrid|string)$/i;
+  var firstWord = function (s) { return trim(s).split(/[\s,·]+/)[0] || ''; };
+  /* what a quotation-maker quotation says about the plant, from its frozen lines (doc.snap): plant kW as QM.calc adds it up
+     (kw per unit × qty, or the whole line when kw_line), the first panel line's make (first word of its label / details / name)
+     and Wp, the first inverter line's make (its title without the kind words; a generic title falls back to the first word of
+     its details, never "Option"), and the package price. Empty strings (price 0) for what the quotation does not have. */
+  K.quoteFacts = function (doc) {
+    doc = doc && typeof doc === 'object' ? doc : {};
+    var s = doc.snap && typeof doc.snap === 'object' ? doc.snap : {};
+    var pans = Array.isArray(s.panels) ? s.panels : [], invs = Array.isArray(s.inverter) ? s.inverter : [];
+    var n = function (x) { x = +x; return isFinite(x) ? x : 0; };
+    var kw = Math.round(invs.reduce(function (t, l) { return t + (l ? (l.kw_line ? n(l.kw) : n(l.kw) * n(l.qty)) : 0); }, 0) * 10) / 10;
+    var pl = pans[0] || {}, il = invs[0] || {};
+    var im = trim(il.title || il.name).split(/\s+/).filter(function (w) { return w && !QF_KIND.test(w); }).join(' ');
+    if (!im) { var dw = firstWord(il.details); im = /^option$/i.test(dw) ? '' : dw; }
+    var kws = kw > 0 ? String(kw) : '';
+    return { kw: kws, module_make: firstWord(pl.label || pl.details || pl.name), module_wp: n(pl.wp) > 0 ? String(n(pl.wp)) : '', inv_make: im, inv_kw: kws, price: n(doc.price) };
+  };
+
   K.defaults = function (docKey, ctx) {
     ctx = ctx || {};
     var c = ctx.customer || {}, p = ctx.plant || {}, pr = ctx.project || {}, sd = ctx.defaults || {};
@@ -620,6 +649,14 @@ var KD = (function () {
           inv_make: trim(p.inverter_make), inv_kw: ikw > 0 ? String(Math.round(ikw * 1000) / 1000) : '',
           cost: amt ? 'Rs.' + inrS(amt) + ' + KSEB Charges.' : '', pay1: '60', pay2: '30', pay3: '10'
         };
+        /* made before installation the profile is mostly empty: what it leaves empty comes from the customer's quotation (ctx.quote,
+           a quotation-maker doc); the profile always wins, and the cost uses the quotation only without a tax bill or project cost */
+        if (ctx.quote) {
+          var qf = K.quoteFacts(ctx.quote);
+          var qmap = { capacity: 'kw', module_make: 'module_make', module_wp: 'module_wp', inv_make: 'inv_make', inv_kw: 'inv_kw' };
+          Object.keys(qmap).forEach(function (k) { if (!trim(v[k])) v[k] = qf[qmap[k]]; });
+          if (!amt && qf.price > 0) v.cost = 'Rs.' + inrS(qf.price) + ' + KSEB Charges.';
+        }
       }
     } else if (docKey === 'almm') {
       var apan = Array.isArray(p.panels) ? p.panels : [];
