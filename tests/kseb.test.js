@@ -654,6 +654,73 @@ test('feasibility report: company seal & signature only when ticked and the pict
   assert.equal(nPics(bare), 0, 'a picture that is not given is left out, not an error');
 });
 
+/* a made-up maker quotation: 6 × 600 Wp Waaree panels, one 5 kW SolarEdge three-phase inverter, ₹3,30,000 */
+const QDOC = { price: 330000, snap: {
+  panels: [{ label: 'Waaree 600 TOPCon', details: 'Waaree Elite R Series DCR, 600+ Wp', name: 'Solar panels', wp: 600, qty: 6 }],
+  inverter: [{ title: 'SolarEdge 3-Phase Inverter', details: 'SolarEdge SE5K three-phase', name: 'SolarEdge inverter', kw: 5, qty: 1 }] } };
+const EMPTY = Object.assign({}, LOAN, { plant: {}, project: null, bill: null, quote: QDOC });
+
+test('quoteFacts reads plant kW, panel make and Wp, inverter make', () => {
+  assert.deepEqual(KD.quoteFacts(QDOC), { kw: '5', module_make: 'Waaree', module_wp: '600', inv_make: 'SolarEdge', inv_kw: '5', price: 330000 });
+});
+
+test('quoteFacts: kw_line and per-unit kW', () => {
+  const f = KD.quoteFacts({ snap: { inverter: [{ title: 'Deye Micro Inverter', kw: 5, kw_line: 1, qty: 3 }] } });
+  assert.equal(f.kw, '5'); assert.equal(f.inv_kw, '5'); assert.equal(f.inv_make, 'Deye');
+  assert.equal(KD.quoteFacts({ snap: { inverter: [{ title: 'TSUN Microinverter', kw: 2, qty: 2 }] } }).kw, '4');
+  assert.equal(KD.quoteFacts({ snap: { inverter: [{ title: 'Havells Inverter', kw: 2.5, qty: 1 }, { title: 'Havells Inverter', kw: 1, qty: 1 }] } }).kw, '3.5');
+});
+
+test('quoteFacts: generic title', () => {
+  assert.equal(KD.quoteFacts({ snap: { inverter: [{ title: 'Microinverter', details: 'Option A · TSUN GEN3 TSOL-MS2000', kw: 2, qty: 1 }] } }).inv_make, '');
+  assert.equal(KD.quoteFacts({ snap: { inverter: [{ title: 'Inverter', details: 'Growatt MIN 3000TL-X', kw: 3, qty: 1 }] } }).inv_make, 'Growatt');
+  assert.equal(KD.quoteFacts({ snap: { panels: [{ details: 'Premier NeoBlack DCR, 600+ Wp', wp: 600, qty: 4 }] } }).module_make, 'Premier', 'no label: first word of the details');
+});
+
+test('quoteFacts without lines', () => {
+  assert.deepEqual(KD.quoteFacts({ price: 1000 }), { kw: '', module_make: '', module_wp: '', inv_make: '', inv_kw: '', price: 1000 });
+  assert.deepEqual(KD.quoteFacts(null), { kw: '', module_make: '', module_wp: '', inv_make: '', inv_kw: '', price: 0 });
+});
+
+test('pickQuote falls back when the saved pick is gone', () => {
+  const qs = [{ id: 3, status: 'Draft' }, { id: 2, status: 'Accepted' }, { id: 1, status: 'Sent' }];
+  assert.equal(KD.pickQuote(qs, 1).id, 1, 'the saved pick');
+  assert.equal(KD.pickQuote(qs, 9).id, 2, 'pick gone: the accepted one');
+  assert.equal(KD.pickQuote(qs, 0).id, 2, 'no pick: the accepted one');
+  assert.equal(KD.pickQuote([{ id: 3, status: 'Draft' }, { id: 1, status: 'Sent' }], 0).id, 3, 'none accepted: the newest');
+  assert.equal(KD.pickQuote([], 0), null);
+  assert.equal(KD.pickQuote(null, 0), null);
+});
+
+test('agreement: profile wins, quotation fills empty', () => {
+  const p = KD.defaults('bag', Object.assign({}, LOAN, { quote: QDOC }));
+  assert.deepEqual([p.capacity, p.module_make, p.module_wp, p.inv_make, p.inv_kw, p.cost], ['3', 'ReNew', '550', 'Solar Edge', '3', 'Rs.2,22,223 + KSEB Charges.'], 'profile and tax bill kept');
+  const q = KD.defaults('bag', EMPTY);
+  assert.deepEqual([q.capacity, q.module_make, q.module_wp, q.inv_make, q.inv_kw, q.cost], ['5', 'Waaree', '600', 'SolarEdge', '5', 'Rs.3,30,000 + KSEB Charges.'], 'empty profile: from the quotation');
+  assert.deepEqual([q.module_model, q.module_eff, q.pay1, q.pay2, q.pay3], ['', '', '60', '30', '10'], 'model, efficiency and payment split are not taken from the quotation');
+  assert.deepEqual(KD.defaults('bag', Object.assign({}, EMPTY, { quote: null })), KD.defaults('bag', Object.assign({}, LOAN, { plant: {}, project: null, bill: null })), 'no quotation: as before');
+});
+
+test('agreement: cost order bill > project > quotation', () => {
+  assert.equal(KD.defaults('bag', Object.assign({}, EMPTY, { bill: { grand: 250000 } })).cost, 'Rs.2,50,000 + KSEB Charges.');
+  assert.equal(KD.defaults('bag', Object.assign({}, EMPTY, { project: { kw: 3, cost: 220000 } })).cost, 'Rs.2,20,000 + KSEB Charges.');
+  assert.equal(KD.defaults('bag', EMPTY).cost, 'Rs.3,30,000 + KSEB Charges.');
+});
+
+test('zero profile values are filled from the quotation', () => {
+  const z = KD.defaults('bag', Object.assign({}, EMPTY, { plant: { capacity: '0', panel_wattage: 0 } }));
+  assert.equal(z.capacity, '5'); assert.equal(z.module_wp, '600');
+});
+
+test('mas and mag fill the same way', () => {
+  const b = KD.defaults('bag', EMPTY);
+  for (const d of ['mas', 'mag']) {
+    const v = KD.defaults(d, EMPTY);
+    assert.deepEqual([v.capacity, v.module_make, v.module_wp, v.inv_make, v.inv_kw, v.cost], ['5', 'Waaree', '600', 'SolarEdge', '5', 'Rs.3,30,000 + KSEB Charges.'], d);
+    assert.deepEqual([v.capacity, v.cost], [b.capacity, b.cost], d + ' = bag');
+  }
+});
+
 test('agreement: the MNRE wording filled in, below the stamp, signatures together', async () => {
   const measure = await KD.measurer(PDFLib);
   const v = KD.values('bag', LOAN, {});
