@@ -190,5 +190,28 @@ chk($cid2 === $cid, 'new customer reuses the old customer id');
 $g = call($admin, 'kseb', 'get', null, "&customer_id=$cid2");
 chk($g['_code'] === 200 && array_key_exists('wcr', $g['saved'] ?? []) && $g['saved']['wcr'] === null && empty($g['plant']['capacity'] ?? ''), 'a new customer after reset inherits no saved document or plant');
 
+/* agreements made before installation: bank get sends the customer's quotation-maker quotations, newest first, with their doc */
+$qc = (int)(call($admin, 'customers', 'save', ['name' => 'Test Quote Customer', 'phone' => '9800000501', 'consumer_no' => '1146530000501'])['id'] ?? 0);
+$qdoc = fn($price) => ['price' => $price, 'customer' => ['name' => 'Test Quote Customer'], 'items' => new stdClass(),
+  'snap' => ['inverter' => [['title' => 'SolarEdge Inverter', 'kw' => 3, 'qty' => 1]]]];
+$q1 = call($admin, 'qm', 'save', ['customer_id' => $qc, 'status' => 'Accepted', 'doc' => $qdoc(200000)]);
+$q2 = call($admin, 'qm', 'save', ['customer_id' => $qc, 'status' => 'Draft', 'doc' => $qdoc(210000)]);
+chk(!empty($q1['id']) && !empty($q2['id']), 'two quotations saved for the agreement checks');
+if ($dbPath !== '' && is_file($dbPath)) {
+  $qp = new PDO('sqlite:' . $dbPath); $qp->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $qp->exec('PRAGMA busy_timeout=5000');
+  $qp->prepare("INSERT INTO quotes(customer_id,number,date,items,status,total,doc,updated) VALUES(?,'OLD/1','2026-11-01','[]','Sent',150000,'',datetime('now','+1 minute'))")->execute([$qc]);
+  $qp->prepare("UPDATE quotes SET updated=datetime('now','-1 day') WHERE id=?")->execute([(int)$q1['id']]);
+  $qp = null;
+}
+$bq = call($admin, 'bank', 'get', null, "&customer_id=$qc");
+chk(array_column($bq['quotes'] ?? [], 'id') === [(int)$q2['id'], (int)$q1['id']] && ($bq['quotes'][1]['status'] ?? '') === 'Accepted'
+  && (float)($bq['quotes'][0]['doc']['price'] ?? 0) === 210000.0 && ($bq['quotes'][0]['number'] ?? '') !== '', 'bank get lists the customer\'s maker quotations newest first with their doc');
+chk(isset($bq['quotes']) && count($bq['quotes']) === 2 && !in_array('OLD/1', array_column($bq['quotes'], 'number'), true), 'bank get skips quotations without a maker doc');
+chk(call($admin, 'admin', 'user_save', ['name' => 'Test AM', 'username' => 'kstestam', 'role' => 'assistant_manager', 'active' => 1, 'can_claim' => 0, 'password' => $pw])['_code'] === 200, 'an assistant manager (no Quotations access by default) created');
+$am = actor('am'); call($am, 'auth', 'login', ['username' => 'kstestam', 'password' => $pw]);
+$ag = call($am, 'bank', 'get', null, "&customer_id=$qc");
+chk(($ag['_code'] ?? 0) === 200 && ($ag['quotes'] ?? null) === [], 'bank get without Quotations access has no quotes');
+@unlink($am['jar']);
+
 echo "\n$pass passed, $fail failed\n";
 exit($fail ? 1 : 0);

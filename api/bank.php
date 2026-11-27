@@ -11,6 +11,18 @@ function bank_saved($cid, $doc) {
   return $r ? ['data' => json_decode($r['data'], true) ?: [], 'issued_on' => $r['issued_on'], 'updated' => $r['updated'], 'updated_by' => $r['updated_by']] : null;
 }
 
+/* the customer's quotation-maker quotations (newest first, at most 10, with their doc) for the agreements made before installation
+   (KD.pickQuote / KD.quoteFacts fill what the profile leaves empty); none for someone who cannot read Quotations */
+function bank_quotes($cid) {
+  if (!can('quotes')) return [];
+  $out = [];
+  foreach (rows("SELECT id, number, date, status, doc FROM quotes WHERE customer_id=? AND doc IS NOT NULL AND doc<>'' ORDER BY updated DESC, id DESC LIMIT 10", [(int)$cid]) as $q) {
+    $d = json_decode((string)$q['doc'], true);
+    if (is_array($d) && $d && array_keys($d) !== range(0, count($d) - 1)) $out[] = ['id' => (int)$q['id'], 'number' => (string)$q['number'], 'date' => (string)$q['date'], 'status' => (string)$q['status'], 'doc' => $d];
+  }
+  return $out;
+}
+
 function handle_bank($a) {
   $in = body();
   need('loans'); need('customers');
@@ -25,7 +37,7 @@ function handle_bank($a) {
       out(['customer' => mask_customer($c), 'plant' => $plant,
         'project' => $p ? ['id' => (int)$p['id'], 'kw' => $p['kw'], 'cost' => (float)$p['cost'], 'loan' => (string)($p['loan'] ?? '')] : null,
         'bill' => $tax ? ['number' => $tax['number'], 'issued_on' => $tax['issued_on'], 'grand' => $grand] : null,
-        'company' => gen_qm_info(), 'defaults' => kseb_defaults(),
+        'company' => gen_qm_info(), 'defaults' => kseb_defaults(), 'quotes' => bank_quotes($cid),
         'saved' => array_combine(BANK_DOCS, array_map(fn($d) => bank_saved($cid, $d), BANK_DOCS))]);
 
     case 'save':
