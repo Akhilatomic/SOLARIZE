@@ -5,7 +5,7 @@
 // Save and Download PDF. pdf-lib (loaded on first use) writes the text onto the template PDF in the browser.
 // Saving rule: only the fields that differ from the profile are stored (KD.overrides), plus the date, so a corrected
 // profile prints corrected. UI classes start with .kd (assets/kseb.css). Every value shown in HTML goes through esc().
-const KDS = { book: 'kseb', tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
+const KDS = { book: 'kseb', tok: 0, nav: -1, id: null, g: null, err: '', cs: null, csP: null, mP: null, measure: null, vals: {}, defs: {}, base: {}, lay: {}, qpick: {}, busy: false, pv: false, t: 0, ro: null, hash: '' };
 const KD_TABS = [['cov', 'Cover page'], ['req', 'Request letter'], ['wcr', 'Work completion report'], ['an1', 'Annexure 1'], ['an2', 'Annexure 2'], ['an3', 'Annexure 3'], ['doi', 'Details of installation'], ['almm', 'ALMM declaration'], ['dcr', 'DCR declaration'], ['agr', 'Agreement'], ['chk', 'Checklist sheet'], ['mnre', 'MNRE warranty card']];
 const BK_TABS = [['bfr', 'Feasibility report'], ['bag', 'Vendor–customer agreement']];
 const MN_TABS = [['mas', 'Stamp paper (₹50)'], ['mag', 'Plain paper']];
@@ -24,7 +24,12 @@ const kdOn = () => !!$('#kd');
 const kdTab = () => { const B = KB(); return B.tabs.some(t => t[0] === TAB[KDS.book]) ? TAB[KDS.book] : B.def; };
 const kdDoc = () => { const t = kdTab(); return KD.DOCS[t] ? t : null; }; /* null on the MNRE warranty card tab */
 const kdFields = doc => KD.DOCS[doc].groups.flatMap(gr => gr.fields.map(f => Object.assign({ g: gr.g }, f)));
-const kdCtx = g => ({ customer: g.customer || {}, plant: g.plant || {}, project: g.project || null, defaults: g.defaults || {}, items: S.kseb_items || [], bill: g.bill || null, company: g.company || null, today: today() });
+/* the agreements made before installation (bank bag, MNRE mas / mag) fill what the profile leaves empty from the customer's quotation:
+   g.quotes (bank get, newest first; [] without Quotations access), KDS.qpick[doc] = the quotation picked for that paper (0 = Accepted, else newest) */
+const KD_QDOCS = ['bag', 'mas', 'mag'];
+const kdQuote = (g, doc) => KD_QDOCS.includes(doc) && g && Array.isArray(g.quotes) ? KD.pickQuote(g.quotes, (KDS.qpick || {})[doc] || 0) : null;
+const kdSavedPick = (g, doc) => +((((g && g.saved) || {})[doc] || {}).data || {}).quote_id || 0;
+const kdCtx = (g, doc) => ({ customer: g.customer || {}, plant: g.plant || {}, project: g.project || null, defaults: g.defaults || {}, items: S.kseb_items || [], bill: g.bill || null, company: g.company || null, today: today(), quote: (kdQuote(g, doc) || {}).doc || null });
 /* the company seal / signature (Quotations › gear › Quotation settings): the server sends the pictures to admins only;
    kdSoRefs = their picture refs, kdSo = which of the two can print ({sign, seal}) for KD.layout, null = none */
 const kdIsAdmin = () => !!(ME && ME.role === 'admin');
@@ -81,15 +86,17 @@ async function kdOpen(book, id) {
     catch (e) { err = (e && (e.error || e.message)) || 'Could not load this customer'; if (!e || !e.error) console.error(e); }
     if (tok !== KDS.tok || nav !== ROUTE_N) return;
   }
-  Object.assign(KDS, { id: g ? id : null, g, err, vals: {}, defs: {}, base: {}, lay: {}, busy: false });
+  Object.assign(KDS, { id: g ? id : null, g, err, vals: {}, defs: {}, base: {}, lay: {}, qpick: {}, busy: false });
   if (g) kdPrep();
   kdDraw();
 }
 /* per document: the profile defaults, the values the saved copy prints (base), and the values on screen (kept when present) */
 function kdPrep() {
-  const g = KDS.g, ctx = kdCtx(g);
+  const g = KDS.g;
   KB().tabs.map(t => t[0]).filter(d => KD.DOCS[d]).forEach(d => {
     const sv = (g.saved || {})[d];
+    if (KDS.qpick[d] == null) KDS.qpick[d] = kdSavedPick(g, d);
+    const ctx = kdCtx(g, d);
     KDS.defs[d] = KD.defaults(d, ctx);
     KDS.base[d] = KD.values(d, ctx, sv && sv.data);
     if (!KDS.vals[d]) KDS.vals[d] = Object.assign({}, KDS.base[d]);
@@ -147,10 +154,29 @@ function kdDocHtml(doc) {
     <button type="button" class="btn" id="kdpdf"><i class="i i-download"></i>Download PDF</button>` : ''}</div>`;
   if (!g) return bar + `<div class="card kd-hint"><i class="i i-search"></i><div><b>Pick a customer</b><p>${KDS.err ? esc(KDS.err) + '. ' : ''}Search by name, phone or consumer number above. Their ${KB().what} fill in the ${esc(D.tab.toLowerCase())}.</p></div></div>`;
   const np = kdPageCount(doc);
-  return bar + `<div class="kd-split"><div class="kd-left"><p class="kd-empty" id="kdempty" hidden></p>${D.groups.map(gr => kdGroup(doc, gr, w)).join('')}</div>
+  return bar + `<div class="kd-split"><div class="kd-left"><p class="kd-empty" id="kdempty" hidden></p>${kdQuoteLine(doc)}${D.groups.map(gr => kdGroup(doc, gr, w)).join('')}</div>
     <div class="kd-pv" id="kdpv"><div class="kd-pvh"><b>Preview</b><span class="mut" id="kdpvn">${kdPvLabel(doc, np)}</span></div>
      <div class="kd-warn" id="kdwarn" hidden><i class="i i-alert"></i><span>Too much text to fit — shorten the longest field</span></div>
      <div class="kd-pvsc" id="kdpvsc">${kdPagesHtml(doc, np)}</div></div></div>`;
+}
+/* the agreements: which quotation fills the empty details (a picker with more than one); nothing without Quotations access */
+function kdQuoteLine(doc) {
+  if (!KD_QDOCS.includes(doc) || !KDS.g || !canR('quotes')) return '';
+  const qs = Array.isArray(KDS.g.quotes) ? KDS.g.quotes : [], q = kdQuote(KDS.g, doc);
+  if (!q) return '<div class="kd-q"><i class="i i-receipt"></i><span>No quotation for this customer — fill the details by hand or in Plant details</span></div>';
+  const lbl = x => [x.number, x.status, x.date ? dmy(x.date) : ''].filter(Boolean).join(' · ');
+  return `<div class="kd-q"><i class="i i-receipt"></i><span>Details from quotation ${qs.length > 1
+    ? `<select id="kdqpick" aria-label="Quotation that fills the details">${qs.map(x => `<option value="${+x.id}"${+x.id === +q.id ? ' selected' : ''}>${esc(lbl(x))}</option>`).join('')}</select>`
+    : `<b>${esc(q.number)} · ${esc(q.status)}</b>`}</span><small>It fills only what the profile leaves empty. Every field stays editable.</small></div>`;
+}
+/* another quotation picked: fields not typed over follow it */
+function kdQuotePick(doc, id) {
+  if (!KDS.g || !KDS.vals[doc] || (KDS.qpick[doc] || 0) === id) return;
+  const old = KDS.defs[doc], cur = KDS.vals[doc];
+  KDS.qpick[doc] = id;
+  const defs = KDS.defs[doc] = KD.defaults(doc, kdCtx(KDS.g, doc));
+  kdFields(doc).forEach(f => { if (f.k !== 'date' && kdT(cur[f.k]) === kdT(old[f.k])) { cur[f.k] = defs[f.k] ?? ''; const el = $('#kdf_' + f.k); if (el) el.value = cur[f.k]; } });
+  kdMarks(); kdLayout();
 }
 const kdPageCount = doc => (KDS.lay[doc] && KDS.lay[doc].pages) || KD.DOCS[doc].pages || 1;
 const kdPvLabel = (doc, n) => `A4${n > 1 ? ' · ' + n + ' pages' : ''} · ${esc(KD.DOCS[doc].file)}`;
@@ -184,6 +210,7 @@ function kdField(doc, f) {
 function kdOnInput(e) {
   const el = e.target;
   if (el.id === 'kdq') { if (e.type === 'input') kdFind(); return; }
+  if (el.id === 'kdqpick') { if (kdDoc()) kdQuotePick(kdDoc(), +el.value || 0); return; }
   const doc = kdDoc(), k = el.dataset.k, val = el.type === 'checkbox' ? (el.checked ? '1' : '') : el.value;
   if (!doc || !k || !KDS.vals[doc] || KDS.vals[doc][k] === val) return;
   KDS.vals[doc][k] = val; kdMarks(); kdLayoutSoon();
@@ -225,7 +252,7 @@ const kdWhen = sv => { const d = new Date(String(sv.updated || '').replace(' ', 
 function kdState() {
   const s = $('#kdstate'), doc = kdDoc(); if (!s || !doc || !KDS.g) return;
   const w = canW(KB().perm), sv = (KDS.g.saved || {})[doc], v = KDS.vals[doc], base = KDS.base[doc];
-  const dirty = w && kdFields(doc).some(f => kdT(v[f.k]) !== kdT(base[f.k]));
+  const dirty = w && (kdFields(doc).some(f => kdT(v[f.k]) !== kdT(base[f.k])) || (KD_QDOCS.includes(doc) && (KDS.qpick[doc] || 0) !== kdSavedPick(KDS.g, doc)));
   s.textContent = dirty ? 'Unsaved changes' : sv ? 'Saved ' + kdWhen(sv) : w ? 'Not saved yet' : '';
   s.classList.toggle('kd-dirty', dirty);
 }
@@ -313,15 +340,16 @@ function kdOnClick(e) {
   if (a === 'def') return kdDefaults();
 }
 /* what a save or a PDF uses, taken when the button is pressed: a customer switch meanwhile cannot mix two customers */
-const kdSnap = doc => ({ doc, g: KDS.g, id: KDS.id, vals: Object.assign({}, KDS.vals[doc]), defs: KDS.defs[doc] });
+const kdSnap = doc => ({ doc, g: KDS.g, id: KDS.id, vals: Object.assign({}, KDS.vals[doc]), defs: KDS.defs[doc], qpick: (KDS.qpick || {})[doc] || 0 });
 async function kdSaveDoc(s) {
   /* fields that are also profile fields (src): what was typed for an empty profile field goes into the profile too */
-  const data = KD.overrides(s.doc, s.vals, s.defs), fill = canW('customers') ? KD.fill(s.doc, data, kdCtx(s.g)) : [];
+  const data = KD.overrides(s.doc, s.vals, s.defs), fill = canW('customers') ? KD.fill(s.doc, data, kdCtx(s.g, s.doc)) : [];
+  if (KD_QDOCS.includes(s.doc) && s.qpick) data.quote_id = s.qpick; /* the quotation picked for this agreement: a reprint uses the same one */
   const r = await api(KB().api, 'save', Object.assign({ customer_id: s.id, doc: s.doc, data }, fill.length ? { fill } : {}));
   (s.g.saved = s.g.saved || {})[s.doc] = r.saved;
   if (r.customer && r.plant) kdProfileFilled(s.g, r);
   if (KDS.g === s.g) {
-    const base = KDS.base[s.doc] = KD.values(s.doc, kdCtx(s.g), r.saved && r.saved.data), cur = KDS.vals[s.doc];
+    const base = KDS.base[s.doc] = KD.values(s.doc, kdCtx(s.g, s.doc), r.saved && r.saved.data), cur = KDS.vals[s.doc];
     /* a value now kept in the profile shows as the profile writes it ("3kw" -> "3 KW"), unless it was typed over meanwhile */
     (r.filled || []).forEach(k => { if (cur && cur[k] === s.vals[k] && cur[k] !== base[k]) { cur[k] = base[k]; const el = $('#kdf_' + k); if (el && kdDoc() === s.doc) el.value = base[k]; } });
     kdMarks(); if (r.filled && r.filled.length && kdDoc() === s.doc) kdLayoutSoon();
@@ -334,8 +362,8 @@ function kdProfileFilled(g, r) {
   const clean = KDS.g === g ? docs.filter(d => !kdFields(d).some(f => kdT(KDS.vals[d][f.k]) !== kdT((KDS.base[d] || {})[f.k]))) : [];
   g.customer = r.customer; g.plant = r.plant;
   if (KDS.g !== g) return;
-  const ctx = kdCtx(g);
   docs.forEach(d => {
+    const ctx = kdCtx(g, d);
     KDS.defs[d] = KD.defaults(d, ctx); KDS.base[d] = KD.values(d, ctx, ((g.saved || {})[d] || {}).data);
     if (clean.includes(d)) KDS.vals[d] = Object.assign({}, KDS.base[d]);
   });
