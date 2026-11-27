@@ -1185,7 +1185,7 @@ html.applite #ltb.stack td.lact{display:flex;gap:8px;padding-top:10px}
 html.applite #ltb.stack td.lact::before{display:none}
 html.applite #ltb.stack td.lact .ib{flex:1;min-width:0;height:44px;border-radius:12px;background:var(--fill-2);display:flex;align-items:center;justify-content:center}
 html.applite #ltb.stack td.lact .ib .i{width:19px;height:19px}
-html.applite #ltb.stack td.lact .apcall{background:var(--blue);color:var(--white)}html.applite #ltb.stack td.lact .apcall .i{background:var(--white)!important}
+html.applite #ltb.stack td.lact .apcall{background:linear-gradient(135deg,#3ddc6e,#12963f);color:var(--white)}html.applite #ltb.stack td.lact .apcall .i{background:var(--white)!important}
 html.applite #ltb.stack td.lact .apwa{background:#25d366;color:var(--white)}html.applite #ltb.stack td.lact .apwa .i{background:var(--white)!important}
 html.applite .top{padding-left:12px;padding-right:12px}
 /* Refresh with a show (refreshShow in app.js) */
@@ -1650,3 +1650,11 @@ main.mo-in .ovw-bar>i,main.mo-in .ovw-st>i{transform-origin:left;animation:moBar
 @media(max-width:600px){.ovw-hint{display:none}.ovw-sl small{display:none}.ovw-sg{min-width:56px}
   .ovw-q{flex-wrap:wrap}.ovw-q .pfq-m{flex:1 1 calc(100% - 46px)}.ovw-amt{margin-left:46px;flex:1}
   .ovw-open{width:100%;justify-content:center}.pfgrid .pfa-g{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}}
+/* ===== Leads › Call buttons in phone-call green (owner, 2026-11-27: "make the Call buttons on the Leads page green too";
+   the same green as the dashboard's New leads card): the row's phone icon and the lead window's Call ===== */
+#ltb td.lact .apcall{background:linear-gradient(135deg,#3ddc6e,#12963f);color:#fff;border-radius:8px;box-shadow:0 3px 10px rgba(34,197,94,.32)}
+#ltb td.lact .apcall .i{background:#fff!important}
+#ltb td.lact .apcall:hover{background:linear-gradient(135deg,#4ee67c,#15a447);color:#fff}
+.btn.call{background:linear-gradient(135deg,#3ddc6e,#12963f);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(34,197,94,.3)}
+.btn.call:hover{background:linear-gradient(135deg,#4ee67c,#15a447);color:#fff}
+.btn.call .i{background:#fff}
