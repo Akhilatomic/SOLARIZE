@@ -239,35 +239,68 @@ function acc_sup_v2_data() {
     ]),
   ];
 }
-/* Loads that once (flag acc_sup_v2): the supplier is found by name or added; a listed item is found by name in any category and skipped
-   when it was renamed or deleted; a new item is added unless one of that name is there. Each item gets Usha's price (one per item +
-   supplier + brand, so a price already there is replaced) and its dealer price follows it. */
-function acc_sup_v2($db) {
-  if ($db->query("SELECT 1 FROM settings WHERE k='acc_sup_v2'")->fetch()) return;
-  $d = acc_sup_v2_data();
+/* Loads that once (flag acc_sup_v2): see acc_sup_bills. */
+function acc_sup_v2($db) { acc_sup_bills($db, 'acc_sup_v2', [acc_sup_v2_data()]); }
+/* GIG Automation tax invoice GIGBBTV/26-2711 of 27-11-2026 and Transformers and Electrical Industries tax invoice A 18176/26-27 of
+   23-11-2026 (prices before GST, all 18 %). Sent by the owner on 2026-11-28 to update the price list, so as in v2 the prices become the
+   dealer prices in use. GIG prints a brand (EXCEL) on lines it billed earlier without one: those get a row of their own, the older row stays. */
+function acc_sup_v3_data() {
+  $E = 'Earthing & lightning protection'; $M = 'Metering & isolation'; $D = 'Distribution boards';
+  return [
+    ['supplier' => ['GIG Automation', 'GIG', '', '', '32AEVPJ2210A1Z6', 'Chittazha, near Vattappara, Trivandrum', ''],
+     'paper' => ['GIGBBTV/26-2711', '2026-11-27'],
+     'items' => [
+      [$M, 'Three phase energy meter', 'Nos', 18, 1, 'Visiontek', 3562.71, '3 PHASE ENERGY METER - VISIONTEK'],
+      [$E, 'Excel Earthings – Earthing compound 10 kg bag', 'Nos', 18, 0, 'Excel', 220, 'COMPOUND 10 KG EXCEL'],
+      [$E, 'Copper conductor earthing, 10 SWG', 'kg', 18, 0, '', 1490, '10 SWG BARE COPPER'],
+      [$E, 'Excel Earthings – SS lightning arrester 14 mm x 1 m, single spike, insulated base', 'Nos', 18, 0, 'Excel', 620, 'LA SINGLE - EXCEL'],
+      ['Cable accessories & consumables', 'SS cable tie 4.6*450 mm (packet)', 'Nos', 18, 1, '', 470, 'CABLE TIE- 4.6*450MM SS'],
+      ['Structure & supports', 'SS304 J hook 60 x 40, M8', 'Nos', 18, 1, '', 18.70, 'SS304 J HOOK ( 60 x 40 ) M8'],
+      [$E, 'Excel Earthings – ISI nickel sealed copper bonded earth rod 14 mm x 1.2 m', 'Nos', 18, 0, '', 203, '4 FT EARTH ROD'],
+      [$M, 'Excel Earthings – 3 phase powder coated meter box with isolator provision (344x340x135x0.8 mm)', 'Nos', 18, 0, 'Excel', 1200, '3 PHASE METER BOX EXCEL'],
+      [$E, 'Excel Earthings – Earth pit chamber 18 x 18 cm PVC', 'Nos', 18, 0, 'Excel', 300, 'EARTH PIT CHAMBER EXCEL'],
+      [$E, '50 sq mm T holder', 'Nos', 18, 0, '', 6, '50 SQMM T HOLDER'],
+     ]],
+    ['supplier' => ['Transformers and Electrical Industries', 'TEI', '9495221386, 9142548600', 'rappaimenacherry@gmail.com', '32BWAPM8507K1ZH', 'Thathappilly, N. Paravur, Ernakulam, Kerala 683520', ''],
+     'paper' => ['A 18176/26-27', '2026-11-23'],
+     'items' => [
+      [$D, 'ACDB 10 kW, three phase: Citel SPD, ABB, premium DB', 'Nos', 18, 1, 'Citel / ABB Premium', 6900, 'ACDB 10KW 3PHASE CITEL ABB PREMIUM DB'],
+      [$D, 'DCDB 10 kW 1-in-1-out for SolarEdge, double fuse: Citel DS50 PV 1000 V DC SPD, Mersen 30 A fuse holders, 32 A 1000 V DC isolator, Premium 12-way DB, Polycab 6 sq mm cable', 'Nos', 18, 0, 'Premium', 5800, 'DCDB 1 IN 1 OUT 10KW , PREMIUM DB'],
+     ]],
+  ];
+}
+function acc_sup_v3($db) { acc_sup_bills($db, 'acc_sup_v3', acc_sup_v3_data()); }
+/* Loads supplier bills once (flag $flag): the supplier is found by name or added; a listed item is found by name in any category and
+   skipped when it was renamed or deleted; a new item is added unless one of that name is there. Each item gets the bill's price (one per
+   item + supplier + brand, so a price already there is replaced) and its dealer price follows it. */
+function acc_sup_bills($db, $flag, $bills) {
+  $chk = $db->prepare('SELECT 1 FROM settings WHERE k=?'); $chk->execute([$flag]);
+  if ($chk->fetch()) return;
   $one = function ($sql, $a) use ($db) { $s = $db->prepare($sql); $s->execute($a); return $s->fetch(PDO::FETCH_ASSOC); };
   $db->exec('BEGIN');
   try {
-    [$name, $tag, $phone, $email, $gstin, $addr, $note] = $d['supplier'];
-    $r = $one('SELECT id FROM acc_suppliers WHERE lower(name)=lower(?)', [$name]);
-    if (!$r) { $db->prepare('INSERT INTO acc_suppliers(name,tag,phone,email,gstin,address,note) VALUES(?,?,?,?,?,?,?)')->execute([$name, $tag, $phone, $email, $gstin, $addr, $note]); $sid = (int)$db->lastInsertId(); }
-    else $sid = (int)$r['id'];
-    [$ref, $date] = $d['paper'];
-    $sort = (int)$db->query('SELECT COALESCE(MAX(sort),0) FROM acc_materials')->fetchColumn();
-    foreach ($d['items'] as [$grp, $iname, $unit, $gst, $new, $brand, $rate, $line]) {
-      $m = $one('SELECT id FROM acc_materials WHERE lower(trim(name))=lower(?)', [$iname]);
-      if (!$m) {
-        if (!$new) continue;
-        $db->prepare('INSERT INTO acc_materials(grp,name,unit,gst,rate,sort) VALUES(?,?,?,?,0,?)')->execute([$grp, $iname, $unit, $gst, ++$sort]);
-        $m = ['id' => (int)$db->lastInsertId()];
+    foreach ($bills as $d) {
+      [$name, $tag, $phone, $email, $gstin, $addr, $note] = $d['supplier'];
+      $r = $one('SELECT id FROM acc_suppliers WHERE lower(name)=lower(?)', [$name]);
+      if (!$r) { $db->prepare('INSERT INTO acc_suppliers(name,tag,phone,email,gstin,address,note) VALUES(?,?,?,?,?,?,?)')->execute([$name, $tag, $phone, $email, $gstin, $addr, $note]); $sid = (int)$db->lastInsertId(); }
+      else $sid = (int)$r['id'];
+      [$ref, $date] = $d['paper'];
+      $sort = (int)$db->query('SELECT COALESCE(MAX(sort),0) FROM acc_materials')->fetchColumn();
+      foreach ($d['items'] as [$grp, $iname, $unit, $gst, $new, $brand, $rate, $line]) {
+        $m = $one('SELECT id FROM acc_materials WHERE lower(trim(name))=lower(?)', [$iname]);
+        if (!$m) {
+          if (!$new) continue;
+          $db->prepare('INSERT INTO acc_materials(grp,name,unit,gst,rate,sort) VALUES(?,?,?,?,0,?)')->execute([$grp, $iname, $unit, $gst, ++$sort]);
+          $m = ['id' => (int)$db->lastInsertId()];
+        }
+        $mid = (int)$m['id'];
+        $o = $one('SELECT id FROM acc_offers WHERE material_id=? AND supplier_id=? AND lower(brand)=lower(?)', [$mid, $sid, $brand]);
+        if ($o) { $oid = (int)$o['id']; $db->prepare('UPDATE acc_offers SET rate=?, ref=?, on_date=?, note=?, updated=CURRENT_TIMESTAMP WHERE id=?')->execute([$rate, $ref, $date, 'On the bill: ' . $line, $oid]); }
+        else { $db->prepare('INSERT INTO acc_offers(material_id,supplier_id,brand,rate,ref,on_date,note) VALUES(?,?,?,?,?,?,?)')->execute([$mid, $sid, $brand, $rate, $ref, $date, 'On the bill: ' . $line]); $oid = (int)$db->lastInsertId(); }
+        $db->prepare('UPDATE acc_materials SET rate=?, offer_id=?, updated=CURRENT_TIMESTAMP WHERE id=?')->execute([$rate, $oid, $mid]);
       }
-      $mid = (int)$m['id'];
-      $o = $one('SELECT id FROM acc_offers WHERE material_id=? AND supplier_id=? AND lower(brand)=lower(?)', [$mid, $sid, $brand]);
-      if ($o) { $oid = (int)$o['id']; $db->prepare('UPDATE acc_offers SET rate=?, ref=?, on_date=?, note=?, updated=CURRENT_TIMESTAMP WHERE id=?')->execute([$rate, $ref, $date, 'On the bill: ' . $line, $oid]); }
-      else { $db->prepare('INSERT INTO acc_offers(material_id,supplier_id,brand,rate,ref,on_date,note) VALUES(?,?,?,?,?,?,?)')->execute([$mid, $sid, $brand, $rate, $ref, $date, 'On the bill: ' . $line]); $oid = (int)$db->lastInsertId(); }
-      $db->prepare('UPDATE acc_materials SET rate=?, offer_id=?, updated=CURRENT_TIMESTAMP WHERE id=?')->execute([$rate, $oid, $mid]);
     }
-    $db->exec("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_sup_v2','1')");
+    $db->prepare('INSERT OR REPLACE INTO settings(k,v) VALUES(?,?)')->execute([$flag, '1']);
     $db->exec('COMMIT');
   } catch (Throwable $e) { try { $db->exec('ROLLBACK'); } catch (Throwable $e2) { } throw $e; }
 }

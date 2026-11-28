@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/capacity.php'; // plant capacity: one value per customer
 // Shared bootstrap: DB, schema, settings, permissions, helpers.
-const SCHEMA_VERSION = 81; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
+const SCHEMA_VERSION = 82; // bump when tables/columns change (53-57 were the company books and 59 two-step sign-in, both removed 2026-11-13; what they added to the database is left untouched)
 const IDS = ['customer_id','lead_id','project_id','campaign_id','assigned_to','user_id','file_id'];
 const NUMS = ['notify','amc_interval','kw','budget','cost','subsidy_amount','gst_rate','subsidy','total','spend','impressions','clicks','leads','amount','sanctioned_load'];
 
@@ -464,6 +464,7 @@ function migrate($db) {
   acc_prices_v1($db); /* v51: dealer prices from the supplier's quotation and invoice of Nov 2026, once */
   acc_sup_v1($db); /* v52: the two suppliers, their prices and the new items from the papers of Oct-Nov 2026, once */
   acc_sup_v2($db); /* v79: Usha Electricals bill 23405/26-27 of 26-11-2026 — its prices become the dealer prices in use, once */
+  acc_sup_v3($db); /* v82: GIG Automation GIGBBTV/26-2711 (27-11-2026) + Transformers and Electrical Industries A 18176/26-27 (23-11-2026), once */
   /* v43: KSEB fees and stamp paper are passed on at cost, so their price list items get 0 % profit where the % is blank. Once
      (flag acc_fee_pct0), after the seed so a new database gets it too; a % the owner clears later stays blank. Same names as ACC.FEE_NAMES. */
   if (!$db->query("SELECT 1 FROM settings WHERE k='acc_fee_pct0'")->fetch()) {
