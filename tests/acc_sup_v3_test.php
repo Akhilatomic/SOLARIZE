@@ -27,8 +27,8 @@ chk(!array_diff(array_map('strtolower', array_column($old, 1)), $known), 'every 
 chk(!array_intersect(array_map('strtolower', array_column($new, 1)), $known), 'new items are new');
 chk(!array_filter($all, fn($i) => $i[6] <= 0 || $i[3] != 18), 'every price is above 0 and 18 % GST, as on the bills');
 /* quantity x price adds up to each bill's taxable value */
-$q = [['3 PHASE ENERGY METER - VISIONTEK' => 3, 'COMPOUND 10 KG EXCEL' => 3, '10 SWG BARE COPPER' => 3.75, 'LA SINGLE - EXCEL' => 3, 'CABLE TIE- 4.6*450MM SS' => 1, 'SS304 J HOOK ( 60 x 40 ) M8' => 100, '4 FT EARTH ROD' => 1, '3 PHASE METER BOX EXCEL' => 3, 'EARTH PIT CHAMBER EXCEL' => 12, '50 SQMM T HOLDER' => 100], ['ACDB 10KW 3PHASE CITEL ABB PREMIUM DB' => 2, 'DCDB 1 IN 1 OUT 10KW , PREMIUM DB' => 2]];
-foreach ([[0, 29138.63], [1, 25400]] as [$b, $tot]) {
+$q = [['3 PHASE ENERGY METER - VISIONTEK' => 3, 'COMPOUND 10 KG EXCEL' => 3, '10 SWG BARE COPPER' => 3.75, 'LA SINGLE - EXCEL' => 3, '4 FT EARTH ROD' => 1, '3 PHASE METER BOX EXCEL' => 3, 'EARTH PIT CHAMBER EXCEL' => 12, '50 SQMM T HOLDER' => 100], ['DCDB 1 IN 1 OUT 10KW , PREMIUM DB' => 2]];
+foreach ([[0, 29138.63 - 470 - 1870], [1, 25400 - 13800]] as [$b, $tot]) {
   $byLine = array_column($bills[$b]['items'], 6, 7); $sum = 0; foreach ($q[$b] as $l => $n) $sum += $n * ($byLine[$l] ?? 0);
   chk(count($byLine) === count($q[$b]) && abs($sum - $tot) < 0.05, $bills[$b]['paper'][0] . ': all lines there and they add up to the bill (' . number_format($sum, 2) . ')');
 }
@@ -48,11 +48,12 @@ chk((float)$box['rate'] == 1200 && $box['used_brand'] === 'Excel' && (int)$box['
 $pit = $it('Excel Earthings – Earth pit chamber 18 x 18 cm PVC');
 chk((float)$pit['rate'] == 300 && (int)$pit['n'] === 4, 'earth pit chamber: Excel 300 in use, 3 older prices kept');
 chk((float)$it('50 sq mm T holder')['rate'] == 6 && (float)$it('Excel Earthings – SS lightning arrester 14 mm x 1 m, single spike, insulated base')['rate'] == 620, 'T holder 6, single LA 620');
-$m3 = $it('Three phase energy meter'); $jh = $it('SS304 J hook 60 x 40, M8');
-chk($m3 && $m3['grp'] === 'Metering & isolation' && (float)$m3['rate'] == 3562.71 && $m3['used_brand'] === 'Visiontek' && $jh && $jh['grp'] === 'Structure & supports' && (float)$jh['rate'] == 18.70, 'new items in their categories with the bill price');
+$m3 = $it('Three phase energy meter');
+chk($m3 && $m3['grp'] === 'Metering & isolation' && (float)$m3['rate'] == 3562.71 && $m3['used_brand'] === 'Visiontek' && count($new) === 1, 'the Visiontek 3 phase meter is the only new item');
+chk((int)$v("SELECT COUNT(*) FROM acc_materials WHERE name LIKE '%J hook%' OR name LIKE '%4.6*450%' OR name LIKE 'ACDB 10 kW%'") === 0, 'no cable tie, J hook or ACDB 10 kW item is added');
 $dc = $it('DCDB 10 kW 1-in-1-out for SolarEdge, double fuse: Citel DS50 PV 1000 V DC SPD, Mersen 30 A fuse holders, 32 A 1000 V DC isolator, Premium 12-way DB, Polycab 6 sq mm cable');
 $ac = $it('ACDB 10 kW, three phase: Citel SPD, ABB, premium DB');
-chk((float)$dc['rate'] == 5800 && $dc['used_by'] === 'Transformers and Electrical Industries' && $ac && (float)$ac['rate'] == 6900 && $ac['grp'] === 'Distribution boards', 'TEI: DCDB 10 kW 5800, new ACDB 10 kW 6900');
+chk((float)$dc['rate'] == 5800 && $dc['used_by'] === 'Transformers and Electrical Industries' && !$ac, 'TEI: DCDB 10 kW 5800');
 chk((int)$v('SELECT COUNT(*) FROM acc_materials') === $n0[0] + count($new), count($new) . ' new items added');
 $n1 = [(int)$v('SELECT COUNT(*) FROM acc_offers'), (int)$v('SELECT COUNT(*) FROM acc_materials')];
 $db->exec("UPDATE acc_materials SET rate=1, offer_id=NULL WHERE name='50 sq mm T holder'");

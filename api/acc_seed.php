@@ -243,7 +243,8 @@ function acc_sup_v2_data() {
 function acc_sup_v2($db) { acc_sup_bills($db, 'acc_sup_v2', [acc_sup_v2_data()]); }
 /* GIG Automation tax invoice GIGBBTV/26-2711 of 27-11-2026 and Transformers and Electrical Industries tax invoice A 18176/26-27 of
    23-11-2026 (prices before GST, all 18 %). Sent by the owner on 2026-11-28 to update the price list, so as in v2 the prices become the
-   dealer prices in use. GIG prints a brand (EXCEL) on lines it billed earlier without one: those get a row of their own, the older row stays. */
+   dealer prices in use. Owner's rule (2026-11-28): only the Visiontek 3 phase meter is a new item; the cable tie,
+   J hook and ACDB 10 kW lines are left out (already on the owner's list). GIG prints a brand (EXCEL) on lines it billed earlier without one: those get a row of their own, the older row stays. */
 function acc_sup_v3_data() {
   $E = 'Earthing & lightning protection'; $M = 'Metering & isolation'; $D = 'Distribution boards';
   return [
@@ -254,8 +255,6 @@ function acc_sup_v3_data() {
       [$E, 'Excel Earthings – Earthing compound 10 kg bag', 'Nos', 18, 0, 'Excel', 220, 'COMPOUND 10 KG EXCEL'],
       [$E, 'Copper conductor earthing, 10 SWG', 'kg', 18, 0, '', 1490, '10 SWG BARE COPPER'],
       [$E, 'Excel Earthings – SS lightning arrester 14 mm x 1 m, single spike, insulated base', 'Nos', 18, 0, 'Excel', 620, 'LA SINGLE - EXCEL'],
-      ['Cable accessories & consumables', 'SS cable tie 4.6*450 mm (packet)', 'Nos', 18, 1, '', 470, 'CABLE TIE- 4.6*450MM SS'],
-      ['Structure & supports', 'SS304 J hook 60 x 40, M8', 'Nos', 18, 1, '', 18.70, 'SS304 J HOOK ( 60 x 40 ) M8'],
       [$E, 'Excel Earthings – ISI nickel sealed copper bonded earth rod 14 mm x 1.2 m', 'Nos', 18, 0, '', 203, '4 FT EARTH ROD'],
       [$M, 'Excel Earthings – 3 phase powder coated meter box with isolator provision (344x340x135x0.8 mm)', 'Nos', 18, 0, 'Excel', 1200, '3 PHASE METER BOX EXCEL'],
       [$E, 'Excel Earthings – Earth pit chamber 18 x 18 cm PVC', 'Nos', 18, 0, 'Excel', 300, 'EARTH PIT CHAMBER EXCEL'],
@@ -264,7 +263,6 @@ function acc_sup_v3_data() {
     ['supplier' => ['Transformers and Electrical Industries', 'TEI', '9495221386, 9142548600', 'rappaimenacherry@gmail.com', '32BWAPM8507K1ZH', 'Thathappilly, N. Paravur, Ernakulam, Kerala 683520', ''],
      'paper' => ['A 18176/26-27', '2026-11-23'],
      'items' => [
-      [$D, 'ACDB 10 kW, three phase: Citel SPD, ABB, premium DB', 'Nos', 18, 1, 'Citel / ABB Premium', 6900, 'ACDB 10KW 3PHASE CITEL ABB PREMIUM DB'],
       [$D, 'DCDB 10 kW 1-in-1-out for SolarEdge, double fuse: Citel DS50 PV 1000 V DC SPD, Mersen 30 A fuse holders, 32 A 1000 V DC isolator, Premium 12-way DB, Polycab 6 sq mm cable', 'Nos', 18, 0, 'Premium', 5800, 'DCDB 1 IN 1 OUT 10KW , PREMIUM DB'],
      ]],
   ];
