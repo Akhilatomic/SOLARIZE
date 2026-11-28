@@ -808,7 +808,7 @@ var KD = (function () {
         panels: an1Panels(), inverter: an1Inverter()
       } : docKey === 'an2' ? {
         load: bare(c.sanctioned_load, 'kW'), capacity: cap('kWp'),
-        specs: 'YES', meters: 'YES', drawings: 'YES', days: '30 DAYS'
+        specs: 'YES', meters: 'NETMETER FROM KSEB', drawings: 'YES', days: '30 DAYS'
       } : docKey === 'an3' ? {
         reg_no: trim(p.kseb_reg_no), capacity: cap('kWp'),
         type_test: 'YES', specs: 'YES', inspector: trim(p.ei_approval_no) ? 'YES' : 'NOT APPLICABLE'

@@ -290,7 +290,7 @@ test('an2 and an3 defaults', () => {
   assert.equal(a2.load, '1.24 kW');
   assert.equal(a2.capacity, '5 kWp');
   assert.equal(a2.specs, 'YES');
-  assert.equal(a2.meters, 'YES');
+  assert.equal(a2.meters, 'NETMETER FROM KSEB');
   assert.equal(a2.drawings, 'YES');
   assert.equal(a2.days, '30 DAYS');
   assert.equal(a2.place, 'Thiruvananthapuram');
