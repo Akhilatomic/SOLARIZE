@@ -1,0 +1,86 @@
+<!doctype html>
+<!-- "All-black micro" quotation cover picture (assets/quote/page-front-micro.jpg, top 905 px of the A4 page; the details band is HTML from
+     qpFront() in assets/app21.js). Owner, 2026-11-28: "create a cover page for t sun micro inverter and premier all black panel", then
+     "brighter coverpage with device only showcase", "add premier neo black panel" and "inverter cut, create svg": a light page; the
+     microinverter is an inline SVG drawing of the whole unit (nothing cropped), after TSUN's GEN3 4-in-1 product photo in the TSOL-MS1600
+     to MX2250 datasheet (D:\GDrive\DATASHEET AND SLD\tsun\2KW.pdf): finned body, mounting bracket, AC cable, four DC inputs with MC4 leads.
+     Facts are the datasheets' own; no figures beyond them, no promises.
+     Rebuild as front.html: --window-size=794,905 --force-device-scale-factor=2.0831, JPEG ~86 over assets/quote/page-front-micro.jpg. -->
+<html><head><meta charset="utf-8"><style>
+@font-face{font-family:P;font-weight:400;src:url(../../assets/fonts/Poppins-Regular.ttf)}
+@font-face{font-family:P;font-weight:500;src:url(../../assets/fonts/Poppins-Medium.ttf)}
+@font-face{font-family:P;font-weight:600;src:url(../../assets/fonts/Poppins-SemiBold.ttf)}
+@font-face{font-family:P;font-weight:700;src:url(../../assets/fonts/Poppins-Bold.ttf)}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:794px;height:905px;overflow:hidden;background:#fff}
+.pg{position:relative;width:794px;height:905px;overflow:hidden;font-family:P,sans-serif;color:#1D1D1F;
+  background:radial-gradient(ellipse 80% 50% at 50% 0%,#FFFFFF 0%,#F7F7F9 60%,#EFEFF2 100%)}
+.hd{position:absolute;left:52px;top:58px;width:560px}
+.k{font-size:9.6px;font-weight:600;letter-spacing:.3em;color:#E2702B}
+.k:after{content:"";display:block;width:46px;height:2px;border-radius:1px;background:#E2702B;margin-top:10px}
+h1{font-weight:600;font-size:42px;line-height:50px;margin-top:18px;letter-spacing:-.02em}
+h1 em{font-style:normal;color:#E2702B}
+.sub{font-size:11.8px;line-height:19px;margin-top:14px;width:520px;color:#5B5E66}
+.logo{position:absolute;right:46px;top:46px;width:74px;height:74px}
+/* the Premier NeoBlack panel standing on the page, left of the showcase (owner, 2026-11-28: "add premier neo black panel") */
+.pnl{position:absolute;left:52px;top:282px;width:170px;height:360px;object-fit:fill;border-radius:4px;filter:drop-shadow(0 26px 30px rgba(20,22,30,.38))}
+.ptag{position:absolute;left:52px;width:170px;top:592px;text-align:center;font-size:8.2px;font-weight:600;letter-spacing:.2em;color:rgba(255,255,255,.8)}
+.ptag b{display:block;font-size:12.5px;letter-spacing:0;color:#fff;margin-top:3px}
+/* the device showcase: the SVG microinverter, whole, on a light studio card */
+.show{position:absolute;left:244px;right:52px;top:282px;height:360px;border-radius:24px;overflow:hidden;
+  background:radial-gradient(ellipse 75% 70% at 50% 42%,#FFFFFF 0%,#F1F2F5 55%,#E2E4E9 100%);border:1px solid #E3E4E8;
+  box-shadow:0 30px 60px -28px rgba(20,22,30,.35),0 2px 6px rgba(20,22,30,.06)}
+.show svg{position:absolute;inset:0;width:100%;height:100%}
+.tag{position:absolute;left:22px;top:18px;z-index:1;font-size:8.8px;font-weight:600;letter-spacing:.22em;color:#8A8D95}
+.tag b{display:block;font-size:15px;letter-spacing:-.005em;font-weight:600;color:#1D1D1F;margin-top:4px}
+.chip{position:absolute;right:20px;top:20px;z-index:1;padding:6px 12px;border-radius:999px;background:#fff;border:1px solid #E0E1E6;
+  font-size:9px;font-weight:600;letter-spacing:.14em;color:#3A3C42}
+.specs{position:absolute;left:52px;right:52px;top:672px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.sp{background:#fff;border:1px solid #E6E6EA;border-radius:16px;padding:16px 16px 15px}
+.sp b{display:block;height:26px;font-weight:600;font-size:22px;line-height:26px;letter-spacing:-.02em}
+.sp b small{font-size:12px;font-weight:600;margin-left:2px}
+.sp span{display:block;font-size:9.6px;line-height:14px;margin-top:6px;color:#5B5E66}
+.foot{position:absolute;left:52px;right:52px;top:806px;display:flex;align-items:center;gap:12px;font-size:10.6px;color:#5B5E66}
+.foot i{flex:0 0 auto;width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#1B1C20,#0B0B0D);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.foot strong{font-weight:600;color:#1D1D1F}
+</style></head><body><div class="pg">
+<div class="hd"><div class="k">TSUN MICROINVERTER + PREMIER NEOBLACK</div><h1>Every panel<br><em>on its own.</em></h1>
+<p class="sub">Premier NeoBlack all-black panels with TSUN GEN3 microinverters: every panel has its own MPPT, and the DC on your roof stays at 60 V or less.</p></div>
+<img class="logo" src="../../assets/quote/jasper-logo.png" alt="">
+<img class="pnl" src="premier-neoblack.png" alt=""><div class="ptag">PREMIER NEOBLACK<b>All-black panel</b></div>
+<div class="show"><svg viewBox="0 0 498 360" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="bd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5A5D64"/><stop offset=".5" stop-color="#3F4147"/><stop offset="1" stop-color="#2C2E33"/></linearGradient>
+<linearGradient id="fin" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6B6E76"/><stop offset=".5" stop-color="#4A4D54"/><stop offset="1" stop-color="#2A2C31"/></linearGradient>
+<linearGradient id="br" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C9CBD0"/><stop offset="1" stop-color="#9A9DA4"/></linearGradient>
+<radialGradient id="sh" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#14161C" stop-opacity=".32"/><stop offset="1" stop-color="#14161C" stop-opacity="0"/></radialGradient>
+</defs>
+<ellipse cx="250" cy="300" rx="180" ry="16" fill="url(#sh)"/>
+<!-- mounting bracket -->
+<path d="M176 132 L186 96 Q188 90 194 90 L306 90 Q312 90 314 96 L324 132 Z" fill="url(#br)"/>
+<path d="M210 104 h80 v14 h-80 z" fill="#E9EAED" opacity=".9" rx="4"/>
+<path d="M194 100 q0 -4 4 -4 h4 v12 h-4 q-4 0 -4 -4z M306 100 q0 -4 -4 -4 h-4 v12 h4 q4 0 4 -4z" fill="#E9EAED"/>
+<circle cx="250" cy="96" r="2" fill="#7D8087"/>
+<!-- AC cable and connector, top left -->
+<path d="M142 150 H86" stroke="#1C1D21" stroke-width="4.4" stroke-linecap="round"/>
+<rect x="126" y="142" width="18" height="16" rx="4" fill="#1F2025"/>
+<g transform="translate(40 139)"><rect width="34" height="22" rx="4" fill="#17181C"/><rect x="30" y="4" width="14" height="14" rx="3" fill="#24262B"/><rect x="4" y="5" width="20" height="2" fill="#2D2F35"/><rect x="4" y="15" width="20" height="2" fill="#2D2F35"/></g>
+<!-- DC glands and the four inputs' MC4 leads -->
+<path d="M126 213 C 98 213, 98 188, 70 188" stroke="#1C1D21" stroke-width="3.2" fill="none"/><g transform="translate(40 183)"><rect width="30" height="10" rx="3" fill="#1A1B1F"/><rect x="0" y="1.5" width="8" height="7" rx="2" fill="#2E3036"/><rect x="10" y="2.5" width="16" height="1.2" fill="#3A3C43"/><rect x="10" y="6.3" width="16" height="1.2" fill="#3A3C43"/></g><path d="M126 219 C 105 219, 105 210, 84 210" stroke="#1C1D21" stroke-width="3.2" fill="none"/><g transform="translate(54 205)"><rect width="30" height="10" rx="3" fill="#1A1B1F"/><rect x="0" y="1.5" width="8" height="7" rx="2" fill="#2E3036"/><rect x="10" y="2.5" width="16" height="1.2" fill="#3A3C43"/><rect x="10" y="6.3" width="16" height="1.2" fill="#3A3C43"/></g><path d="M126 225 C 98 225, 98 234, 70 234" stroke="#1C1D21" stroke-width="3.2" fill="none"/><g transform="translate(40 229)"><rect width="30" height="10" rx="3" fill="#1A1B1F"/><rect x="0" y="1.5" width="8" height="7" rx="2" fill="#2E3036"/><rect x="10" y="2.5" width="16" height="1.2" fill="#3A3C43"/><rect x="10" y="6.3" width="16" height="1.2" fill="#3A3C43"/></g><path d="M126 231 C 105 231, 105 256, 84 256" stroke="#1C1D21" stroke-width="3.2" fill="none"/><g transform="translate(54 251)"><rect width="30" height="10" rx="3" fill="#1A1B1F"/><rect x="0" y="1.5" width="8" height="7" rx="2" fill="#2E3036"/><rect x="10" y="2.5" width="16" height="1.2" fill="#3A3C43"/><rect x="10" y="6.3" width="16" height="1.2" fill="#3A3C43"/></g><path d="M374 213 C 402 213, 402 188, 430 188" stroke="#1C1D21" stroke-width="3.2" fill="none"/><g transform="translate(430 183)"><rect width="30" height="10" rx="3" fill="#1A1B1F"/><rect x="22" y="1.5" width="8" height="7" rx="2" fill="#2E3036"/><rect x="4" y="2.5" width="16" height="1.2" fill="#3A3C43"/><rect x="4" y="6.3" width="16" height="1.2" fill="#3A3C43"/></g><path d="M374 219 C 395 219, 395 210, 416 210" stroke="#1C1D21" stroke-width="3.2" fill="none"/><g transform="translate(416 205)"><rect width="30" height="10" rx="3" fill="#1A1B1F"/><rect x="22" y="1.5" width="8" height="7" rx="2" fill="#2E3036"/><rect x="4" y="2.5" width="16" height="1.2" fill="#3A3C43"/><rect x="4" y="6.3" width="16" height="1.2" fill="#3A3C43"/></g><path d="M374 225 C 402 225, 402 234, 430 234" stroke="#1C1D21" stroke-width="3.2" fill="none"/><g transform="translate(430 229)"><rect width="30" height="10" rx="3" fill="#1A1B1F"/><rect x="22" y="1.5" width="8" height="7" rx="2" fill="#2E3036"/><rect x="4" y="2.5" width="16" height="1.2" fill="#3A3C43"/><rect x="4" y="6.3" width="16" height="1.2" fill="#3A3C43"/></g><path d="M374 231 C 395 231, 395 256, 416 256" stroke="#1C1D21" stroke-width="3.2" fill="none"/><g transform="translate(416 251)"><rect width="30" height="10" rx="3" fill="#1A1B1F"/><rect x="22" y="1.5" width="8" height="7" rx="2" fill="#2E3036"/><rect x="4" y="2.5" width="16" height="1.2" fill="#3A3C43"/><rect x="4" y="6.3" width="16" height="1.2" fill="#3A3C43"/></g>
+<rect x="126" y="200" width="16" height="44" rx="4" fill="#1F2025"/><rect x="358" y="200" width="16" height="44" rx="4" fill="#1F2025"/>
+<!-- body -->
+<rect x="142" y="128" width="216" height="154" rx="10" fill="url(#bd)"/>
+<rect x="142" y="128" width="216" height="154" rx="10" fill="none" stroke="#6E717A" stroke-width="1.2"/>
+<rect x="150" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="157" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="164" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="171" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="178" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="185" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="192" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="199" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="206" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="213" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="220" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="227" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="234" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="241" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="248" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="255" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="262" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="269" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="276" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="283" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="290" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="297" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="304" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="311" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="318" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="325" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="332" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="339" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/><rect x="346" y="136" width="3.4" height="138" rx="1.5" fill="url(#fin)"/>
+<rect x="146" y="130" width="208" height="3" rx="1.5" fill="#8A8D95" opacity=".6"/>
+<!-- TSUN plate -->
+<g transform="translate(158 254)"><rect width="38" height="17" rx="2.5" fill="#F4F5F7"/><text x="19" y="12.2" text-anchor="middle" font-family="P,sans-serif" font-weight="700" font-size="8.6" font-style="normal" fill="#1E4C9A" letter-spacing=".02em">TSUN</text><path d="M30 4.5 q3.5 4 0 8" stroke="#E2702B" stroke-width="1.4" fill="none"/></g>
+</svg><div class="tag">TSUN GEN3 · 4-IN-1<b>Microinverter</b></div><div class="chip">IP67 · OUTDOOR</div></div>
+<div class="specs">
+  <div class="sp"><b>1<small>per panel</small></b><span>Dedicated MPPT for each panel</span></div>
+  <div class="sp"><b>60<small>V</small></b><span>Max. DC voltage: no high-voltage DC</span></div>
+  <div class="sp"><b>App</b><span>Wi-Fi and Bluetooth monitoring</span></div>
+  <div class="sp"><b>12<small>years</small></b><span>Standard TSUN warranty</span></div>
+</div>
+<div class="foot"><span><strong>Premier NeoBlack:</strong> a uniform full-black look, TOPCon bifacial dual glass, 600 to 630 W.</span></div>
+</div></body></html>

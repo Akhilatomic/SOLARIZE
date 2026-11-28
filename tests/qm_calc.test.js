@@ -138,7 +138,7 @@ test('StormShield page: only with a hot-dip (HDG) structure, never with a welded
 });
 
 test('cover pages: the list, and the cover a quotation prints with', () => {
-  assert.deepEqual(QM.COVERS.map(c => c.k), ['ongrid', 'hybrid', 'solaredge', 'solaredge3', 'premium']);
+  assert.deepEqual(QM.COVERS.map(c => c.k), ['ongrid', 'hybrid', 'solaredge', 'solaredge3', 'premium', 'micro']);
   assert.ok(QM.COVERS.every(c => /^assets\/quote\/page-front[\w-]*\.jpg$/.test(c.pic) && /^assets\/quote\/thumb-front[\w-]*\.jpg$/.test(c.thumb) && c.name && c.sub && c.kind));
   assert.ok(QM.COVERS.every(c => [c.pic, c.thumb].every(f => require('fs').existsSync(require('path').join(__dirname, '..', f)))), 'every cover picture and thumbnail is in the repo');
   assert.equal(QM.coverOf({ cover: true }).k, 'ongrid', 'saved with the first tick box: the on-grid cover');
@@ -164,6 +164,13 @@ test('cover pages: the list, and the cover a quotation prints with', () => {
   assert.equal(QM.coverOk(pc, { ...se1, panels: neo }), false, 'not with a single-phase SolarEdge');
   assert.equal(QM.coverOk(pc, { ...tsun, panels: neo }), false); assert.equal(QM.coverOk(se3c, { ...se3, panels: neo }), true, 'the plain three-phase cover stays open');
   assert.equal(QM.coverOk(se, {}), false); assert.equal(QM.coverOk(QM.coverOf({ cover: 'ongrid' }), tsun), true); assert.equal(QM.coverOk(null, tsun), false);
+  const mc = QM.coverOf({ cover: 'micro' }), choice = { inverter: [{ name: 'Microinverter', title: 'Microinverter', details: 'Option A · TSUN GEN3 TSOL-MS2000, 2 kW · Option B · Deye SUN-M200G4, 2 kW' }] };
+  assert.equal(mc.kind, 'TSUN microinverter');
+  assert.equal(QM.coverOk(mc, { ...tsun, panels: neo }), true, 'NeoBlack panels + TSUN microinverter: the all-black micro cover');
+  assert.equal(QM.coverOk(mc, { ...tsun, panels: silver }), false, 'not with silver-frame panels');
+  assert.equal(QM.coverOk(mc, { ...se3, panels: neo }), false, 'not with a SolarEdge inverter');
+  assert.equal(QM.coverOk(mc, { ...choice, panels: neo }), false, 'not on a TSUN-or-Deye choice: the cover names TSUN only');
+  assert.equal(QM.coverOk(pc, { ...tsun, panels: neo }), false, 'the super premium cover stays SolarEdge only');
 });
 
 test('emi', () => {

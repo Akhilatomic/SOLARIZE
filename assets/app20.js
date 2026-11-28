@@ -43,6 +43,7 @@ var QM = (function () {
     { k: 'solaredge', name: 'SolarEdge', sub: 'SolarEdge vs string inverter', pic: 'assets/quote/page-front-solaredge.jpg', thumb: 'assets/quote/thumb-front-solaredge.jpg', kind: 'SolarEdge', need: 'solaredge1' },
     { k: 'solaredge3', name: 'SolarEdge 3-phase', sub: '5, 8 and 10 kW three-phase', pic: 'assets/quote/page-front-solaredge-3ph.jpg', thumb: 'assets/quote/thumb-front-solaredge-3ph.jpg', kind: 'SolarEdge three-phase', need: 'solaredge3' },
     { k: 'premium', name: 'Super premium', sub: 'All-black panels + SolarEdge 3-phase', pic: 'assets/quote/page-front-premium.jpg', thumb: 'assets/quote/thumb-front-premium.jpg', kind: 'SolarEdge three-phase', need: 'premium' },
+    { k: 'micro', name: 'All-black micro', sub: 'NeoBlack panel + TSUN microinverter', pic: 'assets/quote/page-front-micro.jpg', thumb: 'assets/quote/thumb-front-micro.jpg', kind: 'TSUN microinverter', need: 'micro' },
   ];
   /* the SolarEdge cover needs a SolarEdge inverter on the quotation (owner, 2026-11-25: "SolarEdge starts with 3 kW": the SE3000H is the
      smallest, so a 2 kW quotation can never be a SolarEdge one). A cover whose need is not met is not offered and does not print. */
@@ -53,12 +54,16 @@ var QM = (function () {
   /* the super premium cover: Premier NeoBlack full-black panels with a three-phase SolarEdge inverter (owner, 2026-11-25: "solar edge 3 phase
      and premier all black panel - it is a super premium combination"; what matters is the all-black panel and module-level monitoring) */
   Q.isAllBlack = function (lines) { return ((lines && lines.panels) || []).some(function (l) { return /neo\s*black|(full|all)[- ]?black/i.test([l.name, l.title, l.details].join(' ')); }); };
+  /* the all-black micro cover: Premier NeoBlack panels with TSUN GEN3 microinverters (owner, 2026-11-28: "create a cover page for t sun micro
+     inverter and premier all black panel"). A TSUN-or-Deye choice line does not count: the cover shows and names TSUN only. */
+  Q.isTsun = function (lines) { return ((lines && lines.inverter) || []).some(function (l) { var t = [l.name, l.title, l.details].join(' '); return /\btsun\b/i.test(t) && !/deye/i.test(t); }); };
   /* the single-phase SolarEdge cover shows the single-phase Home Wave inverter; the 3-phase one the SE5K / SE8K / SE10K (owner, 2026-11-25) */
   Q.NEED = {
     solaredge: { ok: function (L) { return Q.isSolarEdge(L); }, text: 'Needs a SolarEdge inverter (3 kW and up)' },
     solaredge1: { ok: function (L) { return Q.isSolarEdge(L) && !Q.isSolarEdge3(L); }, text: 'Needs a single-phase SolarEdge inverter (3 kW and up)' },
     solaredge3: { ok: function (L) { return Q.isSolarEdge3(L); }, text: 'Needs a three-phase SolarEdge inverter (5, 8 or 10 kW)' },
     premium: { ok: function (L) { return Q.isSolarEdge3(L) && Q.isAllBlack(L); }, text: 'Needs Premier NeoBlack panels and a three-phase SolarEdge inverter' },
+    micro: { ok: function (L) { return Q.isTsun(L) && Q.isAllBlack(L); }, text: 'Needs Premier NeoBlack panels and a TSUN microinverter' },
   };
   Q.coverOk = function (cov, lines) { return !!cov && (!cov.need || (!!Q.NEED[cov.need] && Q.NEED[cov.need].ok(lines))); };
   Q.coverOf = function (doc) { var k = doc && doc.cover === true ? 'ongrid' : doc && doc.cover; return Q.COVERS.filter(function (c) { return c.k === k; })[0] || null; };
