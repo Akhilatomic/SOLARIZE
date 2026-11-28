@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- "All-black micro" quotation cover picture (assets/quote/page-front-micro.jpg, top 905 px of the A4 page; the details band is HTML from
+<!-- "All-black micro" quotation cover picture (assets/quote/page-front-micro-tsun.jpg, top 905 px of the A4 page; the details band is HTML from
      qpFront() in assets/app21.js). Owner, 2026-11-28: "create a cover page for t sun micro inverter and premier all black panel", then
      "brighter coverpage with device only showcase", "add premier neo black panel" and "inverter cut, create svg": a light page; the
      microinverter is an inline SVG drawing of the whole unit (nothing cropped), after TSUN's GEN3 4-in-1 product photo in the TSOL-MS1600
      to MX2250 datasheet (D:\GDrive\DATASHEET AND SLD\tsun\2KW.pdf): finned body, mounting bracket, AC cable, four DC inputs with MC4 leads.
      Facts are the datasheets' own; no figures beyond them, no promises.
-     Rebuild as front.html: --window-size=794,905 --force-device-scale-factor=2.0831, JPEG ~86 over assets/quote/page-front-micro.jpg. -->
+     Rebuild as front.html: --window-size=794,905 --force-device-scale-factor=2.0831, JPEG ~86 over assets/quote/page-front-micro-tsun.jpg. -->
 <html><head><meta charset="utf-8"><style>
 @font-face{font-family:P;font-weight:400;src:url(../../assets/fonts/Poppins-Regular.ttf)}
 @font-face{font-family:P;font-weight:500;src:url(../../assets/fonts/Poppins-Medium.ttf)}
@@ -26,14 +26,12 @@ h1 em{font-style:normal;color:#E2702B}
 .pnl{position:absolute;left:52px;top:282px;width:170px;height:360px;object-fit:fill;border-radius:4px;filter:drop-shadow(0 26px 30px rgba(20,22,30,.38))}
 .ptag{position:absolute;left:52px;width:170px;top:592px;text-align:center;font-size:8.2px;font-weight:600;letter-spacing:.2em;color:rgba(255,255,255,.8)}
 .ptag b{display:block;font-size:12.5px;letter-spacing:0;color:#fff;margin-top:3px}
-/* the device showcase: the SVG microinverter, whole, on a light studio card */
-.show{position:absolute;left:244px;right:52px;top:282px;height:360px;border-radius:24px;overflow:hidden;
-  background:radial-gradient(ellipse 75% 70% at 50% 42%,#FFFFFF 0%,#F1F2F5 55%,#E2E4E9 100%);border:1px solid #E3E4E8;
-  box-shadow:0 30px 60px -28px rgba(20,22,30,.35),0 2px 6px rgba(20,22,30,.06)}
-.show svg{position:absolute;inset:0;width:100%;height:100%}
-.tag{position:absolute;left:22px;top:18px;z-index:1;font-size:8.8px;font-weight:600;letter-spacing:.22em;color:#8A8D95}
+/* the SVG microinverter standing on the page, like the panels: one background, no card (owner, 2026-11-28: "single back ground-no separate background") */
+.show{position:absolute;left:244px;right:52px;top:282px;height:360px}
+.show svg{position:absolute;left:0;top:58px;width:100%;height:100%;overflow:visible}
+.tag{position:absolute;left:0;top:4px;z-index:1;font-size:8.8px;font-weight:600;letter-spacing:.22em;color:#8A8D95}
 .tag b{display:block;font-size:15px;letter-spacing:-.005em;font-weight:600;color:#1D1D1F;margin-top:4px}
-.chip{position:absolute;right:20px;top:20px;z-index:1;padding:6px 12px;border-radius:999px;background:#fff;border:1px solid #E0E1E6;
+.chip{position:absolute;right:0;top:6px;z-index:1;padding:6px 12px;border-radius:999px;background:#fff;border:1px solid #E0E1E6;
   font-size:9px;font-weight:600;letter-spacing:.14em;color:#3A3C42}
 .specs{position:absolute;left:52px;right:52px;top:672px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .sp{background:#fff;border:1px solid #E6E6EA;border-radius:16px;padding:16px 16px 15px}

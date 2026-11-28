@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- "NeoBlack + Deye micro" quotation cover picture (assets/quote/page-front-micro-deye.jpg, top 905 px of the A4 page; the details band is
+<!-- "NeoBlack + Deye micro" quotation cover picture (assets/quote/page-front-deye-micro.jpg, top 905 px of the A4 page; the details band is
      HTML from qpFront() in assets/app21.js). Owner, 2026-11-28: "similarly create cover page for deye micro inverter (svg) and neo black panel",
      then "all" to every suggested change: a more detailed drawing, the monitoring headline, max. efficiency added, the panel's front and back.
      The microinverter is an inline SVG drawing of the whole unit after the product photo in Deye's SUN-M130/160/180/200/225G4-EU-Q0-I datasheet
      (D:/GDrive/BIS AND SLD/INVERTER/DEYE MICRO): silver case, screws, bracket with hooked slots, rating label, side fins, two DC inputs per
      side, AC cable. premier-neoblack(-back).png = Premier's NeoBlack datasheet cut-outs. Facts are the datasheets' own (G4 series).
-     Rebuild as front.html: --window-size=794,905 --force-device-scale-factor=2.0831, JPEG ~86 over assets/quote/page-front-micro-deye.jpg. -->
+     Rebuild as front.html: --window-size=794,905 --force-device-scale-factor=2.0831, JPEG ~86 over assets/quote/page-front-deye-micro.jpg. -->
 <html><head><meta charset="utf-8"><style>
 @font-face{font-family:P;font-weight:400;src:url(../../assets/fonts/Poppins-Regular.ttf)}
 @font-face{font-family:P;font-weight:500;src:url(../../assets/fonts/Poppins-Medium.ttf)}
@@ -27,14 +27,12 @@ h1 em{font-style:normal;color:#1F6FB8}
 .pk b{display:block;font-size:15px;letter-spacing:-.005em;color:#1D1D1F;margin-top:4px}
 .pnl{position:absolute;top:363px;width:132px;height:279px;object-fit:fill;border-radius:3px;filter:drop-shadow(0 22px 24px rgba(20,22,30,.34))}
 .pside{position:absolute;top:620px;width:132px;text-align:center;font-size:7.8px;font-weight:600;letter-spacing:.3em;color:rgba(255,255,255,.75)}
-/* the device showcase: the SVG microinverter, whole, on a light studio card */
-.show{position:absolute;left:346px;right:52px;top:282px;height:360px;border-radius:24px;overflow:hidden;
-  background:radial-gradient(ellipse 75% 70% at 50% 46%,#FFFFFF 0%,#F1F2F5 55%,#E2E4E9 100%);border:1px solid #E3E4E8;
-  box-shadow:0 30px 60px -28px rgba(20,22,30,.35),0 2px 6px rgba(20,22,30,.06)}
-.show svg{position:absolute;inset:0;width:100%;height:100%}
-.tag{position:absolute;left:22px;top:18px;z-index:1;font-size:8.8px;font-weight:600;letter-spacing:.22em;color:#8A8D95}
+/* the SVG microinverter standing on the page, like the panels: one background, no card (owner, 2026-11-28: "single back ground-no separate background") */
+.show{position:absolute;left:346px;right:52px;top:282px;height:360px}
+.show svg{position:absolute;left:0;top:52px;width:100%;height:100%;overflow:visible}
+.tag{position:absolute;left:0;top:4px;z-index:1;font-size:8.8px;font-weight:600;letter-spacing:.22em;color:#8A8D95}
 .tag b{display:block;font-size:15px;letter-spacing:-.005em;font-weight:600;color:#1D1D1F;margin-top:4px}
-.chip{position:absolute;right:18px;top:20px;z-index:1;padding:6px 11px;border-radius:999px;background:#fff;border:1px solid #E0E1E6;
+.chip{position:absolute;right:0;top:6px;z-index:1;padding:6px 11px;border-radius:999px;background:#fff;border:1px solid #E0E1E6;
   font-size:8.6px;font-weight:600;letter-spacing:.14em;color:#3A3C42}
 .specs{position:absolute;left:52px;right:52px;top:672px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .sp{background:#fff;border:1px solid #E6E6EA;border-radius:16px;padding:16px 16px 15px}

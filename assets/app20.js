@@ -42,9 +42,9 @@ var QM = (function () {
     { k: 'hybrid', name: 'Hybrid', sub: 'Lights on in a power cut', pic: 'assets/quote/page-front-hybrid.jpg', thumb: 'assets/quote/thumb-front-hybrid.jpg', kind: 'hybrid' },
     { k: 'solaredge', name: 'SolarEdge', sub: 'SolarEdge vs string inverter', pic: 'assets/quote/page-front-solaredge.jpg', thumb: 'assets/quote/thumb-front-solaredge.jpg', kind: 'SolarEdge', need: 'solaredge1' },
     { k: 'solaredge3', name: 'SolarEdge 3-phase', sub: '5, 8 and 10 kW three-phase', pic: 'assets/quote/page-front-solaredge-3ph.jpg', thumb: 'assets/quote/thumb-front-solaredge-3ph.jpg', kind: 'SolarEdge three-phase', need: 'solaredge3' },
-    { k: 'premium', name: 'Super premium', sub: 'All-black panels + SolarEdge 3-phase', pic: 'assets/quote/page-front-premium.jpg', thumb: 'assets/quote/thumb-front-premium.jpg', kind: 'SolarEdge three-phase', need: 'premium' },
-    { k: 'micro', name: 'All-black micro', sub: 'NeoBlack panel + TSUN microinverter', pic: 'assets/quote/page-front-micro.jpg', thumb: 'assets/quote/thumb-front-micro.jpg', kind: 'TSUN microinverter', need: 'micro' },
-    { k: 'microdeye', name: 'NeoBlack + Deye micro', sub: 'NeoBlack panel + Deye microinverter', pic: 'assets/quote/page-front-micro-deye.jpg', thumb: 'assets/quote/thumb-front-micro-deye.jpg', kind: 'Deye microinverter', need: 'microdeye' },
+    { k: 'premium', name: 'Super premium', sub: 'All-black panels + SolarEdge 3-phase', pic: 'assets/quote/page-front-premium-light.jpg', thumb: 'assets/quote/thumb-front-premium-light.jpg', kind: 'SolarEdge three-phase', need: 'premium' },
+    { k: 'micro', name: 'All-black micro', sub: 'NeoBlack panel + TSUN microinverter', pic: 'assets/quote/page-front-micro-tsun.jpg', thumb: 'assets/quote/thumb-front-micro-tsun.jpg', kind: 'TSUN microinverter', need: 'micro' },
+    { k: 'microdeye', name: 'NeoBlack + Deye micro', sub: 'NeoBlack panel + Deye microinverter', pic: 'assets/quote/page-front-deye-micro.jpg', thumb: 'assets/quote/thumb-front-deye-micro.jpg', kind: 'Deye microinverter', need: 'microdeye' },
   ];
   /* the SolarEdge cover needs a SolarEdge inverter on the quotation (owner, 2026-11-25: "SolarEdge starts with 3 kW": the SE3000H is the
      smallest, so a 2 kW quotation can never be a SolarEdge one). A cover whose need is not met is not offered and does not print. */
