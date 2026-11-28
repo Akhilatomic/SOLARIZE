@@ -1063,9 +1063,9 @@ var KD = (function () {
   };
 
   /* paragraphs in Helvetica, left-aligned, block centred vertically, largest size max (10.5) -> 6 that fits the cell */
-  var formCell = function (paras, top, bottom, measure, lh, max) {
-    lh = lh || 1.2;
-    var x = FORM.x0 + FORM.pad, w = FORM.x1 - FORM.x0 - 2 * FORM.pad, room = bottom - top - 2 * FORM.pad;
+  var formCell = function (paras, top, bottom, measure, lh, max, pad) {
+    lh = lh || 1.2; pad = pad == null ? FORM.pad : pad;
+    var x = FORM.x0 + FORM.pad, w = FORM.x1 - FORM.x0 - 2 * FORM.pad, room = bottom - top - 2 * pad;
     var lines, s, bh, fit = false;
     for (s = max || FORM.max; s >= FORM.min; s -= 0.5) {
       lines = [];
@@ -1082,6 +1082,7 @@ var KD = (function () {
   /* Row 1 of an `even` form: "Label: value" lines, the consumer number bold and R1.big larger (owner, 2026-11-21:
      "give importance to consumer number"). Each line = parts [text, font, size] drawn one after another. */
   var R1 = { big: 1.5, lh: 1.12 };
+  var R1N = { lh: 1.1, pad: 1.5 };
   var r1Lines = function (docKey, v, s, w, measure) {
     var out = [];
     FORM.r1.forEach(function (k) {
@@ -1130,7 +1131,10 @@ var KD = (function () {
         ? FORM.r1.map(function (k) { return (labelOf(docKey, k) + ': ' + clean(v[k])).trim(); })
         : (clean(v[row[0]]) ? [clean(v[row[0]])] : []);
       if (!paras.length) return;
-      var c = formCell(paras, row[1], row[2], measure, row[0] === 'r1' ? 1.1 : 1.2, even && even.s);
+      /* row 1 of Annexure 2 / 3 (78 pt tall, eight lines): tighter lines and top/bottom margin so the customer details
+         print larger (owner, 2026-11-28: "make the customer details slightly larger"; was 7.5 pt) */
+      var c = row[0] === 'r1' ? formCell(paras, row[1], row[2], measure, R1N.lh, null, R1N.pad)
+        : formCell(paras, row[1], row[2], measure, 1.2, even && even.s);
       ops = ops.concat(c.ops);
       ok = ok && c.fit;
       size = Math.min(size, c.s);
