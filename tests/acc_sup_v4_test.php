@@ -42,5 +42,15 @@ $n0 = (int)$v('SELECT COUNT(*) FROM acc_materials');
 acc_sup_v4($db);
 chk((int)$v("SELECT COUNT(*) FROM acc_materials WHERE grp='Battery'") === 3 && (int)$v("SELECT COUNT(*) FROM acc_materials WHERE grp='Batteries'") === 0 && json_decode($v("SELECT v FROM settings WHERE k='acc_groups'"), true) === ['Battery', 'Tools'], 'an existing Battery category is reused, none added');
 chk((int)$v('SELECT COUNT(*) FROM acc_materials') === $n0 + 13 && (float)$v("SELECT rate FROM acc_materials WHERE lower(name)='deye hybrid inverter 3 kw, single phase, 24 v'") == 69204, 'an item already there by name gets the new price, not added twice');
+/* v5: the supplier Rensolve */
+$db = fresh(); acc_sup_v4($db);
+$db->exec("UPDATE acc_materials SET rate=1 WHERE name='Deye SE-F12 LV lithium battery, 230 Ah'");
+$db->exec("UPDATE acc_materials SET name='my renamed deye' WHERE name='Deye hybrid inverter 15 kW, three phase, 48 V'");
+$n0 = (int)$v('SELECT COUNT(*) FROM acc_materials');
+acc_sup_v5($db);
+$sid = (int)$v("SELECT id FROM acc_suppliers WHERE name='Rensolve'");
+chk($sid > 0 && (int)$v('SELECT COUNT(*) FROM acc_offers WHERE supplier_id=?', [$sid]) === 13 && (int)$v('SELECT COUNT(*) FROM acc_materials') === $n0, 'Rensolve added; 13 Deye items get its price (the renamed one skipped), nothing new added');
+chk((int)$v("SELECT COUNT(*) FROM acc_materials m JOIN acc_offers o ON o.id=m.offer_id WHERE o.supplier_id=? AND o.rate=m.rate AND o.brand='Deye'", [$sid]) === 13, 'each dealer price is linked to the Rensolve price');
+chk((float)$v("SELECT rate FROM acc_materials WHERE name='Deye SE-F12 LV lithium battery, 230 Ah'") == 170017, 'the list price is back on a changed item');
 echo "\n$pass passed, $fail failed\n";
 exit($fail ? 1 : 0);

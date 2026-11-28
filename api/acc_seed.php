@@ -294,6 +294,16 @@ function acc_sup_v4($db) {
   if (!$bat) { $bat = 'Batteries'; $own[] = $bat; $db->prepare("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_groups',?)")->execute([json_encode($own)]); }
   acc_sup_bills($db, 'acc_sup_v4', acc_sup_v4_data($bat));
 }
+/* The owner named the supplier of the Deye list afterwards (2026-11-28): Rensolve, distributor. Once (flag acc_sup_v5): Rensolve is added
+   and each Deye item still on the list (by name) gets Rensolve's price as a supplier price, which its dealer price follows; nothing new
+   is added, and a price the owner changed since v4 is replaced by the list price. */
+function acc_sup_v5_data() {
+  $d = acc_sup_v4_data()[0];
+  return [['supplier' => ['Rensolve', 'Rensolve', '', '', '', '', 'Distributor (Deye inverters and batteries)'],
+    'paper' => ['WhatsApp price list', '2026-11-28'],
+    'items' => array_map(function ($i) { $i[4] = 0; return $i; }, $d['items'])]];
+}
+function acc_sup_v5($db) { acc_sup_bills($db, 'acc_sup_v5', acc_sup_v5_data()); }
 /* Loads supplier bills once (flag $flag): the supplier is found by name or added; a listed item is found by name in any category and
    skipped when it was renamed or deleted; a new item is added unless one of that name is there. Each item gets the bill's price (one per
    item + supplier + brand, so a price already there is replaced) and its dealer price follows it. A list with supplier null only sets
