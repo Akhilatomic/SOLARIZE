@@ -268,9 +268,36 @@ function acc_sup_v3_data() {
   ];
 }
 function acc_sup_v3($db) { acc_sup_bills($db, 'acc_sup_v3', acc_sup_v3_data()); }
+/* Deye hybrid inverters and lithium batteries: price list the owner got on WhatsApp, sent 2026-11-28 ("+ means GST": prices are before
+   GST). No supplier was named, so these are plain dealer prices. GST: solar inverters 5 % (as the other inverters), lithium batteries 18 %.
+   items: [category, name, unit, GST %, new item?, brand, price, the line as sent]; the battery category is set in acc_sup_v4. */
+function acc_sup_v4_data($bat = 'Batteries') {
+  $I = 'Inverter & optimizers'; $items = [];
+  foreach ([['3 kW, single phase, 24 V', 69204, '3KW 1PH 24V'], ['3 kW, single phase, 48 V', 69505, '3KW 1PH 48V'], ['3.6 kW, single phase, 48 V', 76841, '3.6KW 1PH 48V'],
+            ['5 kW, single phase, 48 V', 81975, '5KW 1PH 48V'], ['6 kW, single phase, 48 V', 84910, '6KW 1PH 48V'], ['8 kW, single phase, 48 V', 119387, '8KW 1PH 48V'],
+            ['5 kW, three phase, 48 V', 123055, '5KW 3PH 48V'], ['8 kW, three phase, 48 V', 156065, '8KW 3PH 48V'], ['10 kW, three phase, 48 V', 161933, '10KW 3PH 48V'],
+            ['12 kW, three phase, 48 V', 167069, '12KW 3PH 48V'], ['15 kW, three phase, 48 V', 212550, '15KW 3PH 48V']] as [$n, $r, $l])
+    $items[] = [$I, "Deye hybrid inverter $n", 'Nos', 5, 1, 'Deye', $r, "DEYE HYBRID $l INVERTER"];
+  $items[] = [$bat, 'Deye SE-F5 Plus LV lithium battery, 100 Ah (rack/wall)', 'Nos', 18, 1, 'Deye', 87245, 'BATTERY SE-F5 PLUS (RACK/WALL) 100AH'];
+  $items[] = [$bat, 'Deye SE-F12 LV lithium battery, 230 Ah', 'Nos', 18, 1, 'Deye', 170017, 'BATTERY LV SE-F12 230AH'];
+  $items[] = [$bat, 'Deye SE-F16 LV lithium battery, 314 Ah', 'Nos', 18, 1, 'Deye', 201336, 'BATTERY LV SE- F16 314 AH'];
+  return [['supplier' => null, 'paper' => ['', '2026-11-28'], 'items' => $items]];
+}
+/* Once (flag acc_sup_v4). Batteries go in a category the owner already made whose name starts with "batter" (any case), else a new
+   category "Batteries" (added to settings acc_groups so it shows as an added category). */
+function acc_sup_v4($db) {
+  if ($db->query("SELECT 1 FROM settings WHERE k='acc_sup_v4'")->fetch()) return;
+  $own = json_decode((string)($db->query("SELECT v FROM settings WHERE k='acc_groups'")->fetchColumn() ?: ''), true);
+  $own = is_array($own) ? array_values(array_map('strval', $own)) : [];
+  $bat = '';
+  foreach (array_merge($own, $db->query("SELECT DISTINCT grp FROM acc_materials WHERE grp IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN)) as $g) if (!$bat && stripos(trim((string)$g), 'batter') === 0) $bat = (string)$g;
+  if (!$bat) { $bat = 'Batteries'; $own[] = $bat; $db->prepare("INSERT OR REPLACE INTO settings(k,v) VALUES('acc_groups',?)")->execute([json_encode($own)]); }
+  acc_sup_bills($db, 'acc_sup_v4', acc_sup_v4_data($bat));
+}
 /* Loads supplier bills once (flag $flag): the supplier is found by name or added; a listed item is found by name in any category and
    skipped when it was renamed or deleted; a new item is added unless one of that name is there. Each item gets the bill's price (one per
-   item + supplier + brand, so a price already there is replaced) and its dealer price follows it. */
+   item + supplier + brand, so a price already there is replaced) and its dealer price follows it. A list with supplier null only sets
+   the dealer price (not linked to a supplier price). */
 function acc_sup_bills($db, $flag, $bills) {
   $chk = $db->prepare('SELECT 1 FROM settings WHERE k=?'); $chk->execute([$flag]);
   if ($chk->fetch()) return;
@@ -278,10 +305,13 @@ function acc_sup_bills($db, $flag, $bills) {
   $db->exec('BEGIN');
   try {
     foreach ($bills as $d) {
-      [$name, $tag, $phone, $email, $gstin, $addr, $note] = $d['supplier'];
-      $r = $one('SELECT id FROM acc_suppliers WHERE lower(name)=lower(?)', [$name]);
-      if (!$r) { $db->prepare('INSERT INTO acc_suppliers(name,tag,phone,email,gstin,address,note) VALUES(?,?,?,?,?,?,?)')->execute([$name, $tag, $phone, $email, $gstin, $addr, $note]); $sid = (int)$db->lastInsertId(); }
-      else $sid = (int)$r['id'];
+      $sid = 0;
+      if ($d['supplier']) {
+        [$name, $tag, $phone, $email, $gstin, $addr, $note] = $d['supplier'];
+        $r = $one('SELECT id FROM acc_suppliers WHERE lower(name)=lower(?)', [$name]);
+        if (!$r) { $db->prepare('INSERT INTO acc_suppliers(name,tag,phone,email,gstin,address,note) VALUES(?,?,?,?,?,?,?)')->execute([$name, $tag, $phone, $email, $gstin, $addr, $note]); $sid = (int)$db->lastInsertId(); }
+        else $sid = (int)$r['id'];
+      }
       [$ref, $date] = $d['paper'];
       $sort = (int)$db->query('SELECT COALESCE(MAX(sort),0) FROM acc_materials')->fetchColumn();
       foreach ($d['items'] as [$grp, $iname, $unit, $gst, $new, $brand, $rate, $line]) {
@@ -292,6 +322,7 @@ function acc_sup_bills($db, $flag, $bills) {
           $m = ['id' => (int)$db->lastInsertId()];
         }
         $mid = (int)$m['id'];
+        if (!$sid) { $db->prepare('UPDATE acc_materials SET rate=?, offer_id=NULL, updated=CURRENT_TIMESTAMP WHERE id=?')->execute([$rate, $mid]); continue; } /* no supplier: a plain dealer price */
         $o = $one('SELECT id FROM acc_offers WHERE material_id=? AND supplier_id=? AND lower(brand)=lower(?)', [$mid, $sid, $brand]);
         if ($o) { $oid = (int)$o['id']; $db->prepare('UPDATE acc_offers SET rate=?, ref=?, on_date=?, note=?, updated=CURRENT_TIMESTAMP WHERE id=?')->execute([$rate, $ref, $date, 'On the bill: ' . $line, $oid]); }
         else { $db->prepare('INSERT INTO acc_offers(material_id,supplier_id,brand,rate,ref,on_date,note) VALUES(?,?,?,?,?,?,?)')->execute([$mid, $sid, $brand, $rate, $ref, $date, 'On the bill: ' . $line]); $oid = (int)$db->lastInsertId(); }
