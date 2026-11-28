@@ -138,7 +138,7 @@ test('StormShield page: only with a hot-dip (HDG) structure, never with a welded
 });
 
 test('cover pages: the list, and the cover a quotation prints with', () => {
-  assert.deepEqual(QM.COVERS.map(c => c.k), ['ongrid', 'hybrid', 'solaredge', 'solaredge3', 'premium', 'micro']);
+  assert.deepEqual(QM.COVERS.map(c => c.k), ['ongrid', 'hybrid', 'solaredge', 'solaredge3', 'premium', 'micro', 'microdeye']);
   assert.ok(QM.COVERS.every(c => /^assets\/quote\/page-front[\w-]*\.jpg$/.test(c.pic) && /^assets\/quote\/thumb-front[\w-]*\.jpg$/.test(c.thumb) && c.name && c.sub && c.kind));
   assert.ok(QM.COVERS.every(c => [c.pic, c.thumb].every(f => require('fs').existsSync(require('path').join(__dirname, '..', f)))), 'every cover picture and thumbnail is in the repo');
   assert.equal(QM.coverOf({ cover: true }).k, 'ongrid', 'saved with the first tick box: the on-grid cover');
@@ -171,6 +171,17 @@ test('cover pages: the list, and the cover a quotation prints with', () => {
   assert.equal(QM.coverOk(mc, { ...se3, panels: neo }), false, 'not with a SolarEdge inverter');
   assert.equal(QM.coverOk(mc, { ...choice, panels: neo }), false, 'not on a TSUN-or-Deye choice: the cover names TSUN only');
   assert.equal(QM.coverOk(pc, { ...tsun, panels: neo }), false, 'the super premium cover stays SolarEdge only');
+  const dc = QM.coverOf({ cover: 'microdeye' });
+  const deye2 = { inverter: [{ name: 'Microinverter', title: 'Deye Microinverter', details: 'Deye SUN-M200G4, 2 kW, 4 MPP trackers (one per panel), IP67.' }] };
+  const deye5 = { inverter: [{ name: 'Micro inverters', title: 'Deye Micro Inverter', details: 'Deye G4 micro inverters in a 2 kW + 2 kW + 1 kW split' }] };
+  const deyeStr = { inverter: [{ name: 'On-grid inverter', title: 'Deye Inverter', details: 'Deye SUN-5K-G05 three-phase string inverter' }] };
+  assert.equal(dc.kind, 'Deye microinverter');
+  assert.equal(QM.coverOk(dc, { ...deye2, panels: neo }), true, 'NeoBlack panels + Deye 2 kW micro: the Deye micro cover');
+  assert.equal(QM.coverOk(dc, { ...deye5, panels: neo }), true, 'and with the Deye 2+2+1 three-phase micros');
+  assert.equal(QM.coverOk(dc, { ...deye2, panels: silver }), false, 'not with silver-frame panels');
+  assert.equal(QM.coverOk(dc, { ...deyeStr, panels: neo }), false, 'not with a Deye string inverter');
+  assert.equal(QM.coverOk(dc, { ...choice, panels: neo }), false, 'not on a TSUN-or-Deye choice');
+  assert.equal(QM.coverOk(dc, { ...tsun, panels: neo }), false); assert.equal(QM.coverOk(mc, { ...deye2, panels: neo }), false, 'the TSUN cover is not for Deye');
 });
 
 test('emi', () => {

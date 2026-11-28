@@ -1,0 +1,93 @@
+<!doctype html>
+<!-- "NeoBlack + Deye micro" quotation cover picture (assets/quote/page-front-micro-deye.jpg, top 905 px of the A4 page; the details band is
+     HTML from qpFront() in assets/app21.js). Owner, 2026-11-28: "similarly create cover page for deye micro inverter (svg) and neo black panel",
+     then "all" to every suggested change: a more detailed drawing, the monitoring headline, max. efficiency added, the panel's front and back.
+     The microinverter is an inline SVG drawing of the whole unit after the product photo in Deye's SUN-M130/160/180/200/225G4-EU-Q0-I datasheet
+     (D:/GDrive/BIS AND SLD/INVERTER/DEYE MICRO): silver case, screws, bracket with hooked slots, rating label, side fins, two DC inputs per
+     side, AC cable. premier-neoblack(-back).png = Premier's NeoBlack datasheet cut-outs. Facts are the datasheets' own (G4 series).
+     Rebuild as front.html: --window-size=794,905 --force-device-scale-factor=2.0831, JPEG ~86 over assets/quote/page-front-micro-deye.jpg. -->
+<html><head><meta charset="utf-8"><style>
+@font-face{font-family:P;font-weight:400;src:url(../../assets/fonts/Poppins-Regular.ttf)}
+@font-face{font-family:P;font-weight:500;src:url(../../assets/fonts/Poppins-Medium.ttf)}
+@font-face{font-family:P;font-weight:600;src:url(../../assets/fonts/Poppins-SemiBold.ttf)}
+@font-face{font-family:P;font-weight:700;src:url(../../assets/fonts/Poppins-Bold.ttf)}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:794px;height:905px;overflow:hidden;background:#fff}
+.pg{position:relative;width:794px;height:905px;overflow:hidden;font-family:P,sans-serif;color:#1D1D1F;
+  background:radial-gradient(ellipse 80% 50% at 50% 0%,#FFFFFF 0%,#F7F7F9 60%,#EFEFF2 100%)}
+.hd{position:absolute;left:52px;top:58px;width:560px}
+.k{font-size:9.6px;font-weight:600;letter-spacing:.3em;color:#1F6FB8}
+.k:after{content:"";display:block;width:46px;height:2px;border-radius:1px;background:#1F6FB8;margin-top:10px}
+h1{font-weight:600;font-size:42px;line-height:50px;margin-top:18px;letter-spacing:-.02em}
+h1 em{font-style:normal;color:#1F6FB8}
+.sub{font-size:11.8px;line-height:19px;margin-top:14px;width:540px;color:#5B5E66}
+.logo{position:absolute;right:46px;top:46px;width:74px;height:74px}
+/* Premier NeoBlack, front and back, standing on the page */
+.pk{position:absolute;left:52px;top:286px;font-size:8.8px;font-weight:600;letter-spacing:.22em;color:#8A8D95}
+.pk b{display:block;font-size:15px;letter-spacing:-.005em;color:#1D1D1F;margin-top:4px}
+.pnl{position:absolute;top:363px;width:132px;height:279px;object-fit:fill;border-radius:3px;filter:drop-shadow(0 22px 24px rgba(20,22,30,.34))}
+.pside{position:absolute;top:620px;width:132px;text-align:center;font-size:7.8px;font-weight:600;letter-spacing:.3em;color:rgba(255,255,255,.75)}
+/* the device showcase: the SVG microinverter, whole, on a light studio card */
+.show{position:absolute;left:346px;right:52px;top:282px;height:360px;border-radius:24px;overflow:hidden;
+  background:radial-gradient(ellipse 75% 70% at 50% 46%,#FFFFFF 0%,#F1F2F5 55%,#E2E4E9 100%);border:1px solid #E3E4E8;
+  box-shadow:0 30px 60px -28px rgba(20,22,30,.35),0 2px 6px rgba(20,22,30,.06)}
+.show svg{position:absolute;inset:0;width:100%;height:100%}
+.tag{position:absolute;left:22px;top:18px;z-index:1;font-size:8.8px;font-weight:600;letter-spacing:.22em;color:#8A8D95}
+.tag b{display:block;font-size:15px;letter-spacing:-.005em;font-weight:600;color:#1D1D1F;margin-top:4px}
+.chip{position:absolute;right:18px;top:20px;z-index:1;padding:6px 11px;border-radius:999px;background:#fff;border:1px solid #E0E1E6;
+  font-size:8.6px;font-weight:600;letter-spacing:.14em;color:#3A3C42}
+.specs{position:absolute;left:52px;right:52px;top:672px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.sp{background:#fff;border:1px solid #E6E6EA;border-radius:16px;padding:16px 16px 15px}
+.sp b{display:block;height:26px;font-weight:600;font-size:22px;line-height:26px;letter-spacing:-.02em}
+.sp b small{font-size:12px;font-weight:600;margin-left:2px}
+.sp span{display:block;font-size:9.6px;line-height:14px;margin-top:6px;color:#5B5E66}
+.foot{position:absolute;left:52px;right:52px;top:806px;font-size:10.6px;color:#5B5E66}
+.foot strong{font-weight:600;color:#1D1D1F}
+</style></head><body><div class="pg">
+<div class="hd"><div class="k">DEYE MICROINVERTER + PREMIER NEOBLACK</div><h1>Every panel<br><em>monitored.</em></h1>
+<p class="sub">Premier NeoBlack all-black panels with Deye G4 microinverters: every panel has its own MPP tracker and Wi-Fi monitoring, with rapid shutdown and max. 60 V DC.</p></div>
+<img class="logo" src="../../assets/quote/jasper-logo.png" alt="">
+<div class="pk">PREMIER NEOBLACK<b>All-black panel</b></div>
+<img class="pnl" style="left:52px" src="premier-neoblack.png" alt=""><img class="pnl" style="left:196px" src="premier-neoblack-back.png" alt="">
+<div class="pside" style="left:52px">FRONT</div><div class="pside" style="left:196px">BACK</div>
+<div class="show"><svg viewBox="0 0 396 360" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="bd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EDEFF2"/><stop offset=".55" stop-color="#D9DCE0"/><stop offset="1" stop-color="#C4C7CD"/></linearGradient>
+<linearGradient id="br" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D6D8DC"/><stop offset="1" stop-color="#ABAEB5"/></linearGradient>
+<radialGradient id="sh" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#14161C" stop-opacity=".30"/><stop offset="1" stop-color="#14161C" stop-opacity="0"/></radialGradient>
+</defs>
+<ellipse cx="198" cy="300" rx="168" ry="14" fill="url(#sh)"/>
+<!-- mounting bracket: wide plate, two hooked slots, centre window -->
+<path d="M126 134 V102 Q126 94 134 94 H262 Q270 94 270 102 V134 Z" fill="url(#br)"/>
+<path d="M140 104 h9 v12 h-4 v-7 h-5z M256 104 h-9 v12 h4 v-7 h5z" fill="#F0F1F3"/>
+<rect x="168" y="102" width="60" height="17" rx="3.5" fill="#F0F1F3"/>
+<!-- side heat-sink fins -->
+<rect x="87" y="142" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="148.5" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="155" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="161.5" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="168" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="174.5" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="181" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="187.5" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="194" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="200.5" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="207" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="213.5" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="220" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="226.5" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="233" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="239.5" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="246" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="252.5" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="259" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/><rect x="87" y="265.5" width="222" height="2.6" rx="1.1" fill="#C6C9CF"/>
+<!-- AC cable: out of the lower left side, down to its connector -->
+<path d="M98 266 C 70 270, 52 286, 40 296" stroke="#1C1D21" stroke-width="4.2" fill="none" stroke-linecap="round"/>
+<g transform="translate(14 288) rotate(-12)"><rect width="30" height="18" rx="4" fill="#17181C"/><rect x="-8" y="4" width="10" height="10" rx="2.5" fill="#24262B"/></g>
+<!-- two DC inputs per side: four leads, MC4 connectors -->
+<path d="M96 150 H50" stroke="#1C1D21" stroke-width="3.2"/><g transform="translate(22 145.2)"><rect width="28" height="9.6" rx="3" fill="#1A1B1F"/><rect x="0" y="1.4" width="8" height="6.8" rx="2" fill="#2E3036"/><rect x="10" y="2.4" width="14" height="1.1" fill="#3A3C43"/><rect x="10" y="6.1" width="14" height="1.1" fill="#3A3C43"/></g><path d="M300 150 H346" stroke="#1C1D21" stroke-width="3.2"/><g transform="translate(346 145.2)"><rect width="28" height="9.6" rx="3" fill="#1A1B1F"/><rect x="20" y="1.4" width="8" height="6.8" rx="2" fill="#2E3036"/><rect x="4" y="2.4" width="14" height="1.1" fill="#3A3C43"/><rect x="4" y="6.1" width="14" height="1.1" fill="#3A3C43"/></g><path d="M96 165 H62" stroke="#1C1D21" stroke-width="3.2"/><g transform="translate(34 160.2)"><rect width="28" height="9.6" rx="3" fill="#1A1B1F"/><rect x="0" y="1.4" width="8" height="6.8" rx="2" fill="#2E3036"/><rect x="10" y="2.4" width="14" height="1.1" fill="#3A3C43"/><rect x="10" y="6.1" width="14" height="1.1" fill="#3A3C43"/></g><path d="M300 165 H334" stroke="#1C1D21" stroke-width="3.2"/><g transform="translate(334 160.2)"><rect width="28" height="9.6" rx="3" fill="#1A1B1F"/><rect x="20" y="1.4" width="8" height="6.8" rx="2" fill="#2E3036"/><rect x="4" y="2.4" width="14" height="1.1" fill="#3A3C43"/><rect x="4" y="6.1" width="14" height="1.1" fill="#3A3C43"/></g><path d="M96 238 H50" stroke="#1C1D21" stroke-width="3.2"/><g transform="translate(22 233.2)"><rect width="28" height="9.6" rx="3" fill="#1A1B1F"/><rect x="0" y="1.4" width="8" height="6.8" rx="2" fill="#2E3036"/><rect x="10" y="2.4" width="14" height="1.1" fill="#3A3C43"/><rect x="10" y="6.1" width="14" height="1.1" fill="#3A3C43"/></g><path d="M300 238 H346" stroke="#1C1D21" stroke-width="3.2"/><g transform="translate(346 233.2)"><rect width="28" height="9.6" rx="3" fill="#1A1B1F"/><rect x="20" y="1.4" width="8" height="6.8" rx="2" fill="#2E3036"/><rect x="4" y="2.4" width="14" height="1.1" fill="#3A3C43"/><rect x="4" y="6.1" width="14" height="1.1" fill="#3A3C43"/></g><path d="M96 253 H62" stroke="#1C1D21" stroke-width="3.2"/><g transform="translate(34 248.2)"><rect width="28" height="9.6" rx="3" fill="#1A1B1F"/><rect x="0" y="1.4" width="8" height="6.8" rx="2" fill="#2E3036"/><rect x="10" y="2.4" width="14" height="1.1" fill="#3A3C43"/><rect x="10" y="6.1" width="14" height="1.1" fill="#3A3C43"/></g><path d="M300 253 H334" stroke="#1C1D21" stroke-width="3.2"/><g transform="translate(334 248.2)"><rect width="28" height="9.6" rx="3" fill="#1A1B1F"/><rect x="20" y="1.4" width="8" height="6.8" rx="2" fill="#2E3036"/><rect x="4" y="2.4" width="14" height="1.1" fill="#3A3C43"/><rect x="4" y="6.1" width="14" height="1.1" fill="#3A3C43"/></g><rect x="88" y="145" width="11" height="10" rx="2.5" fill="#26272C"/><rect x="297" y="145" width="11" height="10" rx="2.5" fill="#26272C"/><rect x="88" y="160" width="11" height="10" rx="2.5" fill="#26272C"/><rect x="297" y="160" width="11" height="10" rx="2.5" fill="#26272C"/><rect x="88" y="233" width="11" height="10" rx="2.5" fill="#26272C"/><rect x="297" y="233" width="11" height="10" rx="2.5" fill="#26272C"/><rect x="88" y="248" width="11" height="10" rx="2.5" fill="#26272C"/><rect x="297" y="248" width="11" height="10" rx="2.5" fill="#26272C"/>
+<!-- case -->
+<rect x="96" y="132" width="204" height="146" rx="5" fill="url(#bd)"/>
+<rect x="96" y="132" width="204" height="146" rx="5" fill="none" stroke="#A5A8AF" stroke-width="1"/>
+<rect x="100" y="134" width="196" height="2.2" rx="1.1" fill="#fff" opacity=".85"/>
+<circle cx="103" cy="139" r="2.5" fill="#B4B7BE"/><path d="M101.6 139 h2.8 M103 137.6 v2.8" stroke="#878A92" stroke-width=".7"/><circle cx="198" cy="139" r="2.5" fill="#B4B7BE"/><path d="M196.6 139 h2.8 M198 137.6 v2.8" stroke="#878A92" stroke-width=".7"/><circle cx="293" cy="139" r="2.5" fill="#B4B7BE"/><path d="M291.6 139 h2.8 M293 137.6 v2.8" stroke="#878A92" stroke-width=".7"/><circle cx="103" cy="271" r="2.5" fill="#B4B7BE"/><path d="M101.6 271 h2.8 M103 269.6 v2.8" stroke="#878A92" stroke-width=".7"/><circle cx="198" cy="271" r="2.5" fill="#B4B7BE"/><path d="M196.6 271 h2.8 M198 269.6 v2.8" stroke="#878A92" stroke-width=".7"/><circle cx="293" cy="271" r="2.5" fill="#B4B7BE"/><path d="M291.6 271 h2.8 M293 269.6 v2.8" stroke="#878A92" stroke-width=".7"/><circle cx="103" cy="205" r="2.5" fill="#B4B7BE"/><path d="M101.6 205 h2.8 M103 203.6 v2.8" stroke="#878A92" stroke-width=".7"/><circle cx="293" cy="205" r="2.5" fill="#B4B7BE"/><path d="M291.6 205 h2.8 M293 203.6 v2.8" stroke="#878A92" stroke-width=".7"/>
+<!-- rating label: Deye logo, title, ratings, warnings -->
+<rect x="124" y="156" width="148" height="96" rx="4" fill="#FFFFFF" stroke="#D6D8DD" stroke-width=".7"/>
+<text x="198" y="169" text-anchor="middle" font-family="P,sans-serif" font-weight="700" font-size="9.6" fill="#1F6FB8">Deye</text>
+<rect x="185.8" y="161" width="2.8" height="2.8" rx=".5" fill="#E2312F"/>
+<text x="131" y="181" font-family="P,sans-serif" font-weight="600" font-size="5.2" fill="#2B2D33">Utility-Interactive Inverter</text>
+<text x="204" y="181" font-family="P,sans-serif" font-weight="600" font-size="4.6" fill="#2B2D33">Type: SUN-M G4</text>
+<text x="204" y="189" font-family="P,sans-serif" font-weight="500" font-size="4.2" fill="#5E626B">Serial Number:</text>
+<rect x="131" y="187" width="50" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="186" y="187" width="10" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="131" y="191.6" width="46" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="186" y="191.6" width="10" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="131" y="196.2" width="52" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="186" y="196.2" width="10" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="131" y="200.8" width="40" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="186" y="200.8" width="10" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="131" y="205.4" width="48" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="186" y="205.4" width="10" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="131" y="210" width="44" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="186" y="210" width="10" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="131" y="214.6" width="50" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="186" y="214.6" width="10" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="131" y="219.2" width="38" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="186" y="219.2" width="10" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="131" y="223.8" width="46" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="186" y="223.8" width="10" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="131" y="228.4" width="42" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="186" y="228.4" width="10" height="1.4" rx=".7" fill="#9EA2AA"/><rect x="204" y="200" width="58" height="1.2" rx=".6" fill="#B3B6BD"/><rect x="204" y="204.4" width="50" height="1.2" rx=".6" fill="#B3B6BD"/><rect x="204" y="208.8" width="42" height="1.2" rx=".6" fill="#B3B6BD"/><rect x="204" y="213.2" width="58" height="1.2" rx=".6" fill="#B3B6BD"/><rect x="204" y="217.6" width="50" height="1.2" rx=".6" fill="#B3B6BD"/><rect x="204" y="222" width="42" height="1.2" rx=".6" fill="#B3B6BD"/><rect x="204" y="226.4" width="58" height="1.2" rx=".6" fill="#B3B6BD"/><rect x="204" y="230.8" width="50" height="1.2" rx=".6" fill="#B3B6BD"/><path d="M132 245 l4 -7 l4 7z" fill="none" stroke="#5E626B" stroke-width=".9"/><path d="M142 245 l4 -7 l4 7z" fill="none" stroke="#5E626B" stroke-width=".9"/><path d="M152 245 l4 -7 l4 7z" fill="none" stroke="#5E626B" stroke-width=".9"/>
+<text x="164" y="245.4" font-family="P,sans-serif" font-weight="600" font-size="6.2" fill="#5E626B">CE</text>
+</svg><div class="tag">DEYE G4 SERIES<b>Microinverter</b></div><div class="chip">IP67 · WI-FI</div></div>
+<div class="specs">
+  <div class="sp"><b>96.5<small>%</small></b><span>Max. efficiency</span></div>
+  <div class="sp"><b>1<small>per panel</small></b><span>Own MPP tracker, module-level monitoring</span></div>
+  <div class="sp"><b>60<small>V</small></b><span>Max. DC input voltage, with rapid shutdown</span></div>
+  <div class="sp"><b>10<small>years</small></b><span>Standard Deye warranty</span></div>
+</div>
+<div class="foot"><strong>Premier NeoBlack:</strong> a uniform full-black look, TOPCon bifacial dual glass, 600 to 630 W.</div>
+</div></body></html>
